@@ -15,19 +15,14 @@ services:
   web:
     build: .
     container_name: lineops-app
-    command: gunicorn config.wsgi:application --bind 0.0.0:8000
+    command: python -m gunicorn config.wsgi:application --bind 0.0.0.0:8000
     volumes:
       - .:/app
     ports:
       - "8000:8000"
     depends_on:
       - db  
-    environment:
-        - DEBUG="True"   
-        - DB_HOST=db
-        - DB_PORT=5432
-        - DB_NAME=lineops
-        - DB_USER=lineops
-        - DB_PASSWORD=lineops
+    env_file:
+      - .env.dev
 volumes:
   postgres_data:
