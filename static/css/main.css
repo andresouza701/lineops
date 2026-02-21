@@ -20,6 +20,42 @@ body {
   color: inherit;
 }
 
+.site-header {
+  padding: 1rem 0;
+}
+
+.site-header nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.site-header .brand {
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #38bdf8;
+}
+
+.nav-links {
+  display: flex;
+  gap: 1rem;
+}
+
+.nav-links a {
+  color: #94a3b8;
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.site-footer {
+  margin-top: 4rem;
+  padding: 2rem 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
 header {
   padding: 1.5rem 0;
 }
