@@ -4,19 +4,31 @@ from django.utils import timezone
 from allocations.models import LineAllocation
 from telecom.models import PhoneLine
 from employees.models import Employee
-from core.exceptions.domain_exceptions import BusinessLogicError
-from allocations.models import LineAllocation
+from core.exceptions.domain_exceptions import BusinessRuleException
+
 
 class AllocationService:
     @staticmethod
     @transaction.atomic
     def allocate_line(employee: Employee, phone_line: PhoneLine, allocated_by):
+
+        # Lock no funcionario para evitar race conditions na alocação de linhas
+        employee = Employee.objects.select_for_update().get(pk=employee.pk)
+
+        # Lock na linha para evitar alocações concorrentes
+        phone_line = PhoneLine.objects.select_for_update().get(pk=phone_line.pk)
+
         """Regra de alocação maximo 2 linhas ativas por funcionário"""
         active_allocation = LineAllocation.objects.filter(
             employee=employee, is_active=True).count()
-        if active_allocation >=2:
-            raise BusinessLogicError(
+        if active_allocation >= 2:
+            raise BusinessRuleException(
                 f"O funcionário {employee.full_name} já possui 2 linhas alocadas ativas."
+            )
+
+        if LineAllocation.objects.filter(phone_line=phone_line, is_active=True).exists():
+            raise BusinessRuleException(
+                f"A linha {phone_line.phone_number} já está alocada."
             )
 
         allocation = LineAllocation.objects.create(
@@ -25,12 +37,12 @@ class AllocationService:
             allocated_by=allocated_by,
             is_active=True,
         )
-        
+
         phone_line.status = PhoneLine.Status.ALLOCATED
         phone_line.save(update_fields=['status'])
 
         return allocation
-    
+
     @staticmethod
     @transaction.atomic
     def release_line(allocation: LineAllocation, released_by):
@@ -45,4 +57,3 @@ class AllocationService:
         phone_line.save(update_fields=['status'])
 
         return allocation
-    
