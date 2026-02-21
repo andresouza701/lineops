@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:latest
+    container_name: lineops-db
+    restart: always
+    environment:
+      POSTGRES_USER: lineops
+      POSTGRES_PASSWORD: lineops
+      POSTGRES_DB: lineops
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+  web:
+    build: .
+    container_name: lineops-app
+    command: gunicorn config.wsgi:application --bind 0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db  
+    environment:
+        - DEBUG="True"   
+        - DB_HOST=db
+        - DB_PORT=5432
+        - DB_NAME=lineops
+        - DB_USER=lineops
+        - DB_PASSWORD=lineops
+volumes:
+  postgres_data:

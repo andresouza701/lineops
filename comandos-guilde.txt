@@ -1,0 +1,15 @@
+pip install --upgrade pip
+
+#INICIAR PROJETO ROOT
+django-admin startproject config .
+#CRIAR APPS
+python manage.py startapp <NOME-APP>
+#RODAR APOS MODIFICACOES
+python manage.py migrate
+#INICIAR APP
+python manage.py runserver
+
+#superuser django
+user: admin3913
+senha:lineops3913
+Email address: admin3913@globaltec.com.br

@@ -1,0 +1,41 @@
+# Byte-compiled and cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Virtual environments and local configs
+venv/
+env/
+ENV/
+*.env
+
+# Django / database
+db.sqlite3
+*.sqlite3
+media/
+staticfiles/
+
+# Logs and runtime files
+*.log
+*.pot
+*.pyc
+*.pyo
+*.pyd
+
+# IDE and editor
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# System
+.DS_Store
+Thumbs.db
+
+# Docker overrides
+docker-compose.override.yml
