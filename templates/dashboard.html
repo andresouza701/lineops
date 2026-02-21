@@ -1,219 +1,133 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-  <head>
-    <meta charset="utf-8" />
-    <title>LineOps Playground</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>
-      :root {
-        color-scheme: light;
-        font-family: "Inter", "Poppins", "Segoe UI", sans-serif;
-        background-color: #0f172a;
-        color: #f8fafc;
-      }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        padding: 2rem;
-        background-image:
-          radial-gradient(circle at 20% 20%, rgba(94, 234, 212, 0.35), transparent 40%),
-          radial-gradient(circle at 80% 0%, rgba(94, 234, 212, 0.2), transparent 45%),
-          linear-gradient(135deg, #020617, #0f172a 45%, #1e293b 100%);
-      }
-      .panel {
-        width: min(900px, 100%);
-        padding: 2.5rem;
-        border-radius: 28px;
-        border: 1px solid rgba(244, 244, 245, 0.18);
-        background: rgba(15, 23, 42, 0.85);
-        box-shadow: 0 20px 60px rgba(15, 23, 42, 0.5);
-      }
-      h1 {
-        margin-top: 0;
-        font-size: clamp(1.8rem, 3vw, 2.6rem);
-        margin-bottom: 0.75rem;
-      }
-      p {
-        margin: 0;
-        color: #cbd5f5;
-      }
-      .row {
-        display: grid;
-        gap: 1.5rem;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        margin-top: 2rem;
-      }
-      .card {
-        padding: 1.5rem;
-        border-radius: 18px;
-        background: rgba(15, 23, 42, 0.5);
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-      }
-      .card button {
-        border: none;
-        border-radius: 12px;
-        padding: 0.9rem 1.2rem;
-        font-weight: 600;
-        cursor: pointer;
-        background: linear-gradient(135deg, #22d3ee, #6366f1);
-        color: #0f172a;
-        transition: transform 120ms ease;
-      }
-      .card button:hover {
-        transform: translateY(-1px);
-      }
-      label {
-        font-size: 0.85rem;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        color: #94a3b8;
-      }
-      input[type="email"],
-      input[type="password"],
-      textarea {
-        width: 100%;
-        border-radius: 12px;
-        border: 1px solid rgba(226, 232, 240, 0.3);
-        padding: 0.8rem 0.9rem;
-        background: rgba(15, 23, 42, 0.7);
-        color: #f8fafc;
-        font-size: 1rem;
-      }
-      textarea {
-        min-height: 120px;
-        resize: none;
-        font-family: inherit;
-      }
-      .tokens {
-        display: flex;
-        flex-direction: column;
-        gap: 0.2rem;
-        font-size: 0.9rem;
-        color: #e0f2fe;
-      }
-      .tokens span {
-        word-break: break-all;
-      }
-      .status {
-        font-size: 0.9rem;
-        color: #38bdf8;
-      }
-      .tag {
-        padding: 0.3rem 0.65rem;
-        border-radius: 999px;
-        font-size: 0.8rem;
-        background: rgba(74, 222, 128, 0.2);
-        color: #4ade80;
-        width: fit-content;
-      }
-    </style>
-  </head>
-  <body>
-    <main class="panel">
-      <header>
-        <div class="tag">Painel Dev</div>
-        <h1>LineOps Playground</h1>
-        <p>Use o formulário abaixo para gerar tokens e testar o endpoint protegido.</p>
-      </header>
+{% extends "base.html" %}
 
-      <section class="row">
-        <div class="card">
-          <form id="login-form">
-            <label for="email">Email</label>
-            <input type="email" id="email" name="email" placeholder="admin@example.com" required autofocus />
-            <label for="password">Senha</label>
-            <input type="password" id="password" name="password" placeholder="lineops3913" required />
-            <button type="submit">Gerar tokens</button>
-          </form>
-          <div class="tokens">
-            <span><strong>Access:</strong> <span id="token-access">-</span></span>
-            <span><strong>Refresh:</strong> <span id="token-refresh">-</span></span>
-          </div>
-          <p class="status" id="login-status"></p>
-        </div>
+{% block content %}
+  <section class="hero">
+    <div class="badge">Dev playground</div>
+    <p class="small-label">Linhas de operação</p>
+    <h1>Fluxo rápido para testar seus tokens JWT</h1>
+    <p>Conecte-se com o usuário admin, gere access & refresh tokens e veja o status do endpoint protegido em tempo real.</p>
+    <div class="metrics">
+      <div class="metric">
+        <span>Último acesso</span>
+        <strong id="status-timestamp">-</strong>
+      </div>
+      <div class="metric">
+        <span>Token ativo</span>
+        <strong id="status-token">nenhum</strong>
+      </div>
+    </div>
+  </section>
 
-        <div class="card">
-          <div>
-            <label>Chamadas protegidas</label>
-            <p class="status">Token usado: <span id="token-preview">-</span></p>
-          </div>
-          <button id="call-admin" type="button">Chamar /api/admin-only/</button>
-          <textarea id="response" readonly placeholder="A resposta aparecerá aqui."></textarea>
-        </div>
-      </section>
-    </main>
+  <section class="grid content-grid">
+    <div class="card">
+      <div class="badge">Passo 1</div>
+      <h2>Login simplificado</h2>
+      <p>Use seu e-mail cadastrado para gerar os tokens JWT diretamente do backend.</p>
+      <form id="login-form">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="admin3913@globaltec.com.br" required autofocus />
+        <label for="password">Senha</label>
+        <input type="password" id="password" name="password" placeholder="lineops3913" required />
+        <button class="primary" type="submit">Gerar tokens</button>
+      </form>
+      <div class="tokens">
+        <p><strong>Access:</strong> <span id="token-access">-</span></p>
+        <p><strong>Refresh:</strong> <span id="token-refresh">-</span></p>
+      </div>
+      <p class="status" id="login-status"></p>
+    </div>
 
-    <script>
-      const loginForm = document.getElementById('login-form');
-      const accessField = document.getElementById('token-access');
-      const refreshField = document.getElementById('token-refresh');
-      const status = document.getElementById('login-status');
-      const tokenPreview = document.getElementById('token-preview');
-      const responseArea = document.getElementById('response');
+    <div class="card">
+      <div class="badge">Passo 2</div>
+      <h2>Testar rota protegida</h2>
+      <p>Use o access token para invocar <span class="accent">/api/admin-only/</span> e valide o comportamento de `IsAdmin`.</p>
+      <button class="primary" id="call-admin" type="button">Fazer chamada</button>
+      <textarea id="response" readonly placeholder="A resposta aparece aqui depois da chamada."></textarea>
+    </div>
+  </section>
 
-      const handleResponse = (field, value) => {
-        field.textContent = value || '-';
+  <section class="card" style="margin-top: 2rem;">
+    <div class="grid content-grid">
+      <div>
+        <p class="small-label">Documentação rápida</p>
+        <ul>
+          <li>/api/token/ (POST com email/senha)</li>
+          <li>/api/token/refresh/ (POST com refresh token)</li>
+          <li>/api/admin-only/ (GET protegido por IsAdmin)</li>
+        </ul>
+      </div>
+      <div>
+        <p class="small-label">Dicas</p>
+        <p>Crie um superuser com <code>createsuperuser</code> e defina <code>role='admin'</code> para que a chamada funcione.</p>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const loginForm = document.getElementById('login-form');
+    const accessField = document.getElementById('token-access');
+    const refreshField = document.getElementById('token-refresh');
+    const status = document.getElementById('login-status');
+    const tokenPreview = document.getElementById('status-token');
+    const statusTimestamp = document.getElementById('status-timestamp');
+    const responseArea = document.getElementById('response');
+
+    const updateStatus = (token) => {
+      tokenPreview.textContent = token ? `${token.slice(0, 12)}...` : 'nenhum';
+      statusTimestamp.textContent = new Date().toLocaleTimeString();
+    };
+
+    const saveTokens = (payload) => {
+      localStorage.setItem('access_token', payload.access);
+      localStorage.setItem('refresh_token', payload.refresh);
+      accessField.textContent = payload.access;
+      refreshField.textContent = payload.refresh;
+      updateStatus(payload.access);
+    };
+
+    loginForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const formData = new FormData(loginForm);
+      const body = {
+        email: formData.get('email'),
+        password: formData.get('password'),
       };
+      status.textContent = 'Autenticando...';
 
-      const saveTokens = (payload) => {
-        localStorage.setItem('access_token', payload.access);
-        localStorage.setItem('refresh_token', payload.refresh);
-        handleResponse(accessField, payload.access);
-        handleResponse(refreshField, payload.refresh);
-        tokenPreview.textContent = payload.access?.slice(0, 20) + '...';
-      };
+      try {
+        const res = await fetch('/api/token/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = await res.json();
+        saveTokens(payload);
+        status.textContent = 'Tokens prontos para uso.';
+      } catch (error) {
+        status.textContent = 'Erro ao gerar tokens: ' + error.message;
+      }
+    });
 
-      loginForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const formData = new FormData(loginForm);
-        const body = {
-          email: formData.get('email'),
-          password: formData.get('password'),
-        };
-
-        status.textContent = 'Autenticando...';
-
-        try {
-          const res = await fetch('/api/token/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const payload = await res.json();
-          saveTokens(payload);
-          status.textContent = 'Tokens obtidos com sucesso.';
-        } catch (error) {
-          status.textContent = 'Falha ao gerar tokens: ' + error.message;
-        }
-      });
-
-      document.getElementById('call-admin').addEventListener('click', async () => {
-        const token = localStorage.getItem('access_token');
-        if (!token) {
-          responseArea.value = 'Nenhum token disponível. Gere um token primeiro.';
-          return;
-        }
-        responseArea.value = 'Carregando...';
-        try {
-          const res = await fetch('/api/admin-only/', {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          const data = await res.json();
-          responseArea.value = JSON.stringify({ status: res.status, data }, null, 2);
-        } catch (error) {
-          responseArea.value = 'Erro: ' + error.message;
-        }
-      });
-    </script>
-  </body>
-</html>
+    document.getElementById('call-admin').addEventListener('click', async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        responseArea.value = 'Nenhum token disponível. Gere um token primeiro.';
+        return;
+      }
+      responseArea.value = 'Carregando...';
+      try {
+        const res = await fetch('/api/admin-only/', {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await res.json();
+        responseArea.value = JSON.stringify({ status: res.status, data }, null, 2);
+      } catch (error) {
+        responseArea.value = 'Erro: ' + error.message;
+      }
+    });
+  </script>
+{% endblock %}
