@@ -1,0 +1,13 @@
+@charset "UTF-8";
+:root {
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  background: #f4f6fb;
+  color: #0f172a;
+}
+body {
+  margin: 0;
+  background: var(--background, #f4f6fb);
+}
+.container {
+  padding: 2rem;
+}

@@ -1,0 +1,30 @@
+
+{% extends "base/base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h1>Dashboard</h1>
+
+<div class="cards">
+    <div class="card">
+        <h3>Funcionários Ativos</h3>
+        <p>{{ total_employees }}</p>
+    </div>
+
+    <div class="card">
+        <h3>Total de Linhas</h3>
+        <p>{{ total_lines }}</p>
+    </div>
+
+    <div class="card">
+        <h3>Linhas Alocadas</h3>
+        <p>{{ allocated_lines }}</p>
+    </div>
+
+    <div class="card">
+        <h3>Linhas Disponíveis</h3>
+        <p>{{ available_lines }}</p>
+    </div>
+</div>
+{% endblock %}

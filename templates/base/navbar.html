@@ -1,0 +1,11 @@
+
+<nav class="navbar">
+    <div class="logo">LineOps</div>
+
+    <div class="user-info">
+        {% if request.user.is_authenticated %}
+            {{ request.user.username }}
+            <a href="{% url 'logout' %}">Sair</a>
+        {% endif %}
+    </div>
+</nav>
