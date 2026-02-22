@@ -1,3 +1,4 @@
+from django.contrib.auth.views import LogoutView
 from django.views.generic import TemplateView
 
 
@@ -15,3 +16,10 @@ class OperationsView(TemplateView):
 
 class DocumentationView(TemplateView):
     template_name = 'documentation.html'
+
+
+class LogoutGetView(LogoutView):
+    http_method_names = ['get', 'post', 'options']
+
+    def get(self, request, *args, **kwargs):
+        return self.post(request, *args, **kwargs)

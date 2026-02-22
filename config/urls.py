@@ -6,6 +6,7 @@ from config.views import (
     ProfileView,
     OperationsView,
     DocumentationView,
+    LogoutGetView,
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -16,7 +17,8 @@ from users.views import AdminOnlyView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path("", include("dashboard.urls")),
+    path('', include("dashboard.urls")),
+    path('accounts/logout/', LogoutGetView.as_view(), name='logout'),
     path('accounts/', include('django.contrib.auth.urls')),
     path('employees/', include('employees.urls')),
     path('telecom/', include('telecom.urls')),
