@@ -1,0 +1,101 @@
+{% extends "base/base.html" %}
+
+{% block title %}Telecom{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-3">
+    <div>
+        <h1 class="h3 mb-1">Telecom</h1>
+        <p class="text-muted mb-0">Painel consolidado com SIM cards e linhas telefônicas.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'telecom:simcard_list' %}" class="btn btn-outline-primary btn-sm">Ver sim cards</a>
+        <a href="{% url 'telecom:phoneline_list' %}" class="btn btn-outline-secondary btn-sm">Ver linhas</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-md-6 col-xl-3">
+        <article class="card shadow-sm border-0">
+            <div class="card-body">
+                <p class="text-uppercase text-muted small mb-0">SIM cards</p>
+                <strong class="display-6 fw-bold">{{ total_simcards|default:0 }}</strong>
+                <p class="text-muted small mb-0">Inventário total</p>
+            </div>
+        </article>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+        <article class="card shadow-sm border-0">
+            <div class="card-body">
+                <p class="text-uppercase text-muted small mb-0">Linhas telefônicas</p>
+                <strong class="display-6 fw-bold">{{ total_lines|default:0 }}</strong>
+                <p class="text-muted small mb-0">Números cadastrados</p>
+            </div>
+        </article>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+        <article class="card shadow-sm border-0">
+            <div class="card-body">
+                <p class="text-uppercase text-muted small mb-0">Linhas alocadas</p>
+                <strong class="display-6 fw-bold">{{ allocated_lines|default:0 }}</strong>
+                <p class="text-muted small mb-0">Em uso atualmente</p>
+            </div>
+        </article>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+        <article class="card shadow-sm border-0">
+            <div class="card-body">
+                <p class="text-uppercase text-muted small mb-0">Linhas disponíveis</p>
+                <strong class="display-6 fw-bold">{{ available_lines|default:0 }}</strong>
+                <p class="text-muted small mb-0">Prontas para novas alocações</p>
+            </div>
+        </article>
+    </div>
+</div>
+
+<div class="row g-3 mt-4">
+    <div class="col-12 col-lg-6">
+        <article class="card shadow-sm border-0 h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <p class="text-uppercase text-muted small mb-0">SIM cards</p>
+                        <strong class="d-block">Distribuição por status</strong>
+                    </div>
+                    <span class="badge bg-primary rounded-pill fs-6">{{ total_simcards|default:0 }}</span>
+                </div>
+                <ul class="list-unstyled mb-0">
+                    {% for status in sim_status_counts %}
+                        <li class="d-flex justify-content-between align-items-center py-1 border-bottom">
+                            <span class="text-muted">{{ status.label }}</span>
+                            <span class="fw-semibold">{{ status.count }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </article>
+    </div>
+
+    <div class="col-12 col-lg-6">
+        <article class="card shadow-sm border-0 h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <p class="text-uppercase text-muted small mb-0">Linhas telefônicas</p>
+                        <strong class="d-block">Distribuição por status</strong>
+                    </div>
+                    <span class="badge bg-secondary rounded-pill fs-6">{{ total_lines|default:0 }}</span>
+                </div>
+                <ul class="list-unstyled mb-0">
+                    {% for status in line_status_counts %}
+                        <li class="d-flex justify-content-between align-items-center py-1 border-bottom">
+                            <span class="text-muted">{{ status.label }}</span>
+                            <span class="fw-semibold">{{ status.count }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </article>
+    </div>
+</div>
+{% endblock %}
