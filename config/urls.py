@@ -7,6 +7,7 @@ from config.views import (
     OperationsView,
     DocumentationView,
     LogoutGetView,
+    HealthCheckView,
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -23,6 +24,7 @@ urlpatterns = [
     path('employees/', include('employees.urls')),
     path('telecom/', include('telecom.urls')),
     path('allocations/', include('allocations.urls')),
+    path('health/', HealthCheckView.as_view(), name='health'),
 
     # path('', DashboardView.as_view(), name='dashboard'),
     # path('perfil/', ProfileView.as_view(), name='profile'),

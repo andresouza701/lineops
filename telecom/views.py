@@ -15,7 +15,6 @@ from django.views.generic import (
 
 from allocations.models import LineAllocation
 from .models import PhoneLine, SIMcard
-from telecom.models import PhoneLine, SIMcard
 from .forms import PhoneLineForm
 
 
@@ -33,24 +32,35 @@ class PhoneLineListView(AuthenticadView, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        self.queryset = PhoneLine.objects.filter(is_deleted=False)
+        self.search_query = self.request.GET.get('search', '').strip()
+        self.status_filter = self.request.GET.get('status')
+        queryset = PhoneLine.objects.filter(
+            is_deleted=False).select_related('sim_card')
 
-        status = self.request.GET.get('status')
-        search = self.request.GET.get('search', '')
+        valid_statuses = {choice[0] for choice in PhoneLine.Status.choices}
+        if self.status_filter in valid_statuses:
+            queryset = queryset.filter(status=self.status_filter)
 
-        if status:
-            self.queryset = self.queryset.filter(status=status)
-
-        valid_statuses = [choice[0] for choice in PhoneLine.Status.choices]
-        if status and status not in valid_statuses:
-            self.queryset = self.queryset.filter(status=status)
-
-        if search:
-            self.queryset = self.queryset.filter(
-                Q(phone_number__icontains=search) |
-                Q(sim_card__iccid__icontains=search)
+        if self.search_query:
+            queryset = queryset.filter(
+                Q(phone_number__icontains=self.search_query) |
+                Q(sim_card__iccid__icontains=self.search_query)
             )
-        return self.queryset.order_by('created_at')
+
+        return queryset.order_by('phone_number')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['status_choices'] = PhoneLine.Status.choices
+        context['status_filter'] = self.status_filter
+        context['search_query'] = self.search_query
+
+        query_params = self.request.GET.copy()
+        query_params.pop('page', None)
+        encoded = query_params.urlencode()
+        context['query_string'] = f"&{encoded}" if encoded else ''
+
+        return context
 
 
 class PhoneLineDetailView(AuthenticadView, DetailView):
@@ -111,11 +121,13 @@ class PhoneLineHistoryView(AuthenticadView, DetailView):
         if start_date:
             start_date_parsed = parse_date(start_date)
             if start_date_parsed:
-                allocations = allocations.filter(allocated_at__date__gte=start_date_parsed)
+                allocations = allocations.filter(
+                    allocated_at__date__gte=start_date_parsed)
         if end_date:
             end_date_parsed = parse_date(end_date)
             if end_date_parsed:
-                allocations = allocations.filter(allocated_at__date__lte=end_date_parsed)
+                allocations = allocations.filter(
+                    allocated_at__date__lte=end_date_parsed)
         context['allocations'] = allocations
         return context
 

@@ -1,4 +1,5 @@
 from django.contrib.auth.views import LogoutView
+from django.http import JsonResponse
 from django.views.generic import TemplateView
 
 
@@ -23,3 +24,9 @@ class LogoutGetView(LogoutView):
 
     def get(self, request, *args, **kwargs):
         return self.post(request, *args, **kwargs)
+
+
+class HealthCheckView(TemplateView):
+    # Usa TemplateView apenas para evitar boilerplate; sobrepõe get
+    def get(self, request, *args, **kwargs):
+        return JsonResponse({'status': 'ok'})

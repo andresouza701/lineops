@@ -1,0 +1,21 @@
+[tool.black]
+line-length = 88
+target-version = ["py311", "py312"]
+include = "\\.pyi?$"
+exclude = [
+    "migrations",
+    "venv",
+    "static",
+    "staticfiles",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+select = ["E", "F", "I", "B", "UP", "SIM", "PL"]
+ignore = ["E203", "W503"]
+exclude = ["migrations", "venv", "static", "staticfiles"]
+
+[tool.ruff.isort]
+known-first-party = ["config", "users", "employees", "telecom", "dashboard", "allocations", "core"]
+combine-as-imports = true
