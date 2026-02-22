@@ -1,0 +1,39 @@
+{% extends "base/base.html" %}
+
+{% block title %}Histórico da Linha Telefônica{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-3">
+    <div>
+        <h1 class="h3 mb-1">Histórico da linha {{ phone_line.phone_number }}</h1>
+        <p class="text-muted mb-0">Alocações de {{ phone_line.sim_card }} ordenadas por data.</p>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <ul class="list-group list-group-flush">
+            {% for allocation in allocations %}
+                <li class="list-group-item d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong>{{ allocation.employee.full_name }}</strong>
+                        <div class="text-muted small">
+                            Alocada em {{ allocation.allocated_at }}
+                            {% if not allocation.is_active %}
+                                · encerrada em {{ allocation.released_at|default:"-" }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    <span class="badge {% if allocation.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                        {% if allocation.is_active %}Ativa{% else %}Encerrada{% endif %}
+                    </span>
+                </li>
+            {% empty %}
+                <li class="list-group-item text-muted">
+                    Nenhuma alocação registrada para esta linha.
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}

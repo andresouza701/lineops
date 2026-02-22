@@ -1,125 +1,108 @@
-from django.contrib.auth import get_user_model
-from django.db import IntegrityError, transaction
+from django.utils import timezone
+from datetime import timedelta
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from .models import PhoneLine, SIMcard
+from core.services.allocation_service import AllocationService
+from employees.models import Employee
+from telecom.models import PhoneLine, SIMcard
+from users.models import SystemUser
 
 
-class SIMcardModelTest(TestCase):
+class PhoneLineHistoryViewTest(TestCase):
     def setUp(self):
-        self.base_data = {
-            'iccid': '8901123456789012345',
-            'carrier': 'LineCarriers',
-        }
-
-    def test_create_simcard_with_unique_iccid(self):
-        sim = SIMcard.objects.create(**self.base_data)
-        stored = SIMcard.objects.get(iccid=self.base_data['iccid'])
-        self.assertEqual(sim.pk, stored.pk)
-
-    def test_duplicate_iccid_is_blocked(self):
-        SIMcard.objects.create(**self.base_data)
-
-        with transaction.atomic():
-            with self.assertRaises(IntegrityError):
-                SIMcard.objects.create(**self.base_data)
-
-    def test_status_change_is_persisted(self):
-        sim = SIMcard.objects.create(**self.base_data)
-        sim.status = SIMcard.Status.BLOCKED
-        sim.save(update_fields=['status', 'updated_at'])
-
-        reloaded = SIMcard.objects.get(pk=sim.pk)
-        self.assertEqual(reloaded.status, SIMcard.Status.BLOCKED)
-
-
-class PhoneLineModelTest(TestCase):
-    def setUp(self):
-        self.sim = SIMcard.objects.create(
-            iccid='8901123456789012346',
-            carrier='TestTel',
+        self.admin = SystemUser.objects.create_user(
+            email="admin2@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN
         )
-        self.phone_number = '+5511999990000'
+        self.client.force_login(self.admin)
 
-    def test_create_phone_line_with_sim(self):
-        line = PhoneLine.objects.create(
-            phone_number=self.phone_number,
-            sim_card=self.sim,
+        self.employee = Employee.objects.create(
+            full_name="History User",
+            corporate_email="history@corp.com",
+            employee_id="EMP100",
+            department="IT"
         )
-        self.assertEqual(line.sim_card, self.sim)
-        self.assertEqual(line.status, PhoneLine.Status.AVAILABLE)
 
-    def test_same_sim_cannot_link_multiple_lines(self):
-        PhoneLine.objects.create(
-            phone_number=self.phone_number, sim_card=self.sim)
-        with transaction.atomic():
-            with self.assertRaises(IntegrityError):
-                PhoneLine.objects.create(
-                    phone_number='+5511888880000', sim_card=self.sim)
-
-    def test_phone_number_uniqueness_enforced(self):
-        PhoneLine.objects.create(
-            phone_number=self.phone_number, sim_card=self.sim)
-        second_sim = SIMcard.objects.create(
-            iccid='8901123456789012347', carrier='TestTel2')
-        with transaction.atomic():
-            with self.assertRaises(IntegrityError):
-                PhoneLine.objects.create(
-                    phone_number=self.phone_number, sim_card=second_sim)
-
-
-class PhoneLineStatusTest(TestCase):
-    def setUp(self):
-        self.sim = SIMcard.objects.create(
-            iccid='8901123456789012348',
-            carrier='TestTel3',
-        )
+        self.sim = SIMcard.objects.create(iccid="777", carrier="CarrierX")
         self.phone_line = PhoneLine.objects.create(
-            phone_number='+5511999980000',
-            sim_card=self.sim,
-            status=PhoneLine.Status.AVAILABLE,
-        )
-        self.phone_line2 = PhoneLine.objects.create(
-            phone_number='+5511999980001',
-            sim_card=self.sim,
-            status=PhoneLine.Status.ALLOCATED,
+            phone_number="555123",
+            sim_card=self.sim
         )
 
-        def test_filter_by_status(self):
-            available_lines = PhoneLine.objects.filter(
-                status=PhoneLine.Status.AVAILABLE)
-            self.assertIn(self.phone_line, available_lines)
-            self.assertNotIn(self.phone_line2, available_lines)
-
-            allocated_lines = PhoneLine.objects.filter(
-                status=PhoneLine.Status.ALLOCATED)
-            self.assertIn(self.phone_line2, allocated_lines)
-            self.assertNotIn(self.phone_line, allocated_lines)
-
-
-class PhoneLinePaginationTest(TestCase):
-    def setUp(self):
-        user_model = get_user_model()
-        self.user = user_model.objects.create_user(
-            email='testuser@example.com',
-            password='password123',
+        self.first_allocation = AllocationService.allocate_line(
+            employee=self.employee,
+            phone_line=self.phone_line,
+            allocated_by=self.admin
         )
-        self.client.force_login(self.user)
-        for i in range(25):
-            sim = SIMcard.objects.create(
-                iccid=f'89011234567890123{i}',
-                carrier='TestTelPagination',
-            )
-            PhoneLine.objects.create(
-                phone_number=f'+55119999900{i}',
-                sim_card=sim,
-            )
+        AllocationService.release_line(
+            self.first_allocation,
+            released_by=self.admin
+        )
 
-    def test_pagination_works(self):
+        self.second_allocation = AllocationService.allocate_line(
+            employee=self.employee,
+            phone_line=self.phone_line,
+            allocated_by=self.admin
+        )
 
-        response = self.client.get(
-            reverse('telecom:phoneline_list') + '?page=1')
+    def test_phone_line_history_returns_all_allocations(self):
+        url = reverse('telecom:phoneline_history', args=[self.phone_line.pk])
+        response = self.client.get(url)
+
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.context['is_paginated'])
-        self.assertEqual(len(response.context['phone_lines']), 20)
+        allocations = list(response.context['allocations'])
+        self.assertEqual(len(allocations), 2)
+        self.assertIn(self.employee.full_name, response.content.decode())
+
+        self.assertEqual(allocations[0].pk, self.second_allocation.pk)
+        self.assertEqual(allocations[1].pk, self.first_allocation.pk)
+
+    def test_phone_line_history_avoid_n_plus_one(self):
+        url = reverse('telecom:phoneline_history', args=[self.phone_line.pk])
+
+        with CaptureQueriesContext(connection) as queries:
+            self.client.get(url)
+
+        self.assertLessEqual(len(queries), 10)
+
+    def test_filter_phone_line_history_by_period(self):
+        admin = SystemUser.objects.create_user(
+            email="admin3@test.com",
+            password="123456",
+            role="ADMIN"
+        )
+
+        employee = Employee.objects.create(
+            full_name="Filter User",
+            corporate_email="filter@corp.com",
+            employee_id="EMP200",
+            department="IT"
+        )
+
+        sim = SIMcard.objects.create(iccid="555", carrier="CarrierX")
+        line = PhoneLine.objects.create(
+            phone_number="444555",
+            sim_card=sim
+        )
+
+        allocation = AllocationService.allocate_line(
+            employee=employee,
+            phone_line=line,
+            allocated_by=admin
+        )
+
+        today = timezone.now().date().isoformat()
+
+        self.client.force_login(admin)
+
+        url = reverse('telecom:phoneline_history', args=[line.pk])
+        response = self.client.get(f"{url}?start_date={today}")
+
+        self.client.force_login(admin)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Filter User")

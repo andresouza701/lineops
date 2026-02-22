@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    PhoneLineHistoryView,
     PhoneLineListView,
     SIMcardListView,
     TelecomOverviewView,
@@ -24,4 +25,5 @@ urlpatterns = [
          name='phoneline_update'),
     path('phonelines/<int:pk>/delete/', PhoneLineDeleteView.as_view(),
          name='phoneline_delete'),
+     path('phonelines/<int:pk>/history/', PhoneLineHistoryView.as_view(), name='phoneline_history'),
 ]

@@ -20,10 +20,13 @@
     <div class="col-12 col-md-6 col-xl-3">
         <article class="card h-100 shadow-sm border-0">
             <div class="card-body">
-                <p class="text-uppercase text-muted small mb-1">Usuários ativos</p>
+                <p class="text-uppercase text-muted small mb-1">Funcionários ativos</p>
                 <h2 class="fw-bold display-5 mb-2">
                     {{ total_employees|default:0 }}
                 </h2>
+                <p class="mb-0 text-muted small">
+                    {{ total_employees|yesno:"Equipe pronta,Sem colaboradores ativos" }}
+                </p>
             </div>
         </article>
     </div>
@@ -35,6 +38,7 @@
                 <h2 class="fw-bold display-5 mb-2">
                     {{ total_lines|default:0 }}
                 </h2>
+                <p class="mb-0 text-muted small">Linhas registradas no inventário.</p>
             </div>
         </article>
     </div>
@@ -46,6 +50,7 @@
                 <h2 class="fw-bold display-5 mb-2">
                     {{ allocated_lines|default:0 }}
                 </h2>
+                <p class="mb-0 text-muted small">Chamadas em uso pelos colaboradores.</p>
             </div>
         </article>
     </div>
@@ -57,6 +62,7 @@
                 <h2 class="fw-bold display-5 mb-2">
                     {{ available_lines|default:0 }}
                 </h2>
+                <p class="mb-0 text-muted small">Prontas para novas alocações.</p>
             </div>
         </article>
     </div>

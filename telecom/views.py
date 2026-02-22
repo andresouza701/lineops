@@ -1,17 +1,17 @@
 from core.mixins import AuthenticadView
 from django.urls import reverse_lazy
 from django.contrib import messages
+from django.utils.dateparse import parse_date
 from django.shortcuts import get_object_or_404, redirect
 from django.db.models import Count, Q
 from django.views.generic import (
-    ListView, 
-    TemplateView, 
-    DetailView, 
-    CreateView, 
+    ListView,
+    TemplateView,
+    DetailView,
+    CreateView,
     UpdateView,
-    DeleteView,
     View,
-    )
+)
 
 from allocations.models import LineAllocation
 from .models import PhoneLine, SIMcard
@@ -52,6 +52,7 @@ class PhoneLineListView(AuthenticadView, ListView):
             )
         return self.queryset.order_by('created_at')
 
+
 class PhoneLineDetailView(AuthenticadView, DetailView):
     model = PhoneLine
     template_name = 'telecom/phoneline_detail.html'
@@ -59,12 +60,14 @@ class PhoneLineDetailView(AuthenticadView, DetailView):
 
     def get_queryset(self):
         return PhoneLine.objects.filter(is_deleted=False)
-    
+
+
 class PhoneLineCreateView(AuthenticadView, CreateView):
     model = PhoneLine
     form_class = PhoneLineForm
     template_name = 'telecom/phoneline_form.html'
     success_url = reverse_lazy('telecom:phoneline_list')
+
 
 class PhoneLineUpdateView(AuthenticadView, UpdateView):
     model = PhoneLine
@@ -74,7 +77,8 @@ class PhoneLineUpdateView(AuthenticadView, UpdateView):
 
     def get_queryset(self):
         return PhoneLine.objects.filter(is_deleted=False)
-    
+
+
 class PhoneLineDeleteView(AuthenticadView, View):
     def post(self, request, pk):
         phone_line = get_object_or_404(PhoneLine, pk=pk, is_deleted=False)
@@ -82,6 +86,39 @@ class PhoneLineDeleteView(AuthenticadView, View):
         phone_line.save(update_fields=['is_deleted'])
         messages.success(request, 'Linha telefônica excluída com sucesso.')
         return redirect('telecom:phoneline_list')
+
+
+class PhoneLineHistoryView(AuthenticadView, DetailView):
+    model = PhoneLine
+    template_name = 'telecom/phoneline_history.html'
+    context_object_name = 'phone_line'
+
+    def get_queryset(self):
+        return PhoneLine.objects.filter(is_deleted=False).prefetch_related('allocations__employee', 'allocations__allocated_by')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        allocations = (
+            LineAllocation.objects.filter(phone_line=context['phone_line'])
+            .select_related('employee', 'allocated_by')
+            .order_by('-allocated_at')
+        )
+
+        start_date = self.request.GET.get('start_date')
+        end_date = self.request.GET.get('end_date')
+
+        if start_date:
+            start_date_parsed = parse_date(start_date)
+            if start_date_parsed:
+                allocations = allocations.filter(allocated_at__date__gte=start_date_parsed)
+        if end_date:
+            end_date_parsed = parse_date(end_date)
+            if end_date_parsed:
+                allocations = allocations.filter(allocated_at__date__lte=end_date_parsed)
+        context['allocations'] = allocations
+        return context
+
 
 class TelecomOverviewView(AuthenticadView, TemplateView):
     template_name = 'telecom/overview.html'
