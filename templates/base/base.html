@@ -10,22 +10,39 @@
     <!-- CSS próprio -->
     <link rel="stylesheet" href="{% static 'css/styles.css' %}">
 </head>
+
 <body>
+    <div class="container-fluid">
+        <div class="row min-vh-100">
 
-    {% include "base/navbar.html" %}
+            <!-- Sidebar -->
+            <nav id="sidebar"
+                 class="col-12 col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+                <div class="position-sticky pt-3">
+                    {% include "base/sidebar.html" %}
+                </div>
+            </nav>
 
-    <div class="container-wrapper">
-        {% include "base/sidebar.html" %}
+            <!-- Main Content -->
+            <main class="col-12 col-md-9 col-lg-10 px-md-4">
 
-        <main class="main-content">
-            {% include "base/messages.html" %}
-            {% block content %}{% endblock %}
-        </main>
+                <!-- Navbar -->
+                {% include "base/navbar.html" %}
+
+                <!-- Page Content -->
+                <div class="pt-4">
+                    {% include "base/messages.html" %}
+                    {% block content %}{% endblock %}
+                </div>
+
+            </main>
+
+        </div>
     </div>
 
     <!-- Bootstrap JS -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-{% block scripts %}{% endblock %}
+    {% block scripts %}{% endblock %}
 </body>
 </html>

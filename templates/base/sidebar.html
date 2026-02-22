@@ -1,9 +1,38 @@
-<aside class="sidebar">
-    <ul>
-        <li><a href="{% url 'dashboard' %}">Dashboard</a></li>
-        <li><a href="{% url 'employee_list' %}">Funcionários</a></li>
-        <li><a href="{% url 'simcard_list' %}">SIM Cards</a></li>
-        <li><a href="{% url 'phoneline_list' %}">Linhas</a></li>
-        <li><a href="{% url 'allocation_list' %}">Alocações</a></li>
-    </ul>
-</aside>
+<ul class="nav nav-pills flex-column mb-auto">
+
+    <li class="nav-item">
+        <a href="{% url 'dashboard' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+            Dashboard
+        </a>
+    </li>
+
+    <li>
+        <a href="{% url 'employees:employee_list' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'employee_list' %}active{% endif %}">
+            Funcionários
+        </a>
+    </li>
+
+    <li>
+        <a href="{% url 'telecom:simcard_list' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'simcard_list' %}active{% endif %}">
+            SIM Cards
+        </a>
+    </li>
+
+    <li>
+        <a href="{% url 'telecom:phoneline_list' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'phoneline_list' %}active{% endif %}">
+            Linhas Telefônicas
+        </a>
+    </li>
+
+    <li>
+        <a href="{% url 'allocations:allocation_list' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'allocation_list' %}active{% endif %}">
+            Alocações
+        </a>
+    </li>
+
+</ul>
