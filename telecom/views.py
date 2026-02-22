@@ -1,4 +1,5 @@
-from core.mixins import AuthenticadView
+from core.mixins import RoleRequiredMixin
+from users.models import SystemUser
 from django.urls import reverse_lazy
 from django.contrib import messages
 from django.utils.dateparse import parse_date
@@ -18,14 +19,16 @@ from .models import PhoneLine, SIMcard
 from .forms import PhoneLineForm
 
 
-class SIMcardListView(AuthenticadView, ListView):
+class SIMcardListView(RoleRequiredMixin, ListView):
+    allowed_roles = [SystemUser.Role.ADMIN]
     model = SIMcard
     template_name = 'telecom/simcard_list.html'
     context_object_name = 'simcards'
     ordering = ['iccid']
 
 
-class PhoneLineListView(AuthenticadView, ListView):
+class PhoneLineListView(RoleRequiredMixin, ListView):
+    allowed_roles = [SystemUser.Role.ADMIN]
     model = PhoneLine
     template_name = 'telecom/phoneline_list.html'
     context_object_name = 'phone_lines'
@@ -63,7 +66,8 @@ class PhoneLineListView(AuthenticadView, ListView):
         return context
 
 
-class PhoneLineDetailView(AuthenticadView, DetailView):
+class PhoneLineDetailView(RoleRequiredMixin, DetailView):
+    allowed_roles = [SystemUser.Role.ADMIN]
     model = PhoneLine
     template_name = 'telecom/phoneline_detail.html'
     context_object_name = 'phone_line'
@@ -72,14 +76,16 @@ class PhoneLineDetailView(AuthenticadView, DetailView):
         return PhoneLine.objects.filter(is_deleted=False)
 
 
-class PhoneLineCreateView(AuthenticadView, CreateView):
+class PhoneLineCreateView(RoleRequiredMixin, CreateView):
+    allowed_roles = [SystemUser.Role.ADMIN]
     model = PhoneLine
     form_class = PhoneLineForm
     template_name = 'telecom/phoneline_form.html'
     success_url = reverse_lazy('telecom:phoneline_list')
 
 
-class PhoneLineUpdateView(AuthenticadView, UpdateView):
+class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
+    allowed_roles = [SystemUser.Role.ADMIN]
     model = PhoneLine
     form_class = PhoneLineForm
     template_name = 'telecom/phoneline_form.html'
@@ -89,7 +95,8 @@ class PhoneLineUpdateView(AuthenticadView, UpdateView):
         return PhoneLine.objects.filter(is_deleted=False)
 
 
-class PhoneLineDeleteView(AuthenticadView, View):
+class PhoneLineDeleteView(RoleRequiredMixin, View):
+    allowed_roles = [SystemUser.Role.ADMIN]
     def post(self, request, pk):
         phone_line = get_object_or_404(PhoneLine, pk=pk, is_deleted=False)
         phone_line.is_deleted = True
@@ -98,7 +105,8 @@ class PhoneLineDeleteView(AuthenticadView, View):
         return redirect('telecom:phoneline_list')
 
 
-class PhoneLineHistoryView(AuthenticadView, DetailView):
+class PhoneLineHistoryView(RoleRequiredMixin, DetailView):
+    allowed_roles = [SystemUser.Role.ADMIN]
     model = PhoneLine
     template_name = 'telecom/phoneline_history.html'
     context_object_name = 'phone_line'
@@ -132,7 +140,8 @@ class PhoneLineHistoryView(AuthenticadView, DetailView):
         return context
 
 
-class TelecomOverviewView(AuthenticadView, TemplateView):
+class TelecomOverviewView(RoleRequiredMixin, TemplateView):
+    allowed_roles = [SystemUser.Role.ADMIN]
     template_name = 'telecom/overview.html'
 
     def get_context_data(self, **kwargs):

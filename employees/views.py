@@ -8,6 +8,8 @@ from django.views.generic import CreateView, ListView, UpdateView, DetailView
 from django.views import View
 from django.shortcuts import get_object_or_404, redirect
 from allocations.models import LineAllocation
+from core.mixins import RoleRequiredMixin
+from users.models import SystemUser
 
 from .models import Employee
 
@@ -38,7 +40,8 @@ class EmployeeListView(LoginRequiredMixin, ListView):
         return self.queryset
 
 
-class EmployeeCreateView(LoginRequiredMixin, CreateView):
+class EmployeeCreateView(RoleRequiredMixin, CreateView):
+    allowed_roles = [SystemUser.Role.ADMIN]
     model = Employee
     template_name = 'employees/employee_form.html'
     fields = ['full_name', 'corporate_email',
@@ -50,7 +53,8 @@ class EmployeeCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class EmployeeUpdateView(LoginRequiredMixin, UpdateView):
+class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
+    allowed_roles = [SystemUser.Role.ADMIN]
     model = Employee
     template_name = 'employees/employee_form.html'
     fields = ['full_name', 'corporate_email',
