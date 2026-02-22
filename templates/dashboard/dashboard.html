@@ -10,12 +10,30 @@
         <div class="col-md-3">
             <div class="card shadow-sm p-3">
                 <h6>Funcionários</h6>
-                <h3>{{ total_employees }}</h3>
+                <h3 class="fw-bold">
+                {% if total_employees %}
+                    {{ total_employees }}
+                {% else %}
+                    <span class="text-muted">0</span>
+                {% endif %}
+                {% if total_employees == 0 and total_lines == 0 %}
+                    <div class="alert alert-info mt-4">
+                        Nenhum dado cadastrado ainda.
+                        Comece cadastrando funcionários ou linhas telefônicas.
+                    </div>
+                {% endif %}
+            </h3>
             </div>
         </div>
     </div>
 </div>
 
+{% if total_employees == 0 and total_lines == 0 %}
+    <div class="alert alert-info mt-4">
+        Nenhum dado cadastrado ainda.
+        Comece cadastrando funcionários ou linhas telefônicas.
+    </div>
+{% endif %}
 <!-- <div class="cards">
     <div class="card">
         <h3>Funcionários Ativos</h3>
