@@ -2,7 +2,7 @@ from typing import Any
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, ListView, UpdateView, DetailView
 from django.views import View
@@ -23,21 +23,37 @@ class EmployeeListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         self.queryset = Employee.objects.all().order_by('full_name')
 
-        status = self.request.GET.get('status')
-        if status == Employee.Status.ACTIVE:
-            self.queryset = self.queryset.filter(status=Employee.Status.ACTIVE)
-        elif status == Employee.Status.INACTIVE:
-            self.queryset = self.queryset.filter(
-                status=Employee.Status.INACTIVE)
-
         search = self.request.GET.get('search')
-        if search:
-            self.queryset = self.queryset.filter(
-                Q(full_name__icontains=search) |
-                Q(employee_id__icontains=search)
-            )
+        search_by = self.request.GET.get('search_by')
 
-        return self.queryset
+        if search:
+            if search_by == 'linha':
+                self.queryset = self.queryset.filter(
+                    Q(allocations__phone_line__phone_number__icontains=search)
+                )
+            elif search_by == 'todos':
+                self.queryset = self.queryset.filter(
+                    Q(full_name__icontains=search) |
+                    Q(employee_id__icontains=search) |
+                    Q(allocations__phone_line__phone_number__icontains=search)
+                )
+            else:
+                # default search by name (and matricula for convenience)
+                self.queryset = self.queryset.filter(
+                    Q(full_name__icontains=search) |
+                    Q(employee_id__icontains=search)
+                )
+
+        return (
+            self.queryset.distinct()
+            .prefetch_related(
+                Prefetch(
+                    'allocations',
+                    queryset=LineAllocation.objects.filter(
+                        is_active=True).select_related('phone_line')
+                )
+            )
+        )
 
 
 class EmployeeCreateView(RoleRequiredMixin, CreateView):

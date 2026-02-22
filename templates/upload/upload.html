@@ -1,0 +1,36 @@
+{% extends "base/base.html" %}
+
+{% block title %}Upload{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+            <h2 class="mb-1">Upload em massa</h2>
+            <p class="text-muted mb-0">Envie planilhas para cadastrar usuários e SIM cards de forma massiva.</p>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <h6 class="text-uppercase text-muted small mb-3">Como funciona</h6>
+            <ul class="text-muted mb-4">
+                <li>Baixe o modelo de planilha com as colunas exigidas.</li>
+                <li>Preencha os dados dos colaboradores e/ou SIM cards.</li>
+                <li>Envie o arquivo para processar em lote.</li>
+            </ul>
+
+            <form method="post" enctype="multipart/form-data" class="row g-3">
+                {% csrf_token %}
+                <div class="col-md-6">
+                    <label class="form-label">Arquivo (CSV ou XLSX)</label>
+                    <input type="file" name="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="form-control">
+                </div>
+                <div class="col-12 d-flex gap-2 align-items-center">
+                    <a class="btn btn-outline-secondary" href="#">Baixar modelo</a>
+                    <button type="submit" class="btn btn-primary">Enviar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

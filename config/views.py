@@ -19,6 +19,10 @@ class DocumentationView(TemplateView):
     template_name = 'documentation.html'
 
 
+class UploadView(TemplateView):
+    template_name = 'upload/upload.html'
+
+
 class LogoutGetView(LogoutView):
     http_method_names = ['get', 'post', 'options']
 

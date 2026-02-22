@@ -26,6 +26,11 @@
                             Cadastro
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_name == 'upload' %}active{% endif %}" href="{% url 'upload' %}">
+                            Upload
+                        </a>
+                    </li>
                 {% endif %}
             {% endif %}
         </ul>
