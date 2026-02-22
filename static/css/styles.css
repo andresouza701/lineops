@@ -33,19 +33,28 @@ body {
     margin-bottom: 0.75rem;
 }
 
-.sidebar {
-    border-right: 1px solid #dee2e6;
+.tab-bar {
+    background: #fff;
+    border-bottom: 1px solid #dee2e6;
 }
 
-.nav-link {
-    color: #333;
+.tab-bar .nav-tabs {
+    border-bottom: none;
 }
 
-.nav-link:hover {
-    background-color: #f8f9fa;
+.tab-bar .nav-link {
+    font-weight: 500;
+    color: #475569;
+    border: none;
+    border-radius: 0;
 }
 
-.nav-link.active {
-    background-color: #0d6efd;
-    color: #fff;
+.tab-bar .nav-link.active {
+    border-bottom: 3px solid #0d6efd;
+    color: #0d6efd;
+    background: transparent;
+}
+
+.tab-bar .nav-link:hover {
+    color: #0f172a;
 }

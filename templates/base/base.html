@@ -12,32 +12,14 @@
 </head>
 
 <body>
-    <div class="container-fluid">
-        <div class="row min-vh-100">
+    <div class="container-fluid min-vh-100 px-0">
+        {% include "base/navbar.html" %}
+        {% include "base/tabbar.html" %}
 
-            <!-- Sidebar -->
-            <nav id="sidebar"
-                 class="col-12 col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
-                <div class="position-sticky pt-3">
-                    {% include "base/sidebar.html" %}
-                </div>
-            </nav>
-
-            <!-- Main Content -->
-            <main class="col-12 col-md-9 col-lg-10 px-md-4">
-
-                <!-- Navbar -->
-                {% include "base/navbar.html" %}
-
-                <!-- Page Content -->
-                <div class="pt-4">
-                    {% include "base/messages.html" %}
-                    {% block content %}{% endblock %}
-                </div>
-
-            </main>
-
-        </div>
+        <main class="px-4 py-4">
+            {% include "base/messages.html" %}
+            {% block content %}{% endblock %}
+        </main>
     </div>
 
     <!-- Bootstrap JS -->
