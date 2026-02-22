@@ -74,61 +74,36 @@
             <div class="card shadow-sm border-0 mb-3">
                 <div class="card-body">
                     <h5 class="card-title mb-3">Cadastrar SIM card</h5>
-                    <form method="post" class="row g-3">
+                    <form method="post" class="row gy-4 gx-5 align-items-end">
                         {% csrf_token %}
-                        <input type="hidden" name="action" value="simcard">
+                        <input type="hidden" name="action" value="simcard_line">
 
-                        <div class="col-12">
+                        <div class="col-md-4">
+                            <label class="form-label">Linha</label>
+                            {{ combined_sim_line_form.phone_number }}
+                            {% if combined_sim_line_form.phone_number.errors %}
+                                <div class="invalid-feedback d-block">{{ combined_sim_line_form.phone_number.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-4">
                             <label class="form-label">ICCID</label>
-                            {{ simcard_form.iccid }}
-                            {% if simcard_form.iccid.errors %}
-                                <div class="invalid-feedback d-block">{{ simcard_form.iccid.errors|striptags }}</div>
+                            {{ combined_sim_line_form.iccid }}
+                            {% if combined_sim_line_form.iccid.errors %}
+                                <div class="invalid-feedback d-block">{{ combined_sim_line_form.iccid.errors|striptags }}</div>
                             {% endif %}
                         </div>
 
-                        <div class="col-12">
+                        <div class="col-md-4">
                             <label class="form-label">Operadora</label>
-                            {{ simcard_form.carrier }}
-                            {% if simcard_form.carrier.errors %}
-                                <div class="invalid-feedback d-block">{{ simcard_form.carrier.errors|striptags }}</div>
+                            {{ combined_sim_line_form.carrier }}
+                            {% if combined_sim_line_form.carrier.errors %}
+                                <div class="invalid-feedback d-block">{{ combined_sim_line_form.carrier.errors|striptags }}</div>
                             {% endif %}
                         </div>
 
-                        <div class="col-12 d-flex align-items-center justify-content-between">
-                            <div class="text-muted small">Disponíveis: {{ available_simcards|length }}</div>
-                            <button type="submit" class="btn btn-primary">Salvar SIM card</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <div class="card shadow-sm border-0 mb-3">
-                <div class="card-body">
-                    <h5 class="card-title mb-3">Cadastrar linha telefônica</h5>
-                    <p class="text-muted small mb-3">Associe o número a um SIM card livre.</p>
-                    <form method="post" class="row g-3">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="phoneline">
-
-                        <div class="col-md-6">
-                            <label class="form-label">Número</label>
-                            {{ phoneline_form.phone_number }}
-                            {% if phoneline_form.phone_number.errors %}
-                                <div class="invalid-feedback d-block">{{ phoneline_form.phone_number.errors|striptags }}</div>
-                            {% endif %}
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">SIM card</label>
-                            {{ phoneline_form.sim_card }}
-                            {% if phoneline_form.sim_card.errors %}
-                                <div class="invalid-feedback d-block">{{ phoneline_form.sim_card.errors|striptags }}</div>
-                            {% endif %}
-                        </div>
-
-                        <div class="col-12 d-flex align-items-center justify-content-between">
-                            <div class="text-muted small">Linhas disponíveis: {{ available_lines|length }}</div>
-                            <button type="submit" class="btn btn-primary">Salvar linha</button>
+                        <div class="col-12 text-end">
+                            <button type="submit" class="btn btn-primary">Salvar</button>
                         </div>
                     </form>
                 </div>

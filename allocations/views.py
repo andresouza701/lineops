@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import TemplateView, View
 
@@ -8,7 +9,7 @@ from core.exceptions.domain_exceptions import BusinessRuleException
 from core.services.allocation_service import AllocationService
 from employees.forms import EmployeeForm
 from employees.models import Employee
-from telecom.forms import SIMcardForm, PhoneLineForm
+from telecom.forms import SIMcardForm, PhoneLineForm, CombinedSimLineForm
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 
@@ -29,6 +30,8 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
             'phoneline_form') or PhoneLineForm()
         context['allocation_form'] = kwargs.get(
             'allocation_form') or AllocationForm()
+        context['combined_sim_line_form'] = kwargs.get(
+            'combined_sim_line_form') or CombinedSimLineForm()
         context['allocations'] = self._allocations_qs()
         context['available_lines'] = self._available_lines_qs()
         context['available_simcards'] = self._available_simcards_qs()
@@ -42,6 +45,7 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
             'simcard': self._handle_simcard,
             'phoneline': self._handle_phoneline,
             'allocation': self._handle_allocation,
+            'simcard_line': self._handle_simcard_line,
         }
 
         handler = handlers.get(action)
@@ -88,6 +92,31 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
 
         messages.error(request, 'Corrija os erros no cadastro de linha.')
         return self._render_with_forms(phoneline_form=form)
+
+    def _handle_simcard_line(self, request):
+        self._ensure_roles(request, [SystemUser.Role.ADMIN])
+        form = CombinedSimLineForm(request.POST)
+
+        if not form.is_valid():
+            messages.error(
+                request, 'Corrija os erros para salvar linha e SIM card.')
+            return self._render_with_forms(combined_sim_line_form=form)
+
+        with transaction.atomic():
+            sim = SIMcard.objects.create(
+                iccid=form.cleaned_data['iccid'],
+                carrier=form.cleaned_data['carrier'],
+                status=SIMcard.Status.AVAILABLE,
+            )
+            phone_line = PhoneLine.objects.create(
+                phone_number=form.cleaned_data['phone_number'],
+                sim_card=sim,
+                status=PhoneLine.Status.AVAILABLE,
+            )
+
+        messages.success(
+            request, f'SIM card e linha {phone_line.phone_number} cadastrados com sucesso.')
+        return None
 
     def _handle_allocation(self, request):
         form = AllocationForm(request.POST)
