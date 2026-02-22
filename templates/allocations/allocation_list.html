@@ -1,13 +1,12 @@
 {% extends "base/base.html" %}
 
 {% block title %}Cadastro{% endblock %}
-
 {% block content %}
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-start mb-3">
         <div>
             <h2 class="mb-1">Cadastro</h2>
-            <p class="text-muted mb-0">Cadastre usuários, SIM cards, linhas e realize alocações em um só lugar.</p>
+            <p class="text-muted mb-0">Preencha os dados do colaborador e da linha; salvamos tudo e já alocamos.</p>
         </div>
         <div class="text-end small text-muted">
             <div>Linhas disponíveis: {{ available_lines|length }}</div>
@@ -15,24 +14,24 @@
         </div>
     </div>
 
-    <div class="row g-4">
-        <div class="col-lg-6">
-            <div class="card shadow-sm border-0 mb-3">
-                <div class="card-body">
-                    <h5 class="card-title mb-3">Cadastrar usuário</h5>
-                    <form method="post" class="row g-3">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="employee">
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <form method="post" class="row g-4 mb-0">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="employee">
 
+                <div class="col-12">
+                    <h6 class="text-uppercase text-muted small mb-2">Dados do Colaborador</h6>
+                    <div class="row g-3">
                         <div class="col-12">
-                            <label class="form-label">Nome completo</label>
+                            <label class="form-label">Nome</label>
                             {{ employee_form.full_name }}
                             {% if employee_form.full_name.errors %}
                                 <div class="invalid-feedback d-block">{{ employee_form.full_name.errors|striptags }}</div>
                             {% endif %}
                         </div>
 
-                        <div class="col-12">
+                        <div class="col-md-6">
                             <label class="form-label">E-mail corporativo</label>
                             {{ employee_form.corporate_email }}
                             {% if employee_form.corporate_email.errors %}
@@ -40,7 +39,7 @@
                             {% endif %}
                         </div>
 
-                        <div class="col-md-6">
+                        <div class="col-md-3">
                             <label class="form-label">Matrícula</label>
                             {{ employee_form.employee_id }}
                             {% if employee_form.employee_id.errors %}
@@ -48,7 +47,7 @@
                             {% endif %}
                         </div>
 
-                        <div class="col-md-6">
+                        <div class="col-md-3">
                             <label class="form-label">Departamento</label>
                             {{ employee_form.department }}
                             {% if employee_form.department.errors %}
@@ -56,99 +55,99 @@
                             {% endif %}
                         </div>
 
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label">Status</label>
                             {{ employee_form.status }}
                             {% if employee_form.status.errors %}
                                 <div class="invalid-feedback d-block">{{ employee_form.status.errors|striptags }}</div>
                             {% endif %}
                         </div>
-
-                        <div class="col-12">
-                            <button type="submit" class="btn btn-primary">Salvar usuário</button>
-                        </div>
-                    </form>
+                    </div>
                 </div>
-            </div>
 
-            <div class="card shadow-sm border-0 mb-3">
-                <div class="card-body">
-                    <h5 class="card-title mb-3">Cadastrar SIM card</h5>
-                    <form method="post" class="row gy-4 gx-5 align-items-end">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="simcard_line">
+                <div class="col-12 text-end">
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <form method="post" class="row g-4">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="telephony">
+
+                {% with telephony_form.line_action.value|default:'new' as line_action %}
+                <div class="col-12">
+                    <h6 class="text-uppercase text-muted small mb-2">Dados de Telefonia</h6>
+
+                    <div class="d-flex align-items-center gap-4 mb-3 flex-wrap">
+                        <span class="text-muted small">O que deseja fazer?</span>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="line_action" id="line_action_new" value="new" {% if line_action != 'existing' %}checked{% endif %}>
+                            <label class="form-check-label" for="line_action_new">Cadastrar nova linha</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="line_action" id="line_action_existing" value="existing" {% if line_action == 'existing' %}checked{% endif %}>
+                            <label class="form-check-label" for="line_action_existing">Vincular linha disponível</label>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 {% if line_action != 'new' %}d-none{% endif %}" id="section-new-line">
                         <div class="col-md-4">
                             <label class="form-label">Linha</label>
-                            {{ combined_sim_line_form.phone_number }}
-                            {% if combined_sim_line_form.phone_number.errors %}
-                                <div class="invalid-feedback d-block">{{ combined_sim_line_form.phone_number.errors|striptags }}</div>
+                            {{ telephony_form.phone_number }}
+                            {% if telephony_form.phone_number.errors %}
+                                <div class="invalid-feedback d-block">{{ telephony_form.phone_number.errors|striptags }}</div>
                             {% endif %}
                         </div>
 
                         <div class="col-md-4">
                             <label class="form-label">ICCID</label>
-                            {{ combined_sim_line_form.iccid }}
-                            {% if combined_sim_line_form.iccid.errors %}
-                                <div class="invalid-feedback d-block">{{ combined_sim_line_form.iccid.errors|striptags }}</div>
+                            {{ telephony_form.iccid }}
+                            {% if telephony_form.iccid.errors %}
+                                <div class="invalid-feedback d-block">{{ telephony_form.iccid.errors|striptags }}</div>
                             {% endif %}
                         </div>
 
                         <div class="col-md-4">
                             <label class="form-label">Operadora</label>
-                            {{ combined_sim_line_form.carrier }}
-                            {% if combined_sim_line_form.carrier.errors %}
-                                <div class="invalid-feedback d-block">{{ combined_sim_line_form.carrier.errors|striptags }}</div>
+                            {{ telephony_form.carrier }}
+                            {% if telephony_form.carrier.errors %}
+                                <div class="invalid-feedback d-block">{{ telephony_form.carrier.errors|striptags }}</div>
                             {% endif %}
                         </div>
+                    </div>
 
-                        <div class="col-12 text-end">
-                            <button type="submit" class="btn btn-primary">Salvar</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-6">
-            <div class="card shadow-sm border-0 mb-3">
-                <div class="card-body">
-                    <h5 class="card-title mb-3">Alocar linha</h5>
-                    <form method="post" class="row g-3 align-items-end">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="allocation">
-
-                        <div class="col-md-6">
+                    <div class="row g-3 {% if line_action != 'existing' %}d-none{% endif %}" id="section-existing-line">
+                        <div class="col-md-4">
                             <label class="form-label">Funcionário</label>
-                            {{ allocation_form.employee }}
-                            {% if allocation_form.employee.errors %}
-                                <div class="invalid-feedback d-block">{{ allocation_form.employee.errors|striptags }}</div>
+                            {{ telephony_form.employee }}
+                            {% if telephony_form.employee.errors %}
+                                <div class="invalid-feedback d-block">{{ telephony_form.employee.errors|striptags }}</div>
                             {% endif %}
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label">Linha disponível</label>
-                            {{ allocation_form.phone_line }}
-                            {% if allocation_form.phone_line.errors %}
-                                <div class="invalid-feedback d-block">{{ allocation_form.phone_line.errors|striptags }}</div>
+                        <div class="col-md-4">
+                            <label class="form-label">Selecione a linha disponível</label>
+                            {{ telephony_form.phone_line }}
+                            {% if telephony_form.phone_line.errors %}
+                                <div class="invalid-feedback d-block">{{ telephony_form.phone_line.errors|striptags }}</div>
                             {% endif %}
                         </div>
-
-                        <div class="col-12">
-                            <button type="submit" class="btn btn-primary">Alocar</button>
-                        </div>
-                    </form>
-
-                    <div class="mt-3 text-muted small">
-                        <div>Colaboradores ativos: {{ active_employees|length }}</div>
-                        <div>Linhas prontas para uso: {{ available_lines|length }}</div>
                     </div>
                 </div>
-            </div>
+                {% endwith %}
+
+                <div class="col-12 text-end">
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
         </div>
     </div>
 
-    <div class="card shadow-sm border-0 mt-4">
+    <div class="card shadow-sm border-0">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="mb-0">Alocações recentes</h5>
@@ -203,4 +202,32 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (function() {
+        const telephonyForm = document.querySelector('form input[name="action"][value="telephony"]')?.closest('form');
+        if (!telephonyForm) return;
+
+        const radios = telephonyForm.querySelectorAll('input[name="line_action"]');
+        const newSection = telephonyForm.querySelector('#section-new-line');
+        const existingSection = telephonyForm.querySelector('#section-existing-line');
+
+        function syncSections() {
+            const selected = telephonyForm.querySelector('input[name="line_action"]:checked');
+            const value = selected ? selected.value : 'new';
+            if (value === 'existing') {
+                newSection.classList.add('d-none');
+                existingSection.classList.remove('d-none');
+            } else {
+                existingSection.classList.add('d-none');
+                newSection.classList.remove('d-none');
+            }
+        }
+
+        radios.forEach(r => r.addEventListener('change', syncSections));
+        syncSections();
+    })();
+</script>
 {% endblock %}

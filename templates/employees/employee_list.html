@@ -20,11 +20,6 @@
                 Inativos
             </a>
         </div>
-        {% if request.user.role == 'admin' %}
-            <a href="{% url 'employees:employee_create' %}" class="btn btn-primary">
-                Novo usuário
-            </a>
-        {% endif %}
     </div>
 </div>
 
