@@ -5,8 +5,18 @@
 
 {% block content %}
 <h1>Dashboard</h1>
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3">
+                <h6>Funcionários</h6>
+                <h3>{{ total_employees }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
 
-<div class="cards">
+<!-- <div class="cards">
     <div class="card">
         <h3>Funcionários Ativos</h3>
         <p>{{ total_employees }}</p>
@@ -24,7 +34,7 @@
 
     <div class="card">
         <h3>Linhas Disponíveis</h3>
-        <p>{{ available_lines }}</p>
+        <p>{{ available_lines }}</p> -->
     </div>
 </div>
 {% endblock %}

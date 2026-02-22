@@ -17,6 +17,10 @@ from users.views import AdminOnlyView
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("", include("dashboard.urls")),
+    path('accounts/', include('django.contrib.auth.urls')),
+    path('employees/', include('employees.urls')),
+    path('telecom/', include('telecom.urls')),
+    path('allocations/', include('allocations.urls')),
 
     # path('', DashboardView.as_view(), name='dashboard'),
     # path('perfil/', ProfileView.as_view(), name='profile'),
