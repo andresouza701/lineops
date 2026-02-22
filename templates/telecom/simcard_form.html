@@ -1,0 +1,50 @@
+{% extends "base/base.html" %}
+
+{% block title %}Novo SIM Card{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="fw-semibold">
+            {% if object %}Editar SIM Card{% else %}Novo SIM Card{% endif %}
+        </h2>
+
+        <a href="{% url 'telecom:simcard_list' %}"
+           class="btn btn-outline-secondary">
+            Voltar
+        </a>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body">
+
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label class="form-label">ICCID</label>
+                    {{ form.iccid }}
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Operadora</label>
+                    {{ form.carrier }}
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Status</label>
+                    {{ form.status }}
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                    {% if object %}Atualizar{% else %}Salvar{% endif %}
+                </button>
+
+            </form>
+
+        </div>
+    </div>
+
+</div>
+{% endblock %}

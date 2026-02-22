@@ -4,6 +4,8 @@ from django.urls import reverse_lazy
 from django.contrib import messages
 from django.utils.dateparse import parse_date
 from django.shortcuts import get_object_or_404, redirect
+from django.db import models
+from django import forms
 from django.db.models import Count, Q
 from django.views.generic import (
     ListView,
@@ -19,12 +21,67 @@ from .models import PhoneLine, SIMcard
 from .forms import PhoneLineForm
 
 
+class SIMCardFilterForm(forms.Form):
+    status = forms.ChoiceField(
+        required=False,
+        choices=[('', 'Todos')] + list(SIMcard.Status.choices),
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+
 class SIMcardListView(RoleRequiredMixin, ListView):
     allowed_roles = [SystemUser.Role.ADMIN]
     model = SIMcard
     template_name = 'telecom/simcard_list.html'
     context_object_name = 'simcards'
     ordering = ['iccid']
+
+    def get_queryset(self):
+        queryset = SIMcard.objects.filter(is_deleted=False)
+        status = self.request.GET.get('status', '').strip()
+        self.search_query = self.request.GET.get('search', '').strip()
+
+        valid_statuses = {choice[0] for choice in SIMcard.Status.choices}
+        if status in valid_statuses:
+            queryset = queryset.filter(status=status)
+
+        if self.search_query:
+            queryset = queryset.filter(iccid__icontains=self.search_query)
+
+        return queryset.order_by('iccid')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form'] = SIMCardFilterForm(self.request.GET or None)
+        context['search_query'] = self.search_query
+        return context
+
+
+class SIMcardCreateView(RoleRequiredMixin, CreateView):
+    allowed_roles = [SystemUser.Role.ADMIN]
+    model = SIMcard
+    template_name = 'telecom/simcard_form.html'
+    fields = ['iccid', 'carrier']
+    success_url = reverse_lazy('telecom:simcard_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'SIM card criado com sucesso.')
+        return super().form_valid(form)
+
+
+class SIMcardUpdateView(RoleRequiredMixin, UpdateView):
+    allowed_roles = [SystemUser.Role.ADMIN]
+    model = SIMcard
+    template_name = 'telecom/simcard_form.html'
+    fields = ['iccid', 'carrier', 'status']
+    success_url = reverse_lazy('telecom:simcard_list')
+
+    def get_queryset(self):
+        return SIMcard.objects.filter(is_deleted=False)
+
+    def form_valid(self, form):
+        messages.success(self.request, 'SIM card atualizado com sucesso.')
+        return super().form_valid(form)
 
 
 class PhoneLineListView(RoleRequiredMixin, ListView):
@@ -97,6 +154,7 @@ class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
 
 class PhoneLineDeleteView(RoleRequiredMixin, View):
     allowed_roles = [SystemUser.Role.ADMIN]
+
     def post(self, request, pk):
         phone_line = get_object_or_404(PhoneLine, pk=pk, is_deleted=False)
         phone_line.is_deleted = True

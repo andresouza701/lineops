@@ -1,9 +1,11 @@
 from django.urls import path
 
-from .views import LineAllocationListView
+from .views import RegistrationHubView, LineAllocationReleaseView
 
 app_name = 'allocations'
 
 urlpatterns = [
-    path('', LineAllocationListView.as_view(), name='allocation_list'),
+    path('', RegistrationHubView.as_view(), name='allocation_list'),
+    path('<int:pk>/release/', LineAllocationReleaseView.as_view(),
+         name='allocation_release'),
 ]
