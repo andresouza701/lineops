@@ -1,3 +1,41 @@
 from django.db import models
+from django.utils import timezone
 
-# Create your models here.
+
+class EmployeeQuerySet(models.QuerySet):
+    def delete(self):
+        return super().update(is_deleted=True, updated_at=timezone.now())
+
+
+class EmployeeManager(models.Manager):
+    def get_queryset(self):
+        return EmployeeQuerySet(self.model, using=self._db).filter(is_deleted=False)
+
+
+class Employee(models.Model):
+    objects = EmployeeManager()
+    all_objects = models.Manager()
+
+    class Status(models.TextChoices):
+        ACTIVE = 'active', 'Ativo'
+        INACTIVE = 'inactive', 'Inativo'
+
+    full_name = models.CharField(max_length=255)
+    corporate_email = models.EmailField(unique=True)
+    employee_id = models.CharField(max_length=50, unique=True)
+    department = models.CharField(max_length=100)
+
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.INACTIVE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    is_deleted = models.BooleanField(default=False)
+
+    def delete(self, using=None, keep_parents=False):
+        self.is_deleted = True
+        self.updated_at = timezone.now()
+        self.save(update_fields=['is_deleted', 'updated_at'])
+
+    def __str__(self):
+        return f"{self.full_name} ({self.employee_id})"
