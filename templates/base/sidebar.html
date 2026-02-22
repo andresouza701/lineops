@@ -7,32 +7,40 @@
         </a>
     </li>
 
-    <li>
-        <a href="{% url 'employees:employee_list' %}"
-           class="nav-link {% if request.resolver_match.url_name == 'employee_list' %}active{% endif %}">
-            Funcionários
-        </a>
-    </li>
+    {% if request.user.is_authenticated %}
+        <!-- ADMIN ONLY -->
+        {% if request.user.role == 'admin' %}
+        <li>
+            <a href="{% url 'employees:employee_list' %}"
+               class="nav-link {% if request.resolver_match.url_name == 'employee_list' %}active{% endif %}">
+                Funcionários
+            </a>
+        </li>
+        {% endif %}
 
-    <li>
-        <a href="{% url 'telecom:simcard_list' %}"
-           class="nav-link {% if request.resolver_match.url_name == 'simcard_list' %}active{% endif %}">
-            SIM Cards
-        </a>
-    </li>
+        <!-- ADMIN + OPERATOR -->
+        {% if request.user.role == 'admin' or request.user.role == 'operator' %}
+        <li>
+            <a href="{% url 'telecom:simcard_list' %}"
+               class="nav-link {% if request.resolver_match.url_name == 'simcard_list' %}active{% endif %}">
+                SIM Cards
+            </a>
+        </li>
 
-    <li>
-        <a href="{% url 'telecom:phoneline_list' %}"
-           class="nav-link {% if request.resolver_match.url_name == 'phoneline_list' %}active{% endif %}">
-            Linhas Telefônicas
-        </a>
-    </li>
+        <li>
+            <a href="{% url 'telecom:phoneline_list' %}"
+               class="nav-link {% if request.resolver_match.url_name == 'phoneline_list' %}active{% endif %}">
+                Linhas Telefônicas
+            </a>
+        </li>
 
-    <li>
-        <a href="{% url 'allocations:allocation_list' %}"
-           class="nav-link {% if request.resolver_match.url_name == 'allocation_list' %}active{% endif %}">
-            Alocações
-        </a>
-    </li>
+        <li>
+            <a href="{% url 'allocations:allocation_list' %}"
+               class="nav-link {% if request.resolver_match.url_name == 'allocation_list' %}active{% endif %}">
+                Alocações
+            </a>
+        </li>
+        {% endif %}
+    {% endif %}
 
 </ul>
