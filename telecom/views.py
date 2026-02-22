@@ -1,9 +1,22 @@
 from core.mixins import AuthenticadView
+from django.urls import reverse_lazy
+from django.contrib import messages
+from django.shortcuts import get_object_or_404, redirect
 from django.db.models import Count, Q
-from django.views.generic import ListView, TemplateView
+from django.views.generic import (
+    ListView, 
+    TemplateView, 
+    DetailView, 
+    CreateView, 
+    UpdateView,
+    DeleteView,
+    View,
+    )
 
 from allocations.models import LineAllocation
 from .models import PhoneLine, SIMcard
+from telecom.models import PhoneLine, SIMcard
+from .forms import PhoneLineForm
 
 
 class SIMcardListView(AuthenticadView, ListView):
@@ -17,19 +30,71 @@ class PhoneLineListView(AuthenticadView, ListView):
     model = PhoneLine
     template_name = 'telecom/phoneline_list.html'
     context_object_name = 'phone_lines'
-    ordering = ['phone_number']
+    paginate_by = 20
 
+    def get_queryset(self):
+        self.queryset = PhoneLine.objects.filter(is_deleted=False)
+
+        status = self.request.GET.get('status')
+        search = self.request.GET.get('search', '')
+
+        if status:
+            self.queryset = self.queryset.filter(status=status)
+
+        valid_statuses = [choice[0] for choice in PhoneLine.Status.choices]
+        if status and status not in valid_statuses:
+            self.queryset = self.queryset.filter(status=status)
+
+        if search:
+            self.queryset = self.queryset.filter(
+                Q(phone_number__icontains=search) |
+                Q(sim_card__iccid__icontains=search)
+            )
+        return self.queryset.order_by('created_at')
+
+class PhoneLineDetailView(AuthenticadView, DetailView):
+    model = PhoneLine
+    template_name = 'telecom/phoneline_detail.html'
+    context_object_name = 'phone_line'
+
+    def get_queryset(self):
+        return PhoneLine.objects.filter(is_deleted=False)
+    
+class PhoneLineCreateView(AuthenticadView, CreateView):
+    model = PhoneLine
+    form_class = PhoneLineForm
+    template_name = 'telecom/phoneline_form.html'
+    success_url = reverse_lazy('telecom:phoneline_list')
+
+class PhoneLineUpdateView(AuthenticadView, UpdateView):
+    model = PhoneLine
+    form_class = PhoneLineForm
+    template_name = 'telecom/phoneline_form.html'
+    success_url = reverse_lazy('telecom:phoneline_list')
+
+    def get_queryset(self):
+        return PhoneLine.objects.filter(is_deleted=False)
+    
+class PhoneLineDeleteView(AuthenticadView, View):
+    def post(self, request, pk):
+        phone_line = get_object_or_404(PhoneLine, pk=pk, is_deleted=False)
+        phone_line.is_deleted = True
+        phone_line.save(update_fields=['is_deleted'])
+        messages.success(request, 'Linha telefônica excluída com sucesso.')
+        return redirect('telecom:phoneline_list')
 
 class TelecomOverviewView(AuthenticadView, TemplateView):
     template_name = 'telecom/overview.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['total_simcards'] = SIMcard.objects.filter(is_deleted=False).count()
+        context['total_simcards'] = SIMcard.objects.filter(
+            is_deleted=False).count()
         base_lines = PhoneLine.objects.filter(is_deleted=False)
         context['total_lines'] = base_lines.count()
         counts = self._line_status_counts(base_lines)
-        context['allocated_lines'] = LineAllocation.objects.filter(is_active=True).count()
+        context['allocated_lines'] = LineAllocation.objects.filter(
+            is_active=True).count()
         context['available_lines'] = counts.get(PhoneLine.Status.AVAILABLE, 0)
         context['cancelled_lines'] = counts.get(PhoneLine.Status.CANCELLED, 0)
         context['blocked_lines'] = counts.get(PhoneLine.Status.SUSPENDED, 0)
@@ -37,7 +102,8 @@ class TelecomOverviewView(AuthenticadView, TemplateView):
         search = self.request.GET.get('search', '').strip()
         context['search_query'] = search
 
-        lines_qs = base_lines.select_related('sim_card').order_by('phone_number')
+        lines_qs = base_lines.select_related(
+            'sim_card').order_by('phone_number')
         if search:
             lines_qs = lines_qs.filter(
                 Q(phone_number__icontains=search) |

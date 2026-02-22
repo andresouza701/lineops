@@ -8,12 +8,7 @@
         <h1 class="h3 mb-1">Telecom</h1>
         <p class="text-muted mb-0">Painel concentrado nas linhas telefônicas e na disponibilidade operacional.</p>
     </div>
-    <div class="d-flex gap-2 flex-wrap">
-        <a href="{% url 'telecom:simcard_list' %}" class="btn btn-outline-primary btn-sm">Ver sim cards</a>
-        <a href="{% url 'telecom:phoneline_list' %}" class="btn btn-outline-secondary btn-sm">Ver todas as linhas</a>
-    </div>
-</div>
-
+   </div>
 <div class="row g-3">
     {% for box in line_status_boxes %}
         <div class="col-12 col-md-6 col-xl-3">
@@ -31,10 +26,6 @@
 <div class="card shadow-sm border-0 mt-4">
     <div class="card-body">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-3">
-            <div>
-                <p class="text-uppercase text-muted small mb-1">Linhas cadastradas</p>
-                <h2 class="h5 mb-0">Inventário ativo</h2>
-            </div>
             <form method="get" class="d-flex gap-2 w-100 w-md-auto">
                 <input type="search"
                        name="search"

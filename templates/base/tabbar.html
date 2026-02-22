@@ -11,7 +11,7 @@
                 {% if request.user.role == 'admin' %}
                     <li class="nav-item">
                         <a class="nav-link {% if current_ns == 'employees' %}active{% endif %}" href="{% url 'employees:employee_list' %}">
-                            Funcionários
+                            Usuários
                         </a>
                     </li>
                 {% endif %}
