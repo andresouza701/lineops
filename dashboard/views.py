@@ -13,10 +13,10 @@ class DashboardView(AuthenticadView, TemplateView):
         context = super().get_context_data(**kwargs)
         context['total_employees'] = Employee.objects.filter(
             status=Employee.Status.ACTIVE).count()
-        context['total_phone_lines'] = PhoneLine.objects.count()
+        context['total_lines'] = PhoneLine.objects.count()
         context['allocated_lines'] = LineAllocation.objects.filter(
             is_active=True).count()
         context['available_lines'] = (
-            context['total_phone_lines'] - context['allocated_lines']
+            context['total_lines'] - context['allocated_lines']
         )
         return context

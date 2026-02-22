@@ -8,16 +8,23 @@
         <h1 class="h3 mb-1">Equipe</h1>
         <p class="text-muted mb-0">Gerencie os colaboradores e seus departamentos.</p>
     </div>
-    <div class="btn-group" role="group" aria-label="filtro de status">
-        <a href="{% url 'employees:employee_list' %}" class="btn btn-outline-secondary {% if not request.GET.status %}active{% endif %}">
-            Todos
-        </a>
-        <a href="?status=active" class="btn btn-outline-success {% if request.GET.status == 'active' %}active{% endif %}">
-            Ativos
-        </a>
-        <a href="?status=inactive" class="btn btn-outline-danger {% if request.GET.status == 'inactive' %}active{% endif %}">
-            Inativos
-        </a>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        <div class="btn-group" role="group" aria-label="filtro de status">
+            <a href="{% url 'employees:employee_list' %}" class="btn btn-outline-secondary {% if not request.GET.status %}active{% endif %}">
+                Todos
+            </a>
+            <a href="?status=active" class="btn btn-outline-success {% if request.GET.status == 'active' %}active{% endif %}">
+                Ativos
+            </a>
+            <a href="?status=inactive" class="btn btn-outline-danger {% if request.GET.status == 'inactive' %}active{% endif %}">
+                Inativos
+            </a>
+        </div>
+        {% if request.user.role == 'admin' %}
+            <a href="{% url 'employees:employee_create' %}" class="btn btn-primary">
+                Novo funcionário
+            </a>
+        {% endif %}
     </div>
 </div>
 

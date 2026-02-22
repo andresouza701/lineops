@@ -8,6 +8,31 @@ body {
     font-size: 0.9rem;
 }
 
+.auth-background {
+    background: linear-gradient(145deg, rgba(8, 57, 101, 0.95), rgba(17, 109, 227, 0.9)), #0d172a;
+    min-height: 100vh;
+    color: #f8fafc;
+}
+
+.auth-card {
+    border: none;
+    border-radius: 1.25rem;
+    box-shadow: 0 20px 40px rgba(7, 25, 53, 0.35);
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.auth-card .form-control {
+    border-radius: 0.75rem;
+}
+
+.auth-hero-header {
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-bottom: 0.75rem;
+}
+
 .sidebar {
     border-right: 1px solid #dee2e6;
 }

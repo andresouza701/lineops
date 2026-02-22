@@ -1,34 +1,37 @@
-{% extends "base/base.html" %}
+{% extends "base/auth_base.html" %}
 
 {% block title %}Entrar{% endblock %}
 
 {% block content %}
-<div class="container mt-5" style="max-width: 500px;">
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <h3 class="card-title mb-4 text-center">Entrar</h3>
-            <form method="post" novalidate>
-                {% csrf_token %}
-                {% for field in form.visible_fields %}
-                    <div class="mb-3">
-                        <label class="form-label" for="{{ field.auto_id }}">{{ field.label }}</label>
-                        {{ field }}
-                        {% if field.errors %}
-                            <div class="invalid-feedback d-block">
-                                {{ field.errors|striptags }}
-                            </div>
-                        {% endif %}
-                    </div>
-                {% endfor %}
-                {% if form.non_field_errors %}
-                    <div class="alert alert-danger">
-                        {{ form.non_field_errors|striptags }}
-                    </div>
-                {% endif %}
-                <button type="submit" class="btn btn-primary w-100">Entrar</button>
-                <input type="hidden" name="next" value="{{ next }}">
-            </form>
-        </div>
+<div class="card auth-card">
+    <div class="card-body p-4">
+        <p class="auth-hero-header">Acesso seguro</p>
+        <h3 class="mb-1">Bem-vindo de volta</h3>
+        <p class="text-muted mb-4">Informe suas credenciais para continuar no painel LineOps.</p>
+        <form method="post" novalidate>
+            {% csrf_token %}
+            {% for field in form.visible_fields %}
+                <div class="mb-3">
+                    <label class="form-label" for="{{ field.auto_id }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ field.errors|striptags }}
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger" role="alert">
+                    {{ form.non_field_errors|striptags }}
+                </div>
+            {% endif %}
+            <button type="submit" class="btn btn-primary w-100 fw-semibold">Entrar</button>
+            <input type="hidden" name="next" value="{{ next }}">
+        </form>
+        <p class="text-center text-muted small mt-3 mb-0">
+            Suporte: contate o administrador se aparecer uma mensagem de bloqueio.
+        </p>
     </div>
 </div>
 {% endblock %}
