@@ -8,16 +8,16 @@ body {
     font-size: 0.9rem;
 }
 
-main {
+.page-header {
+    background: #fff;
+    padding: 0.5rem 1rem 0;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.page-content {
     width: 100%;
     max-width: 1200px;
     margin: 0 auto;
-}
-
-.page-row {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
 }
 
 .auth-background {
@@ -71,6 +71,54 @@ main {
     color: #0f172a;
 }
 
+.page-header .navbar {
+    border-bottom: none;
+}
+
+.tab-bar {
+    margin-top: 0.25rem;
+}
+
+.card {
+    border-radius: 1rem;
+}
+
+.card-body {
+    padding: 1.25rem;
+}
+
+.table-responsive {
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+
+@media (max-width: 768px) {
+    .page-header {
+        padding: 0.5rem;
+    }
+
+    .tab-bar .nav-link {
+        font-size: 0.85rem;
+        text-align: center;
+        flex: 1;
+    }
+
+    .tab-bar .nav-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+
+    .card-body {
+        padding: 1rem;
+    }
+
+    .btn-group,
+    .d-flex .form-control {
+        width: 100%;
+    }
+}
 .card {
     border-radius: 1rem;
 }

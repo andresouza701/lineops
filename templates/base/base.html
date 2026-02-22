@@ -13,10 +13,12 @@
 
 <body>
     <div class="container-fluid min-vh-100 px-0">
-        {% include "base/navbar.html" %}
-        {% include "base/tabbar.html" %}
+        <header class="page-header">
+            {% include "base/navbar.html" %}
+            {% include "base/tabbar.html" %}
+        </header>
 
-        <main class="px-4 py-4">
+        <main class="page-content px-4 py-4">
             {% include "base/messages.html" %}
             {% block content %}{% endblock %}
         </main>
