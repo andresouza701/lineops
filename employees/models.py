@@ -26,11 +26,11 @@ class Employee(models.Model):
     department = models.CharField(max_length=100)
 
     status = models.CharField(
-        max_length=10, choices=Status.choices, default=Status.INACTIVE)
+        max_length=10, choices=Status.choices, default=Status.INACTIVE, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    is_deleted = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False, db_index=True)
 
     def delete(self, using=None, keep_parents=False):
         self.is_deleted = True
@@ -39,3 +39,10 @@ class Employee(models.Model):
 
     def __str__(self):
         return f"{self.full_name} ({self.employee_id})"
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['employee_id']),
+            models.Index(fields=['corporate_email']),
+            models.Index(fields=['status', 'is_deleted']),
+        ]

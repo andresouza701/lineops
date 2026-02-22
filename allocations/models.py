@@ -24,6 +24,10 @@ class LineAllocation(models.Model):
 
     class Meta:
         ordering = ['-allocated_at']
+        indexes = [
+            models.Index(fields=['employee', 'is_active', 'allocated_at']),
+            models.Index(fields=['phone_line', 'is_active', 'allocated_at']),
+        ]
 
     def __str__(self):
         return f"{self.employee} - {self.phone_line}"
