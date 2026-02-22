@@ -1,0 +1,115 @@
+{% extends "base/base.html" %}
+
+{% block title %}Detalhe do Funcionário{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="fw-semibold">Detalhes do Funcionário</h2>
+
+        <div>
+            <a href="{% url 'employees:employee_update' employee.pk %}"
+               class="btn btn-primary">
+                Editar
+            </a>
+
+            <a href="{% url 'employees:employee_list' %}"
+               class="btn btn-outline-secondary">
+                Voltar
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body">
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>Nome:</strong>
+                    <p>{{ employee.full_name }}</p>
+                </div>
+
+                <div class="col-md-6">
+                    <strong>E-mail corporativo:</strong>
+                    <p>{{ employee.corporate_email }}</p>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>Matrícula:</strong>
+                    <p>{{ employee.employee_id }}</p>
+                </div>
+
+                <div class="col-md-6">
+                    <strong>Departamento:</strong>
+                    <p>{{ employee.department }}</p>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <strong>Status:</strong>
+                {% if employee.status == 'active' %}
+                    <span class="badge bg-success">Ativo</span>
+                {% else %}
+                    <span class="badge bg-secondary">Inativo</span>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mt-4">
+        <div class="card-body">
+
+            <h5 class="mb-3">Histórico de Linhas</h5>
+
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Linha</th>
+                            <th>SIM</th>
+                            <th>Início</th>
+                            <th>Fim</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for allocation in allocations %}
+                            <tr>
+                                <td>{{ allocation.phone_line.phone_number }}</td>
+                                <td>{{ allocation.phone_line.sim_card.iccid }}</td>
+                                <td>{{ allocation.allocated_at }}</td>
+                                <td>
+                                    {% if allocation.released_at %}
+                                        {{ allocation.released_at }}
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if allocation.is_active %}
+                                        <span class="badge bg-success">Ativa</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Finalizada</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">
+                                    Nenhuma linha já foi alocada para este funcionário.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+{% endblock %}
