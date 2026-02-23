@@ -5,9 +5,6 @@
         <div class="navbar-right d-flex align-items-center gap-3 ms-auto">
             {% if request.user.is_authenticated %}
                 <div class="d-flex align-items-center gap-2">
-                    <div class="avatar-circle">
-                        {{ request.user.get_full_name|default:request.user.email|slice:":1"|upper }}
-                    </div>
                     <div class="text-end small lh-sm">
                         <div class="fw-semibold">
                             {{ request.user.get_full_name|default:request.user.email }}
