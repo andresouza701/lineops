@@ -1,60 +1,56 @@
 {% extends "base/base.html" %}
 
-{% block title %}Novo Funcionário{% endblock %}
+{% block title %}Novo Usuário{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="d-flex justify-content-between align-items-center mb-3">
+    {% if object %}
+        <h2 class="fw-semibold">Editar Usuário</h2>
+    {% else %}
+        <h2 class="fw-semibold">Novo Usuário</h2>
+    {% endif %}
+    <a href="{% url 'employees:employee_list' %}" class="btn btn-outline-secondary">
+        Voltar
+    </a>
+</div>
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        {% if object %}
-            <h2 class="fw-semibold">Editar Funcionário</h2>
-        {% else %}
-            <h2 class="fw-semibold">Novo Funcionário</h2>
-        {% endif %}
-        <a href="{% url 'employees:employee_list' %}" class="btn btn-outline-secondary">
-            Voltar
-        </a>
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="mb-3">
+                <label class="form-label">Nome completo</label>
+                {{ form.full_name }}
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">E-mail corporativo</label>
+                {{ form.corporate_email }}
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Matrícula</label>
+                {{ form.employee_id }}
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Departamento</label>
+                {{ form.department }}
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Status</label>
+                {{ form.status }}
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Atualizar{% else %}Salvar{% endif %}
+            </button>
+
+        </form>
+
     </div>
-
-    <div class="card shadow-sm border-0">
-        <div class="card-body">
-
-            <form method="post">
-                {% csrf_token %}
-
-                <div class="mb-3">
-                    <label class="form-label">Nome completo</label>
-                    {{ form.full_name }}
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">E-mail corporativo</label>
-                    {{ form.corporate_email }}
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Matrícula</label>
-                    {{ form.employee_id }}
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Departamento</label>
-                    {{ form.department }}
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Status</label>
-                    {{ form.status }}
-                </div>
-
-                <button type="submit" class="btn btn-primary">
-                    {% if object %}Atualizar{% else %}Salvar{% endif %}
-                </button>
-
-            </form>
-
-        </div>
-    </div>
-
 </div>
 {% endblock %}

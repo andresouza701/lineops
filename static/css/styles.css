@@ -1,27 +1,67 @@
 @charset "UTF-8";
 :root {
-  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-  background: #f4f6fb;
-  color: #0f172a;
+    --bg: #f4f6fb;
+    --text: #0f172a;
+    --muted: #475569;
+    --card-bg: #ffffff;
+    --border: #e5e7eb;
+    --table-bg: #ffffff;
+    --table-header: #f8fafc;
+    --nav-bg: #ffffff;
+    --tab-bg: #ffffff;
+    --shadow: 0 15px 30px rgba(15, 23, 42, 0.12);
+    --input-bg: #f8fafc;
+    --input-border: #e2e8f0;
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
 }
+
+.theme-dark {
+    --bg: #0a192f;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --card-bg: #1e293b;
+    --border: #233143;
+    --table-bg: #1e293b;
+    --table-header: #233143;
+    --nav-bg: #0a192f;
+    --tab-bg: #0a192f;
+    --shadow: 0 15px 30px rgba(0, 0, 0, 0.35);
+    --input-bg: #0f2136;
+    --input-border: #233143;
+}
+
 body {
-    font-size: 0.9rem;
+        font-size: 0.9rem;
+        background: var(--bg);
+        color: var(--text);
+        transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .page-header {
-    background: #fff;
-    padding: 0.5rem 1rem 0;
-    border-bottom: 1px solid #e5e7eb;
+    background: var(--nav-bg);
+    padding: 0;
+    border-bottom: 1px solid var(--border);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .page-content {
     width: 100%;
+    display: flex;
+    justify-content: center;
+    padding: 2.5rem 0 3rem;
+}
+
+.app-container {
+    width: 100%;
     max-width: 1200px;
     margin: 0 auto;
+    padding: 0 1.25rem;
     display: flex;
     flex-direction: column;
     gap: 1.75rem;
-    padding: 2rem 1.5rem 2.5rem;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .auth-background {
@@ -50,8 +90,9 @@ body {
 }
 
 .tab-bar {
-    background: #fff;
-    border-bottom: 1px solid #dee2e6;
+    background: var(--tab-bg);
+    border-bottom: 1px solid var(--border);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .tab-bar .nav-tabs {
@@ -62,9 +103,10 @@ body {
 
 .tab-bar .nav-link {
     font-weight: 500;
-    color: #475569;
+    color: var(--muted);
     border: none;
     border-radius: 0;
+    transition: color 0.3s ease;
 }
 
 .tab-bar .nav-link.active {
@@ -88,6 +130,10 @@ body {
 .card {
     border-radius: 1rem;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+    background: var(--card-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .card-body {
@@ -96,13 +142,168 @@ body {
 
 .card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 15px 30px rgba(15, 23, 42, 0.12);
+    box-shadow: var(--shadow);
 }
 
 .table-responsive {
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    box-shadow: var(--shadow);
     border-radius: 0.75rem;
     overflow: hidden;
+}
+
+table.table {
+    background: var(--table-bg);
+    color: var(--text);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+table.table thead.table-light {
+    background: var(--table-header);
+    color: var(--text);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.form-control,
+.form-select {
+    background: var(--input-bg);
+    border-color: var(--input-border);
+    color: var(--text);
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.2);
+    background: #fff;
+    color: #0f172a;
+}
+
+.theme-dark .form-control:focus,
+.theme-dark .form-select:focus {
+    background: #142236;
+    color: #e2e8f0;
+}
+
+.navbar,
+.navbar.bg-white {
+    background: var(--nav-bg) !important;
+}
+
+.navbar .nav .nav-link {
+    color: var(--muted);
+    border-radius: 0.5rem;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.navbar .nav .nav-link.active,
+.navbar .nav .nav-link:hover {
+    background-color: rgba(37, 99, 235, 0.12);
+    color: #2563eb;
+}
+
+.navbar {
+    padding: 1rem 0;
+}
+
+.navbar .app-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1.25rem;
+    gap: 1.25rem;
+}
+
+.navbar-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+}
+
+.navbar-left,
+.navbar-center,
+.navbar-right {
+    display: flex;
+    align-items: center;
+}
+
+.navbar-left {
+    flex: 1 0 auto;
+}
+
+.navbar-center {
+    flex: 2 1 0;
+    justify-content: center;
+    text-align: center;
+}
+
+.navbar-right {
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    gap: 0.9rem;
+    text-align: right;
+}
+
+.navbar .nav {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 1.25rem;
+    justify-content: center;
+}
+
+.avatar-circle {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--table-header);
+    color: var(--text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+    border: 1px solid var(--border);
+}
+
+.text-muted {
+    color: var(--muted) !important;
+}
+
+.btn-outline-secondary {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+.theme-toggle-btn {
+    border: none;
+    background: transparent;
+    color: var(--text);
+    padding: 0.4rem 0.55rem;
+    border-radius: 999px;
+    line-height: 1;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.theme-toggle-btn:hover {
+    background: rgba(37, 99, 235, 0.12);
+}
+
+.theme-dark .theme-toggle-btn:hover {
+    background: rgba(148, 163, 184, 0.15);
+}
+
+.btn-primary {
+    background-color: #2563eb;
+    border-color: #2563eb;
+}
+
+.btn-primary:hover {
+    background-color: #1d4ed8;
+    border-color: #1d4ed8;
 }
 
 @media (max-width: 992px) {
@@ -123,7 +324,12 @@ body {
     }
 
     .page-content {
-        padding: 1.25rem 1rem 2rem;
+        padding: 1.5rem 0 2.25rem;
+    }
+
+    .app-container {
+        padding: 0 1rem;
+        gap: 1.5rem;
     }
 
     .card-body {

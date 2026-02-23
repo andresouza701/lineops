@@ -1,0 +1,35 @@
+{% with current_ns=request.resolver_match.namespace|default:'' current_name=request.resolver_match.url_name|default:'' %}
+<ul class="nav gap-2">
+    <li class="nav-item">
+        <a class="nav-link px-3 py-2 {% if current_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}">
+            Dashboard
+        </a>
+    </li>
+    {% if request.user.is_authenticated %}
+        {% if request.user.role == 'admin' %}
+            <li class="nav-item">
+                <a class="nav-link px-3 py-2 {% if current_ns == 'employees' %}active{% endif %}" href="{% url 'employees:employee_list' %}">
+                    Usuários
+                </a>
+            </li>
+        {% endif %}
+        {% if request.user.role == 'admin' or request.user.role == 'operator' %}
+            <li class="nav-item">
+                <a class="nav-link px-3 py-2 {% if current_ns == 'telecom' %}active{% endif %}" href="{% url 'telecom:overview' %}">
+                    Telecom
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link px-3 py-2 {% if current_ns == 'allocations' %}active{% endif %}" href="{% url 'allocations:allocation_list' %}">
+                    Cadastro
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link px-3 py-2 {% if current_name == 'upload' %}active{% endif %}" href="{% url 'upload' %}">
+                    Upload
+                </a>
+            </li>
+        {% endif %}
+    {% endif %}
+</ul>
+{% endwith %}

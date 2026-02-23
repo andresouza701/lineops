@@ -1,28 +1,28 @@
 
-<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom px-4">
-    <div class="container-fluid">
+<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
+    <div class="app-container navbar-row">
 
-        <span class="navbar-brand mb-0 h5">LineOps</span>
-
-        <div class="d-flex align-items-center ms-auto">
-
+        <div class="navbar-right d-flex align-items-center gap-3 ms-auto">
             {% if request.user.is_authenticated %}
-                <div class="me-3 text-end">
-                    <div class="fw-semibold">
-                        {{ request.user.get_full_name|default:request.user.email }}
+                <div class="d-flex align-items-center gap-2">
+                    <div class="avatar-circle">
+                        {{ request.user.get_full_name|default:request.user.email|slice:":1"|upper }}
                     </div>
-                    {% if request.user.role %}
-                        <small class="text-muted">
-                            {{ request.user.role }}
-                        </small>
-                    {% endif %}
+                    <div class="text-end small lh-sm">
+                        <div class="fw-semibold">
+                            {{ request.user.get_full_name|default:request.user.email }}
+                        </div>
+                        {% if request.user.role %}
+                            <small class="text-muted text-uppercase" style="letter-spacing: 0.02em;">
+                                {{ request.user.role }}
+                            </small>
+                        {% endif %}
+                    </div>
+                    <a href="{% url 'logout' %}" class="btn btn-outline-danger btn-sm" aria-label="Sair">
+                        Sair
+                    </a>
                 </div>
-
-                <a href="{% url 'logout' %}" class="btn btn-outline-danger btn-sm">
-                    Sair
-                </a>
             {% endif %}
-
         </div>
 
     </div>

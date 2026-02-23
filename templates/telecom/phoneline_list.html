@@ -3,97 +3,95 @@
 {% block title %}Linhas Telefônicas{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-4">
-        <div>
-            <h2 class="mb-2">Linhas Telefônicas</h2>
-            <p class="text-muted mb-0">Monitore números, SIMs e status em um só lugar.</p>
-        </div>
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <h2 class="mb-2">Linhas Telefônicas</h2>
+        <p class="text-muted mb-0">Monitoração</p>
     </div>
+</div>
 
-    <form method="get" class="row g-3 mb-4">
-        <div class="col-md-4">
-            <label class="form-label">Status</label>
-            <select class="form-select" name="status">
-                <option value="">Todos</option>
-                {% for value, label in status_choices %}
-                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-md-5">
-            <label class="form-label">Busca por número ou ICCID</label>
-            <input type="search" name="search" class="form-control" placeholder="Ex.: +5511999990000" value="{{ search_query }}">
-        </div>
-        <div class="col-md-3 d-flex align-items-end gap-2">
-            <button type="submit" class="btn btn-primary w-100">Filtrar</button>
-            <a class="btn btn-outline-secondary w-100" href="{% url 'telecom:phoneline_list' %}">Limpar</a>
-        </div>
-    </form>
+<form method="get" class="row g-3 mb-4">
+    <div class="col-md-4">
+        <label class="form-label">Status</label>
+        <select class="form-select" name="status">
+            <option value="">Todos</option>
+            {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-5">
+        <label class="form-label">Busca por número ou ICCID</label>
+        <input type="search" name="search" class="form-control" placeholder="Ex.: +5511999990000" value="{{ search_query }}">
+    </div>
+    <div class="col-md-3 d-flex align-items-end gap-2">
+        <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+        <a class="btn btn-outline-secondary w-100" href="{% url 'telecom:phoneline_list' %}">Limpar</a>
+    </div>
+</form>
 
-    <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle">
-            <thead class="table-light">
+<div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Número</th>
+                <th scope="col">SIM Card</th>
+                <th scope="col">Status</th>
+                <th scope="col">Ativado em</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in phone_lines %}
                 <tr>
-                    <th scope="col">Número</th>
-                    <th scope="col">SIM Card</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Ativado em</th>
+                    <td>{{ line.phone_number }}</td>
+                    <td>{{ line.sim_card.iccid }}</td>
+                    <td>{{ line.get_status_display }}</td>
+                    <td>{{ line.activated_at|date:"d/m/Y"|default:"—" }}</td>
                 </tr>
-            </thead>
-            <tbody>
-                {% for line in phone_lines %}
-                    <tr>
-                        <td>{{ line.phone_number }}</td>
-                        <td>{{ line.sim_card.iccid }}</td>
-                        <td>{{ line.get_status_display }}</td>
-                        <td>{{ line.activated_at|date:"d/m/Y"|default:"—" }}</td>
-                    </tr>
-                {% empty %}
-                    <tr>
-                        <td colspan="4" class="text-center">Nenhuma linha cadastrada.</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-            </table>
-        </div>
+            {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center">Nenhuma linha cadastrada.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 
-        {% if phone_lines.has_other_pages %}
-            <nav aria-label="Paginação" class="mt-3">
-                <ul class="pagination justify-content-center">
-                    {% if phone_lines.has_previous %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ phone_lines.previous_page_number }}{{ query_string }}" aria-label="Anterior">
-                                <span aria-hidden="true">&laquo;</span>
-                            </a>
-                        </li>
-                    {% else %}
-                        <li class="page-item disabled">
-                            <span class="page-link">&laquo;</span>
-                        </li>
-                    {% endif %}
+{% if phone_lines.has_other_pages %}
+    <nav aria-label="Paginação" class="mt-3">
+        <ul class="pagination justify-content-center">
+            {% if phone_lines.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ phone_lines.previous_page_number }}{{ query_string }}" aria-label="Anterior">
+                        <span aria-hidden="true">&laquo;</span>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">&laquo;</span>
+                </li>
+            {% endif %}
 
-                    {% for num in phone_lines.paginator.page_range %}
-                        {% if num == phone_lines.number %}
-                            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
-                        {% else %}
-                            <li class="page-item"><a class="page-link" href="?page={{ num }}{{ query_string }}">{{ num }}</a></li>
-                        {% endif %}
-                    {% endfor %}
+            {% for num in phone_lines.paginator.page_range %}
+                {% if num == phone_lines.number %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                {% else %}
+                    <li class="page-item"><a class="page-link" href="?page={{ num }}{{ query_string }}">{{ num }}</a></li>
+                {% endif %}
+            {% endfor %}
 
-                    {% if phone_lines.has_next %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ phone_lines.next_page_number }}{{ query_string }}" aria-label="Próxima">
-                                <span aria-hidden="true">&raquo;</span>
-                            </a>
-                        </li>
-                    {% else %}
-                        <li class="page-item disabled">
-                            <span class="page-link">&raquo;</span>
-                        </li>
-                    {% endif %}
-                </ul>
-            </nav>
-        {% endif %}
-    </div>
+            {% if phone_lines.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ phone_lines.next_page_number }}{{ query_string }}" aria-label="Próxima">
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">&raquo;</span>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+{% endif %}
 {% endblock %}
