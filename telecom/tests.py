@@ -180,7 +180,8 @@ class SIMcardViewsTest(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertRedirects(response, reverse("telecom:simcard_list"))
-        self.assertTrue(SIMcard.objects.filter(iccid=payload["iccid"]).exists())
+        self.assertTrue(SIMcard.objects.filter(
+            iccid=payload["iccid"]).exists())
 
     def test_simcard_update_view(self):
         url = reverse("telecom:simcard_update", args=[self.sim_available.pk])
