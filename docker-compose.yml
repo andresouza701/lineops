@@ -23,7 +23,7 @@ services:
     depends_on:
       - db  
     env_file:
-      - .env.dev
+      - .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings_dev
 volumes:
