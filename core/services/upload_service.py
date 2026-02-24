@@ -10,7 +10,7 @@ from django.utils.text import slugify
 from openpyxl import load_workbook
 
 from employees.models import Employee
-from telecom.models import SIMcard
+from telecom.models import PhoneLine, SIMcard
 
 
 @dataclass
@@ -164,6 +164,17 @@ def _upsert_simcard(row: Dict[str, str], summary: UploadSummary) -> None:
         summary.simcards_created += 1
     else:
         summary.simcards_updated += 1
+
+    phone_number = row.get("phone_number") or ""
+    if phone_number:
+        PhoneLine.objects.update_or_create(
+            phone_number=phone_number,
+            defaults={
+                "sim_card": simcard,
+                "status": PhoneLine.Status.AVAILABLE,
+                "is_deleted": False,
+            },
+        )
 
 
 def _ensure_required(row: Dict[str, str], required_fields: List[str]) -> None:

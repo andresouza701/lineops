@@ -1,0 +1,5 @@
+type,full_name,corporate_email,employee_id,department,status,iccid,carrier,phone_number
+employee,Ana Souza,ana.souza@example.com,EMP-2001,Operacoes,active,,,
+employee,Bruno Lima,bruno.lima@example.com,EMP-2002,Financeiro,inactive,,,
+simcard,,,,,available,8999999999999990001,Carrier A,+5511999990001
+simcard,,,,,blocked,8999999999999990002,Carrier B,+5511999990002

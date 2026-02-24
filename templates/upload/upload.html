@@ -29,8 +29,9 @@
                     <div class="text-danger small mt-1">{{ form.file.errors.0 }}</div>
                     {% endif %}
                 </div>
-                <div class="col-12 d-flex gap-2 align-items-center">
-                    <a class="btn btn-outline-secondary" href="{% static 'upload_template.csv' %}">Baixar modelo</a>
+                <div class="col-12 d-flex gap-2 align-items-center flex-wrap">
+                    <a class="btn btn-outline-secondary" href="{% static 'upload_template.csv' %}">Baixar modelo (inclusão)</a>
+                    <a class="btn btn-outline-secondary" href="{% static 'update_template.csv' %}">Baixar modelo (atualização)</a>
                     <button type="submit" class="btn btn-primary">Enviar</button>
                 </div>
             </form>
