@@ -88,15 +88,47 @@ class PhoneLineHistoryViewTest(TestCase):
         self.assertContains(response, "Filter User")
 
 
-class test_export_phone_line_history(TestCase):
+class ExportPhoneLineHistoryTest(TestCase):
     def setUp(self):
         self.admin = SystemUser.objects.create_user(
             email="admin4@test.com", password="123456", role=SystemUser.Role.ADMIN
         )
         self.client.force_login(self.admin)
+
         self.employee = Employee.objects.create(
             full_name="Export User",
             corporate_email="export@corp.com",
             employee_id="EMP300",
             department="IT",
         )
+
+        self.sim = SIMcard.objects.create(iccid="999", carrier="CarrierX")
+        self.phone_line = PhoneLine.objects.create(phone_number="998877", sim_card=self.sim)
+
+        self.allocation = AllocationService.allocate_line(
+            employee=self.employee,
+            phone_line=self.phone_line,
+            allocated_by=self.admin,
+        )
+
+    def test_export_phone_line_history_as_csv(self):
+        url = reverse("telecom:phoneline_history_export", args=[self.phone_line.pk])
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/csv")
+        self.assertIn("attachment; filename=", response["Content-Disposition"])
+
+        content = response.content.decode("utf-8")
+        self.assertIn("Linha,ICCID,Status,Colaborador", content)
+        self.assertIn(self.phone_line.phone_number, content)
+        self.assertIn(self.employee.full_name, content)
+
+    def test_export_phone_line_history_csv_with_date_filter(self):
+        allocation_date = timezone.localtime(self.allocation.allocated_at).date().isoformat()
+        url = reverse("telecom:phoneline_history_export", args=[self.phone_line.pk])
+        response = self.client.get(f"{url}?start_date={allocation_date}")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+        self.assertIn(self.employee.full_name, content)

@@ -22,7 +22,8 @@ class RoleRequiredMixin(LoginRequiredMixin):
 
         return super().dispatch(request, *args, **kwargs)
 
+
 class StandardPaginationMixin:
     paginate_by = 20
-    page_kwarg = 'page'
+    page_kwarg = "page"
     paginate_orphans = 0

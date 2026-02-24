@@ -87,8 +87,8 @@ class SIMcardUpdateView(RoleRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class PhoneLineListView(StandardPaginationMixin, ListView):
-    # allowed_roles = [SystemUser.Role.ADMIN]
+class PhoneLineListView(StandardPaginationMixin, RoleRequiredMixin, ListView):
+    allowed_roles = [SystemUser.Role.ADMIN]
     model = PhoneLine
     template_name = "telecom/phoneline_list.html"
     context_object_name = "phone_lines"
@@ -291,49 +291,61 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
 class ExportPhoneLinesCSVView(RoleRequiredMixin, View):
     allowed_roles = [SystemUser.Role.ADMIN]
 
-    def get(self, request):
+    def get(self, request, pk):
+        phone_line = get_object_or_404(PhoneLine, pk=pk, is_deleted=False)
 
-        def get(self, request, pk):
-            phone_line = get_object_or_404(PhoneLine, pk=pk, is_deleted=False)
+        allocations = (
+            LineAllocation.objects.filter(phone_line=phone_line)
+            .select_related("employee", "allocated_by")
+            .order_by("-allocated_at")
+        )
 
-            allocations = LineAllocation.objects.filter(phone_line=phone_line).select_related(
-                "employee", "allocated_by"
+        start_date = request.GET.get("start_date")
+        end_date = request.GET.get("end_date")
+
+        if start_date:
+            start_date_parsed = parse_date(start_date)
+            if start_date_parsed:
+                allocations = allocations.filter(allocated_at__date__gte=start_date_parsed)
+
+        if end_date:
+            end_date_parsed = parse_date(end_date)
+            if end_date_parsed:
+                allocations = allocations.filter(allocated_at__date__lte=end_date_parsed)
+
+        response = HttpResponse(content_type="text/csv")
+        response[
+            "Content-Disposition"
+        ] = f'attachment; filename="phone_line_{phone_line.id}_history.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(
+            [
+                "Linha",
+                "ICCID",
+                "Status",
+                "Colaborador",
+                "Matrícula",
+                "Alocado por",
+                "Data alocação",
+                "Data liberação",
+                "Ativa",
+            ]
+        )
+
+        for allocation in allocations:
+            writer.writerow(
+                [
+                    phone_line.phone_number,
+                    phone_line.sim_card.iccid if phone_line.sim_card else "",
+                    phone_line.status,
+                    allocation.employee.full_name,
+                    allocation.employee.employee_id,
+                    allocation.allocated_by.email if allocation.allocated_by else "N/A",
+                    allocation.allocated_at,
+                    allocation.released_at or "",
+                    "Sim" if allocation.is_active else "Não",
+                ]
             )
 
-            start_date = request.GET.get("start_date")
-            end_date = request.GET.get("end_date")
-
-            if start_date:
-                start_date_parsed = parse_date(start_date)
-                if start_date_parsed:
-                    allocations = allocations.filter(
-                        allocated_at__date__gte=start_date_parsed
-                    )
-            if end_date:
-                end_date_parsed = parse_date(end_date)
-                if end_date_parsed:
-                    allocations = allocations.filter(
-                        allocated_at__date__lte=end_date_parsed
-                    )
-
-                    response = HttpResponse(content_type="text/csv")
-                    response[
-                        "Content-Disposition"] = f'attachment; filename="phone_line_{phone_line.id}_history.csv"'
-
-                    writer = csv.writer(response)
-                    writer.writerow(
-                        ["Número de Telefone", "ICCID do SIM", "Status da Linha",
-                            "Alocado Para", "Alocado Por", "Data de Alocação"]
-                    )
-                    for alloc in allocations:
-                        writer.writerow(
-                            [
-                                alloc.employee.full_name,
-                                alloc.employee.employee_id,
-                                alloc.allocated_at,
-                                alloc.released_at,
-                                alloc.allocated_by.email if alloc.allocated_by else "N/A",
-
-                            ]
-                        )
-                    return response
+        return response
