@@ -306,12 +306,14 @@ class ExportPhoneLinesCSVView(RoleRequiredMixin, View):
         if start_date:
             start_date_parsed = parse_date(start_date)
             if start_date_parsed:
-                allocations = allocations.filter(allocated_at__date__gte=start_date_parsed)
+                allocations = allocations.filter(
+                    allocated_at__date__gte=start_date_parsed)
 
         if end_date:
             end_date_parsed = parse_date(end_date)
             if end_date_parsed:
-                allocations = allocations.filter(allocated_at__date__lte=end_date_parsed)
+                allocations = allocations.filter(
+                    allocated_at__date__lte=end_date_parsed)
 
         response = HttpResponse(content_type="text/csv")
         response[
