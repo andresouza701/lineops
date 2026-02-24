@@ -1,31 +1,41 @@
-# Base image
-FROM python:3.12-slim
+# Imagem base enxuta
+FROM python:3.11-slim
 
-# Evita que Python cree archivos .pyc
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+# Evita arquivos .pyc e bufferização
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Set working directory
+# Diretório de trabalho
 WORKDIR /app
 
-# Install system dependencies
+# Instalar dependências do sistema
 RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+    gcc \
+    && apt-get clean
 
-# Copy requirements file
+# Criar usuário não-root
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+
+# Copiar requirements primeiro (melhora cache)
 COPY requirements.txt /app/
 
-# Install dependencies
-RUN pip install --upgrade pip \
-    && pip install -r requirements.txt
+# Instalar dependências Python
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
 
-# Copy project files
+# Copiar restante do código
 COPY . /app/
 
-# Expose the port the app runs on
+# Ajustar permissões
+RUN chown -R appuser:appgroup /app
+
+# Trocar para usuário não-root
+USER appuser
+
+# Expor porta interna
 EXPOSE 8000
 
-# Run the application
-CMD ["python", "-m", "gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
+# Comando padrão
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
