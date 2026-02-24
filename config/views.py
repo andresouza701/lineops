@@ -1,5 +1,6 @@
 from django.contrib.auth.views import LogoutView
 from django.http import JsonResponse
+from django.shortcuts import render
 from django.views.generic import TemplateView
 
 
@@ -34,3 +35,11 @@ class HealthCheckView(TemplateView):
     # Usa TemplateView apenas para evitar boilerplate; sobrepõe get
     def get(self, request, *args, **kwargs):
         return JsonResponse({"status": "ok"})
+
+
+def custom_permission_denied_view(request, exception=None):
+    return render(request, "403.html", status=403)
+
+
+def custom_page_not_found_view(request, exception=None):
+    return render(request, "404.html", status=404)

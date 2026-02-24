@@ -40,6 +40,78 @@ body {
         transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+.messages-stack {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1080;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: min(380px, 90vw);
+}
+
+.badge-status {
+    border-radius: 999px;
+    padding: 0.4rem 0.65rem;
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: #0f172a;
+    border: 1px solid transparent;
+}
+
+.badge-status-available {
+    background: #dcfce7;
+    border-color: #86efac;
+    color: #166534;
+}
+
+.badge-status-allocated,
+.badge-status-active {
+    background: #e0ecff;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+}
+
+.badge-status-suspended,
+.badge-status-blocked {
+    background: #fff7ed;
+    border-color: #fdba74;
+    color: #c2410c;
+}
+
+.badge-status-cancelled {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #475569;
+}
+
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    backdrop-filter: blur(2px);
+}
+
+.loading-box {
+    background: #ffffff;
+    padding: 1rem 1.5rem;
+    border-radius: 0.75rem;
+    display: inline-flex;
+    gap: 0.75rem;
+    align-items: center;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.2);
+    color: #0f172a;
+}
+
+.loading-text {
+    font-weight: 600;
+}
+
 .page-header {
     background: var(--nav-bg);
     padding: 0;

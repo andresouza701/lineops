@@ -45,7 +45,9 @@
                 <tr>
                     <td>{{ line.phone_number }}</td>
                     <td>{{ line.sim_card.iccid }}</td>
-                    <td>{{ line.get_status_display }}</td>
+                    <td>
+                        <span class="badge badge-status badge-status-{{ line.status|lower }}">{{ line.get_status_display }}</span>
+                    </td>
                     <td>{{ line.activated_at|date:"d/m/Y"|default:"—" }}</td>
                 </tr>
             {% empty %}

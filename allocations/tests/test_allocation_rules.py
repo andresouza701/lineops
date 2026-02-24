@@ -1,5 +1,7 @@
 from django.test import TestCase
+from django.urls import reverse
 
+from core.exceptions.domain_exceptions import BusinessRuleException
 from core.services.allocation_service import AllocationService
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
@@ -10,7 +12,6 @@ class AllocationRulesTestCase(TestCase):
 
     def setUp(self):
         self.admin = SystemUser.objects.create_user(
-            username="admin",
             email="admin@test.com",
             password="123456",
             role="ADMIN",
@@ -53,7 +54,7 @@ class AllocationRulesTestCase(TestCase):
         )
 
         # Terceira deve falhar
-        with self.assertRaises(ValueError):
+        with self.assertRaises(BusinessRuleException):
             AllocationService.allocate_line(
                 employee=self.employee,
                 phone_line=self.lines[2],
@@ -116,4 +117,46 @@ class AllocationRulesTestCase(TestCase):
             employee=allocation.employee, released_at__isnull=False
         ).count()
         self.assertEqual(total_releases, 1)
-        
+
+
+class AllocationReleaseViewTestCase(TestCase):
+
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="admin@test.com",
+            password="123456",
+            role="ADMIN",
+        )
+
+        self.employee = Employee.objects.create(
+            full_name="John Doe",
+            corporate_email="john@corp.com",
+            employee_id="EMP001",
+            department="IT",
+        )
+
+        sim = SIMcard.objects.create(
+            iccid="8900000000000000000", carrier="CarrierX")
+        self.phone_line = PhoneLine.objects.create(
+            phone_number="+551199999990", sim_card=sim, status=PhoneLine.Status.AVAILABLE
+        )
+
+        self.allocation = AllocationService.allocate_line(
+            employee=self.employee, phone_line=self.phone_line, allocated_by=self.admin
+        )
+
+        self.client.force_login(self.admin)
+
+    def test_release_view_deactivates_allocation(self):
+        url = reverse("allocations:allocation_release",
+                      args=[self.allocation.pk])
+        response = self.client.post(url, follow=True)
+
+        self.assertRedirects(response, reverse("allocations:allocation_list"))
+
+        self.allocation.refresh_from_db()
+        self.assertFalse(self.allocation.is_active)
+        self.assertIsNotNone(self.allocation.released_at)
+
+        self.phone_line.refresh_from_db()
+        self.assertEqual(self.phone_line.status, PhoneLine.Status.AVAILABLE)

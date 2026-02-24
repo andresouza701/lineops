@@ -183,7 +183,7 @@
                                 {% if allocation.is_active %}
                                     <form method="post" action="{% url 'allocations:allocation_release' allocation.pk %}">
                                         {% csrf_token %}
-                                        <button type="submit" class="btn btn-outline-danger btn-sm">Liberar</button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" data-release-trigger data-employee="{{ allocation.employee.full_name }}" data-phone="{{ allocation.phone_line.phone_number }}">Liberar</button>
                                     </form>
                                 {% else %}
                                     <span class="text-muted">—</span>
@@ -197,6 +197,24 @@
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="releaseConfirmModal" tabindex="-1" aria-labelledby="releaseConfirmLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="releaseConfirmLabel">Confirmar liberação</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0" data-release-label>Deseja liberar esta linha?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" data-release-confirm>Sim, liberar</button>
+            </div>
         </div>
     </div>
 </div>
@@ -226,6 +244,66 @@
 
         radios.forEach(r => r.addEventListener('change', syncSections));
         syncSections();
+    })();
+
+    (function() {
+        const modalEl = document.getElementById('releaseConfirmModal');
+        const labelEl = modalEl?.querySelector('[data-release-label]');
+        const confirmBtn = modalEl?.querySelector('[data-release-confirm]');
+        const modalInstance = modalEl && window.bootstrap?.Modal ? window.bootstrap.Modal.getOrCreateInstance(modalEl) : null;
+        let pendingForm = null;
+
+        function submitPending() {
+            if (!pendingForm) return;
+            pendingForm.submit();
+            pendingForm = null;
+        }
+
+        function openConfirmation(form, employee, phone) {
+            pendingForm = form;
+            const message = employee && phone
+                ? `Deseja liberar a linha ${phone} do(a) ${employee}?`
+                : 'Deseja liberar esta linha?';
+
+            if (labelEl) {
+                labelEl.textContent = message;
+            }
+
+            if (modalInstance) {
+                modalInstance.show();
+                return;
+            }
+
+            if (window.confirm(message)) {
+                submitPending();
+            } else {
+                pendingForm = null;
+            }
+        }
+
+        document.querySelectorAll('[data-release-trigger]').forEach(button => {
+            button.addEventListener('click', event => {
+                event.preventDefault();
+                const form = button.closest('form');
+                if (!form) return;
+                const employee = button.getAttribute('data-employee');
+                const phone = button.getAttribute('data-phone');
+                openConfirmation(form, employee, phone);
+            });
+        });
+
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', () => {
+                submitPending();
+                modalInstance?.hide();
+            });
+        }
+
+        if (modalEl) {
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                pendingForm = null;
+            });
+        }
     })();
 </script>
 {% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base/base.html" %}
+{% block title %}Acesso negado{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card shadow-sm border-0 text-center py-4">
+            <div class="card-body d-flex flex-column align-items-center gap-3">
+                <div class="error-code text-danger fw-bold" style="font-size: 3rem;">403</div>
+                <h3 class="fw-semibold mb-0">Permissão insuficiente</h3>
+                <p class="text-muted mb-3">Você não tem acesso a este recurso. Verifique se está autenticado e possui o perfil correto.</p>
+                <div class="d-flex gap-2">
+                    <a href="/" class="btn btn-primary">Ir para o início</a>
+                    <a href="javascript:history.back()" class="btn btn-outline-secondary">Voltar</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,10 +1,29 @@
-
 {% if messages %}
-    <div class="messages">
+    <div class="messages-stack">
         {% for message in messages %}
-            <div class="alert {{ message.tags }}">
-                {{ message }}
-            </div>
+            {% if 'error' in message.tags %}
+                {% with 'alert-danger' as alert_class %}
+                    <div class="alert alert-dismissible fade show {{ alert_class }}" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+                    </div>
+                {% endwith %}
+            {% elif 'success' in message.tags %}
+                <div class="alert alert-dismissible fade show alert-success" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+                </div>
+            {% elif 'warning' in message.tags %}
+                <div class="alert alert-dismissible fade show alert-warning" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+                </div>
+            {% else %}
+                <div class="alert alert-dismissible fade show alert-info" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+                </div>
+            {% endif %}
         {% endfor %}
     </div>
 {% endif %}

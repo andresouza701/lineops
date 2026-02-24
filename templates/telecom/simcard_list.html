@@ -57,7 +57,9 @@
                 <tr>
                     <td>{{ sim.iccid }}</td>
                     <td>{{ sim.carrier }}</td>
-                    <td>{{ sim.get_status_display }}</td>
+                    <td>
+                        <span class="badge badge-status badge-status-{{ sim.status|lower }}">{{ sim.get_status_display }}</span>
+                    </td>
                     <td>{{ sim.activated_at|date:"d/m/Y H:i"|default:"—" }}</td>
                 </tr>
             {% empty %}

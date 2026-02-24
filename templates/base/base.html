@@ -10,6 +10,13 @@
 </head>
 
 <body>
+    <div id="global-loading" class="loading-overlay d-none" aria-hidden="true">
+        <div class="loading-box" role="status" aria-live="polite">
+            <div class="spinner-border text-primary" aria-hidden="true"></div>
+            <span class="loading-text">Carregando...</span>
+        </div>
+    </div>
+
     <div class="container-fluid min-vh-100 px-0">
         <header class="page-header">
             {% include "base/navbar.html" %}
@@ -66,36 +73,49 @@
         (() => {
             const body = document.body;
             const toggleBtn = document.querySelector('[data-action="toggle-theme"]');
-            if (!toggleBtn) return;
+            if (toggleBtn) {
+                const label = toggleBtn.querySelector('[data-theme-label]');
+                const sunIcon = toggleBtn.querySelector('[data-icon-sun]');
+                const moonIcon = toggleBtn.querySelector('[data-icon-moon]');
+                const storageKey = 'theme-mode';
 
-            const label = toggleBtn.querySelector('[data-theme-label]');
-            const sunIcon = toggleBtn.querySelector('[data-icon-sun]');
-            const moonIcon = toggleBtn.querySelector('[data-icon-moon]');
-            const storageKey = 'theme-mode';
+                const applyTheme = (mode) => {
+                    const isDark = mode === 'dark';
+                    body.classList.toggle('theme-dark', isDark);
+                    localStorage.setItem(storageKey, isDark ? 'dark' : 'light');
 
-            const applyTheme = (mode) => {
-                const isDark = mode === 'dark';
-                body.classList.toggle('theme-dark', isDark);
-                localStorage.setItem(storageKey, isDark ? 'dark' : 'light');
+                    const currentLabel = isDark ? 'Dark' : 'Light';
+                    const nextMode = isDark ? 'light' : 'dark';
+                    toggleBtn.setAttribute('aria-label', `Alternar para tema ${nextMode}`);
+                    toggleBtn.setAttribute('aria-pressed', isDark);
+                    if (label) label.textContent = currentLabel;
+                    if (sunIcon && moonIcon) {
+                        sunIcon.classList.toggle('d-none', isDark);
+                        moonIcon.classList.toggle('d-none', !isDark);
+                    }
+                };
 
-                const currentLabel = isDark ? 'Dark' : 'Light';
-                const nextMode = isDark ? 'light' : 'dark';
-                toggleBtn.setAttribute('aria-label', `Alternar para tema ${nextMode}`);
-                toggleBtn.setAttribute('aria-pressed', isDark);
-                if (label) label.textContent = currentLabel;
-                if (sunIcon && moonIcon) {
-                    sunIcon.classList.toggle('d-none', isDark);
-                    moonIcon.classList.toggle('d-none', !isDark);
-                }
-            };
+                const saved = localStorage.getItem(storageKey);
+                applyTheme(saved === 'dark' ? 'dark' : 'light');
 
-            const saved = localStorage.getItem(storageKey);
-            applyTheme(saved === 'dark' ? 'dark' : 'light');
+                toggleBtn.addEventListener('click', () => {
+                    const nextMode = body.classList.contains('theme-dark') ? 'light' : 'dark';
+                    applyTheme(nextMode);
+                });
+            }
 
-            toggleBtn.addEventListener('click', () => {
-                const nextMode = body.classList.contains('theme-dark') ? 'light' : 'dark';
-                applyTheme(nextMode);
+            const loadingOverlay = document.getElementById('global-loading');
+            const showLoading = () => loadingOverlay && loadingOverlay.classList.remove('d-none');
+            const hideLoading = () => loadingOverlay && loadingOverlay.classList.add('d-none');
+
+            document.querySelectorAll('form').forEach(form => {
+                form.addEventListener('submit', () => {
+                    if (form.dataset.noLoading === 'true') return;
+                    showLoading();
+                });
             });
+
+            window.addEventListener('pageshow', () => hideLoading());
         })();
     </script>
     {% block scripts %}{% endblock %}

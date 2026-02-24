@@ -216,3 +216,98 @@ class SIMcardViewsTest(TestCase):
         simcards = list(response.context["simcards"])
         self.assertEqual(len(simcards), 1)
         self.assertEqual(simcards[0].pk, self.sim_active.pk)
+
+
+class PhoneLineViewsTest(TestCase):
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="admin.lines@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.client.force_login(self.admin)
+
+        self.sim_available = SIMcard.objects.create(
+            iccid="8900000000000000404",
+            carrier="CarrierD",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.sim_other = SIMcard.objects.create(
+            iccid="8900000000000000505",
+            carrier="CarrierE",
+            status=SIMcard.Status.AVAILABLE,
+        )
+
+        self.line_available = PhoneLine.objects.create(
+            phone_number="+551199999001",
+            sim_card=self.sim_available,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        self.line_allocated = PhoneLine.objects.create(
+            phone_number="+551199999002",
+            sim_card=self.sim_other,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+
+    def test_list_view_shows_lines_and_sim_binding(self):
+        url = reverse("telecom:phoneline_list")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn(self.line_available.phone_number, content)
+        self.assertIn(self.sim_available.iccid, content)
+
+    def test_filter_by_status(self):
+        url = reverse("telecom:phoneline_list")
+        response = self.client.get(url, {"status": PhoneLine.Status.AVAILABLE})
+
+        self.assertEqual(response.status_code, 200)
+        lines = list(response.context["phone_lines"])
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0].pk, self.line_available.pk)
+
+    def test_search_by_phone_number(self):
+        url = reverse("telecom:phoneline_list")
+        response = self.client.get(url, {"search": "9999002"})
+
+        self.assertEqual(response.status_code, 200)
+        lines = list(response.context["phone_lines"])
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0].pk, self.line_allocated.pk)
+
+    def test_create_view_binds_sim_to_new_line(self):
+        new_sim = SIMcard.objects.create(
+            iccid="8900000000000000606",
+            carrier="CarrierF",
+            status=SIMcard.Status.AVAILABLE,
+        )
+
+        url = reverse("telecom:phoneline_create")
+        payload = {
+            "phone_number": "+551199999003",
+            "sim_card": new_sim.pk,
+        }
+
+        response = self.client.post(url, data=payload)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse("telecom:phoneline_list"))
+        self.assertTrue(PhoneLine.objects.filter(
+            phone_number=payload["phone_number"], sim_card=new_sim).exists())
+
+    def test_update_view_changes_phone_number(self):
+        url = reverse("telecom:phoneline_update",
+                      args=[self.line_available.pk])
+        payload = {
+            "phone_number": "+551199999999",
+            "sim_card": self.sim_available.pk,
+        }
+
+        response = self.client.post(url, data=payload)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse("telecom:phoneline_list"))
+        self.line_available.refresh_from_db()
+        self.assertEqual(self.line_available.phone_number,
+                         payload["phone_number"])

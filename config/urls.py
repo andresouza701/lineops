@@ -24,3 +24,6 @@ urlpatterns = [
     path("api/admin-only/", AdminOnlyView.as_view(), name="admin_only"),
 
 ]
+
+handler403 = "config.views.custom_permission_denied_view"
+handler404 = "config.views.custom_page_not_found_view"
