@@ -1,7 +1,17 @@
+from pathlib import Path
+
+from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LogoutView
 from django.http import JsonResponse
 from django.shortcuts import render
-from django.views.generic import TemplateView
+from django.urls import reverse_lazy
+from django.utils import timezone
+from django.views.generic import FormView, TemplateView
+
+from config.forms import UploadForm
+from core.services.upload_service import process_upload_file
 
 
 class DashboardView(TemplateView):
@@ -20,8 +30,58 @@ class DocumentationView(TemplateView):
     template_name = "documentation.html"
 
 
-class UploadView(TemplateView):
+class UploadView(LoginRequiredMixin, FormView):
     template_name = "upload/upload.html"
+    form_class = UploadForm
+    success_url = reverse_lazy("upload")
+
+    def form_valid(self, form):
+        uploaded_file = form.cleaned_data["file"]
+        saved_path = self._persist_file(uploaded_file)
+        summary = process_upload_file(saved_path)
+
+        self._notify(summary, saved_path.name)
+        context = self.get_context_data(
+            form=self.form_class(), summary=summary, last_uploaded=saved_path.name
+        )
+        return self.render_to_response(context)
+
+    def form_invalid(self, form):
+        messages.error(
+            self.request, "Não foi possível processar o arquivo enviado.")
+        return self.render_to_response(self.get_context_data(form=form))
+
+    def _persist_file(self, uploaded_file) -> Path:
+        upload_dir = Path(settings.MEDIA_ROOT) / "uploads"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = timezone.now().strftime("%Y%m%d%H%M%S")
+        original_name = Path(uploaded_file.name).name
+        destination = upload_dir / f"{timestamp}_{original_name}"
+
+        with destination.open("wb") as dest:
+            for chunk in uploaded_file.chunks():
+                dest.write(chunk)
+        return destination
+
+    def _notify(self, summary, filename: str) -> None:
+        messages.success(
+            self.request,
+            (
+                f"Arquivo {filename} recebido. "
+                f"Linhas processadas: {summary.rows_processed}. "
+                f"Colaboradores criados/atualizados: "
+                f"{summary.employees_created}/{summary.employees_updated}. "
+                f"SIM cards criados/atualizados: "
+                f"{summary.simcards_created}/{summary.simcards_updated}."
+            ),
+        )
+
+        if summary.has_errors:
+            messages.error(
+                self.request,
+                f"Encontramos {len(summary.errors)} erro(s). Confira a lista abaixo.",
+            )
 
 
 class LogoutGetView(LogoutView):

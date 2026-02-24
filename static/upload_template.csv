@@ -1,0 +1,3 @@
+type,full_name,corporate_email,employee_id,department,status,iccid,carrier
+employee,Joana Silva,joana.silva@example.com,EMP-1001,Operações,active,,
+simcard,,,,,available,8999999999999999999,Carrier X
