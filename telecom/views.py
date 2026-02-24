@@ -14,7 +14,7 @@ from django.views.generic import (
 )
 
 from allocations.models import LineAllocation
-from core.mixins import RoleRequiredMixin
+from core.mixins import RoleRequiredMixin, StandardPaginationMixin
 from users.models import SystemUser
 
 from .forms import PhoneLineForm
@@ -84,8 +84,8 @@ class SIMcardUpdateView(RoleRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class PhoneLineListView(RoleRequiredMixin, ListView):
-    allowed_roles = [SystemUser.Role.ADMIN]
+class PhoneLineListView(StandardPaginationMixin, ListView):
+    # allowed_roles = [SystemUser.Role.ADMIN]
     model = PhoneLine
     template_name = "telecom/phoneline_list.html"
     context_object_name = "phone_lines"
@@ -94,7 +94,8 @@ class PhoneLineListView(RoleRequiredMixin, ListView):
     def get_queryset(self):
         self.search_query = self.request.GET.get("search", "").strip()
         self.status_filter = self.request.GET.get("status")
-        queryset = PhoneLine.objects.filter(is_deleted=False).select_related("sim_card")
+        queryset = PhoneLine.objects.filter(
+            is_deleted=False).select_related("sim_card")
 
         valid_statuses = {choice[0] for choice in PhoneLine.Status.choices}
         if self.status_filter in valid_statuses:
@@ -207,7 +208,8 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["total_simcards"] = SIMcard.objects.filter(is_deleted=False).count()
+        context["total_simcards"] = SIMcard.objects.filter(
+            is_deleted=False).count()
         base_lines = PhoneLine.objects.filter(is_deleted=False)
         context["total_lines"] = base_lines.count()
         counts = self._line_status_counts(base_lines)
@@ -221,10 +223,12 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         search = self.request.GET.get("search", "").strip()
         context["search_query"] = search
 
-        lines_qs = base_lines.select_related("sim_card").order_by("phone_number")
+        lines_qs = base_lines.select_related(
+            "sim_card").order_by("phone_number")
         if search:
             lines_qs = lines_qs.filter(
-                Q(phone_number__icontains=search) | Q(sim_card__iccid__icontains=search)
+                Q(phone_number__icontains=search) | Q(
+                    sim_card__iccid__icontains=search)
             )
         context["phone_lines"] = lines_qs
         context.update(self._line_status_summary(counts))

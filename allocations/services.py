@@ -1,7 +1,10 @@
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone as utc
+import logging
 
 from allocations.models import LineAllocation
+
+logger = logging.getLogger(__name__)
 
 
 class AllocationService:
@@ -15,7 +18,14 @@ class AllocationService:
         allocation = LineAllocation.objects.create(
             employee=employee, phone_line=phone_line, allocated_by=allocated_by
         )
-        return allocation
+        logger.info(
+            "Line allocated",
+            extra={
+                "allocation_id": allocation.id,
+                "employee_id": employee.id,
+                "phone_line_id": phone_line.id,
+                "allocated_by_id": allocated_by.id,
+            },)
 
     @staticmethod
     def release_line(allocation, released_by):

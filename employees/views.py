@@ -1,3 +1,6 @@
+from asyncio.log import logger
+from typing import cast
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Prefetch, Q
@@ -98,10 +101,19 @@ class EmployeeDetailView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        employee = cast(Employee, self.get_object())
 
         context["allocations"] = (
-            LineAllocation.objects.filter(employee=self.get_object())
+            LineAllocation.objects.filter(employee=employee)
             .select_related("phone_line__sim_card")
             .order_by("-allocated_at")
+        )
+
+        logger.info(
+            "Employee soft deleted",
+            extra={
+                "employee_id": employee.employee_id,
+                "performed_by": cast(SystemUser, self.request.user).pk,
+            }
         )
         return context
