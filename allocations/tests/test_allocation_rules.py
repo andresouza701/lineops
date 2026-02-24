@@ -1,38 +1,34 @@
 from django.test import TestCase
-from users.models import SystemUser
+
+from core.services.allocation_service import AllocationService
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
-from core.services.allocation_service import AllocationService
-from core.exceptions.domain_exceptions import BusinessRuleException
+from users.models import SystemUser
 
 
 class AllocationRulesTestCase(TestCase):
 
     def setUp(self):
         self.admin = SystemUser.objects.create_user(
-            email="admin@test.com",
-            password="123456",
-            role="ADMIN"
+            email="admin@test.com", password="123456", role="ADMIN"
         )
 
         self.employee = Employee.objects.create(
             full_name="John Doe",
             corporate_email="john@corp.com",
             employee_id="EMP001",
-            department="IT"
+            department="IT",
         )
 
         # Criar 3 linhas
         self.lines = []
         for i in range(3):
             sim = SIMcard.objects.create(
-                iccid=f"890000000000000000{i}",
-                carrier="CarrierX"
+                iccid=f"890000000000000000{i}", carrier="CarrierX"
             )
 
             line = PhoneLine.objects.create(
-                phone_number=f"+55119999999{i}",
-                sim_card=sim
+                phone_number=f"+55119999999{i}", sim_card=sim
             )
 
             self.lines.append(line)
@@ -89,9 +85,7 @@ class AllocationRulesTestCase(TestCase):
         line = self.lines[0]
 
         allocation = AllocationService.allocate_line(
-            employee=self.employee,
-            phone_line=line,
-            allocated_by=self.admin
+            employee=self.employee, phone_line=line, allocated_by=self.admin
         )
 
         self.assertTrue(allocation.is_active)
@@ -100,10 +94,7 @@ class AllocationRulesTestCase(TestCase):
         line.refresh_from_db()
         self.assertEqual(line.status, PhoneLine.Status.ALLOCATED)
 
-        AllocationService.release_line(
-            allocation=allocation,
-            released_by=self.admin
-        )
+        AllocationService.release_line(allocation=allocation, released_by=self.admin)
 
         allocation.refresh_from_db()
         self.assertFalse(allocation.is_active)

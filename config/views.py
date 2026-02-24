@@ -4,27 +4,27 @@ from django.views.generic import TemplateView
 
 
 class DashboardView(TemplateView):
-    template_name = 'dashboard.html'
+    template_name = "dashboard.html"
 
 
 class ProfileView(TemplateView):
-    template_name = 'profile.html'
+    template_name = "profile.html"
 
 
 class OperationsView(TemplateView):
-    template_name = 'operations.html'
+    template_name = "operations.html"
 
 
 class DocumentationView(TemplateView):
-    template_name = 'documentation.html'
+    template_name = "documentation.html"
 
 
 class UploadView(TemplateView):
-    template_name = 'upload/upload.html'
+    template_name = "upload/upload.html"
 
 
 class LogoutGetView(LogoutView):
-    http_method_names = ['get', 'post', 'options']
+    http_method_names = ["get", "post", "options"]
 
     def get(self, request, *args, **kwargs):
         return self.post(request, *args, **kwargs)
@@ -33,4 +33,4 @@ class LogoutGetView(LogoutView):
 class HealthCheckView(TemplateView):
     # Usa TemplateView apenas para evitar boilerplate; sobrepõe get
     def get(self, request, *args, **kwargs):
-        return JsonResponse({'status': 'ok'})
+        return JsonResponse({"status": "ok"})

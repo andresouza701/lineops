@@ -17,8 +17,8 @@ class Employee(models.Model):
     all_objects = models.Manager()
 
     class Status(models.TextChoices):
-        ACTIVE = 'active', 'Ativo'
-        INACTIVE = 'inactive', 'Inativo'
+        ACTIVE = "active", "Ativo"
+        INACTIVE = "inactive", "Inativo"
 
     full_name = models.CharField(max_length=255)
     corporate_email = models.EmailField(unique=True)
@@ -26,7 +26,8 @@ class Employee(models.Model):
     department = models.CharField(max_length=100)
 
     status = models.CharField(
-        max_length=10, choices=Status.choices, default=Status.INACTIVE, db_index=True)
+        max_length=10, choices=Status.choices, default=Status.INACTIVE, db_index=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -35,14 +36,14 @@ class Employee(models.Model):
     def delete(self, using=None, keep_parents=False):
         self.is_deleted = True
         self.updated_at = timezone.now()
-        self.save(update_fields=['is_deleted', 'updated_at'])
+        self.save(update_fields=["is_deleted", "updated_at"])
 
     def __str__(self):
         return f"{self.full_name} ({self.employee_id})"
 
     class Meta:
         indexes = [
-            models.Index(fields=['employee_id']),
-            models.Index(fields=['corporate_email']),
-            models.Index(fields=['status', 'is_deleted']),
+            models.Index(fields=["employee_id"]),
+            models.Index(fields=["corporate_email"]),
+            models.Index(fields=["status", "is_deleted"]),
         ]

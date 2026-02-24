@@ -3,8 +3,8 @@ from django.core.exceptions import PermissionDenied
 
 
 class AuthenticadView(LoginRequiredMixin):
-    login_url = '/accounts/login/'
-    redirect_field_name = 'next'
+    login_url = "/accounts/login/"
+    redirect_field_name = "next"
 
 
 class RoleRequiredMixin(LoginRequiredMixin):
@@ -14,7 +14,7 @@ class RoleRequiredMixin(LoginRequiredMixin):
         if not request.user.is_authenticated:
             raise PermissionDenied("Usuário não autenticado.")
 
-        user_role = (request.user.role or '').lower()
+        user_role = (request.user.role or "").lower()
         allowed = {role.lower() for role in self.allowed_roles}
 
         if user_role not in allowed:

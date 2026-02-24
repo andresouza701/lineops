@@ -3,16 +3,17 @@ from django.db import models
 
 class SIMcard(models.Model):
     class Status(models.TextChoices):
-        AVAILABLE = 'AVAILABLE', 'Available'
-        ACTIVE = 'ACTIVE', 'Active'
-        BLOCKED = 'BLOCKED', 'Blocked'
-        CANCELLED = 'CANCELLED', 'Cancelled'
+        AVAILABLE = "AVAILABLE", "Available"
+        ACTIVE = "ACTIVE", "Active"
+        BLOCKED = "BLOCKED", "Blocked"
+        CANCELLED = "CANCELLED", "Cancelled"
 
     iccid = models.CharField(max_length=22, unique=True)
     carrier = models.CharField(max_length=100)
 
     status = models.CharField(
-        max_length=20, choices=Status.choices, default=Status.AVAILABLE, db_index=True)
+        max_length=20, choices=Status.choices, default=Status.AVAILABLE, db_index=True
+    )
 
     activated_at = models.DateTimeField(null=True, blank=True)
 
@@ -26,25 +27,27 @@ class SIMcard(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=['iccid']),
-            models.Index(fields=['status', 'is_deleted']),
+            models.Index(fields=["iccid"]),
+            models.Index(fields=["status", "is_deleted"]),
         ]
 
 
 class PhoneLine(models.Model):
     class Status(models.TextChoices):
-        AVAILABLE = 'AVAILABLE', 'Available'
-        ALLOCATED = 'ALLOCATED', 'Allocated'
-        SUSPENDED = 'SUSPENDED', 'Suspended'
-        CANCELLED = 'CANCELLED', 'Cancelled'
+        AVAILABLE = "AVAILABLE", "Available"
+        ALLOCATED = "ALLOCATED", "Allocated"
+        SUSPENDED = "SUSPENDED", "Suspended"
+        CANCELLED = "CANCELLED", "Cancelled"
 
     phone_number = models.CharField(max_length=20, unique=True)
 
     sim_card = models.OneToOneField(
-        'SIMcard', on_delete=models.PROTECT, related_name='phone_line')
+        "SIMcard", on_delete=models.PROTECT, related_name="phone_line"
+    )
 
     status = models.CharField(
-        max_length=20, choices=Status.choices, default=Status.AVAILABLE, db_index=True)
+        max_length=20, choices=Status.choices, default=Status.AVAILABLE, db_index=True
+    )
 
     activated_at = models.DateTimeField(null=True, blank=True)
 
@@ -58,6 +61,6 @@ class PhoneLine(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=['phone_number']),
-            models.Index(fields=['status', 'is_deleted']),
+            models.Index(fields=["phone_number"]),
+            models.Index(fields=["status", "is_deleted"]),
         ]
