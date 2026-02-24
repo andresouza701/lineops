@@ -1,3 +1,6 @@
+import csv
+
+from django.http import HttpResponse
 from django import forms
 from django.contrib import messages
 from django.db.models import Count, Q
@@ -283,3 +286,54 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         return {
             "line_status_boxes": status_boxes,
         }
+
+
+class ExportPhoneLinesCSVView(RoleRequiredMixin, View):
+    allowed_roles = [SystemUser.Role.ADMIN]
+
+    def get(self, request):
+
+        def get(self, request, pk):
+            phone_line = get_object_or_404(PhoneLine, pk=pk, is_deleted=False)
+
+            allocations = LineAllocation.objects.filter(phone_line=phone_line).select_related(
+                "employee", "allocated_by"
+            )
+
+            start_date = request.GET.get("start_date")
+            end_date = request.GET.get("end_date")
+
+            if start_date:
+                start_date_parsed = parse_date(start_date)
+                if start_date_parsed:
+                    allocations = allocations.filter(
+                        allocated_at__date__gte=start_date_parsed
+                    )
+            if end_date:
+                end_date_parsed = parse_date(end_date)
+                if end_date_parsed:
+                    allocations = allocations.filter(
+                        allocated_at__date__lte=end_date_parsed
+                    )
+
+                    response = HttpResponse(content_type="text/csv")
+                    response[
+                        "Content-Disposition"] = f'attachment; filename="phone_line_{phone_line.id}_history.csv"'
+
+                    writer = csv.writer(response)
+                    writer.writerow(
+                        ["Número de Telefone", "ICCID do SIM", "Status da Linha",
+                            "Alocado Para", "Alocado Por", "Data de Alocação"]
+                    )
+                    for alloc in allocations:
+                        writer.writerow(
+                            [
+                                alloc.employee.full_name,
+                                alloc.employee.employee_id,
+                                alloc.allocated_at,
+                                alloc.released_at,
+                                alloc.allocated_by.email if alloc.allocated_by else "N/A",
+
+                            ]
+                        )
+                    return response

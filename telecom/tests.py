@@ -86,3 +86,17 @@ class PhoneLineHistoryViewTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Filter User")
+
+
+class test_export_phone_line_history(TestCase):
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="admin4@test.com", password="123456", role=SystemUser.Role.ADMIN
+        )
+        self.client.force_login(self.admin)
+        self.employee = Employee.objects.create(
+            full_name="Export User",
+            corporate_email="export@corp.com",
+            employee_id="EMP300",
+            department="IT",
+        )

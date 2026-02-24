@@ -19,7 +19,8 @@ urlpatterns = [
     path("", TelecomOverviewView.as_view(), name="overview"),
     path("simcards/", SIMcardListView.as_view(), name="simcard_list"),
     path("phonelines/", PhoneLineListView.as_view(), name="phoneline_list"),
-    path("phonelines/create/", PhoneLineCreateView.as_view(), name="phoneline_create"),
+    path("phonelines/create/", PhoneLineCreateView.as_view(),
+         name="phoneline_create"),
     path(
         "phonelines/<int:pk>/", PhoneLineDetailView.as_view(), name="phoneline_detail"
     ),
@@ -42,4 +43,7 @@ urlpatterns = [
     path(
         "simcards/<int:pk>/update/", SIMcardUpdateView.as_view(), name="simcard_update"
     ),
+    path("phonelines/<int:pk>/history/export/", PhoneLineHistoryView.as_view(export=True),
+         name="phoneline_history_export"),
+
 ]
