@@ -10,7 +10,10 @@ class AllocationRulesTestCase(TestCase):
 
     def setUp(self):
         self.admin = SystemUser.objects.create_user(
-            email="admin@test.com", password="123456", role="ADMIN"
+            username="admin",
+            email="admin@test.com",
+            password="123456",
+            role="ADMIN",
         )
 
         self.employee = Employee.objects.create(
@@ -33,29 +36,29 @@ class AllocationRulesTestCase(TestCase):
 
             self.lines.append(line)
 
-    # def test_employee_cannot_have_more_than_two_active_lines(self):
+    def test_employee_cannot_have_more_than_two_active_lines(self):
 
-    #     # Primeira alocação
-    #     AllocationService.allocate_line(
-    #         employee=self.employee,
-    #         phone_line=self.lines[0],
-    #         allocated_by=self.admin
-    #     )
+        # Primeira alocação
+        AllocationService.allocate_line(
+            employee=self.employee,
+            phone_line=self.lines[0],
+            allocated_by=self.admin
+        )
 
-    #     # Segunda alocação
-    #     AllocationService.allocate_line(
-    #         employee=self.employee,
-    #         phone_line=self.lines[1],
-    #         allocated_by=self.admin
-    #     )
+        # Segunda alocação
+        AllocationService.allocate_line(
+            employee=self.employee,
+            phone_line=self.lines[1],
+            allocated_by=self.admin
+        )
 
-    #     # Terceira deve falhar
-    #     with self.assertRaises(BusinessRuleException):
-    #         AllocationService.allocate_line(
-    #             employee=self.employee,
-    #             phone_line=self.lines[2],
-    #             allocated_by=self.admin
-    #         )
+        # Terceira deve falhar
+        with self.assertRaises(ValueError):
+            AllocationService.allocate_line(
+                employee=self.employee,
+                phone_line=self.lines[2],
+                allocated_by=self.admin
+            )
 
     # def test_phone_line_cannot_be_allocated_to_two_employees(self):
     #     employee_2 = Employee.objects.create(
@@ -94,7 +97,8 @@ class AllocationRulesTestCase(TestCase):
         line.refresh_from_db()
         self.assertEqual(line.status, PhoneLine.Status.ALLOCATED)
 
-        AllocationService.release_line(allocation=allocation, released_by=self.admin)
+        AllocationService.release_line(
+            allocation=allocation, released_by=self.admin)
 
         allocation.refresh_from_db()
         self.assertFalse(allocation.is_active)
@@ -103,5 +107,13 @@ class AllocationRulesTestCase(TestCase):
         line.refresh_from_db()
         self.assertEqual(line.status, PhoneLine.Status.AVAILABLE)
 
-        total_allocations = allocation.employee.allocations.count()
+        total_allocations = type(allocation).objects.filter(
+            employee=allocation.employee
+        ).count()
         self.assertEqual(total_allocations, 1)
+
+        total_releases = type(allocation).objects.filter(
+            employee=allocation.employee, released_at__isnull=False
+        ).count()
+        self.assertEqual(total_releases, 1)
+        

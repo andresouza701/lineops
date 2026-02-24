@@ -13,7 +13,7 @@ from users.models import SystemUser
 from .models import Employee
 
 
-class EmployeeListView(RoleRequiredMixin, ListView):
+class EmployeeListView(LoginRequiredMixin, ListView):
     # allowed_roles = [SystemUser.Role.ADMIN]
     model = Employee
     template_name = "employees/employee_list.html"
@@ -90,7 +90,7 @@ class EmployeeDeactivateView(RoleRequiredMixin, View):
         return redirect("employees:employee_list")
 
 
-class EmployeeDetailView(RoleRequiredMixin, DetailView):
+class EmployeeDetailView(LoginRequiredMixin, DetailView):
     # allowed_roles = [SystemUser.Role.ADMIN]
     model = Employee
     template_name = "employees/employee_detail.html"
