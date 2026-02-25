@@ -55,28 +55,24 @@ class AllocationRulesTestCase(TestCase):
                 allocated_by=self.admin,
             )
 
-    # def test_phone_line_cannot_be_allocated_to_two_employees(self):
-    #     employee_2 = Employee.objects.create(
-    #         full_name="Jane Smith",
-    #         corporate_email="jane@corp.com",
-    #         employee_id="EMP002",
-    #         department="HR"
-    #     )
+    def test_phone_line_cannot_be_allocated_to_two_employees(self):
+        employee_2 = Employee.objects.create(
+            full_name="Jane Smith",
+            corporate_email="jane@corp.com",
+            employee_id="EMP002",
+            department="HR",
+        )
 
-    # line = self.lines[0]
+        line = self.lines[0]
 
-    # AllocationService.allocate_line(
-    #     employee=self.employee,
-    #     phone_line=line,
-    #     allocated_by=self.admin
-    # )
+        AllocationService.allocate_line(
+            employee=self.employee, phone_line=line, allocated_by=self.admin
+        )
 
-    # with self.assertRaises(BusinessRuleException):
-    #     AllocationService.allocate_line(
-    #         employee=employee_2,
-    #         phone_line=line,
-    #         allocated_by=self.admin
-    #     )
+        with self.assertRaises(BusinessRuleException):
+            AllocationService.allocate_line(
+                employee=employee_2, phone_line=line, allocated_by=self.admin
+            )
 
     def test_full_allocation_flow(self):
         line = self.lines[0]
@@ -96,6 +92,7 @@ class AllocationRulesTestCase(TestCase):
         allocation.refresh_from_db()
         self.assertFalse(allocation.is_active)
         self.assertIsNotNone(allocation.released_at)
+        self.assertEqual(allocation.released_by, self.admin)
 
         line.refresh_from_db()
         self.assertEqual(line.status, PhoneLine.Status.AVAILABLE)
@@ -111,6 +108,14 @@ class AllocationRulesTestCase(TestCase):
             .count()
         )
         self.assertEqual(total_releases, 1)
+
+    def test_line_allocation_cannot_be_deleted(self):
+        allocation = AllocationService.allocate_line(
+            employee=self.employee, phone_line=self.lines[0], allocated_by=self.admin
+        )
+
+        with self.assertRaises(BusinessRuleException):
+            allocation.delete()
 
 
 class AllocationReleaseViewTestCase(TestCase):

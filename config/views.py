@@ -2,7 +2,6 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LogoutView
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -11,7 +10,9 @@ from django.utils import timezone
 from django.views.generic import FormView, TemplateView
 
 from config.forms import UploadForm
+from core.mixins import RoleRequiredMixin
 from core.services.upload_service import process_upload_file
+from users.models import SystemUser
 
 
 class DashboardView(TemplateView):
@@ -30,7 +31,8 @@ class DocumentationView(TemplateView):
     template_name = "documentation.html"
 
 
-class UploadView(LoginRequiredMixin, FormView):
+class UploadView(RoleRequiredMixin, FormView):
+    allowed_roles = [SystemUser.Role.ADMIN]
     template_name = "upload/upload.html"
     form_class = UploadForm
     success_url = reverse_lazy("upload")

@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db import models
 from django.db.models import PROTECT
 
+from core.exceptions.domain_exceptions import BusinessRuleException
 from employees.models import Employee
 from telecom.models import PhoneLine
 
@@ -25,6 +26,14 @@ class LineAllocation(models.Model):
         related_name="allocations_made",
     )
 
+    released_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="allocations_released",
+    )
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -41,3 +50,6 @@ class LineAllocation(models.Model):
     @property
     def employee_full_name(self):
         return self.employee.full_name
+
+    def delete(self, using=None, keep_parents=False):
+        raise BusinessRuleException("LineAllocation não pode ser deletada.")

@@ -1,5 +1,4 @@
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
@@ -13,8 +12,8 @@ from users.models import SystemUser
 from .models import Employee
 
 
-class EmployeeListView(LoginRequiredMixin, ListView):
-    # allowed_roles = [SystemUser.Role.ADMIN]
+class EmployeeListView(RoleRequiredMixin, ListView):
+    allowed_roles = [SystemUser.Role.ADMIN]
     model = Employee
     template_name = "employees/employee_list.html"
     context_object_name = "employees"
@@ -87,18 +86,26 @@ class EmployeeDeactivateView(RoleRequiredMixin, View):
         return redirect("employees:employee_list")
 
 
-class EmployeeDetailView(LoginRequiredMixin, DetailView):
-    # allowed_roles = [SystemUser.Role.ADMIN]
+class EmployeeDetailView(RoleRequiredMixin, DetailView):
+    allowed_roles = [SystemUser.Role.ADMIN]
     model = Employee
     template_name = "employees/employee_detail.html"
     context_object_name = "employee"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-
-        context["allocations"] = (
-            LineAllocation.objects.filter(employee=self.get_object())
-            .select_related("phone_line__sim_card")
-            .order_by("-allocated_at")
-        )
+        employee = self.get_object()
+        allocations = LineAllocation.objects.filter(employee=employee)
+        # Date filter
+        start_date = self.request.GET.get("start_date")
+        end_date = self.request.GET.get("end_date")
+        if start_date:
+            allocations = allocations.filter(allocated_at__date__gte=start_date)
+        if end_date:
+            allocations = allocations.filter(allocated_at__date__lte=end_date)
+        context["allocations"] = allocations.select_related(
+            "phone_line__sim_card"
+        ).order_by("-allocated_at")
+        context["start_date"] = start_date
+        context["end_date"] = end_date
         return context

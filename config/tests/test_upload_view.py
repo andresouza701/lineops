@@ -20,12 +20,17 @@ class UploadViewTests(TestCase):
         self.override.enable()
         self.addCleanup(self.override.disable)
 
-        self.user = SystemUser.objects.create_user(
+        self.admin = SystemUser.objects.create_user(
             email="upload@test.com",
             password="StrongPass123",
             role=SystemUser.Role.ADMIN,
         )
-        self.client.force_login(self.user)
+        self.operator = SystemUser.objects.create_user(
+            email="upload-operator@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.OPERATOR,
+        )
+        self.client.force_login(self.admin)
 
     def test_upload_creates_records_and_renders_summary(self):
         csv_content = (
@@ -48,3 +53,14 @@ class UploadViewTests(TestCase):
         self.assertEqual(summary.rows_processed, 2)
         self.assertFalse(summary.errors)
         self.assertContains(response, "Linhas processadas")
+
+    def test_operator_cannot_access_upload(self):
+        self.client.force_login(self.operator)
+        response = self.client.get(reverse("upload"))
+        self.assertEqual(response.status_code, 403)
+
+    def test_anonymous_redirected_to_login(self):
+        self.client.logout()
+        response = self.client.get(reverse("upload"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("login", response.url)

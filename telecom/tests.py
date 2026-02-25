@@ -215,6 +215,43 @@ class SIMcardViewsTest(TestCase):
         self.assertEqual(simcards[0].pk, self.sim_active.pk)
 
 
+class TelecomPermissionTest(TestCase):
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="admin.rbac@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.operator = SystemUser.objects.create_user(
+            email="operator.rbac@test.com",
+            password="123456",
+            role=SystemUser.Role.OPERATOR,
+        )
+
+        sim = SIMcard.objects.create(iccid="8900000000000000999", carrier="CarX")
+        self.line = PhoneLine.objects.create(
+            phone_number="+551199999888",
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+    def test_admin_can_access_all_telecom_views(self):
+        self.client.force_login(self.admin)
+
+        resp = self.client.get(reverse("telecom:phoneline_list"))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_operator_is_denied_on_telecom_views(self):
+        self.client.force_login(self.operator)
+
+        resp = self.client.get(reverse("telecom:phoneline_list"))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_anonymous_redirected_to_login(self):
+        resp = self.client.get(reverse("telecom:phoneline_list"))
+        self.assertEqual(resp.status_code, 403)
+
+
 class PhoneLineViewsTest(TestCase):
     def setUp(self):
         self.admin = SystemUser.objects.create_user(

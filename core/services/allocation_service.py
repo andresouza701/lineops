@@ -55,7 +55,8 @@ class AllocationService:
 
         allocation.released_at = timezone.now()
         allocation.is_active = False
-        allocation.save(update_fields=["released_at", "is_active"])
+        allocation.released_by = released_by
+        allocation.save(update_fields=["released_at", "is_active", "released_by"])
 
         phone_line = allocation.phone_line
         phone_line.status = PhoneLine.Status.AVAILABLE
