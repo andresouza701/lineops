@@ -6,30 +6,41 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('employees', '0001_initial'),
+        ("employees", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='employee',
-            name='is_deleted',
+            model_name="employee",
+            name="is_deleted",
             field=models.BooleanField(db_index=True, default=False),
         ),
         migrations.AlterField(
-            model_name='employee',
-            name='status',
-            field=models.CharField(choices=[('active', 'Ativo'), ('inactive', 'Inativo')], db_index=True, default='inactive', max_length=10),
+            model_name="employee",
+            name="status",
+            field=models.CharField(
+                choices=[("active", "Ativo"), ("inactive", "Inativo")],
+                db_index=True,
+                default="inactive",
+                max_length=10,
+            ),
         ),
         migrations.AddIndex(
-            model_name='employee',
-            index=models.Index(fields=['employee_id'], name='employees_e_employe_514cc5_idx'),
+            model_name="employee",
+            index=models.Index(
+                fields=["employee_id"], name="employees_e_employe_514cc5_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='employee',
-            index=models.Index(fields=['corporate_email'], name='employees_e_corpora_fff004_idx'),
+            model_name="employee",
+            index=models.Index(
+                fields=["corporate_email"], name="employees_e_corpora_fff004_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='employee',
-            index=models.Index(fields=['status', 'is_deleted'], name='employees_e_status_e607a4_idx'),
+            model_name="employee",
+            index=models.Index(
+                fields=["status", "is_deleted"], name="employees_e_status_e607a4_idx"
+            ),
         ),
     ]

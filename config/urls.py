@@ -22,7 +22,6 @@ urlpatterns = [
     path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("api/admin-only/", AdminOnlyView.as_view(), name="admin_only"),
-
 ]
 
 handler403 = "config.views.custom_permission_denied_view"

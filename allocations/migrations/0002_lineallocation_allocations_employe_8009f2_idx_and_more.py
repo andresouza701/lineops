@@ -7,19 +7,25 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('allocations', '0001_initial'),
-        ('employees', '0002_alter_employee_is_deleted_alter_employee_status_and_more'),
-        ('telecom', '0003_alter_phoneline_is_deleted_alter_phoneline_status_and_more'),
+        ("allocations", "0001_initial"),
+        ("employees", "0002_alter_employee_is_deleted_alter_employee_status_and_more"),
+        ("telecom", "0003_alter_phoneline_is_deleted_alter_phoneline_status_and_more"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.AddIndex(
-            model_name='lineallocation',
-            index=models.Index(fields=['employee', 'is_active', 'allocated_at'], name='allocations_employe_8009f2_idx'),
+            model_name="lineallocation",
+            index=models.Index(
+                fields=["employee", "is_active", "allocated_at"],
+                name="allocations_employe_8009f2_idx",
+            ),
         ),
         migrations.AddIndex(
-            model_name='lineallocation',
-            index=models.Index(fields=['phone_line', 'is_active', 'allocated_at'], name='allocations_phone_l_98a27b_idx'),
+            model_name="lineallocation",
+            index=models.Index(
+                fields=["phone_line", "is_active", "allocated_at"],
+                name="allocations_phone_l_98a27b_idx",
+            ),
         ),
     ]

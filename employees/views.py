@@ -40,8 +40,7 @@ class EmployeeListView(LoginRequiredMixin, ListView):
             else:
                 # default search by name (and matricula for convenience)
                 self.queryset = self.queryset.filter(
-                    Q(full_name__icontains=search) | Q(
-                        employee_id__icontains=search)
+                    Q(full_name__icontains=search) | Q(employee_id__icontains=search)
                 )
 
         return self.queryset.distinct().prefetch_related(
@@ -58,8 +57,7 @@ class EmployeeCreateView(RoleRequiredMixin, CreateView):
     allowed_roles = [SystemUser.Role.ADMIN]
     model = Employee
     template_name = "employees/employee_form.html"
-    fields = ["full_name", "corporate_email",
-              "employee_id", "department", "status"]
+    fields = ["full_name", "corporate_email", "employee_id", "department", "status"]
     success_url = reverse_lazy("employees:employee_list")
 
     def form_valid(self, form):
@@ -71,8 +69,7 @@ class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
     allowed_roles = [SystemUser.Role.ADMIN]
     model = Employee
     template_name = "employees/employee_form.html"
-    fields = ["full_name", "corporate_email",
-              "employee_id", "department", "status"]
+    fields = ["full_name", "corporate_email", "employee_id", "department", "status"]
     success_url = reverse_lazy("employees:employee_list")
 
     def form_valid(self, form):

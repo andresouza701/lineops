@@ -6,44 +6,70 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('telecom', '0002_phoneline'),
+        ("telecom", "0002_phoneline"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='phoneline',
-            name='is_deleted',
+            model_name="phoneline",
+            name="is_deleted",
             field=models.BooleanField(db_index=True, default=False),
         ),
         migrations.AlterField(
-            model_name='phoneline',
-            name='status',
-            field=models.CharField(choices=[('AVAILABLE', 'Available'), ('ALLOCATED', 'Allocated'), ('SUSPENDED', 'Suspended'), ('CANCELLED', 'Cancelled')], db_index=True, default='AVAILABLE', max_length=20),
+            model_name="phoneline",
+            name="status",
+            field=models.CharField(
+                choices=[
+                    ("AVAILABLE", "Available"),
+                    ("ALLOCATED", "Allocated"),
+                    ("SUSPENDED", "Suspended"),
+                    ("CANCELLED", "Cancelled"),
+                ],
+                db_index=True,
+                default="AVAILABLE",
+                max_length=20,
+            ),
         ),
         migrations.AlterField(
-            model_name='simcard',
-            name='is_deleted',
+            model_name="simcard",
+            name="is_deleted",
             field=models.BooleanField(db_index=True, default=False),
         ),
         migrations.AlterField(
-            model_name='simcard',
-            name='status',
-            field=models.CharField(choices=[('AVAILABLE', 'Available'), ('ACTIVE', 'Active'), ('BLOCKED', 'Blocked'), ('CANCELLED', 'Cancelled')], db_index=True, default='AVAILABLE', max_length=20),
+            model_name="simcard",
+            name="status",
+            field=models.CharField(
+                choices=[
+                    ("AVAILABLE", "Available"),
+                    ("ACTIVE", "Active"),
+                    ("BLOCKED", "Blocked"),
+                    ("CANCELLED", "Cancelled"),
+                ],
+                db_index=True,
+                default="AVAILABLE",
+                max_length=20,
+            ),
         ),
         migrations.AddIndex(
-            model_name='phoneline',
-            index=models.Index(fields=['phone_number'], name='telecom_pho_phone_n_72caca_idx'),
+            model_name="phoneline",
+            index=models.Index(
+                fields=["phone_number"], name="telecom_pho_phone_n_72caca_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='phoneline',
-            index=models.Index(fields=['status', 'is_deleted'], name='telecom_pho_status_49fb8a_idx'),
+            model_name="phoneline",
+            index=models.Index(
+                fields=["status", "is_deleted"], name="telecom_pho_status_49fb8a_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='simcard',
-            index=models.Index(fields=['iccid'], name='telecom_sim_iccid_5f774c_idx'),
+            model_name="simcard",
+            index=models.Index(fields=["iccid"], name="telecom_sim_iccid_5f774c_idx"),
         ),
         migrations.AddIndex(
-            model_name='simcard',
-            index=models.Index(fields=['status', 'is_deleted'], name='telecom_sim_status_95e4d0_idx'),
+            model_name="simcard",
+            index=models.Index(
+                fields=["status", "is_deleted"], name="telecom_sim_status_95e4d0_idx"
+            ),
         ),
     ]

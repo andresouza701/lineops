@@ -7,22 +7,36 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='Employee',
+            name="Employee",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('full_name', models.CharField(max_length=255)),
-                ('corporate_email', models.EmailField(max_length=254, unique=True)),
-                ('employee_id', models.CharField(max_length=50, unique=True)),
-                ('department', models.CharField(max_length=100)),
-                ('status', models.CharField(choices=[('active', 'Ativo'), ('inactive', 'Inativo')], default='inactive', max_length=10)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('is_deleted', models.BooleanField(default=False)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("full_name", models.CharField(max_length=255)),
+                ("corporate_email", models.EmailField(max_length=254, unique=True)),
+                ("employee_id", models.CharField(max_length=50, unique=True)),
+                ("department", models.CharField(max_length=100)),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[("active", "Ativo"), ("inactive", "Inativo")],
+                        default="inactive",
+                        max_length=10,
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("is_deleted", models.BooleanField(default=False)),
             ],
         ),
     ]

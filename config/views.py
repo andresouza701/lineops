@@ -47,8 +47,7 @@ class UploadView(LoginRequiredMixin, FormView):
         return self.render_to_response(context)
 
     def form_invalid(self, form):
-        messages.error(
-            self.request, "Não foi possível processar o arquivo enviado.")
+        messages.error(self.request, "Não foi possível processar o arquivo enviado.")
         return self.render_to_response(self.get_context_data(form=form))
 
     def _persist_file(self, uploaded_file) -> Path:

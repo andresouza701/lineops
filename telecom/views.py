@@ -1,9 +1,9 @@
 import csv
 
-from django.http import HttpResponse
 from django import forms
 from django.contrib import messages
 from django.db.models import Count, Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils.dateparse import parse_date
@@ -97,8 +97,7 @@ class PhoneLineListView(StandardPaginationMixin, RoleRequiredMixin, ListView):
     def get_queryset(self):
         self.search_query = self.request.GET.get("search", "").strip()
         self.status_filter = self.request.GET.get("status")
-        queryset = PhoneLine.objects.filter(
-            is_deleted=False).select_related("sim_card")
+        queryset = PhoneLine.objects.filter(is_deleted=False).select_related("sim_card")
 
         valid_statuses = {choice[0] for choice in PhoneLine.Status.choices}
         if self.status_filter in valid_statuses:
@@ -211,8 +210,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["total_simcards"] = SIMcard.objects.filter(
-            is_deleted=False).count()
+        context["total_simcards"] = SIMcard.objects.filter(is_deleted=False).count()
         base_lines = PhoneLine.objects.filter(is_deleted=False)
         context["total_lines"] = base_lines.count()
         counts = self._line_status_counts(base_lines)
@@ -226,12 +224,10 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         search = self.request.GET.get("search", "").strip()
         context["search_query"] = search
 
-        lines_qs = base_lines.select_related(
-            "sim_card").order_by("phone_number")
+        lines_qs = base_lines.select_related("sim_card").order_by("phone_number")
         if search:
             lines_qs = lines_qs.filter(
-                Q(phone_number__icontains=search) | Q(
-                    sim_card__iccid__icontains=search)
+                Q(phone_number__icontains=search) | Q(sim_card__iccid__icontains=search)
             )
         context["phone_lines"] = lines_qs
         context.update(self._line_status_summary(counts))
@@ -307,18 +303,20 @@ class ExportPhoneLinesCSVView(RoleRequiredMixin, View):
             start_date_parsed = parse_date(start_date)
             if start_date_parsed:
                 allocations = allocations.filter(
-                    allocated_at__date__gte=start_date_parsed)
+                    allocated_at__date__gte=start_date_parsed
+                )
 
         if end_date:
             end_date_parsed = parse_date(end_date)
             if end_date_parsed:
                 allocations = allocations.filter(
-                    allocated_at__date__lte=end_date_parsed)
+                    allocated_at__date__lte=end_date_parsed
+                )
 
         response = HttpResponse(content_type="text/csv")
-        response[
-            "Content-Disposition"
-        ] = f'attachment; filename="phone_line_{phone_line.id}_history.csv"'
+        response["Content-Disposition"] = (
+            f'attachment; filename="phone_line_{phone_line.id}_history.csv"'
+        )
 
         writer = csv.writer(response)
         writer.writerow(

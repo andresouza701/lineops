@@ -32,8 +32,7 @@ class PhoneLineHistoryViewTest(TestCase):
         self.first_allocation = AllocationService.allocate_line(
             employee=self.employee, phone_line=self.phone_line, allocated_by=self.admin
         )
-        AllocationService.release_line(
-            self.first_allocation, released_by=self.admin)
+        AllocationService.release_line(self.first_allocation, released_by=self.admin)
 
         self.second_allocation = AllocationService.allocate_line(
             employee=self.employee, phone_line=self.phone_line, allocated_by=self.admin
@@ -79,8 +78,7 @@ class PhoneLineHistoryViewTest(TestCase):
             employee=employee, phone_line=line, allocated_by=admin
         )
 
-        allocation_date = timezone.localtime(
-            allocation.allocated_at).date().isoformat()
+        allocation_date = timezone.localtime(allocation.allocated_at).date().isoformat()
 
         self.client.force_login(admin)
 
@@ -107,7 +105,8 @@ class ExportPhoneLineHistoryTest(TestCase):
 
         self.sim = SIMcard.objects.create(iccid="999", carrier="CarrierX")
         self.phone_line = PhoneLine.objects.create(
-            phone_number="998877", sim_card=self.sim)
+            phone_number="998877", sim_card=self.sim
+        )
 
         self.allocation = AllocationService.allocate_line(
             employee=self.employee,
@@ -116,8 +115,7 @@ class ExportPhoneLineHistoryTest(TestCase):
         )
 
     def test_export_phone_line_history_as_csv(self):
-        url = reverse("telecom:phoneline_history_export",
-                      args=[self.phone_line.pk])
+        url = reverse("telecom:phoneline_history_export", args=[self.phone_line.pk])
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 200)
@@ -130,10 +128,10 @@ class ExportPhoneLineHistoryTest(TestCase):
         self.assertIn(self.employee.full_name, content)
 
     def test_export_phone_line_history_csv_with_date_filter(self):
-        allocation_date = timezone.localtime(
-            self.allocation.allocated_at).date().isoformat()
-        url = reverse("telecom:phoneline_history_export",
-                      args=[self.phone_line.pk])
+        allocation_date = (
+            timezone.localtime(self.allocation.allocated_at).date().isoformat()
+        )
+        url = reverse("telecom:phoneline_history_export", args=[self.phone_line.pk])
         response = self.client.get(f"{url}?start_date={allocation_date}")
 
         self.assertEqual(response.status_code, 200)
@@ -180,8 +178,7 @@ class SIMcardViewsTest(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertRedirects(response, reverse("telecom:simcard_list"))
-        self.assertTrue(SIMcard.objects.filter(
-            iccid=payload["iccid"]).exists())
+        self.assertTrue(SIMcard.objects.filter(iccid=payload["iccid"]).exists())
 
     def test_simcard_update_view(self):
         url = reverse("telecom:simcard_update", args=[self.sim_available.pk])
@@ -293,12 +290,14 @@ class PhoneLineViewsTest(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertRedirects(response, reverse("telecom:phoneline_list"))
-        self.assertTrue(PhoneLine.objects.filter(
-            phone_number=payload["phone_number"], sim_card=new_sim).exists())
+        self.assertTrue(
+            PhoneLine.objects.filter(
+                phone_number=payload["phone_number"], sim_card=new_sim
+            ).exists()
+        )
 
     def test_update_view_changes_phone_number(self):
-        url = reverse("telecom:phoneline_update",
-                      args=[self.line_available.pk])
+        url = reverse("telecom:phoneline_update", args=[self.line_available.pk])
         payload = {
             "phone_number": "+551199999999",
             "sim_card": self.sim_available.pk,
@@ -309,5 +308,4 @@ class PhoneLineViewsTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertRedirects(response, reverse("telecom:phoneline_list"))
         self.line_available.refresh_from_db()
-        self.assertEqual(self.line_available.phone_number,
-                         payload["phone_number"])
+        self.assertEqual(self.line_available.phone_number, payload["phone_number"])

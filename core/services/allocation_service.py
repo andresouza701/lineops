@@ -13,7 +13,6 @@ class AllocationService:
     @staticmethod
     @transaction.atomic
     def allocate_line(employee: Employee, phone_line: PhoneLine, allocated_by):
-
         # Lock no funcionario para evitar race conditions na alocação de linhas
         employee = Employee.objects.select_for_update().get(pk=employee.pk)
 

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import csv
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List
 
 from django.db import transaction
 from django.utils.text import slugify
@@ -20,13 +20,13 @@ class UploadSummary:
     employees_updated: int = 0
     simcards_created: int = 0
     simcards_updated: int = 0
-    errors: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
     @property
     def has_errors(self) -> bool:
         return bool(self.errors)
 
-    def to_dict(self) -> Dict[str, int | List[str]]:
+    def to_dict(self) -> dict[str, int | list[str]]:
         return {
             "rows_processed": self.rows_processed,
             "employees_created": self.employees_created,
@@ -37,10 +37,8 @@ class UploadSummary:
         }
 
 
-ALLOWED_EMPLOYEE_STATUSES = {
-    value.lower(): value for value in Employee.Status.values}
-ALLOWED_SIM_STATUSES = {
-    value.lower(): value for value in SIMcard.Status.values}
+ALLOWED_EMPLOYEE_STATUSES = {value.lower(): value for value in Employee.Status.values}
+ALLOWED_SIM_STATUSES = {value.lower(): value for value in SIMcard.Status.values}
 
 EMPLOYEE_STATUS_ALIASES = {
     "ativo": Employee.Status.ACTIVE,
@@ -67,15 +65,14 @@ def process_upload_file(file_path: Path) -> UploadSummary:
     return _ingest_rows(rows)
 
 
-def _parse_csv(file_path: Path) -> List[Dict[str, str]]:
+def _parse_csv(file_path: Path) -> list[dict[str, str]]:
     with file_path.open("r", encoding="utf-8") as csv_file:
         reader = csv.DictReader(csv_file)
         return [_normalize_row(row) for row in reader]
 
 
-def _parse_xlsx(file_path: Path) -> List[Dict[str, str]]:
-    workbook = load_workbook(
-        filename=file_path, read_only=True, data_only=True)
+def _parse_xlsx(file_path: Path) -> list[dict[str, str]]:
+    workbook = load_workbook(filename=file_path, read_only=True, data_only=True)
     sheet = workbook.active
     rows = sheet.iter_rows(values_only=True)
     try:
@@ -85,14 +82,20 @@ def _parse_xlsx(file_path: Path) -> List[Dict[str, str]]:
 
     normalized_rows = []
     for row in rows:
-        values = {headers[idx]: (row[idx] if idx < len(row) else "")
-                  for idx in range(len(headers))}
+        values = {
+            headers[idx]: (row[idx] if idx < len(row) else "")
+            for idx in range(len(headers))
+        }
         normalized_rows.append(_normalize_row(values))
     return normalized_rows
 
 
-def _normalize_row(row: Dict[str, object]) -> Dict[str, str]:
-    return {key.strip().lower(): _stringify(value) for key, value in row.items() if key is not None}
+def _normalize_row(row: dict[str, object]) -> dict[str, str]:
+    return {
+        key.strip().lower(): _stringify(value)
+        for key, value in row.items()
+        if key is not None
+    }
 
 
 def _stringify(value: object) -> str:
@@ -102,7 +105,7 @@ def _stringify(value: object) -> str:
 
 
 @transaction.atomic
-def _ingest_rows(rows: Iterable[Dict[str, str]]) -> UploadSummary:
+def _ingest_rows(rows: Iterable[dict[str, str]]) -> UploadSummary:
     summary = UploadSummary()
 
     for index, raw in enumerate(rows, start=2):
@@ -116,16 +119,17 @@ def _ingest_rows(rows: Iterable[Dict[str, str]]) -> UploadSummary:
             elif kind == "simcard":
                 _upsert_simcard(raw, summary)
             else:
-                raise ValueError(
-                    "Coluna 'type' deve ser 'employee' ou 'simcard'.")
+                raise ValueError("Coluna 'type' deve ser 'employee' ou 'simcard'.")
             summary.rows_processed += 1
-        except Exception as exc:  # keep processing to collect as many errors as possible
+        except (
+            Exception
+        ) as exc:  # keep processing to collect as many errors as possible
             summary.errors.append(f"Linha {index}: {exc}")
 
     return summary
 
 
-def _upsert_employee(row: Dict[str, str], summary: UploadSummary) -> None:
+def _upsert_employee(row: dict[str, str], summary: UploadSummary) -> None:
     required = ["full_name", "corporate_email", "employee_id", "department"]
     _ensure_required(row, required)
 
@@ -147,7 +151,7 @@ def _upsert_employee(row: Dict[str, str], summary: UploadSummary) -> None:
         summary.employees_updated += 1
 
 
-def _upsert_simcard(row: Dict[str, str], summary: UploadSummary) -> None:
+def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
     required = ["iccid", "carrier"]
     _ensure_required(row, required)
 
@@ -159,7 +163,8 @@ def _upsert_simcard(row: Dict[str, str], summary: UploadSummary) -> None:
     }
 
     simcard, created = SIMcard.objects.update_or_create(
-        iccid=row["iccid"], defaults=defaults)
+        iccid=row["iccid"], defaults=defaults
+    )
     if created:
         summary.simcards_created += 1
     else:
@@ -177,7 +182,7 @@ def _upsert_simcard(row: Dict[str, str], summary: UploadSummary) -> None:
         )
 
 
-def _ensure_required(row: Dict[str, str], required_fields: List[str]) -> None:
+def _ensure_required(row: dict[str, str], required_fields: list[str]) -> None:
     missing = [field for field in required_fields if not row.get(field)]
     if missing:
         joined = ", ".join(missing)
@@ -195,7 +200,8 @@ def _normalize_employee_status(raw_status: str | None) -> str:
     status = ALLOWED_EMPLOYEE_STATUSES.get(normalized)
     if not status:
         raise ValueError(
-            "Status de colaborador inválido. Use 'active'/'inactive' ou 'ativo'/'inativo'."
+            "Status de colaborador inválido. "
+            "Use 'active'/'inactive' ou 'ativo'/'inativo'."
         )
     return status
 
@@ -211,6 +217,7 @@ def _normalize_sim_status(raw_status: str | None) -> str:
     status = ALLOWED_SIM_STATUSES.get(normalized)
     if not status:
         raise ValueError(
-            "Status de SIM card inválido. Use AVAILABLE/ACTIVE/BLOCKED/CANCELLED ou seus equivalentes em português."
+            "Status de SIM card inválido. "
+            "Use AVAILABLE/ACTIVE/BLOCKED/CANCELLED ou equivalentes em português."
         )
     return status
