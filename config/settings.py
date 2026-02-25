@@ -190,6 +190,15 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
 LOGIN_URL = "/accounts/login/"
 
+CSRF_TRUSTED_ORIGINS = [
+    "http://10.81.234.24",
+    "http://SRVQA-01",
+    "http://seu-dominio-qa",
+]
+
+CSRF_COOKIE_SECURE = False  # se não for https
+SESSION_COOKIE_SECURE = False
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
