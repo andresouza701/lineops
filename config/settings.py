@@ -101,6 +101,7 @@ DATABASES = {
         "PASSWORD": env("DB_PASSWORD", default="lineops"),
         "HOST": env("DB_HOST", default="db"),
         "PORT": env("DB_PORT", default="5432"),
+        "CONN_MAX_AGE": 60,
     }
 }
 
@@ -193,7 +194,6 @@ LOGIN_URL = "/accounts/login/"
 CSRF_TRUSTED_ORIGINS = [
     "http://10.81.234.24",
     "http://SRVQA-01",
-    "http://seu-dominio-qa",
 ]
 
 CSRF_COOKIE_SECURE = False  # se não for https
