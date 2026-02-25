@@ -46,7 +46,17 @@
                     <td>{{ line.phone_number }}</td>
                     <td>{{ line.sim_card.iccid }}</td>
                     <td>
-                        <span class="badge badge-status badge-status-{{ line.status|lower }}">{{ line.get_status_display }}</span>
+                        {% if line.status == 'ACTIVE' %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Ativa</span>
+                        {% elif line.status == 'AVAILABLE' %}
+                            <span class="badge bg-primary"><i class="bi bi-circle me-1"></i>Disponível</span>
+                        {% elif line.status == 'SUSPENDED' %}
+                            <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle-fill me-1"></i>Suspensa</span>
+                        {% elif line.status == 'CANCELLED' %}
+                            <span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Cancelada</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ line.get_status_display }}</span>
+                        {% endif %}
                     </td>
                     <td>{{ line.activated_at|date:"d/m/Y"|default:"—" }}</td>
                 </tr>

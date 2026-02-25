@@ -41,8 +41,18 @@
             <strong>Status:</strong>
             {% if employee.status == 'active' %}
                 <span class="badge bg-success">Ativo</span>
-            {% else %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Ativo</span>
+            {% elif employee.status == 'inactive' %}
                 <span class="badge bg-secondary">Inativo</span>
+                            <span class="badge bg-secondary"><i class="bi bi-dash-circle me-1"></i>Inativo</span>
+            {% elif employee.status == 'suspended' %}
+                <span class="badge bg-warning text-dark">Suspenso</span>
+                            <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle-fill me-1"></i>Suspenso</span>
+            {% elif employee.status == 'terminated' %}
+                <span class="badge bg-danger">Desligado</span>
+                            <span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Desligado</span>
+            {% else %}
+                <span class="badge bg-secondary">{{ employee.get_status_display }}</span>
             {% endif %}
         </div>
     </div>
@@ -93,8 +103,10 @@
                             <td>
                                 {% if allocation.is_active %}
                                     <span class="badge bg-success">Ativa</span>
+                                                                    <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Ativa</span>
                                 {% else %}
                                     <span class="badge bg-secondary">Finalizada</span>
+                                                                    <span class="badge bg-secondary"><i class="bi bi-dash-circle me-1"></i>Finalizada</span>
                                 {% endif %}
                             </td>
                         </tr>

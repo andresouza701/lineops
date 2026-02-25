@@ -142,6 +142,10 @@ class PhoneLineCreateView(RoleRequiredMixin, CreateView):
     template_name = "telecom/phoneline_form.html"
     success_url = reverse_lazy("telecom:phoneline_list")
 
+    def form_valid(self, form):
+        messages.success(self.request, "Linha telefônica criada com sucesso.")
+        return super().form_valid(form)
+
 
 class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
     allowed_roles = [SystemUser.Role.ADMIN]
@@ -149,6 +153,10 @@ class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
     form_class = PhoneLineForm
     template_name = "telecom/phoneline_form.html"
     success_url = reverse_lazy("telecom:phoneline_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, "Linha telefônica atualizada com sucesso.")
+        return super().form_valid(form)
 
     def get_queryset(self):
         return PhoneLine.objects.filter(is_deleted=False)

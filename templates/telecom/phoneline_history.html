@@ -25,7 +25,11 @@
                         </div>
                     </div>
                     <span class="badge {% if allocation.is_active %}bg-success{% else %}bg-secondary{% endif %}">
-                        {% if allocation.is_active %}Ativa{% else %}Encerrada{% endif %}
+                        {% if allocation.is_active %}
+                            <i class="bi bi-check-circle-fill me-1"></i>Ativa
+                        {% else %}
+                            <i class="bi bi-dash-circle me-1"></i>Encerrada
+                        {% endif %}
                     </span>
                 </li>
             {% empty %}
