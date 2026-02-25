@@ -1,6 +1,6 @@
-from pathlib import Path
 import shutil
 import tempfile
+from pathlib import Path
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
@@ -14,15 +14,16 @@ from users.models import SystemUser
 class UploadViewTests(TestCase):
     def setUp(self):
         self.temp_media = Path(tempfile.mkdtemp())
-        self.addCleanup(lambda: shutil.rmtree(
-            self.temp_media, ignore_errors=True))
+        self.addCleanup(lambda: shutil.rmtree(self.temp_media, ignore_errors=True))
 
         self.override = override_settings(MEDIA_ROOT=self.temp_media)
         self.override.enable()
         self.addCleanup(self.override.disable)
 
         self.user = SystemUser.objects.create_user(
-            email="upload@test.com", password="StrongPass123", role=SystemUser.Role.ADMIN
+            email="upload@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.ADMIN,
         )
         self.client.force_login(self.user)
 

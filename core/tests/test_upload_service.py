@@ -1,6 +1,6 @@
-from pathlib import Path
 import shutil
 import tempfile
+from pathlib import Path
 
 from django.test import TestCase
 
@@ -12,8 +12,7 @@ from telecom.models import SIMcard
 class UploadServiceTests(TestCase):
     def setUp(self):
         self.temp_dir = Path(tempfile.mkdtemp())
-        self.addCleanup(lambda: shutil.rmtree(
-            self.temp_dir, ignore_errors=True))
+        self.addCleanup(lambda: shutil.rmtree(self.temp_dir, ignore_errors=True))
 
     def _write(self, name: str, content: str) -> Path:
         path = self.temp_dir / name

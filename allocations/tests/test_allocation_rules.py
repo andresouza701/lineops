@@ -9,7 +9,6 @@ from users.models import SystemUser
 
 
 class AllocationRulesTestCase(TestCase):
-
     def setUp(self):
         self.admin = SystemUser.objects.create_user(
             email="admin@test.com",
@@ -38,19 +37,14 @@ class AllocationRulesTestCase(TestCase):
             self.lines.append(line)
 
     def test_employee_cannot_have_more_than_two_active_lines(self):
-
         # Primeira alocação
         AllocationService.allocate_line(
-            employee=self.employee,
-            phone_line=self.lines[0],
-            allocated_by=self.admin
+            employee=self.employee, phone_line=self.lines[0], allocated_by=self.admin
         )
 
         # Segunda alocação
         AllocationService.allocate_line(
-            employee=self.employee,
-            phone_line=self.lines[1],
-            allocated_by=self.admin
+            employee=self.employee, phone_line=self.lines[1], allocated_by=self.admin
         )
 
         # Terceira deve falhar
@@ -58,7 +52,7 @@ class AllocationRulesTestCase(TestCase):
             AllocationService.allocate_line(
                 employee=self.employee,
                 phone_line=self.lines[2],
-                allocated_by=self.admin
+                allocated_by=self.admin,
             )
 
     # def test_phone_line_cannot_be_allocated_to_two_employees(self):
@@ -85,7 +79,6 @@ class AllocationRulesTestCase(TestCase):
     #     )
 
     def test_full_allocation_flow(self):
-
         line = self.lines[0]
 
         allocation = AllocationService.allocate_line(
@@ -98,8 +91,7 @@ class AllocationRulesTestCase(TestCase):
         line.refresh_from_db()
         self.assertEqual(line.status, PhoneLine.Status.ALLOCATED)
 
-        AllocationService.release_line(
-            allocation=allocation, released_by=self.admin)
+        AllocationService.release_line(allocation=allocation, released_by=self.admin)
 
         allocation.refresh_from_db()
         self.assertFalse(allocation.is_active)
@@ -108,19 +100,20 @@ class AllocationRulesTestCase(TestCase):
         line.refresh_from_db()
         self.assertEqual(line.status, PhoneLine.Status.AVAILABLE)
 
-        total_allocations = type(allocation).objects.filter(
-            employee=allocation.employee
-        ).count()
+        total_allocations = (
+            type(allocation).objects.filter(employee=allocation.employee).count()
+        )
         self.assertEqual(total_allocations, 1)
 
-        total_releases = type(allocation).objects.filter(
-            employee=allocation.employee, released_at__isnull=False
-        ).count()
+        total_releases = (
+            type(allocation)
+            .objects.filter(employee=allocation.employee, released_at__isnull=False)
+            .count()
+        )
         self.assertEqual(total_releases, 1)
 
 
 class AllocationReleaseViewTestCase(TestCase):
-
     def setUp(self):
         self.admin = SystemUser.objects.create_user(
             email="admin@test.com",
@@ -135,10 +128,11 @@ class AllocationReleaseViewTestCase(TestCase):
             department="IT",
         )
 
-        sim = SIMcard.objects.create(
-            iccid="8900000000000000000", carrier="CarrierX")
+        sim = SIMcard.objects.create(iccid="8900000000000000000", carrier="CarrierX")
         self.phone_line = PhoneLine.objects.create(
-            phone_number="+551199999990", sim_card=sim, status=PhoneLine.Status.AVAILABLE
+            phone_number="+551199999990",
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
         )
 
         self.allocation = AllocationService.allocate_line(
@@ -148,8 +142,7 @@ class AllocationReleaseViewTestCase(TestCase):
         self.client.force_login(self.admin)
 
     def test_release_view_deactivates_allocation(self):
-        url = reverse("allocations:allocation_release",
-                      args=[self.allocation.pk])
+        url = reverse("allocations:allocation_release", args=[self.allocation.pk])
         response = self.client.post(url, follow=True)
 
         self.assertRedirects(response, reverse("allocations:allocation_list"))

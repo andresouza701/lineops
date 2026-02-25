@@ -1,6 +1,5 @@
 import threading
 
-
 from django.test import TransactionTestCase as Transaction
 
 from core.services.allocation_service import AllocationService
@@ -10,7 +9,6 @@ from users.models import SystemUser
 
 
 class AllocationConcurrencyTest(Transaction):
-
     reset_sequences = True
 
     def setUp(self):
@@ -26,10 +24,10 @@ class AllocationConcurrencyTest(Transaction):
             department="IT",
             status=Employee.Status.ACTIVE,
         )
-        sim = SIMcard.objects.create(
-            iccid="8900000000000000999", carrier="CarrierX")
+        sim = SIMcard.objects.create(iccid="8900000000000000999", carrier="CarrierX")
         self.line = PhoneLine.objects.create(
-            phone_number="+5511999990000", sim_card=sim)
+            phone_number="+5511999990000", sim_card=sim
+        )
 
     def test_concurrent_allocation(self):
         results = []

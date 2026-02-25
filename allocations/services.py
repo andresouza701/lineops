@@ -1,6 +1,7 @@
+import logging
+
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone as utc
-import logging
 
 from allocations.models import LineAllocation
 
@@ -8,10 +9,8 @@ logger = logging.getLogger(__name__)
 
 
 class AllocationService:
-
     @staticmethod
     def allocate_line(employee, phone_line, allocated_by):
-
         if not allocated_by.is_admin():
             raise PermissionDenied("Only admins can allocate lines.")
 
@@ -25,7 +24,8 @@ class AllocationService:
                 "employee_id": employee.id,
                 "phone_line_id": phone_line.id,
                 "allocated_by_id": allocated_by.id,
-            },)
+            },
+        )
 
     @staticmethod
     def release_line(allocation, released_by):

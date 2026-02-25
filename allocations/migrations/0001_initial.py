@@ -10,30 +10,57 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('employees', '0001_initial'),
-        ('telecom', '0002_phoneline'),
+        ("employees", "0001_initial"),
+        ("telecom", "0002_phoneline"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='LineAllocation',
+            name="LineAllocation",
             fields=[
-                ('id', models.BigAutoField(auto_created=True,
-                 primary_key=True, serialize=False, verbose_name='ID')),
-                ('allocated_at', models.DateTimeField(auto_now_add=True)),
-                ('released_at', models.DateTimeField(blank=True, null=True)),
-                ('is_active', models.BooleanField(default=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('allocated_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL,
-                 related_name='allocations_made', to=settings.AUTH_USER_MODEL)),
-                ('employee', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT,
-                                               related_name='allocations', to='employees.employee')),
-                ('phone_line', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT,
-                                                 related_name='allocations', to='telecom.phoneline')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("allocated_at", models.DateTimeField(auto_now_add=True)),
+                ("released_at", models.DateTimeField(blank=True, null=True)),
+                ("is_active", models.BooleanField(default=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "allocated_by",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="allocations_made",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "employee",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="allocations",
+                        to="employees.employee",
+                    ),
+                ),
+                (
+                    "phone_line",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="allocations",
+                        to="telecom.phoneline",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-allocated_at'],
+                "ordering": ["-allocated_at"],
             },
         ),
     ]
