@@ -74,16 +74,16 @@
                 {% if indicadores_diarios and indicadores_diarios|length > 0 %}
                     {% for item in indicadores_diarios %}
                         <tr>
-                            <td>{{ item.data }}</td>
-                            <td>{{ item.pessoas_logadas }}</td>
+                            <td>{{ item.data|date:"d/m/Y" }}</td>
+                            <td>{{ item.pessoas_logadas|floatformat:0 }}</td>
                             <td>{{ item.perc_sem_whats|floatformat:2 }}%</td>
-                            <td>{{ item.b2b_sem_whats }}</td>
-                            <td>{{ item.b2c_sem_whats }}</td>
-                            <td>{{ item.numeros_disponiveis }}</td>
-                            <td>{{ item.numeros_entregues }}</td>
-                            <td>{{ item.reconectados }}</td>
-                            <td>{{ item.novos }}</td>
-                            <td>{{ item.total_descoberto_dia }}</td>
+                            <td>{{ item.b2b_sem_whats|floatformat:0 }}</td>
+                            <td>{{ item.b2c_sem_whats|floatformat:0 }}</td>
+                            <td>{{ item.numeros_disponiveis|floatformat:0 }}</td>
+                            <td>{{ item.numeros_entregues|floatformat:0 }}</td>
+                            <td>{{ item.reconectados|floatformat:0 }}</td>
+                            <td>{{ item.novos|floatformat:0 }}</td>
+                            <td>{{ item.total_descoberto_dia|floatformat:0 }}</td>
                         </tr>
                     {% endfor %}
                 {% else %}

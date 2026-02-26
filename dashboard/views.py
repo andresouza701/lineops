@@ -1,6 +1,8 @@
 from collections import defaultdict
+from datetime import datetime, time, timedelta
 
-from django.db.models import Count
+from django.db.models import Count, F, Q
+from django.utils import timezone
 from django.views.generic import TemplateView
 
 from allocations.models import LineAllocation
@@ -25,15 +27,10 @@ class DashboardView(AuthenticadView, TemplateView):
         context["total_simcards"] = SIMcard.objects.filter(is_deleted=False).count()
 
         context.update(self._build_status_counts())
-        # Dados para tabela negociador
-        # Supervisor: campo teams
-        # Negociador sem Whats: sem linha alocada ativa
-        # Carteira, Unidade, PA: campos fictícios (adapte se existirem)
-        # Status: Employee.status
+
         employees = Employee.objects.filter(is_deleted=False)
         negociador_data = []
         for emp in employees:
-            # Verifica se tem linha alocada ativa
             has_whats = LineAllocation.objects.filter(
                 employee=emp, is_active=True
             ).exists()
@@ -50,57 +47,74 @@ class DashboardView(AuthenticadView, TemplateView):
             )
         context["negociador_data"] = negociador_data
 
-        # Indicadores diários
-        from datetime import date
+        context["indicadores_diarios"] = self._build_daily_indicators(days=7)
+        return context
 
-        dia = date.today()
-        # Pessoas logadas: ativos
-        pessoas_logadas = Employee.objects.filter(status=Employee.Status.ACTIVE).count()
-        # Negociadores sem Whats
-        total_negociadores = Employee.objects.filter(is_deleted=False).count()
-        sem_whats = (
-            Employee.objects.filter(is_deleted=False)
-            .exclude(allocations__is_active=True)
-            .count()
+    def _build_daily_indicators(self, days: int) -> list[dict[str, int | float | str]]:
+        today = timezone.localdate()
+        indicators = []
+
+        for offset in range(days - 1, -1, -1):
+            day = today - timedelta(days=offset)
+            indicators.append(self._build_indicator_for_day(day))
+
+        return indicators
+
+    def _build_indicator_for_day(self, day):
+        end_of_day = timezone.make_aware(datetime.combine(day, time.max))
+        employees = Employee.objects.filter(is_deleted=False, created_at__date__lte=day)
+
+        active_allocations = LineAllocation.objects.filter(allocated_at__lte=end_of_day)
+        active_allocations = active_allocations.filter(
+            Q(released_at__isnull=True) | Q(released_at__gt=end_of_day)
         )
+
+        allocated_employee_ids = active_allocations.values_list(
+            "employee_id", flat=True
+        ).distinct()
+        employees_without_whats = employees.exclude(id__in=allocated_employee_ids)
+
+        total_negociadores = employees.count()
+        sem_whats = employees_without_whats.count()
         perc_sem_whats = (
             (sem_whats / total_negociadores * 100) if total_negociadores else 0
         )
-        # B2B/B2C sem Whats: campos fictícios
-        b2b_sem_whats = 0
-        b2c_sem_whats = 0
-        # Números disponíveis
-        numeros_disponiveis = PhoneLine.objects.filter(
-            status=PhoneLine.Status.AVAILABLE, is_deleted=False
-        ).count()
-        # Números entregues: linhas alocadas hoje
+
+        base_lines = PhoneLine.objects.filter(
+            is_deleted=False, created_at__date__lte=day
+        )
+        allocated_line_ids = active_allocations.values_list(
+            "phone_line_id", flat=True
+        ).distinct()
+        numeros_disponiveis = base_lines.exclude(id__in=allocated_line_ids).count()
+
         numeros_entregues = LineAllocation.objects.filter(
-            allocated_at__date=dia, is_active=True
+            allocated_at__date=day
         ).count()
-        # Reconectados: linhas liberadas e alocadas novamente hoje
-        reconectados = LineAllocation.objects.filter(
-            allocated_at__date=dia, released_at__isnull=False
-        ).count()
-        # Novos: linhas criadas hoje
-        novos = PhoneLine.objects.filter(created_at__date=dia, is_deleted=False).count()
-        # Total descoberto DIA: negociadores sem Whats hoje
-        total_descoberto_dia = sem_whats
-        indicadores_diarios = [
-            {
-                "data": dia.strftime("%d/%m/%Y"),
-                "pessoas_logadas": pessoas_logadas,
-                "perc_sem_whats": perc_sem_whats,
-                "b2b_sem_whats": b2b_sem_whats,
-                "b2c_sem_whats": b2c_sem_whats,
-                "numeros_disponiveis": numeros_disponiveis,
-                "numeros_entregues": numeros_entregues,
-                "reconectados": reconectados,
-                "novos": novos,
-                "total_descoberto_dia": total_descoberto_dia,
-            }
-        ]
-        context["indicadores_diarios"] = indicadores_diarios
-        return context
+        reconectados = (
+            LineAllocation.objects.filter(allocated_at__date=day)
+            .filter(phone_line__allocations__released_at__lt=F("allocated_at"))
+            .distinct()
+            .count()
+        )
+        novos = PhoneLine.objects.filter(created_at__date=day, is_deleted=False).count()
+
+        return {
+            "data": day,
+            "pessoas_logadas": employees.filter(status=Employee.Status.ACTIVE).count(),
+            "perc_sem_whats": perc_sem_whats,
+            "b2b_sem_whats": employees_without_whats.filter(
+                teams__icontains="b2b"
+            ).count(),
+            "b2c_sem_whats": employees_without_whats.filter(
+                teams__icontains="b2c"
+            ).count(),
+            "numeros_disponiveis": numeros_disponiveis,
+            "numeros_entregues": numeros_entregues,
+            "reconectados": reconectados,
+            "novos": novos,
+            "total_descoberto_dia": sem_whats,
+        }
 
     def _build_status_counts(self):
         sim_counts = defaultdict(int)
