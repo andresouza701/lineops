@@ -28,6 +28,14 @@ class AllocationService:
             employee=employee, is_active=True
         ).count()
         if active_allocation >= MAX_ACTIVE_ALLOCATIONS_PER_EMPLOYEE:
+            logger.warning(
+                "Allocation limit reached",
+                extra={
+                    "employee_id": employee.id,
+                    "employee_employee_id": employee.employee_id,
+                    "active_allocations": active_allocation,
+                },
+            )
             raise BusinessRuleException(
                 f"O funcionário {employee.full_name} já possui "
                 "2 linhas alocadas ativas."
@@ -36,6 +44,13 @@ class AllocationService:
         if LineAllocation.objects.filter(
             phone_line=phone_line, is_active=True
         ).exists():
+            logger.warning(
+                "Line already allocated",
+                extra={
+                    "phone_line_id": phone_line.id,
+                    "phone_number": phone_line.phone_number,
+                },
+            )
             raise BusinessRuleException(
                 f"A linha {phone_line.phone_number} já está alocada."
             )
@@ -51,12 +66,15 @@ class AllocationService:
         phone_line.save(update_fields=["status"])
 
         logger.info(
-            "Line allocated successfully for employee %s (id: %s) "
-            "with phone number %s, allocated by %s",
-            employee.full_name,
-            employee.employee_id,
-            phone_line.phone_number,
-            allocated_by.id,
+            "Line allocated",
+            extra={
+                "allocation_id": allocation.id,
+                "employee_id": employee.id,
+                "employee_employee_id": employee.employee_id,
+                "phone_line_id": phone_line.id,
+                "phone_number": phone_line.phone_number,
+                "allocated_by_id": getattr(allocated_by, "id", None),
+            },
         )
 
         return allocation
@@ -84,4 +102,14 @@ class AllocationService:
                 "released_by_id": released_by.pk,
             },
         )
+        logger.info(
+            "Line released",
+            extra={
+                "allocation_id": allocation.id,
+                "phone_line_id": phone_line.id,
+                "phone_number": phone_line.phone_number,
+                "released_by_id": getattr(released_by, "id", None),
+            },
+        )
+
         return allocation
