@@ -27,8 +27,61 @@ class DashboardView(AuthenticadView, TemplateView):
         context["total_simcards"] = SIMcard.objects.filter(is_deleted=False).count()
 
         context.update(self._build_status_counts())
-        context["negociador_data"] = self._build_negociador_data()
         context["indicadores_diarios"] = self._build_daily_indicators(days=7)
+
+        # Tabela de reconexão por segmento e unidade
+        unidades = ["Joinville", "Araquari"]
+        b2b_emps = Employee.objects.filter(teams__icontains="b2b", is_deleted=False)
+        reconexao_data = []
+        hoje = timezone.localdate()
+        fim = timezone.make_aware(datetime.combine(hoje, time.max))
+        inicio = timezone.make_aware(datetime.combine(hoje, time.min))
+        for unidade in unidades:
+            emps_unidade = b2b_emps.filter(teams__icontains=unidade)
+            negociadores_logados = emps_unidade.filter(
+                status=Employee.Status.ACTIVE
+            ).count()
+            liberados = (
+                LineAllocation.objects.filter(
+                    employee__in=emps_unidade, released_at__range=(inicio, fim)
+                )
+                .values_list("employee_id", flat=True)
+                .distinct()
+            )
+            precisa_numero_novo = emps_unidade.exclude(
+                allocations__is_active=True
+            ).count()
+            reconectar_whats = len(liberados)
+            reconexao_data.append(
+                {
+                    "unidade": unidade,
+                    "negociadores_logados": negociadores_logados,
+                    "reconectar_whats": reconectar_whats,
+                    "precisa_numero_novo": precisa_numero_novo,
+                }
+            )
+        negociadores_logados_total = b2b_emps.filter(
+            status=Employee.Status.ACTIVE
+        ).count()
+        liberados_total = (
+            LineAllocation.objects.filter(
+                employee__in=b2b_emps, released_at__range=(inicio, fim)
+            )
+            .values_list("employee_id", flat=True)
+            .distinct()
+        )
+        precisa_numero_novo_total = b2b_emps.exclude(
+            allocations__is_active=True
+        ).count()
+        reconexao_data.append(
+            {
+                "unidade": "Total B2B",
+                "negociadores_logados": negociadores_logados_total,
+                "reconectar_whats": len(liberados_total),
+                "precisa_numero_novo": precisa_numero_novo_total,
+            }
+        )
+        context["reconexao_data"] = reconexao_data
         return context
 
     def _build_negociador_data(self):
