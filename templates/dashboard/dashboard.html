@@ -51,6 +51,50 @@
         </table>
     </div>
 </div>
+    
+<div class="mt-4">
+    <h2 class="h5 mb-3">Indicadores Diários</h2>
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Data</th>
+                    <th>Pessoas Logadas</th>
+                    <th>% sem Whats</th>
+                    <th>B2B sem Whats</th>
+                    <th>B2C sem Whats</th>
+                    <th>Números Disponíveis</th>
+                    <th>Números Entregues</th>
+                    <th>Reconectados</th>
+                    <th>Novos</th>
+                    <th>Total Descoberto DIA</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if indicadores_diarios and indicadores_diarios|length > 0 %}
+                    {% for item in indicadores_diarios %}
+                        <tr>
+                            <td>{{ item.data }}</td>
+                            <td>{{ item.pessoas_logadas }}</td>
+                            <td>{{ item.perc_sem_whats|floatformat:2 }}%</td>
+                            <td>{{ item.b2b_sem_whats }}</td>
+                            <td>{{ item.b2c_sem_whats }}</td>
+                            <td>{{ item.numeros_disponiveis }}</td>
+                            <td>{{ item.numeros_entregues }}</td>
+                            <td>{{ item.reconectados }}</td>
+                            <td>{{ item.novos }}</td>
+                            <td>{{ item.total_descoberto_dia }}</td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center text-muted">Nenhum indicador disponível para o dia.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
 
 <div class="row g-3 mt-3">
     <div class="col-12 col-md-6 col-xl-3">

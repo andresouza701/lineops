@@ -49,6 +49,57 @@ class DashboardView(AuthenticadView, TemplateView):
                 }
             )
         context["negociador_data"] = negociador_data
+
+        # Indicadores diários
+        from datetime import date
+
+        dia = date.today()
+        # Pessoas logadas: ativos
+        pessoas_logadas = Employee.objects.filter(status=Employee.Status.ACTIVE).count()
+        # Negociadores sem Whats
+        total_negociadores = Employee.objects.filter(is_deleted=False).count()
+        sem_whats = (
+            Employee.objects.filter(is_deleted=False)
+            .exclude(allocations__is_active=True)
+            .count()
+        )
+        perc_sem_whats = (
+            (sem_whats / total_negociadores * 100) if total_negociadores else 0
+        )
+        # B2B/B2C sem Whats: campos fictícios
+        b2b_sem_whats = 0
+        b2c_sem_whats = 0
+        # Números disponíveis
+        numeros_disponiveis = PhoneLine.objects.filter(
+            status=PhoneLine.Status.AVAILABLE, is_deleted=False
+        ).count()
+        # Números entregues: linhas alocadas hoje
+        numeros_entregues = LineAllocation.objects.filter(
+            allocated_at__date=dia, is_active=True
+        ).count()
+        # Reconectados: linhas liberadas e alocadas novamente hoje
+        reconectados = LineAllocation.objects.filter(
+            allocated_at__date=dia, released_at__isnull=False
+        ).count()
+        # Novos: linhas criadas hoje
+        novos = PhoneLine.objects.filter(created_at__date=dia, is_deleted=False).count()
+        # Total descoberto DIA: negociadores sem Whats hoje
+        total_descoberto_dia = sem_whats
+        indicadores_diarios = [
+            {
+                "data": dia.strftime("%d/%m/%Y"),
+                "pessoas_logadas": pessoas_logadas,
+                "perc_sem_whats": perc_sem_whats,
+                "b2b_sem_whats": b2b_sem_whats,
+                "b2c_sem_whats": b2c_sem_whats,
+                "numeros_disponiveis": numeros_disponiveis,
+                "numeros_entregues": numeros_entregues,
+                "reconectados": reconectados,
+                "novos": novos,
+                "total_descoberto_dia": total_descoberto_dia,
+            }
+        ]
+        context["indicadores_diarios"] = indicadores_diarios
         return context
 
     def _build_status_counts(self):
