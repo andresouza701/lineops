@@ -130,14 +130,17 @@ def _ingest_rows(rows: Iterable[dict[str, str]]) -> UploadSummary:
 
 
 def _upsert_employee(row: dict[str, str], summary: UploadSummary) -> None:
-    required = ["full_name", "corporate_email", "employee_id", "department"]
+    required = ["full_name", "corporate_email", "employee_id"]
     _ensure_required(row, required)
+    teams = row.get("teams") or row.get("team") or row.get("department")
+    if not teams:
+        raise ValueError("Coluna obrigatÃ³ria ausente ou vazia: teams.")
 
     status = _normalize_employee_status(row.get("status"))
     defaults = {
         "full_name": row["full_name"],
         "corporate_email": row["corporate_email"],
-        "department": row["department"],
+        "teams": teams,
         "status": status,
         "is_deleted": False,
     }

@@ -1,5 +1,5 @@
 from django.contrib import messages
-from django.db.models import Prefetch, Q
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views import View
@@ -20,29 +20,19 @@ class EmployeeListView(RoleRequiredMixin, ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        self.queryset = Employee.objects.all().order_by("full_name")
+        queryset = Employee.objects.all().order_by("full_name")
 
-        search = self.request.GET.get("search")
-        search_by = self.request.GET.get("search_by")
+        name = self.request.GET.get("name", "").strip()
+        teams = self.request.GET.get("teams", "").strip()
+        line = self.request.GET.get("line", "").strip()
+        if name:
+            queryset = queryset.filter(full_name__icontains=name)
+        if teams:
+            queryset = queryset.filter(teams__icontains=teams)
+        if line:
+            queryset = queryset.filter(allocations__phone_line__number__icontains=line)
 
-        if search:
-            if search_by == "linha":
-                self.queryset = self.queryset.filter(
-                    Q(allocations__phone_line__phone_number__icontains=search)
-                )
-            elif search_by == "todos":
-                self.queryset = self.queryset.filter(
-                    Q(full_name__icontains=search)
-                    | Q(employee_id__icontains=search)
-                    | Q(allocations__phone_line__phone_number__icontains=search)
-                )
-            else:
-                # default search by name (and matricula for convenience)
-                self.queryset = self.queryset.filter(
-                    Q(full_name__icontains=search) | Q(employee_id__icontains=search)
-                )
-
-        return self.queryset.distinct().prefetch_related(
+        return queryset.distinct().prefetch_related(
             Prefetch(
                 "allocations",
                 queryset=LineAllocation.objects.filter(is_active=True).select_related(
@@ -56,7 +46,7 @@ class EmployeeCreateView(RoleRequiredMixin, CreateView):
     allowed_roles = [SystemUser.Role.ADMIN]
     model = Employee
     template_name = "employees/employee_form.html"
-    fields = ["full_name", "corporate_email", "employee_id", "department", "status"]
+    fields = ["full_name", "corporate_email", "employee_id", "teams", "status"]
     success_url = reverse_lazy("employees:employee_list")
 
     def form_valid(self, form):
@@ -68,7 +58,7 @@ class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
     allowed_roles = [SystemUser.Role.ADMIN]
     model = Employee
     template_name = "employees/employee_form.html"
-    fields = ["full_name", "corporate_email", "employee_id", "department", "status"]
+    fields = ["full_name", "corporate_email", "employee_id", "teams", "status"]
     success_url = reverse_lazy("employees:employee_list")
 
     def form_valid(self, form):

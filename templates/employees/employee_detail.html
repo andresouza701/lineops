@@ -6,9 +6,11 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="fw-semibold">Detalhes do Usuário</h2>
     <div>
-        <a href="{% url 'employees:employee_update' employee.pk %}" class="btn btn-primary">
-            Editar
-        </a>
+        {% if request.user.role == 'admin' %}
+            <a href="{% url 'employees:employee_edit' employee.id %}" class="btn btn-outline-primary">
+                Editar
+            </a>
+        {% endif %}
         <a href="{% url 'employees:employee_list' %}" class="btn btn-outline-secondary">
             Voltar
         </a>
@@ -33,8 +35,8 @@
                 <p>{{ employee.employee_id }}</p>
             </div>
             <div class="col-md-6">
-                <strong>Departamento:</strong>
-                <p>{{ employee.department }}</p>
+                <strong>Times:</strong>
+                <p>{{ employee.teams }}</p>
             </div>
         </div>
         <div class="mb-0">

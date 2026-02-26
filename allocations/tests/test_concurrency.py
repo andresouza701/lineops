@@ -21,7 +21,7 @@ class AllocationConcurrencyTest(Transaction):
             full_name="Concurrent User",
             corporate_email="concurrent@corp.com",
             employee_id="EMP-CONCURRENT",
-            department="IT",
+            teams="IT",
             status=Employee.Status.ACTIVE,
         )
         sim = SIMcard.objects.create(iccid="8900000000000000999", carrier="CarrierX")

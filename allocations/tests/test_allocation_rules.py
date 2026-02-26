@@ -20,7 +20,7 @@ class AllocationRulesTestCase(TestCase):
             full_name="John Doe",
             corporate_email="john@corp.com",
             employee_id="EMP001",
-            department="IT",
+            teams="IT",
         )
 
         # Criar 3 linhas
@@ -60,7 +60,7 @@ class AllocationRulesTestCase(TestCase):
             full_name="Jane Smith",
             corporate_email="jane@corp.com",
             employee_id="EMP002",
-            department="HR",
+            teams="HR",
         )
 
         line = self.lines[0]
@@ -130,7 +130,7 @@ class AllocationReleaseViewTestCase(TestCase):
             full_name="John Doe",
             corporate_email="john@corp.com",
             employee_id="EMP001",
-            department="IT",
+            teams="IT",
         )
 
         sim = SIMcard.objects.create(iccid="8900000000000000000", carrier="CarrierX")

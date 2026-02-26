@@ -21,7 +21,7 @@ class PhoneLineHistoryViewTest(TestCase):
             full_name="History User",
             corporate_email="history@corp.com",
             employee_id="EMP100",
-            department="IT",
+            teams="IT",
         )
 
         self.sim = SIMcard.objects.create(iccid="777", carrier="CarrierX")
@@ -68,7 +68,7 @@ class PhoneLineHistoryViewTest(TestCase):
             full_name="Filter User",
             corporate_email="filter@corp.com",
             employee_id="EMP200",
-            department="IT",
+            teams="IT",
         )
 
         sim = SIMcard.objects.create(iccid="555", carrier="CarrierX")
@@ -100,7 +100,7 @@ class ExportPhoneLineHistoryTest(TestCase):
             full_name="Export User",
             corporate_email="export@corp.com",
             employee_id="EMP300",
-            department="IT",
+            teams="IT",
         )
 
         self.sim = SIMcard.objects.create(iccid="999", carrier="CarrierX")

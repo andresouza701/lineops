@@ -9,11 +9,13 @@ class EmployeeAdmin(admin.ModelAdmin):
         "full_name",
         "corporate_email",
         "employee_id",
-        "department",
+        "teams",
         "status",
         "is_deleted",
         "created_at",
         "updated_at",
     )
-    search_fields = ("full_name", "corporate_email", "employee_id", "department")
-    list_filter = ("status", "is_deleted", "department")
+
+    search_fields = ("full_name", "corporate_email", "employee_id", "teams")
+    list_filter = ("status", "is_deleted", "teams")
+    ordering = ("full_name",)

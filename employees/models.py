@@ -23,7 +23,7 @@ class Employee(models.Model):
     full_name = models.CharField(max_length=255)
     corporate_email = models.EmailField(unique=True)
     employee_id = models.CharField(max_length=50, unique=True)
-    department = models.CharField(max_length=100)
+    teams = models.CharField(max_length=100)
 
     status = models.CharField(
         max_length=10, choices=Status.choices, default=Status.INACTIVE, db_index=True
