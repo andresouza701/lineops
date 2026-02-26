@@ -27,30 +27,32 @@ class DashboardView(AuthenticadView, TemplateView):
         context["total_simcards"] = SIMcard.objects.filter(is_deleted=False).count()
 
         context.update(self._build_status_counts())
-
-        employees = Employee.objects.filter(is_deleted=False)
-        negociador_data = []
-        for emp in employees:
-            has_whats = LineAllocation.objects.filter(
-                employee=emp, is_active=True
-            ).exists()
-            negociador_data.append(
-                {
-                    "supervisor": emp.teams,
-                    "negociador": emp.full_name,
-                    "sem_whats": not has_whats,
-                    "carteira": getattr(emp, "carteira", "-"),
-                    "unidade": getattr(emp, "unidade", "-"),
-                    "pa": getattr(emp, "pa", "-"),
-                    "status": emp.get_status_display(),
-                }
-            )
-        context["negociador_data"] = negociador_data
-
+        context["negociador_data"] = self._build_negociador_data()
         context["indicadores_diarios"] = self._build_daily_indicators(days=7)
         return context
 
-    def _build_daily_indicators(self, days: int) -> list[dict[str, int | float | str]]:
+    def _build_negociador_data(self):
+        employees = Employee.objects.filter(is_deleted=False)
+        active_allocated_employee_ids = set(
+            LineAllocation.objects.filter(is_active=True).values_list(
+                "employee_id", flat=True
+            )
+        )
+
+        return [
+            {
+                "supervisor": emp.teams,
+                "negociador": emp.full_name,
+                "sem_whats": emp.id not in active_allocated_employee_ids,
+                "carteira": getattr(emp, "carteira", "-"),
+                "unidade": getattr(emp, "unidade", "-"),
+                "pa": getattr(emp, "pa", "-"),
+                "status": emp.get_status_display(),
+            }
+            for emp in employees
+        ]
+
+    def _build_daily_indicators(self, days: int):
         today = timezone.localdate()
         indicators = []
 
