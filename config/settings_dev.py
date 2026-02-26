@@ -6,3 +6,4 @@ DEBUG = True
 ALLOWED_HOSTS = env.list(
     "ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "testserver"]
 )
+DJANGO_SETTINGS_MODULE = "config.settings_dev"

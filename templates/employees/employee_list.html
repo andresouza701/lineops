@@ -6,33 +6,47 @@
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3">
     <div>
         <h1 class="h3 mb-1">Equipe</h1>
-        <p class="text-muted mb-0">Gerencie os usuários e seus departamentos.</p>
+        <p class="text-muted mb-0">Gerencie os usuários e suas equipes.</p>
     </div>
 </div>
 
 <div class="card shadow-sm mb-3">
     <form method="get" class="card-body row g-3 align-items-end">
         <div class="col-lg-6">
-            <label class="form-label mb-1">Busca</label>
+            <label class="form-label mb-1">Nome</label>
             <input type="text"
-                   name="search"
+                   name="name"
                    class="form-control"
-                   placeholder="Buscar por nome ou linha vinculada"
-                   value="{{ request.GET.search }}">
+                   placeholder="Ex.: Joao "
+                   value="{{ request.GET.name }}">
         </div>
 
         <div class="col-lg-3">
-            <label class="form-label mb-1">Buscar por</label>
-            <select name="search_by" class="form-select">
-                <option value="todos" {% if request.GET.search_by|default:'todos' == 'todos' %}selected{% endif %}>Todos</option>
-                <option value="nome" {% if request.GET.search_by == 'nome' %}selected{% endif %}>Nome</option>
-                <option value="linha" {% if request.GET.search_by == 'linha' %}selected{% endif %}>Linha vinculada</option>
-            </select>
+            <label class="form-label mb-1">Equipe</label>
+            <input type="text"
+                   name="team"
+                   class="form-control"
+                   placeholder="Ex.: Marketing"
+                   value="{{ request.GET.team }}">
+        </div>
+
+        <div class="col-lg-3">
+            <label class="form-label mb-1">Linha</label>
+            <input type="text"
+                   name="line"
+                   class="form-control"
+                   placeholder="Ex.: 47999999999"
+                   value="{{ request.GET.line }}">
+        </div>
+
+        <div class="col-lg-1">
+                <label class="form-label mb-1 d-block">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">Buscar</button>
         </div>
 
         <div class="col-lg-2">
-                <label class="form-label mb-1 d-block">&nbsp;</label>
-                <button type="submit" class="btn btn-primary w-100">Buscar</button>
+                    <label class="form-label mb-1 d-block">&nbsp;</label>
+                    <a href="{% url 'employees:employee_list' %}" class="btn btn-outline-secondary w-100">Limpar filtro</a>
         </div>
     </form>
 </div>
@@ -43,15 +57,16 @@
             <thead class="table-light">
                 <tr>
                     <th>Nome completo</th>
-                    <th>Departamento</th>
+                    <th>Equipe</th>
                     <th>Linhas vinculadas</th>
+                    <th class="text-end">Ações</th>
                 </tr>
             </thead>
             <tbody>
                 {% for employee in employees %}
                     <tr>
                         <td>{{ employee.full_name }}</td>
-                        <td>{{ employee.department }}</td>
+                        <td>{{ employee.teams }}</td>
                         <td>
                             {% with allocs=employee.allocations.all %}
                                 {% if allocs %}
@@ -63,10 +78,17 @@
                                 {% endif %}
                             {% endwith %}
                         </td>
+                       <td class="text-end" colspan="3">
+                        {%if request.user.role == 'admin' %}
+                            <a href="{% url 'employees:employee_update' employee.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
+                         {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                       </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="3" class="text-center text-muted py-3">
+                        <td colspan="4" class="text-center text-muted">
                             Nenhum usuário encontrado.
                         </td>
                     </tr>
@@ -77,12 +99,12 @@
 </div>
 
 {% if is_paginated %}
-    {% with current_search=request.GET.search current_search_by=request.GET.search_by|default:'todos' %}
+    {% with current_name=request.GET.name current_teams=request.GET.teams current_line=request.GET.line|default:'todos' %}
         <nav class="mt-3" aria-label="paginação de usuários">
             <ul class="pagination justify-content-center mb-0">
                 {% if page_obj.has_previous %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}&search={{ current_search }}&search_by={{ current_search_by }}">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}&name={{ current_name }}&teams={{ current_teams }}&line={{ current_line }}">
                             Anterior
                         </a>
                     </li>
@@ -90,7 +112,7 @@
 
                 {% for num in page_obj.paginator.page_range %}
                     <li class="page-item {% if page_obj.number == num %}active{% endif %}">
-                        <a class="page-link" href="?page={{ num }}&search={{ current_search }}&search_by={{ current_search_by }}">
+                        <a class="page-link" href="?page={{ num }}&name={{ current_name }}&teams={{ current_teams }}&line={{ current_line }}">
                             {{ num }}
                         </a>
                     </li>
@@ -98,7 +120,7 @@
 
                 {% if page_obj.has_next %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.next_page_number }}&search={{ current_search }}&search_by={{ current_search_by }}">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}&name={{ current_name }}&teams={{ current_teams }}&line={{ current_line }}">
                             Próxima
                         </a>
                     </li>

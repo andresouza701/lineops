@@ -12,13 +12,13 @@ class RoleRequiredMixin(LoginRequiredMixin):
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
-            raise PermissionDenied("Usuário não autenticado.")
+            raise PermissionDenied("Usuario nao autenticado.")
 
         user_role = (request.user.role or "").lower()
         allowed = {role.lower() for role in self.allowed_roles}
 
         if user_role not in allowed:
-            raise PermissionDenied("Acesso negado: função insuficiente.")
+            raise PermissionDenied("Acesso negado: funcao insuficiente.")
 
         return super().dispatch(request, *args, **kwargs)
 

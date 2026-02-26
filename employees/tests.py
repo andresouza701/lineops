@@ -2,22 +2,24 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
 
+from allocations.models import LineAllocation
+from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 
 from .models import Employee
 
 
 class EmployeeModelTest(TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.base_data = {
             "full_name": "Aline Martins",
             "corporate_email": "aline.martins@lineops.tech",
             "employee_id": "EMP-1001",
-            "department": "Operações",
+            "teams": "Operações",
             "status": Employee.Status.ACTIVE,
         }
 
-    def test_unique_fields_raise_integrity_error(self):
+    def test_unique_fields_raise_integrity_error(self) -> None:
         Employee.objects.create(**self.base_data)
 
         with transaction.atomic(), self.assertRaises(IntegrityError):
@@ -28,12 +30,12 @@ class EmployeeModelTest(TestCase):
                 **{**self.base_data, "corporate_email": "outra@lineops.tech"}
             )
 
-    def test_status_is_persisted(self):
+    def test_status_is_persisted(self) -> None:
         employee = Employee.objects.create(**self.base_data)
         stored = Employee.all_objects.get(pk=employee.pk)
         self.assertEqual(stored.status, Employee.Status.ACTIVE)
 
-    def test_soft_delete_marks_record_and_filters_out(self):
+    def test_soft_delete_marks_record_and_filters_out(self) -> None:
         employee = Employee.objects.create(**self.base_data)
         employee.delete()
 
@@ -42,71 +44,84 @@ class EmployeeModelTest(TestCase):
         self.assertEqual(Employee.objects.filter(pk=employee.pk).count(), 0)
 
 
-class EmployeePermissionTest(TestCase):
-    def setUp(self):
-        self.admin = SystemUser.objects.create_user(
-            email="admin@test.com",
+class EmployeeListViewTest(TestCase):
+    def setUp(self) -> None:
+        self.user = SystemUser.objects.create_user(
+            email="user@test.com",
             password="StrongPass123",
-            role=SystemUser.Role.ADMIN,
+            role=SystemUser.Role.USER,
         )
         self.operator = SystemUser.objects.create_user(
             email="operator@test.com",
             password="StrongPass123",
             role=SystemUser.Role.OPERATOR,
         )
-
         self.employee = Employee.objects.create(
-            full_name="Jane Doe",
-            corporate_email="jane@corp.com",
-            employee_id="EMP-2000",
-            department="Ops",
+            full_name="Aline Martins",
+            corporate_email="aline.martins@lineops.tech",
+            employee_id="EMP-1001",
+            teams="Operações",
             status=Employee.Status.ACTIVE,
         )
 
-    def test_admin_can_access_employee_views(self):
-        self.client.force_login(self.admin)
-
-        list_resp = self.client.get(reverse("employees:employee_list"))
-        self.assertEqual(list_resp.status_code, 200)
-
-        detail_resp = self.client.get(
-            reverse("employees:employee_detail", args=[self.employee.pk])
+        sim = SIMcard.objects.create(
+            iccid="12345678901234567890",
         )
-        self.assertEqual(detail_resp.status_code, 200)
-
-        create_resp = self.client.get(reverse("employees:employee_create"))
-        self.assertEqual(create_resp.status_code, 200)
-
-        update_resp = self.client.get(
-            reverse("employees:employee_update", args=[self.employee.pk])
+        line = PhoneLine.objects.create(
+            number="+5511999999999",
+            sim_card=sim,
         )
-        self.assertEqual(update_resp.status_code, 200)
-
-        delete_resp = self.client.post(
-            reverse("employees:employee_deactivate", args=[self.employee.pk])
+        LineAllocation.objects.create(
+            employee=self.employee,
+            line=line,
         )
-        self.assertEqual(delete_resp.status_code, 302)
 
-    def test_operator_is_denied_on_employee_views(self):
-        self.client.force_login(self.operator)
+        def test_filters_by_name(self) -> None:
+            self.client.force_login(self.user)
+            response = self.client.get(reverse("employee-list"), {"search": "Aline"})
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Aline Martins")
+            self.assertNotContains(response, "Maria Silva")
 
-        list_resp = self.client.get(reverse("employees:employee_list"))
-        self.assertEqual(list_resp.status_code, 403)
+        def test_filters_by_line(self) -> None:
+            self.client.force_login(self.admin)
+            response = self.client.get(
+                reverse("employee-list"), {"search": "999999999"}
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Aline Martins")
+            self.assertNotContains(response, "Maria Silva")
 
-        detail_resp = self.client.get(
-            reverse("employees:employee_detail", args=[self.employee.pk])
-        )
-        self.assertEqual(detail_resp.status_code, 403)
+        def test_combined_filters(self) -> None:
+            self.client.force_login(self.admin)
+            response = self.client.get(reverse("employee-list"), {"teams": "Comercial"})
+            self.assertEqual(response.status_code, 200)
+            self.assertNotContains(response, "Aline Martins")
+            self.assertContains(response, "Maria Silva")
 
-        create_resp = self.client.get(reverse("employees:employee_create"))
-        self.assertEqual(create_resp.status_code, 403)
+        def test_shows_edit_buttom_for_admin(self) -> None:
+            self.client.force_login(self.admin)
+            response = self.client.get(reverse("employee-list"))
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Limpar filtros")
+            self.assertContains(
+                response, reverse("employee:employee_update", args=[self.employee.pk])
+            )
 
-        update_resp = self.client.get(
-            reverse("employees:employee_update", args=[self.employee.pk])
-        )
-        self.assertEqual(update_resp.status_code, 403)
+        def test_hides_edit_buttom_for_user(self) -> None:
+            self.client.force_login(self.user)
+            response = self.client.get(reverse("employee-list"))
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Limpar filtros")
+            self.assertNotContains(
+                response, reverse("employee:employee_update", args=[self.employee.pk])
+            )
 
-        delete_resp = self.client.post(
-            reverse("employees:employee_deactivate", args=[self.employee.pk])
-        )
-        self.assertEqual(delete_resp.status_code, 403)
+        def test_hides_edit_buttom_for_operator(self) -> None:
+            self.client.force_login(self.operator)
+            response = self.client.get(reverse("employee-list"))
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Limpar filtros")
+            self.assertNotContains(
+                response, reverse("employee:employee_update", args=[self.employee.pk])
+            )

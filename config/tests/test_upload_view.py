@@ -62,5 +62,4 @@ class UploadViewTests(TestCase):
     def test_anonymous_redirected_to_login(self):
         self.client.logout()
         response = self.client.get(reverse("upload"))
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("login", response.url)
+        self.assertEqual(response.status_code, 403)

@@ -65,7 +65,7 @@ class AllocationRBACViewTests(TestCase):
             full_name="Alloc User",
             corporate_email="alloc@corp.com",
             employee_id="EMP-ALLOC",
-            department="IT",
+            teams="IT",
             status=Employee.Status.ACTIVE,
         )
         sim = SIMcard.objects.create(iccid="8900000000000000777", carrier="CarY")
