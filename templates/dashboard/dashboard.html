@@ -16,6 +16,42 @@
     </div>
 {% endif %}
 
+<div class="mt-4">
+    <h2 class="h5 mb-3">Visão por negociador</h2>
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Supervisor</th>
+                    <th>Negociador sem Whats</th>
+                    <th>Carteira</th>
+                    <th>Unidade</th>
+                    <th>PA</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if negociador_data and negociador_data|length > 0 %}
+                    {% for item in negociador_data %}
+                        <tr>
+                            <td>{{ item.supervisor }}</td>
+                            <td>{% if item.sem_whats %}<span class="badge bg-warning text-dark">Sim</span>{% else %}<span class="badge bg-success">Não</span>{% endif %}</td>
+                            <td>{{ item.carteira }}</td>
+                            <td>{{ item.unidade }}</td>
+                            <td>{{ item.pa }}</td>
+                            <td>{{ item.status }}</td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">Nenhum negociador encontrado. Adicione usuários para visualizar a tabela.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <div class="row g-3 mt-3">
     <div class="col-12 col-md-6 col-xl-3">
         <article class="card h-100 shadow-sm border-0">

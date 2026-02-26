@@ -25,6 +25,30 @@ class DashboardView(AuthenticadView, TemplateView):
         context["total_simcards"] = SIMcard.objects.filter(is_deleted=False).count()
 
         context.update(self._build_status_counts())
+        # Dados para tabela negociador
+        # Supervisor: campo teams
+        # Negociador sem Whats: sem linha alocada ativa
+        # Carteira, Unidade, PA: campos fictícios (adapte se existirem)
+        # Status: Employee.status
+        employees = Employee.objects.filter(is_deleted=False)
+        negociador_data = []
+        for emp in employees:
+            # Verifica se tem linha alocada ativa
+            has_whats = LineAllocation.objects.filter(
+                employee=emp, is_active=True
+            ).exists()
+            negociador_data.append(
+                {
+                    "supervisor": emp.teams,
+                    "negociador": emp.full_name,
+                    "sem_whats": not has_whats,
+                    "carteira": getattr(emp, "carteira", "-"),
+                    "unidade": getattr(emp, "unidade", "-"),
+                    "pa": getattr(emp, "pa", "-"),
+                    "status": emp.get_status_display(),
+                }
+            )
+        context["negociador_data"] = negociador_data
         return context
 
     def _build_status_counts(self):
