@@ -1,3 +1,5 @@
+import logging
+
 from django.db import transaction
 from django.utils import timezone
 
@@ -5,6 +7,8 @@ from allocations.models import LineAllocation
 from core.exceptions.domain_exceptions import BusinessRuleException
 from employees.models import Employee
 from telecom.models import PhoneLine
+
+logger = logging.getLogger(__name__)
 
 MAX_ACTIVE_ALLOCATIONS_PER_EMPLOYEE = 2
 
@@ -46,6 +50,15 @@ class AllocationService:
         phone_line.status = PhoneLine.Status.ALLOCATED
         phone_line.save(update_fields=["status"])
 
+        logger.info(
+            "Line allocated successfully for employee %s (id: %s) "
+            "with phone number %s, allocated by %s",
+            employee.full_name,
+            employee.employee_id,
+            phone_line.phone_number,
+            allocated_by.id,
+        )
+
         return allocation
 
     @staticmethod
@@ -62,4 +75,13 @@ class AllocationService:
         phone_line.status = PhoneLine.Status.AVAILABLE
         phone_line.save(update_fields=["status"])
 
+        logger.info(
+            "Line released",
+            extra={
+                "allocation_id": allocation.pk,
+                "phone_line_id": phone_line.pk,
+                "phone_number": phone_line.phone_number,
+                "released_by_id": released_by.pk,
+            },
+        )
         return allocation
