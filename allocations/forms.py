@@ -16,9 +16,9 @@ class AllocationForm(forms.Form):
 
 class CombinedRegistrationForm(forms.Form):
     full_name = forms.CharField(label="Nome", max_length=255)
-    corporate_email = forms.EmailField(label="E-mail corporativo")
-    employee_id = forms.CharField(label="Matrícula", max_length=50)
-    teams = forms.CharField(label="Equipes", max_length=100)
+    corporate_email = forms.EmailField(label="Supervisor")
+    employee_id = forms.CharField(label="Carteira", max_length=50)
+    teams = forms.CharField(label="Unidade", max_length=100)
     status = forms.ChoiceField(
         label="Status", choices=Employee.Status.choices, initial=Employee.Status.ACTIVE
     )

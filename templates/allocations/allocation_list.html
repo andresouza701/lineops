@@ -31,7 +31,7 @@
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">E-mail corporativo</label>
+                        <label class="form-label">Supervisor</label>
                         {{ employee_form.corporate_email }}
                         {% if employee_form.corporate_email.errors %}
                             <div class="invalid-feedback d-block">{{ employee_form.corporate_email.errors|striptags }}</div>
@@ -47,7 +47,7 @@
                     </div>
 
                     <div class="col-md-3">
-                       <label class="form-label">Times</label>
+                        <label class="form-label">Unidade</label>
                         {{ employee_form.teams }}
                         {% if employee_form.teams.errors %}
                             <div class="invalid-feedback d-block">{{ employee_form.teams.errors|striptags }}</div>
