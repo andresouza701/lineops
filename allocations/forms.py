@@ -18,7 +18,14 @@ class CombinedRegistrationForm(forms.Form):
     full_name = forms.CharField(label="Nome", max_length=255)
     corporate_email = forms.CharField(label="Supervisor", max_length=255)
     employee_id = forms.CharField(label="Carteira", max_length=50)
-    teams = forms.CharField(label="Unidade", max_length=100)
+    teams = forms.ChoiceField(
+        label="Unidade",
+        choices=[
+            ("Joinville", "Joinville"),
+            ("Araquari", "Araquari"),
+        ],
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
     status = forms.ChoiceField(
         label="Status", choices=Employee.Status.choices, initial=Employee.Status.ACTIVE
     )
