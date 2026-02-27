@@ -21,7 +21,36 @@ class CombinedRegistrationForm(forms.Form):
         choices=[],
         widget=forms.Select(attrs={"class": "form-select"}),
     )
-    employee_id = forms.CharField(label="Carteira", max_length=50)
+    employee_id = forms.ChoiceField(
+        label="Carteira",
+        choices=[
+            ("Alimentos", "Alimentos"),
+            ("Andina", "Andina"),
+            ("BackOffice", "BackOffice"),
+            ("BAT", "BAT"),
+            ("Chilli Beans", "Chilli Beans"),
+            ("Femsa", "Femsa"),
+            ("Heineki", "Heineki"),
+            ("Industria", "Industria"),
+            ("Manual Dellys", "Manual Dellys"),
+            ("MV - Martins", "MV - Martins"),
+            ("MV - Pepsico Repique", "MV - Pepsico Repique"),
+            ("MV - Pepsico", "MV - Pepsico"),
+            ("MV - Transportes", "MV - Transportes"),
+            ("MV - Ações", "MV - Ações"),
+            ("MV - Mix", "MV - Mix"),
+            ("MV - Dellys", "MV - Dellys"),
+            ("MV - Potencial", "MV - Potencial"),
+            ("MV - Represado", "MV - Represado"),
+            ("Pepsico", "Pepsico"),
+            ("Pesquisa", "Pesquisa"),
+            ("Sascar", "Sascar"),
+            ("Souza", "Souza"),
+            ("Tabacos", "Tabacos"),
+            ("Textil", "Textil"),
+        ],
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
     teams = forms.ChoiceField(
         label="Unidade",
         choices=[
