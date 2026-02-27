@@ -56,35 +56,29 @@
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
                 <tr>
-                    <th>Nome completo</th>
+                    <th>Supervisor</th>
+                    <th>Nome</th>
+                    <th>Carteira</th>
                     <th>Equipe</th>
-                    <th>Linhas vinculadas</th>
+                    <th>Status</th>
                     <th class="text-end">Ações</th>
                 </tr>
             </thead>
             <tbody>
                 {% for employee in employees %}
                     <tr>
+                        <td>{{ employee.corporate_email }}</td>
                         <td>{{ employee.full_name }}</td>
+                        <td>{{ employee.employee_id }}</td>
                         <td>{{ employee.teams }}</td>
-                        <td>
-                            {% with allocs=employee.allocations.all %}
-                                {% if allocs %}
-                                    {% for alloc in allocs %}
-                                        {{ alloc.phone_line.phone_number }}{% if not forloop.last %}, {% endif %}
-                                    {% endfor %}
-                                {% else %}
-                                    <span class="text-muted">Nenhuma linha</span>
-                                {% endif %}
-                            {% endwith %}
+                        <td>{{ employee.status }}</td>
+                        <td class="text-end">
+                            {%if request.user.role == 'admin' %}
+                                <a href="{% url 'employees:employee_update' employee.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
                         </td>
-                       <td class="text-end" colspan="3">
-                        {%if request.user.role == 'admin' %}
-                            <a href="{% url 'employees:employee_update' employee.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
-                         {% else %}
-                            <span class="text-muted">-</span>
-                        {% endif %}
-                       </td>
                     </tr>
                 {% empty %}
                     <tr>
