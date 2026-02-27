@@ -82,8 +82,6 @@ class CombinedRegistrationForm(forms.Form):
 
     def clean_corporate_email(self):
         supervisor = self.cleaned_data["corporate_email"]
-        if Employee.objects.filter(corporate_email=supervisor).exists():
-            raise forms.ValidationError("Supervisor já cadastrado.")
         return supervisor
 
     def clean_employee_id(self):
