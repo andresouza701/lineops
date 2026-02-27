@@ -1,3 +1,28 @@
+{% extends "base/base.html" %}
+
+{% block title %}Telecom{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-3">
+    <div>
+        <h1 class="h3 mb-1">Telecom</h1>
+        <p class="text-muted mb-0">Painel de controle</p>
+    </div>
+   </div>
+<div class="row g-3">
+    {% for box in line_status_boxes %}
+        <div class="col-12 col-md-6 col-xl-3">
+            <article class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <p class="text-uppercase text-muted small mb-1">{{ box.label }}</p>
+                    <strong class="display-6 fw-bold d-block mb-2">{{ box.count|default:0 }}</strong>
+                    <p class="text-muted small mb-0">{{ box.description }}</p>
+                </div>
+            </article>
+        </div>
+    {% endfor %}
+</div>
+
 <div class="card shadow-sm border-0 mt-4">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -40,24 +65,8 @@
             </table>
         </div>
     </div>
-{% extends "base/base.html" %}
-
-{% block title %}Telecom{% endblock %}
-
-{% block content %}
-<div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-3">
-    <div>
-        <h1 class="h3 mb-1">Telecom</h1>
-        <p class="text-muted mb-0">Painel de controle</p>
-    </div>
-   </div>
-<div class="row g-3">
-    {% for box in line_status_boxes %}
-        <div class="col-12 col-md-6 col-xl-3">
-            <article class="card shadow-sm border-0 h-100">
-                <div class="card-body">
-                    <p class="text-uppercase text-muted small mb-1">{{ box.label }}</p>
-                    <strong class="display-6 fw-bold d-block mb-2">{{ box.count|default:0 }}</strong>
+</div>
+{% endblock %}
                     <p class="text-muted small mb-0">{{ box.description }}</p>
                 </div>
             </article>
