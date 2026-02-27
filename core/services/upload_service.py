@@ -7,7 +7,6 @@ from pathlib import Path
 
 from django.db import transaction
 from django.utils.text import slugify
-from openpyxl import load_workbook
 
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
@@ -72,6 +71,13 @@ def _parse_csv(file_path: Path) -> list[dict[str, str]]:
 
 
 def _parse_xlsx(file_path: Path) -> list[dict[str, str]]:
+    try:
+        from openpyxl import load_workbook
+    except ModuleNotFoundError as exc:
+        raise ValueError(
+            "Processamento XLSX indisponível: instale a dependência openpyxl."
+        ) from exc
+
     workbook = load_workbook(filename=file_path, read_only=True, data_only=True)
     sheet = workbook.active
     rows = sheet.iter_rows(values_only=True)
@@ -104,7 +110,6 @@ def _stringify(value: object) -> str:
     return str(value).strip()
 
 
-@transaction.atomic
 def _ingest_rows(rows: Iterable[dict[str, str]]) -> UploadSummary:
     summary = UploadSummary()
 
@@ -113,13 +118,15 @@ def _ingest_rows(rows: Iterable[dict[str, str]]) -> UploadSummary:
             continue
 
         try:
-            kind = raw.get("type", "").lower()
-            if kind == "employee":
-                _upsert_employee(raw, summary)
-            elif kind == "simcard":
-                _upsert_simcard(raw, summary)
-            else:
-                raise ValueError("Coluna 'type' deve ser 'employee' ou 'simcard'.")
+            # Isola cada linha em uma transação para evitar persistência parcial.
+            with transaction.atomic():
+                kind = raw.get("type", "").lower()
+                if kind == "employee":
+                    _upsert_employee(raw, summary)
+                elif kind == "simcard":
+                    _upsert_simcard(raw, summary)
+                else:
+                    raise ValueError("Coluna 'type' deve ser 'employee' ou 'simcard'.")
             summary.rows_processed += 1
         except (
             Exception

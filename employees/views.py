@@ -23,14 +23,19 @@ class EmployeeListView(RoleRequiredMixin, ListView):
         queryset = Employee.objects.all().order_by("full_name")
 
         name = self.request.GET.get("name", "").strip()
+        team = self.request.GET.get("team", "").strip()
         teams = self.request.GET.get("teams", "").strip()
         line = self.request.GET.get("line", "").strip()
         if name:
             queryset = queryset.filter(full_name__icontains=name)
+        if team:
+            queryset = queryset.filter(teams__icontains=team)
         if teams:
             queryset = queryset.filter(teams__icontains=teams)
         if line:
-            queryset = queryset.filter(allocations__phone_line__number__icontains=line)
+            queryset = queryset.filter(
+                allocations__phone_line__phone_number__icontains=line
+            )
 
         return queryset.distinct().prefetch_related(
             Prefetch(
