@@ -16,7 +16,11 @@ class AllocationForm(forms.Form):
 
 class CombinedRegistrationForm(forms.Form):
     full_name = forms.CharField(label="Nome", max_length=255)
-    corporate_email = forms.CharField(label="Supervisor", max_length=255)
+    corporate_email = forms.ChoiceField(
+        label="Supervisor",
+        choices=[],
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
     employee_id = forms.CharField(label="Carteira", max_length=50)
     teams = forms.ChoiceField(
         label="Unidade",
@@ -56,9 +60,14 @@ class CombinedRegistrationForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        from users.models import SystemUser
+
+        super_users = SystemUser.objects.filter(role=SystemUser.Role.SUPER)
+        self.fields["corporate_email"].choices = [
+            (user.email, user.email) for user in super_users
+        ]
         text_fields = [
             "full_name",
-            "corporate_email",
             "employee_id",
             "phone_number",
             "iccid",
