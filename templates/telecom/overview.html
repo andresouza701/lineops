@@ -39,6 +39,7 @@
                         <th scope="col">Alocado em</th>
                         <th scope="col">Liberado em</th>
                         <th scope="col">Status</th>
+                        <th scope="col" class="text-end">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -53,6 +54,16 @@
                                     <span class="badge bg-success">Ativa</span>
                                 {% else %}
                                     <span class="badge bg-secondary">Encerrada</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if allocation.is_active %}
+                                    <form method="post" action="{% url 'allocations:allocation_release' allocation.pk %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">Liberar</button>
+                                    </form>
+                                {% else %}
+                                    <span class="text-muted">—</span>
                                 {% endif %}
                             </td>
                         </tr>
