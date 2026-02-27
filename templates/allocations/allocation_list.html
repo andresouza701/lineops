@@ -196,17 +196,14 @@
         const radios = telephonyForm.querySelectorAll('input[name="line_action"]');
         const newSection = telephonyForm.querySelector('#section-new-line');
         const existingSection = telephonyForm.querySelector('#section-existing-line');
+        const changeStatusSection = telephonyForm.querySelector('#section-change-status');
 
         function syncSections() {
             const selected = telephonyForm.querySelector('input[name="line_action"]:checked');
             const value = selected ? selected.value : 'new';
-            if (value === 'existing') {
-                newSection.classList.add('d-none');
-                existingSection.classList.remove('d-none');
-            } else {
-                existingSection.classList.add('d-none');
-                newSection.classList.remove('d-none');
-            }
+            if (newSection) newSection.classList.toggle('d-none', value !== 'new');
+            if (existingSection) existingSection.classList.toggle('d-none', value !== 'existing');
+            if (changeStatusSection) changeStatusSection.classList.toggle('d-none', value !== 'change_status');
         }
 
         radios.forEach(r => r.addEventListener('change', syncSections));
