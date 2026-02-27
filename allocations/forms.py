@@ -1,5 +1,6 @@
 from django import forms
 
+from allocations.models import LineAllocation
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 
@@ -9,7 +10,7 @@ class AllocationForm(forms.Form):
         queryset=Employee.objects.filter(
             is_deleted=False, status=Employee.Status.ACTIVE
         ),
-        label="Funcionário",
+        label="Funcionario",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
 
@@ -37,7 +38,7 @@ class CombinedRegistrationForm(forms.Form):
             ("MV - Pepsico Repique", "MV - Pepsico Repique"),
             ("MV - Pepsico", "MV - Pepsico"),
             ("MV - Transportes", "MV - Transportes"),
-            ("MV - Ações", "MV - Ações"),
+            ("MV - Acoes", "MV - Acoes"),
             ("MV - Mix", "MV - Mix"),
             ("MV - Dellys", "MV - Dellys"),
             ("MV - Potencial", "MV - Potencial"),
@@ -67,7 +68,7 @@ class CombinedRegistrationForm(forms.Form):
         label="O que deseja fazer?",
         choices=(
             ("new", "Cadastrar nova linha"),
-            ("existing", "Vincular linha disponível"),
+            ("existing", "Vincular linha disponivel"),
             ("change_status", "Trocar status linha"),
         ),
         initial="new",
@@ -75,10 +76,9 @@ class CombinedRegistrationForm(forms.Form):
         required=False,
     )
 
-    # Para trocar status
     status_line = forms.ChoiceField(
         label="Novo status da linha",
-        choices=[],
+        choices=PhoneLine.Status.choices,
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
     )
@@ -93,12 +93,11 @@ class CombinedRegistrationForm(forms.Form):
     phone_number = forms.CharField(label="Linha", max_length=20, required=False)
     iccid = forms.CharField(label="ICCID", max_length=22, required=False)
     carrier = forms.CharField(label="Operadora", max_length=100, required=False)
-
     phone_line = forms.ModelChoiceField(
         queryset=PhoneLine.objects.filter(
             is_deleted=False, status=PhoneLine.Status.AVAILABLE
         ),
-        label="Linha disponível",
+        label="Linha disponivel",
         widget=forms.Select(attrs={"class": "form-select"}),
         required=False,
         empty_label="Selecione",
@@ -118,45 +117,11 @@ class CombinedRegistrationForm(forms.Form):
                 max_length=255,
                 widget=forms.TextInput(attrs={"class": "form-control"}),
             )
-        text_fields = [
-            "full_name",
-            "employee_id",
-            "phone_number",
-            "iccid",
-            "carrier",
-        ]
-        for name in text_fields:
+
+        for name in ["full_name", "phone_number", "iccid", "carrier"]:
             self.fields[name].widget.attrs.setdefault("class", "form-control")
         self.fields["status"].widget.attrs.setdefault("class", "form-select")
         self.fields["line_action"].widget.attrs.setdefault("class", "form-check-input")
-        # Status extras
-        extra_status = [
-            ("AGUARDANDO_OPERADOR", "Aguardando Operador"),
-            ("BANIDO_MEMU", "Banido MEMU"),
-            ("BANIDO_META", "Banido META"),
-            ("CRIADO_NUMERO", "Criado Numero"),
-            ("EM_ANALISE", "Em Analise"),
-            ("NUMERO_NOVO", "Numero Novo"),
-            ("RECONHECTADO", "Reconectado"),
-            ("RESTRITO", "Restrito"),
-        ]
-        # Junta choices do modelo com extras
-        status_choices = list(PhoneLine.Status.choices) + extra_status
-        self.fields["status_line"].choices = status_choices
-        # Exibe todas as linhas para troca de status
-        self.fields["phone_line_status"].queryset = PhoneLine.objects.filter(
-            is_deleted=False
-        )
-        # RadioSelect renders inputs; setting class on widget is enough because
-        # Django applies it to each rendered input automatically.
-
-    def clean_corporate_email(self):
-        supervisor = self.cleaned_data["corporate_email"]
-        return supervisor
-
-    def clean_employee_id(self):
-        emp_id = self.cleaned_data["employee_id"]
-        return emp_id
 
     def clean_iccid(self):
         iccid = self.cleaned_data["iccid"]
@@ -165,7 +130,7 @@ class CombinedRegistrationForm(forms.Form):
             and iccid
             and SIMcard.objects.filter(iccid=iccid, is_deleted=False).exists()
         ):
-            raise forms.ValidationError("ICCID já cadastrado.")
+            raise forms.ValidationError("ICCID ja cadastrado.")
         return iccid
 
     def clean_phone_number(self):
@@ -175,32 +140,23 @@ class CombinedRegistrationForm(forms.Form):
             and phone
             and PhoneLine.objects.filter(phone_number=phone, is_deleted=False).exists()
         ):
-            raise forms.ValidationError("Linha já cadastrada.")
+            raise forms.ValidationError("Linha ja cadastrada.")
         return phone
 
-    def clean(self):
+    def clean(self):  # noqa: PLR0912
         cleaned = super().clean()
         action = cleaned.get("line_action")
 
         if not action:
-            cleaned["phone_line"] = None
-            cleaned["phone_number"] = cleaned.get("phone_number") or ""
-            cleaned["iccid"] = cleaned.get("iccid") or ""
-            cleaned["carrier"] = cleaned.get("carrier") or ""
             return cleaned
 
         if action == "new":
-            required_fields = ["phone_number", "iccid", "carrier"]
-            for field in required_fields:
+            for field in ["phone_number", "iccid", "carrier"]:
                 if not cleaned.get(field):
-                    self.add_error(field, "Campo obrigatório.")
-            cleaned["phone_line"] = None
+                    self.add_error(field, "Campo obrigatorio.")
         elif action == "existing":
             if not cleaned.get("phone_line"):
-                self.add_error("phone_line", "Selecione uma linha disponível.")
-            cleaned["phone_number"] = cleaned.get("phone_number") or ""
-            cleaned["iccid"] = cleaned.get("iccid") or ""
-            cleaned["carrier"] = cleaned.get("carrier") or ""
+                self.add_error("phone_line", "Selecione uma linha disponivel.")
         elif action == "change_status":
             if not cleaned.get("phone_line_status"):
                 self.add_error("phone_line_status", "Selecione a linha.")
@@ -215,31 +171,42 @@ class TelephonyAssignmentForm(forms.Form):
         queryset=Employee.objects.filter(
             is_deleted=False, status=Employee.Status.ACTIVE
         ),
-        label="Funcionário",
+        label="Funcionario",
         widget=forms.Select(attrs={"class": "form-select"}),
         required=False,
         empty_label="Selecione",
     )
-
     line_action = forms.ChoiceField(
         label="O que deseja fazer?",
         choices=(
             ("new", "Cadastrar nova linha"),
-            ("existing", "Vincular linha disponível"),
+            ("existing", "Vincular linha disponivel"),
+            ("change_status", "Trocar status linha"),
         ),
         initial="new",
         widget=forms.RadioSelect,
     )
-
     phone_number = forms.CharField(label="Linha", max_length=20, required=False)
     iccid = forms.CharField(label="ICCID", max_length=22, required=False)
     carrier = forms.CharField(label="Operadora", max_length=100, required=False)
-
     phone_line = forms.ModelChoiceField(
         queryset=PhoneLine.objects.filter(
             is_deleted=False, status=PhoneLine.Status.AVAILABLE
         ),
-        label="Linha disponível",
+        label="Linha disponivel",
+        widget=forms.Select(attrs={"class": "form-select"}),
+        required=False,
+        empty_label="Selecione",
+    )
+    status_line = forms.ChoiceField(
+        label="Novo status da linha",
+        choices=PhoneLine.Status.choices,
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    phone_line_status = forms.ModelChoiceField(
+        queryset=PhoneLine.objects.filter(is_deleted=False),
+        label="Linha para trocar status",
         widget=forms.Select(attrs={"class": "form-select"}),
         required=False,
         empty_label="Selecione",
@@ -247,10 +214,14 @@ class TelephonyAssignmentForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        text_fields = ["phone_number", "iccid", "carrier"]
-        for name in text_fields:
+        for name in ["phone_number", "iccid", "carrier"]:
             self.fields[name].widget.attrs.setdefault("class", "form-control")
+        self.fields["employee"].widget.attrs.setdefault("class", "form-select")
+        self.fields["phone_line"].widget.attrs.setdefault("class", "form-select")
         self.fields["line_action"].widget.attrs.setdefault("class", "form-check-input")
+        self.fields["phone_line_status"].queryset = PhoneLine.objects.filter(
+            is_deleted=False
+        ).order_by("phone_number")
 
     def clean_iccid(self):
         iccid = self.cleaned_data["iccid"]
@@ -259,7 +230,7 @@ class TelephonyAssignmentForm(forms.Form):
             and iccid
             and SIMcard.objects.filter(iccid=iccid, is_deleted=False).exists()
         ):
-            raise forms.ValidationError("ICCID já cadastrado.")
+            raise forms.ValidationError("ICCID ja cadastrado.")
         return iccid
 
     def clean_phone_number(self):
@@ -269,26 +240,64 @@ class TelephonyAssignmentForm(forms.Form):
             and phone
             and PhoneLine.objects.filter(phone_number=phone, is_deleted=False).exists()
         ):
-            raise forms.ValidationError("Linha já cadastrada.")
+            raise forms.ValidationError("Linha ja cadastrada.")
         return phone
 
-    def clean(self):
+    def clean(self):  # noqa: PLR0912
         cleaned = super().clean()
         action = cleaned.get("line_action")
 
         if action == "new":
-            required_fields = ["phone_number", "iccid", "carrier"]
-            for field in required_fields:
+            for field in ["phone_number", "iccid", "carrier"]:
                 if not cleaned.get(field):
-                    self.add_error(field, "Campo obrigatório.")
+                    self.add_error(field, "Campo obrigatorio.")
             cleaned["phone_line"] = None
+            cleaned["status_line"] = ""
+            cleaned["phone_line_status"] = None
         elif action == "existing":
             if not cleaned.get("employee"):
                 self.add_error("employee", "Selecione o colaborador.")
             if not cleaned.get("phone_line"):
-                self.add_error("phone_line", "Selecione uma linha disponível.")
+                self.add_error("phone_line", "Selecione uma linha disponivel.")
+            elif cleaned["phone_line"].status != PhoneLine.Status.AVAILABLE:
+                self.add_error("phone_line", "A linha selecionada nao esta disponivel.")
+
             cleaned["phone_number"] = cleaned.get("phone_number") or ""
             cleaned["iccid"] = cleaned.get("iccid") or ""
             cleaned["carrier"] = cleaned.get("carrier") or ""
+            cleaned["status_line"] = ""
+            cleaned["phone_line_status"] = None
+        elif action == "change_status":
+            phone_line = cleaned.get("phone_line_status")
+            status_line = cleaned.get("status_line")
+
+            if not phone_line:
+                self.add_error("phone_line_status", "Selecione a linha.")
+            if not status_line:
+                self.add_error("status_line", "Selecione o novo status.")
+
+            if phone_line and status_line:
+                has_active_allocation = LineAllocation.objects.filter(
+                    phone_line=phone_line, is_active=True
+                ).exists()
+                if has_active_allocation and status_line != PhoneLine.Status.ALLOCATED:
+                    self.add_error(
+                        "status_line",
+                        "Linha com alocacao ativa deve permanecer como ALLOCATED.",
+                    )
+                if (
+                    not has_active_allocation
+                    and status_line == PhoneLine.Status.ALLOCATED
+                ):
+                    self.add_error(
+                        "status_line",
+                        "Use o vinculo com colaborador para deixar ALLOCATED.",
+                    )
+
+            cleaned["phone_number"] = cleaned.get("phone_number") or ""
+            cleaned["iccid"] = cleaned.get("iccid") or ""
+            cleaned["carrier"] = cleaned.get("carrier") or ""
+            cleaned["phone_line"] = None
+            cleaned["employee"] = None
 
         return cleaned

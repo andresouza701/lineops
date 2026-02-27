@@ -20,14 +20,12 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
     template_name = "allocations/allocation_list.html"
 
     def get_context_data(self, **kwargs):
-        from .forms import CombinedRegistrationForm
-
         context = super().get_context_data(**kwargs)
         context["employee_form"] = (
             kwargs.get("employee_form") or CombinedRegistrationForm()
         )
         context["telephony_form"] = (
-            kwargs.get("telephony_form") or CombinedRegistrationForm()
+            kwargs.get("telephony_form") or TelephonyAssignmentForm()
         )
         context["allocations"] = self._allocations_qs()
         context["available_lines"] = self._available_lines_qs()
@@ -41,37 +39,16 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
         if action == "employee":
             return self._handle_employee(request)
         if action == "telephony":
-            # Descobre qual formulário usar pelo valor de line_action
-            line_action = request.POST.get("line_action")
-            if line_action == "change_status":
-                form = CombinedRegistrationForm(request.POST)
-                if form.is_valid():
-                    phone_line = form.cleaned_data["phone_line_status"]
-                    new_status = form.cleaned_data["status_line"]
-                    phone_line.status = new_status
-                    phone_line.save(update_fields=["status"])
-                    messages.success(request, "Status da linha alterado com sucesso.")
-                    return redirect("allocations:allocation_list")
-                else:
-                    messages.error(
-                        request, "Corrija os erros para trocar o status da linha."
-                    )
-                    return self._render_with_forms(telephony_form=form)
-            else:
-                return self._handle_telephony(request)
+            return self._handle_telephony(request)
 
-        messages.error(request, "Ação inválida.")
+        messages.error(request, "Acao invalida.")
         return redirect("allocations:allocation_list")
 
     def _handle_employee(self, request):
         self._ensure_roles(request, [SystemUser.Role.ADMIN])
-        from .forms import CombinedRegistrationForm
-
         form = CombinedRegistrationForm(request.POST)
 
         if form.is_valid():
-            from employees.models import Employee
-
             Employee.objects.create(
                 full_name=form.cleaned_data["full_name"],
                 corporate_email=form.cleaned_data["corporate_email"],
@@ -97,9 +74,17 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
 
         try:
             with transaction.atomic():
+                if line_action == "change_status":
+                    phone_line = PhoneLine.objects.select_for_update().get(
+                        pk=form.cleaned_data["phone_line_status"].pk
+                    )
+                    phone_line.status = form.cleaned_data["status_line"]
+                    phone_line.save(update_fields=["status"])
+                    messages.success(request, "Status da linha alterado com sucesso.")
+                    return redirect("allocations:allocation_list")
+
                 if line_action == "existing":
                     phone_line = form.cleaned_data["phone_line"]
-                    sim = phone_line.sim_card
                     employee = form.cleaned_data["employee"]
                 else:
                     sim = SIMcard.objects.create(
@@ -107,18 +92,18 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
                         carrier=form.cleaned_data["carrier"],
                         status=SIMcard.Status.AVAILABLE,
                     )
-
                     phone_line = PhoneLine.objects.create(
                         phone_number=form.cleaned_data["phone_number"],
                         sim_card=sim,
                         status=PhoneLine.Status.AVAILABLE,
                     )
-
                     employee = form.cleaned_data.get("employee")
 
                 if employee:
                     AllocationService.allocate_line(
-                        employee, phone_line, allocated_by=request.user
+                        employee=employee,
+                        phone_line=phone_line,
+                        allocated_by=request.user,
                     )
         except BusinessRuleException as exc:
             messages.error(request, str(exc))
@@ -130,7 +115,7 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
             )
         else:
             messages.success(
-                request, "Dados de telefonia salvos; linha criada sem alocação."
+                request, "Dados de telefonia salvos; linha criada sem alocacao."
             )
         return redirect("allocations:allocation_list")
 
@@ -142,7 +127,7 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
         current_role = (request.user.role or "").lower()
         allowed = {role.lower() for role in allowed_roles}
         if current_role not in allowed:
-            raise PermissionDenied("Acesso negado: função insuficiente.")
+            raise PermissionDenied("Acesso negado: funcao insuficiente.")
 
     def _allocations_qs(self):
         return LineAllocation.objects.select_related("employee", "phone_line").order_by(
@@ -177,7 +162,6 @@ class LineAllocationReleaseView(RoleRequiredMixin, View):
         )
         AllocationService.release_line(allocation, released_by=request.user)
         messages.success(request, "Linha liberada com sucesso.")
-        # Se veio do painel de telecom, redireciona de volta para lá
         next_url = request.POST.get("next")
         if next_url:
             return redirect(next_url)

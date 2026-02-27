@@ -17,13 +17,9 @@ class AllocationService:
     @staticmethod
     @transaction.atomic
     def allocate_line(employee: Employee, phone_line: PhoneLine, allocated_by):
-        # Lock no funcionario para evitar race conditions na alocação de linhas
         employee = Employee.objects.select_for_update().get(pk=employee.pk)
-
-        # Lock na linha para evitar alocações concorrentes
         phone_line = PhoneLine.objects.select_for_update().get(pk=phone_line.pk)
 
-        """Regra de alocação máximo 2 linhas ativas por funcionário."""
         active_allocation = LineAllocation.objects.filter(
             employee=employee, is_active=True
         ).count()
@@ -37,8 +33,8 @@ class AllocationService:
                 },
             )
             raise BusinessRuleException(
-                f"O funcionário {employee.full_name} já possui "
-                "2 linhas alocadas ativas."
+                f"O funcionario {employee.full_name} "
+                "ja possui 2 linhas alocadas ativas."
             )
 
         if LineAllocation.objects.filter(
@@ -52,7 +48,12 @@ class AllocationService:
                 },
             )
             raise BusinessRuleException(
-                f"A linha {phone_line.phone_number} já está alocada."
+                f"A linha {phone_line.phone_number} ja esta alocada."
+            )
+
+        if phone_line.status != PhoneLine.Status.AVAILABLE:
+            raise BusinessRuleException(
+                f"A linha {phone_line.phone_number} nao esta disponivel para alocacao."
             )
 
         allocation = LineAllocation.objects.create(
@@ -82,8 +83,6 @@ class AllocationService:
     @staticmethod
     @transaction.atomic
     def release_line(allocation: LineAllocation, released_by):
-        """Release allocated phone line and update its status to available."""
-
         allocation.released_at = timezone.now()
         allocation.is_active = False
         allocation.released_by = released_by
@@ -93,15 +92,6 @@ class AllocationService:
         phone_line.status = PhoneLine.Status.AVAILABLE
         phone_line.save(update_fields=["status"])
 
-        logger.info(
-            "Line released",
-            extra={
-                "allocation_id": allocation.pk,
-                "phone_line_id": phone_line.pk,
-                "phone_number": phone_line.phone_number,
-                "released_by_id": released_by.pk,
-            },
-        )
         logger.info(
             "Line released",
             extra={
