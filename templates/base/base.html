@@ -10,22 +10,22 @@
 </head>
 
 <body>
-    <div id="global-loading" class="loading-overlay d-none" aria-hidden="true">
-        <div class="loading-box" role="status" aria-live="polite">
-            <div class="spinner-border text-primary" aria-hidden="true"></div>
-            <span class="loading-text">Carregando...</span>
+    <div id="global-loading" class="loading-overlay d-none" aria-hidden="true" style="background: var(--bg);">
+        <div class="loading-box" role="status" aria-live="polite" style="background: var(--card-bg); color: var(--text);">
+            <div class="spinner-border" style="color: var(--primary);" aria-hidden="true"></div>
+            <span class="loading-text" style="color: var(--muted);">Carregando...</span>
         </div>
     </div>
 
-    <div class="container-fluid min-vh-100 px-0">
-        <header class="page-header">
+    <div class="container-fluid min-vh-100 px-0" style="background: var(--bg); color: var(--text);">
+        <header class="page-header" style="background: var(--nav-bg);">
             {% include "base/navbar.html" %}
             {% include "base/tabbar.html" %}
         </header>
 
         <div class="app-container d-none d-lg-block my-3">
-            <div class="card shadow-sm border-0">
-                <div class="card-body py-2 d-flex align-items-center gap-3 flex-wrap">
+            <div class="card shadow-sm border-0" style="background: var(--card-bg); border-color: var(--border);">
+                <div class="card-body py-2 d-flex align-items-center gap-3 flex-wrap" style="background: var(--card-bg); color: var(--text);">
                     <div class="flex-grow-1">
                         {% include "base/tabbar_inline.html" %}
                     </div>
@@ -35,8 +35,9 @@
                         data-action="toggle-theme"
                         aria-label="Alternar para tema escuro"
                         aria-pressed="false"
+                        style="background: var(--primary); color: var(--accent); border: 1px solid var(--border);"
                     >
-                        <span class="d-inline-flex align-items-center justify-content-center" data-icon-sun aria-hidden="true" style="width: 18px; height: 18px;">
+                        <span class="d-inline-flex align-items-center justify-content-center" data-icon-sun aria-hidden="true" style="width: 18px; height: 18px; color: var(--accent);">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="12" r="5" />
                                 <path d="M12 1v2" />
@@ -49,19 +50,19 @@
                                 <path d="M18.36 5.64l1.42-1.42" />
                             </svg>
                         </span>
-                        <span class="d-inline-flex align-items-center justify-content-center d-none" data-icon-moon aria-hidden="true" style="width: 18px; height: 18px;">
+                        <span class="d-inline-flex align-items-center justify-content-center d-none" data-icon-moon aria-hidden="true" style="width: 18px; height: 18px; color: var(--info);">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
                             </svg>
                         </span>
-                        <span class="fw-semibold" data-theme-label>Light</span>
+                        <span class="fw-semibold" data-theme-label style="color: var(--accent);">Light</span>
                     </button>
                 </div>
             </div>
         </div>
 
         <main class="page-content">
-            <div class="app-container">
+            <div class="app-container" style="background: var(--card-bg); color: var(--text);">
                 {% include "base/messages.html" %}
                 {% block content %}{% endblock %}
             </div>

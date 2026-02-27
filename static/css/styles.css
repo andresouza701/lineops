@@ -1,36 +1,44 @@
 @charset "UTF-8";
 :root {
-    --bg: #f4f6fb;
-    --text: #0f172a;
-    --muted: #475569;
+    /* Custom color palette */
+    --primary: #156ed9;
+    --secondary: #203554;
+    --accent: #c3d1e6;
+    --info: #6489bc;
+    --light: #7da4d4;
+
+    /* UI variables using palette */
+    --bg: var(--accent);
+    --text: var(--secondary);
+    --muted: var(--info);
     --card-bg: #ffffff;
-    --border: #e5e7eb;
+    --border: var(--light);
     --table-bg: #ffffff;
-    --table-header: #f8fafc;
-    --nav-bg: #ffffff;
-    --tab-bg: #ffffff;
-    --shadow: 0 15px 30px rgba(15, 23, 42, 0.12);
-    --input-bg: #f8fafc;
-    --input-border: #e2e8f0;
+    --table-header: var(--light);
+    --nav-bg: var(--primary);
+    --tab-bg: var(--accent);
+    --shadow: 0 15px 30px rgba(32, 53, 84, 0.12);
+    --input-bg: var(--accent);
+    --input-border: var(--light);
     font-family: "Inter", "Segoe UI", system-ui, sans-serif;
     background: var(--bg);
     color: var(--text);
 }
 
 .theme-dark {
-    /* Light gray palette for "dark" mode */
-    --bg: #e5e7eb;
-    --text: #111827;
-    --muted: #4b5563;
-    --card-bg: #f5f6f8;
-    --border: #d1d5db;
-    --table-bg: #f5f6f8;
-    --table-header: #e5e7eb;
-    --nav-bg: #f1f2f4;
-    --tab-bg: #f1f2f4;
-    --shadow: 0 10px 24px rgba(17, 24, 39, 0.12);
-    --input-bg: #ffffff;
-    --input-border: #cbd5e1;
+    /* Custom palette for dark mode */
+    --bg: #203554;
+    --text: #c3d1e6;
+    --muted: #6489bc;
+    --card-bg: #203554;
+    --border: #156ed9;
+    --table-bg: #203554;
+    --table-header: #156ed9;
+    --nav-bg: #156ed9;
+    --tab-bg: #203554;
+    --shadow: 0 10px 24px rgba(21, 110, 217, 0.12);
+    --input-bg: #203554;
+    --input-border: #156ed9;
 }
 
 body {
