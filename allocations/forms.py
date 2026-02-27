@@ -277,13 +277,22 @@ class TelephonyAssignmentForm(forms.Form):
                 self.add_error("status_line", "Selecione o novo status.")
 
             if phone_line and status_line:
-                has_active_allocation = LineAllocation.objects.filter(
-                    phone_line=phone_line, is_active=True
-                ).exists()
+                active_allocation = (
+                    LineAllocation.objects.filter(phone_line=phone_line, is_active=True)
+                    .select_related("employee")
+                    .first()
+                )
+                has_active_allocation = active_allocation is not None
                 if has_active_allocation and status_line != PhoneLine.Status.ALLOCATED:
+                    employee_name = (
+                        active_allocation.employee.full_name
+                        if active_allocation.employee_id
+                        else "usuario desconhecido"
+                    )
                     self.add_error(
                         "status_line",
-                        "Linha com alocacao ativa deve permanecer como ALLOCATED.",
+                        "Linha com alocacao ativa deve permanecer como "
+                        f"ALLOCATED. Usuario vinculado: {employee_name}.",
                     )
                 if (
                     not has_active_allocation
