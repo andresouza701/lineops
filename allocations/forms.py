@@ -291,8 +291,12 @@ class TelephonyAssignmentForm(forms.Form):
                     )
                     self.add_error(
                         "status_line",
-                        "Linha com alocacao ativa deve permanecer como "
-                        f"ALLOCATED. Usuario vinculado: {employee_name}.",
+                        (
+                            "Libere a linha do colaborador vinculado para mudar "
+                            "de status. "
+                            f"Status atual: {phone_line.status}. "
+                            f"Usuario vinculado: {employee_name}."
+                        ),
                     )
                 if (
                     not has_active_allocation
