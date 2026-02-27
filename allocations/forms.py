@@ -66,10 +66,10 @@ class CombinedRegistrationForm(forms.Form):
         # Django applies it to each rendered input automatically.
 
     def clean_corporate_email(self):
-        email = self.cleaned_data["corporate_email"]
-        if Employee.objects.filter(corporate_email=email).exists():
+        supervisor = self.cleaned_data["corporate_email"]
+        if Employee.objects.filter(corporate_email=supervisor).exists():
             raise forms.ValidationError("Supervisor já cadastrado.")
-        return email
+        return supervisor
 
     def clean_employee_id(self):
         emp_id = self.cleaned_data["employee_id"]
