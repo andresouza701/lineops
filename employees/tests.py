@@ -15,7 +15,7 @@ class EmployeeModelTest(TestCase):
             "full_name": "Aline Martins",
             "corporate_email": "aline.martins@lineops.tech",
             "employee_id": "EMP-1001",
-            "teams": "Operações",
+            "teams": "Unidade",
             "status": Employee.Status.ACTIVE,
         }
 

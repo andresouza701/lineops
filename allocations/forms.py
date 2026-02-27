@@ -16,7 +16,7 @@ class AllocationForm(forms.Form):
 
 class CombinedRegistrationForm(forms.Form):
     full_name = forms.CharField(label="Nome", max_length=255)
-    corporate_email = forms.EmailField(label="Supervisor")
+    corporate_email = forms.CharField(label="Supervisor", max_length=255)
     employee_id = forms.CharField(label="Carteira", max_length=50)
     teams = forms.CharField(label="Unidade", max_length=100)
     status = forms.ChoiceField(
@@ -68,13 +68,13 @@ class CombinedRegistrationForm(forms.Form):
     def clean_corporate_email(self):
         email = self.cleaned_data["corporate_email"]
         if Employee.objects.filter(corporate_email=email).exists():
-            raise forms.ValidationError("E-mail já cadastrado.")
+            raise forms.ValidationError("Supervisor já cadastrado.")
         return email
 
     def clean_employee_id(self):
         emp_id = self.cleaned_data["employee_id"]
         if Employee.objects.filter(employee_id=emp_id).exists():
-            raise forms.ValidationError("Matrícula já cadastrada.")
+            raise forms.ValidationError("Carteira já cadastrada.")
         return emp_id
 
     def clean_iccid(self):
