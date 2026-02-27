@@ -8,6 +8,26 @@ class EmployeeForm(forms.ModelForm):
         model = Employee
         fields = ["full_name", "corporate_email", "employee_id", "teams", "status"]
 
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get("status")
+        instance = self.instance
+        # Só valida se já existe (edição)
+        if instance and instance.pk and status == Employee.Status.INACTIVE:
+            # Importa aqui para evitar import circular
+            from allocations.models import LineAllocation
+
+            # Verifica se há linha ativa vinculada
+            has_active_line = LineAllocation.objects.filter(
+                employee=instance, is_active=True
+            ).exists()
+            if has_active_line:
+                raise forms.ValidationError(
+                    "Não é permitido inativar um usuário que possui "
+                    "linha vinculada ativa."
+                )
+        return cleaned_data
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

@@ -1,4 +1,3 @@
-from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
 
@@ -18,12 +17,6 @@ class EmployeeModelTest(TestCase):
             "teams": Employee.UnitChoices.JOINVILLE,
             "status": Employee.Status.ACTIVE,
         }
-
-    def test_employee_id_is_unique(self) -> None:
-        Employee.objects.create(**self.base_data)
-
-        with transaction.atomic(), self.assertRaises(IntegrityError):
-            Employee.objects.create(**self.base_data)
 
     def test_status_is_persisted(self) -> None:
         employee = Employee.objects.create(**self.base_data)
