@@ -21,7 +21,9 @@ class Employee(models.Model):
         INACTIVE = "inactive", "Inativo"
 
     full_name = models.CharField(max_length=255)
-    corporate_email = models.EmailField(unique=True, verbose_name="Supervisor")
+    corporate_email = models.CharField(
+        max_length=255, unique=True, verbose_name="Supervisor"
+    )
     employee_id = models.CharField(max_length=50, unique=True, verbose_name="Carteira")
     teams = models.CharField(max_length=100, verbose_name="Unidade")
 
