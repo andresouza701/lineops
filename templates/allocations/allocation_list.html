@@ -115,13 +115,6 @@
 
                 <div class="row g-3 {% if line_action != 'new' %}d-none{% endif %}" id="section-new-line">
                     <div class="col-md-4">
-                        <label class="form-label">UsuÃ¡rio (opcional)</label>
-                        {{ telephony_form.employee }}
-                        {% if telephony_form.employee.errors %}
-                            <div class="invalid-feedback d-block">{{ telephony_form.employee.errors|striptags }}</div>
-                        {% endif %}
-                    </div>
-                    <div class="col-md-4">
                         <label class="form-label">Linha</label>
                         {{ telephony_form.phone_number }}
                         {% if telephony_form.phone_number.errors %}
