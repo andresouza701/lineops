@@ -27,7 +27,7 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
             kwargs.get("employee_form") or CombinedRegistrationForm()
         )
         context["telephony_form"] = (
-            kwargs.get("telephony_form") or TelephonyAssignmentForm()
+            kwargs.get("telephony_form") or CombinedRegistrationForm()
         )
         context["allocations"] = self._allocations_qs()
         context["available_lines"] = self._available_lines_qs()
