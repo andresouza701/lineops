@@ -22,31 +22,26 @@
         </div>
 
         <div class="col-lg-3">
-                 <label class="form-label mb-1">Unidade</label>
-                 <input type="text"
-                     name="team"
-                     class="form-control"
-                     placeholder="Ex.: Unidade"
-                     value="{{ request.GET.team }}">
+            <label class="form-label mb-1">Unidade</label>
+            <input type="text"
+                   name="team"
+                   class="form-control"
+                   placeholder="Ex.: Unidade"
+                   value="{{ request.GET.team }}">
         </div>
 
         <div class="col-lg-3">
-            <label class="form-label mb-1">Linha</label>
+            <label class="form-label mb-1">Filtrar Supervisor</label>
             <input type="text"
-                   name="line"
+                   name="supervisor"
                    class="form-control"
-                   placeholder="Ex.: 47999999999"
-                   value="{{ request.GET.line }}">
+                   placeholder="Ex.: email@supervisor.com"
+                   value="{{ request.GET.supervisor }}">
         </div>
 
-        <div class="col-lg-1">
-                <label class="form-label mb-1 d-block">&nbsp;</label>
-                <button type="submit" class="btn btn-primary w-100">Buscar</button>
-        </div>
-
-        <div class="col-lg-2">
-                    <label class="form-label mb-1 d-block">&nbsp;</label>
-                    <a href="{% url 'employees:employee_list' %}" class="btn btn-outline-secondary w-100">Limpar filtro</a>
+        <div class="d-flex justify-content-end gap-2 mt-2">
+            <button type="submit" class="btn btn-primary">Buscar</button>
+            <a href="{% url 'employees:employee_list' %}" class="btn btn-outline-secondary">Limpar filtro</a>
         </div>
     </form>
 </div>
