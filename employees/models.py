@@ -22,7 +22,7 @@ class Employee(models.Model):
 
     full_name = models.CharField(max_length=255)
     corporate_email = models.CharField(max_length=255, verbose_name="Supervisor")
-    employee_id = models.CharField(max_length=50, unique=True, verbose_name="Carteira")
+    employee_id = models.CharField(max_length=50, verbose_name="Carteira")
 
     class UnitChoices(models.TextChoices):
         JOINVILLE = "Joinville", "Joinville"
