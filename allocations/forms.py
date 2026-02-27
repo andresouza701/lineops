@@ -60,7 +60,6 @@ class CombinedRegistrationForm(forms.Form):
             "full_name",
             "corporate_email",
             "employee_id",
-            "teams",
             "phone_number",
             "iccid",
             "carrier",
