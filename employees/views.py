@@ -51,7 +51,9 @@ class EmployeeCreateView(RoleRequiredMixin, CreateView):
     allowed_roles = [SystemUser.Role.ADMIN]
     model = Employee
     template_name = "employees/employee_form.html"
-    fields = ["full_name", "corporate_email", "employee_id", "teams", "status"]
+    from .forms import EmployeeForm
+
+    form_class = EmployeeForm
     success_url = reverse_lazy("employees:employee_list")
 
     def form_valid(self, form):
@@ -63,7 +65,9 @@ class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
     allowed_roles = [SystemUser.Role.ADMIN]
     model = Employee
     template_name = "employees/employee_form.html"
-    fields = ["full_name", "corporate_email", "employee_id", "teams", "status"]
+    from .forms import EmployeeForm
+
+    form_class = EmployeeForm
     success_url = reverse_lazy("employees:employee_list")
 
     def form_valid(self, form):
