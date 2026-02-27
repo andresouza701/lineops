@@ -9,6 +9,7 @@ class SystemUserAdmin(UserAdmin):
     model = SystemUser
     list_display = ("email", "role", "is_staff", "is_active")
     ordering = ("email",)
+    list_filter = ("role", "is_staff", "is_active")
 
     fieldsets = (
         (None, {"fields": ("email", "password")}),

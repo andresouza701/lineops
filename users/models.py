@@ -33,6 +33,7 @@ class SystemUser(AbstractUser):
     # You can add additional fields here if needed
     class Role(models.TextChoices):
         ADMIN = "admin", "Admin"
+        SUPER = "super", "Super"
         OPERATOR = "operator", "Operator"
 
     username = None
