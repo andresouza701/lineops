@@ -41,27 +41,24 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
         if action == "employee":
             return self._handle_employee(request)
         if action == "telephony":
-            return self._handle_telephony(request)
-        if action == "telephony":
-            return self._handle_telephony(request)
-        # Trocar status linha
-        if action == "telephony":
-            form = CombinedRegistrationForm(request.POST)
-            if (
-                form.is_valid()
-                and form.cleaned_data.get("line_action") == "change_status"
-            ):
-                phone_line = form.cleaned_data["phone_line_status"]
-                new_status = form.cleaned_data["status_line"]
-                phone_line.status = new_status
-                phone_line.save(update_fields=["status"])
-                messages.success(request, "Status da linha alterado com sucesso.")
-                return redirect("allocations:allocation_list")
+            # Descobre qual formulário usar pelo valor de line_action
+            line_action = request.POST.get("line_action")
+            if line_action == "change_status":
+                form = CombinedRegistrationForm(request.POST)
+                if form.is_valid():
+                    phone_line = form.cleaned_data["phone_line_status"]
+                    new_status = form.cleaned_data["status_line"]
+                    phone_line.status = new_status
+                    phone_line.save(update_fields=["status"])
+                    messages.success(request, "Status da linha alterado com sucesso.")
+                    return redirect("allocations:allocation_list")
+                else:
+                    messages.error(
+                        request, "Corrija os erros para trocar o status da linha."
+                    )
+                    return self._render_with_forms(telephony_form=form)
             else:
-                messages.error(
-                    request, "Corrija os erros para trocar o status da linha."
-                )
-                return self._render_with_forms(telephony_form=form)
+                return self._handle_telephony(request)
 
         messages.error(request, "Ação inválida.")
         return redirect("allocations:allocation_list")
