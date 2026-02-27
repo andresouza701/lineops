@@ -25,7 +25,14 @@ class Employee(models.Model):
         max_length=255, unique=True, verbose_name="Supervisor"
     )
     employee_id = models.CharField(max_length=50, unique=True, verbose_name="Carteira")
-    teams = models.CharField(max_length=100, verbose_name="Unidade")
+
+    class UnitChoices(models.TextChoices):
+        JOINVILLE = "Joinville", "Joinville"
+        ARAQUARI = "Araquari", "Araquari"
+
+    teams = models.CharField(
+        max_length=20, choices=UnitChoices.choices, verbose_name="Unidade"
+    )
 
     status = models.CharField(
         max_length=10, choices=Status.choices, default=Status.INACTIVE, db_index=True
