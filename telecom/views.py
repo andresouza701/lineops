@@ -238,6 +238,10 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
                 Q(phone_number__icontains=search) | Q(sim_card__iccid__icontains=search)
             )
         context["phone_lines"] = lines_qs
+        # Adiciona as alocações recentes (últimas 10)
+        context["allocations"] = LineAllocation.objects.select_related(
+            "employee", "phone_line"
+        ).order_by("-allocated_at")[:10]
         context.update(self._line_status_summary(counts))
         return context
 

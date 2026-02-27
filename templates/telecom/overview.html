@@ -1,3 +1,45 @@
+<div class="card shadow-sm border-0 mt-4">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Alocações recentes</h5>
+            <span class="text-muted small">Total: {{ allocations|length }}</span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Funcionário</th>
+                        <th scope="col">Linha</th>
+                        <th scope="col">Alocado em</th>
+                        <th scope="col">Liberado em</th>
+                        <th scope="col">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for allocation in allocations %}
+                        <tr>
+                            <td>{{ allocation.employee.full_name }}</td>
+                            <td>{{ allocation.phone_line.phone_number }}</td>
+                            <td>{{ allocation.allocated_at|date:"d/m/Y H:i" }}</td>
+                            <td>{{ allocation.released_at|date:"d/m/Y H:i"|default:"—" }}</td>
+                            <td>
+                                {% if allocation.is_active %}
+                                    <span class="badge bg-success">Ativa</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Encerrada</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center">Nenhuma alocação cadastrada.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 {% extends "base/base.html" %}
 
 {% block title %}Telecom{% endblock %}
