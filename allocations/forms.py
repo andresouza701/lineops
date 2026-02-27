@@ -143,6 +143,10 @@ class CombinedRegistrationForm(forms.Form):
         # Junta choices do modelo com extras
         status_choices = list(PhoneLine.Status.choices) + extra_status
         self.fields["status_line"].choices = status_choices
+        # Exibe todas as linhas para troca de status
+        self.fields["phone_line_status"].queryset = PhoneLine.objects.filter(
+            is_deleted=False
+        )
         # RadioSelect renders inputs; setting class on widget is enough because
         # Django applies it to each rendered input automatically.
 
