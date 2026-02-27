@@ -11,7 +11,7 @@ from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 
-from .forms import TelephonyAssignmentForm
+from .forms import CombinedRegistrationForm, TelephonyAssignmentForm
 from .models import LineAllocation
 
 
@@ -46,7 +46,7 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
             return self._handle_telephony(request)
         # Trocar status linha
         if action == "telephony":
-            form = TelephonyAssignmentForm(request.POST)
+            form = CombinedRegistrationForm(request.POST)
             if (
                 form.is_valid()
                 and form.cleaned_data.get("line_action") == "change_status"
