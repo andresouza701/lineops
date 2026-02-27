@@ -122,8 +122,6 @@ class CombinedRegistrationForm(forms.Form):
 
     def clean_employee_id(self):
         emp_id = self.cleaned_data["employee_id"]
-        if Employee.objects.filter(employee_id=emp_id).exists():
-            raise forms.ValidationError("Carteira já cadastrada.")
         return emp_id
 
     def clean_iccid(self):
