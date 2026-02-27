@@ -42,6 +42,7 @@ class CombinedRegistrationForm(forms.Form):
         ),
         initial="new",
         widget=forms.RadioSelect,
+        required=False,
     )
 
     phone_number = forms.CharField(label="Linha", max_length=20, required=False)
@@ -63,9 +64,15 @@ class CombinedRegistrationForm(forms.Form):
         from users.models import SystemUser
 
         super_users = SystemUser.objects.filter(role=SystemUser.Role.SUPER)
-        self.fields["corporate_email"].choices = [
-            (user.email, user.email) for user in super_users
-        ]
+        supervisor_choices = [(user.email, user.email) for user in super_users]
+        if supervisor_choices:
+            self.fields["corporate_email"].choices = supervisor_choices
+        else:
+            self.fields["corporate_email"] = forms.CharField(
+                label="Supervisor",
+                max_length=255,
+                widget=forms.TextInput(attrs={"class": "form-control"}),
+            )
         text_fields = [
             "full_name",
             "employee_id",
@@ -113,6 +120,13 @@ class CombinedRegistrationForm(forms.Form):
     def clean(self):
         cleaned = super().clean()
         action = cleaned.get("line_action")
+
+        if not action:
+            cleaned["phone_line"] = None
+            cleaned["phone_number"] = cleaned.get("phone_number") or ""
+            cleaned["iccid"] = cleaned.get("iccid") or ""
+            cleaned["carrier"] = cleaned.get("carrier") or ""
+            return cleaned
 
         if action == "new":
             required_fields = ["phone_number", "iccid", "carrier"]
