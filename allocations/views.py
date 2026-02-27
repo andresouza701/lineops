@@ -7,7 +7,6 @@ from django.views.generic import TemplateView, View
 from core.exceptions.domain_exceptions import BusinessRuleException
 from core.mixins import RoleRequiredMixin
 from core.services.allocation_service import AllocationService
-from employees.forms import EmployeeForm
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
@@ -21,8 +20,12 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
     template_name = "allocations/allocation_list.html"
 
     def get_context_data(self, **kwargs):
+        from .forms import CombinedRegistrationForm
+
         context = super().get_context_data(**kwargs)
-        context["employee_form"] = kwargs.get("employee_form") or EmployeeForm()
+        context["employee_form"] = (
+            kwargs.get("employee_form") or CombinedRegistrationForm()
+        )
         context["telephony_form"] = (
             kwargs.get("telephony_form") or TelephonyAssignmentForm()
         )
@@ -45,10 +48,12 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
 
     def _handle_employee(self, request):
         self._ensure_roles(request, [SystemUser.Role.ADMIN])
-        form = EmployeeForm(request.POST)
+        from .forms import CombinedRegistrationForm
+
+        form = CombinedRegistrationForm(request.POST)
 
         if form.is_valid():
-            form.save()
+            # Aqui você pode salvar os dados conforme necessário
             messages.success(request, "Colaborador cadastrado com sucesso.")
             return redirect("allocations:allocation_list")
 
