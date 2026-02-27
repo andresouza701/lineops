@@ -53,7 +53,15 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
         form = CombinedRegistrationForm(request.POST)
 
         if form.is_valid():
-            # Aqui você pode salvar os dados conforme necessário
+            from employees.models import Employee
+
+            Employee.objects.create(
+                full_name=form.cleaned_data["full_name"],
+                corporate_email=form.cleaned_data["corporate_email"],
+                employee_id=form.cleaned_data["employee_id"],
+                teams=form.cleaned_data["teams"],
+                status=form.cleaned_data["status"],
+            )
             messages.success(request, "Colaborador cadastrado com sucesso.")
             return redirect("allocations:allocation_list")
 
