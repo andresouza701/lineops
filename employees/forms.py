@@ -67,8 +67,18 @@ class EmployeeForm(forms.ModelForm):
             required=False,
         )
 
-        # Unidade dropdown (já é choices no model)
-        self.fields["teams"].widget = forms.Select(attrs={"class": "form-select"})
+        # Unidade dropdown (garante ChoiceField com opções do model)
+        unidade_choices = [
+            (Employee.UnitChoices.JOINVILLE, "Joinville"),
+            (Employee.UnitChoices.ARAQUARI, "Araquari"),
+        ]
+        self.fields["teams"] = forms.ChoiceField(
+            label="Unidade",
+            choices=unidade_choices,
+            widget=forms.Select(attrs={"class": "form-select"}),
+            initial=self.instance.teams if self.instance else None,
+            required=False,
+        )
 
         self.fields["full_name"].widget.attrs.setdefault("class", "form-control")
         self.fields["status"].widget.attrs.setdefault("class", "form-select")
