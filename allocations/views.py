@@ -160,4 +160,8 @@ class LineAllocationReleaseView(RoleRequiredMixin, View):
         )
         AllocationService.release_line(allocation, released_by=request.user)
         messages.success(request, "Linha liberada com sucesso.")
+        # Se veio do painel de telecom, redireciona de volta para lá
+        next_url = request.POST.get("next")
+        if next_url:
+            return redirect(next_url)
         return redirect("allocations:allocation_list")
