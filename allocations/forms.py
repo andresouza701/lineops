@@ -68,10 +68,26 @@ class CombinedRegistrationForm(forms.Form):
         choices=(
             ("new", "Cadastrar nova linha"),
             ("existing", "Vincular linha disponível"),
+            ("change_status", "Trocar status linha"),
         ),
         initial="new",
         widget=forms.RadioSelect,
         required=False,
+    )
+
+    # Para trocar status
+    status_line = forms.ChoiceField(
+        label="Novo status da linha",
+        choices=[],
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    phone_line_status = forms.ModelChoiceField(
+        queryset=PhoneLine.objects.filter(is_deleted=False),
+        label="Linha para trocar status",
+        widget=forms.Select(attrs={"class": "form-select"}),
+        required=False,
+        empty_label="Selecione",
     )
 
     phone_number = forms.CharField(label="Linha", max_length=20, required=False)
@@ -113,6 +129,20 @@ class CombinedRegistrationForm(forms.Form):
             self.fields[name].widget.attrs.setdefault("class", "form-control")
         self.fields["status"].widget.attrs.setdefault("class", "form-select")
         self.fields["line_action"].widget.attrs.setdefault("class", "form-check-input")
+        # Status extras
+        extra_status = [
+            ("AGUARDANDO_OPERADOR", "Aguardando Operador"),
+            ("BANIDO_MEMU", "Banido MEMU"),
+            ("BANIDO_META", "Banido META"),
+            ("CRIADO_NUMERO", "Criado Numero"),
+            ("EM_ANALISE", "Em Analise"),
+            ("NUMERO_NOVO", "Numero Novo"),
+            ("RECONHECTADO", "Reconectado"),
+            ("RESTRITO", "Restrito"),
+        ]
+        # Junta choices do modelo com extras
+        status_choices = list(PhoneLine.Status.choices) + extra_status
+        self.fields["status_line"].choices = status_choices
         # RadioSelect renders inputs; setting class on widget is enough because
         # Django applies it to each rendered input automatically.
 
@@ -167,6 +197,11 @@ class CombinedRegistrationForm(forms.Form):
             cleaned["phone_number"] = cleaned.get("phone_number") or ""
             cleaned["iccid"] = cleaned.get("iccid") or ""
             cleaned["carrier"] = cleaned.get("carrier") or ""
+        elif action == "change_status":
+            if not cleaned.get("phone_line_status"):
+                self.add_error("phone_line_status", "Selecione a linha.")
+            if not cleaned.get("status_line"):
+                self.add_error("status_line", "Selecione o novo status.")
 
         return cleaned
 

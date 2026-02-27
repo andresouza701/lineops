@@ -84,13 +84,33 @@
                 <div class="d-flex align-items-center gap-4 mb-3 flex-wrap">
                     <span class="text-muted small">O que deseja fazer?</span>
                     <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="radio" name="line_action" id="line_action_new" value="new" {% if line_action != 'existing' %}checked{% endif %}>
+                        <input class="form-check-input" type="radio" name="line_action" id="line_action_new" value="new" {% if line_action != 'existing' and line_action != 'change_status' %}checked{% endif %}>
                         <label class="form-check-label" for="line_action_new">Cadastrar nova linha</label>
                     </div>
                     <div class="form-check form-check-inline">
                         <input class="form-check-input" type="radio" name="line_action" id="line_action_existing" value="existing" {% if line_action == 'existing' %}checked{% endif %}>
                         <label class="form-check-label" for="line_action_existing">Vincular linha disponível</label>
                     </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="line_action" id="line_action_change_status" value="change_status" {% if line_action == 'change_status' %}checked{% endif %}>
+                        <label class="form-check-label" for="line_action_change_status">Trocar status linha</label>
+                    </div>
+                                <div class="row g-3 {% if line_action != 'change_status' %}d-none{% endif %}" id="section-change-status">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Linha</label>
+                                        {{ telephony_form.phone_line_status }}
+                                        {% if telephony_form.phone_line_status.errors %}
+                                            <div class="invalid-feedback d-block">{{ telephony_form.phone_line_status.errors|striptags }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Novo status</label>
+                                        {{ telephony_form.status_line }}
+                                        {% if telephony_form.status_line.errors %}
+                                            <div class="invalid-feedback d-block">{{ telephony_form.status_line.errors|striptags }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
                 </div>
 
                 <div class="row g-3 {% if line_action != 'new' %}d-none{% endif %}" id="section-new-line">
