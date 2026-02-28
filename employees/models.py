@@ -22,14 +22,14 @@ class Employee(models.Model):
 
     full_name = models.CharField(max_length=40)
     corporate_email = models.CharField(max_length=40, verbose_name="Supervisor")
-    employee_id = models.CharField(max_length=50, verbose_name="Carteira")
+    employee_id = models.CharField(max_length=40, verbose_name="Carteira")
 
     class UnitChoices(models.TextChoices):
         JOINVILLE = "Joinville", "Joinville"
         ARAQUARI = "Araquari", "Araquari"
 
     teams = models.CharField(
-        max_length=20, choices=UnitChoices.choices, verbose_name="Unidade"
+        max_length=15, choices=UnitChoices.choices, verbose_name="Unidade"
     )
 
     status = models.CharField(
