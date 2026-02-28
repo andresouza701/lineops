@@ -21,7 +21,7 @@
     </div>
 
     <div class="app-shell">
-        <aside class="side-rail" aria-label="NavegaÃ§Ã£o principal">
+        <aside class="side-rail" aria-label="Navegacao principal">
             <div class="rail-brand">
                 <span class="rail-logo">L</span>
             </div>
@@ -31,7 +31,7 @@
                     <i class="bi bi-speedometer2" aria-hidden="true"></i>
                 </a>
                 {% if request.user.is_authenticated and request.user.role == 'admin' %}
-                    <a href="{% url 'employees:employee_list' %}" class="rail-link {% if current_ns == 'employees' %}is-active{% endif %}" aria-label="UsuÃ¡rios" title="UsuÃ¡rios">
+                    <a href="{% url 'employees:employee_list' %}" class="rail-link {% if current_ns == 'employees' %}is-active{% endif %}" aria-label="Usuarios" title="Usuarios">
                         <i class="bi bi-people" aria-hidden="true"></i>
                     </a>
                 {% endif %}
