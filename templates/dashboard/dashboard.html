@@ -1,79 +1,89 @@
-﻿{% extends "base/base.html" %}
+{% extends "base/base.html" %}
 
 {% block title %}Dashboard{% endblock %}
 {% block page_title %}Linha de Operacoes{% endblock %}
 
 {% block content %}
-<section class="kpi-grid reveal-group">
-    <article class="metric-card reveal-item">
-        <p class="metric-label">Usuarios ativos</p>
-        <h2 class="metric-value metric-mono" data-live-metric data-base="{{ total_employees|default:0 }}">{{ total_employees|default:0 }}</h2>
-    </article>
-    <article class="metric-card reveal-item">
-        <p class="metric-label">Linhas totais</p>
-        <h2 class="metric-value metric-mono" data-live-metric data-base="{{ total_lines|default:0 }}">{{ total_lines|default:0 }}</h2>
-    </article>
-    <article class="metric-card reveal-item">
-        <p class="metric-label">Linhas alocadas</p>
-        <h2 class="metric-value metric-mono" data-live-metric data-base="{{ allocated_lines|default:0 }}">{{ allocated_lines|default:0 }}</h2>
-    </article>
-    <article class="metric-card reveal-item">
-        <p class="metric-label">Disponiveis</p>
-        <h2 class="metric-value metric-mono" data-live-metric data-base="{{ available_lines|default:0 }}">{{ available_lines|default:0 }}</h2>
-    </article>
-</section>
-
-<section class="dashboard-layout reveal-group">
-    <div class="flow-canvas reveal-item" aria-label="Fluxo de linhas">
-        <header class="section-header">
-            <h2>Flow Canvas</h2>
-            <p class="text-muted mb-0">Selecione uma linha para inspecionar logs e desempenho.</p>
-        </header>
-        <div class="flow-list" role="list">
-            {% for status in line_status_counts %}
-                <button
-                    type="button"
-                    class="line-card"
-                    role="listitem"
-                    data-line-select
-                    data-line-label="{{ status.label }}"
-                    data-line-count="{{ status.count }}"
-                    data-line-health="{% cycle 93 98 88 95 %}"
-                    aria-expanded="false"
-                >
-                    <span class="line-badge {% if status.count > 0 %}status-live{% else %}status-idle{% endif %}" aria-hidden="true"></span>
-                    <span class="line-title">{{ status.label }}</span>
-                    <span class="line-count metric-mono">{{ status.count }}</span>
-                    <span class="line-progress">
-                        <span class="line-progress-bar" style="width: {% widthratio status.count total_lines|default:1 100 %}%;" data-live-progress></span>
-                    </span>
-                </button>
-            {% empty %}
-                <p class="text-muted mb-0">Nenhuma linha encontrada no inventario.</p>
+<section class="operations-grid reveal-group">
+    <div class="surface-card reveal-item">
+        <div class="section-header d-flex justify-content-between align-items-center">
+            <div>
+                <h2>Painel de Excecoes</h2>
+                <p class="text-muted mb-0">Itens prioritarios para acao imediata.</p>
+            </div>
+        </div>
+        <div class="exception-grid mt-3">
+            {% for card in exception_cards %}
+                <article class="exception-card severity-{{ card.level }}">
+                    <p class="exception-title">{{ card.title }}</p>
+                    <p class="exception-value metric-mono">{{ card.value }}</p>
+                    <p class="exception-description">{{ card.description }}</p>
+                    <a href="{{ card.action_url }}" class="btn btn-sm btn-outline-light">{{ card.action_label }}</a>
+                </article>
             {% endfor %}
         </div>
     </div>
 
-    <aside id="line-inspector" class="line-inspector reveal-item" aria-live="polite" aria-label="Inspector tecnico">
-        <button type="button" class="inspector-close" data-close-inspector aria-label="Fechar painel">
-            <i class="bi bi-x-lg"></i>
-        </button>
-        <h3 class="inspector-title" data-inspector-label>Selecione uma linha</h3>
-        <p class="inspector-subtitle">Status tecnico em tempo real</p>
+    <aside class="surface-card reveal-item">
+        <h2 class="h5 mb-2">Ranking por Unidade</h2>
+        <p class="text-muted mb-3">Ordenado por maior volume sem numero novo.</p>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Unidade</th>
+                        <th class="text-end">Sem novo</th>
+                        <th class="text-end">Reconectar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in unit_ranking %}
+                        <tr>
+                            <td>{{ item.unidade }}</td>
+                            <td class="text-end metric-mono">{{ item.precisa_numero_novo }}</td>
+                            <td class="text-end metric-mono">{{ item.reconectar_whats }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center text-muted">Sem dados de ranking.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </aside>
+</section>
 
-        <div class="inspector-block">
-            <span>Quantidade</span>
-            <strong class="metric-mono" data-inspector-count>0</strong>
+<section class="surface-card reveal-item trend-panel">
+    <div class="section-header d-flex justify-content-between align-items-center mb-2">
+        <div>
+            <h2>Tendencia de 7 dias</h2>
+            <p class="text-muted mb-0">Evolucao dos indicadores operacionais.</p>
         </div>
-        <div class="inspector-block">
-            <span>Saude operacional</span>
-            <strong class="metric-mono" data-inspector-health>0%</strong>
-        </div>
-        <div class="inspector-block">
-            <span>Latencia media</span>
-            <strong class="metric-mono" data-inspector-latency>0 ms</strong>
-        </div></aside>
-    <button type="button" class="inspector-backdrop" data-inspector-backdrop aria-label="Fechar inspector"></button>
+    </div>
+    <div class="trend-grid">
+        {% for trend in trend_series %}
+            <article class="trend-card">
+                <p class="trend-title">{{ trend.label }}</p>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <strong class="metric-mono">
+                        {{ trend.latest|floatformat:1 }}{{ trend.suffix }}
+                    </strong>
+                    <span class="trend-delta {% if trend.delta >= 0 %}is-up{% else %}is-down{% endif %}">
+                        {{ trend.delta|floatformat:1 }}
+                    </span>
+                </div>
+                <canvas
+                    class="trend-canvas"
+                    width="320"
+                    height="72"
+                    data-trend-canvas
+                    data-trend-key="{{ trend.key }}"
+                    aria-label="Grafico {{ trend.label }}"
+                ></canvas>
+            </article>
+        {% endfor %}
+    </div>
 </section>
 
 <section class="table-stack reveal-group">
@@ -153,5 +163,6 @@
         </div>
     </div>
 </section>
-{% endblock %}
 
+{{ trend_points|json_script:"trend-points" }}
+{% endblock %}

@@ -10,6 +10,11 @@ from core.mixins import AuthenticadView
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 
+PERCENT_CRITICAL_THRESHOLD = 20
+PERCENT_WARNING_THRESHOLD = 10
+COUNT_CRITICAL_THRESHOLD = 10
+COUNT_WARNING_THRESHOLD = 5
+
 
 class DashboardView(AuthenticadView, TemplateView):
     template_name = "dashboard/dashboard.html"
@@ -82,7 +87,121 @@ class DashboardView(AuthenticadView, TemplateView):
             }
         )
         context["reconexao_data"] = reconexao_data
+        context.update(self._build_dashboard_insights(context))
         return context
+
+    def _build_dashboard_insights(self, context):
+        daily = context.get("indicadores_diarios", [])
+        latest = daily[-1] if daily else {}
+
+        latest_sem_whats = float(latest.get("perc_sem_whats", 0) or 0)
+        latest_descoberto = int(latest.get("total_descoberto_dia", 0) or 0)
+        latest_reconectados = int(latest.get("reconectados", 0) or 0)
+
+        line_status_map = {
+            entry["value"]: int(entry.get("count", 0))
+            for entry in context.get("line_status_counts", [])
+        }
+        blocked_lines = line_status_map.get("suspended", 0) + line_status_map.get(
+            "cancelled", 0
+        )
+
+        def level_for_percentage(value):
+            if value >= PERCENT_CRITICAL_THRESHOLD:
+                return "critical"
+            if value >= PERCENT_WARNING_THRESHOLD:
+                return "warning"
+            return "ok"
+
+        def level_for_count(value):
+            if value >= COUNT_CRITICAL_THRESHOLD:
+                return "critical"
+            if value >= COUNT_WARNING_THRESHOLD:
+                return "warning"
+            return "ok"
+
+        exception_cards = [
+            {
+                "title": "Cobertura Whats",
+                "value": f"{latest_sem_whats:.1f}%",
+                "description": "Percentual da equipe sem linha ativa.",
+                "level": level_for_percentage(latest_sem_whats),
+                "action_label": "Ver usuarios",
+                "action_url": "/employees/",
+            },
+            {
+                "title": "Linhas bloqueadas",
+                "value": blocked_lines,
+                "description": "Linhas suspensas ou canceladas no inventario.",
+                "level": level_for_count(blocked_lines),
+                "action_label": "Ver telecom",
+                "action_url": "/telecom/",
+            },
+            {
+                "title": "Descobertos hoje",
+                "value": latest_descoberto,
+                "description": "Usuarios sem linha no fechamento do dia.",
+                "level": level_for_count(latest_descoberto),
+                "action_label": "Ir para cadastro",
+                "action_url": "/allocations/",
+            },
+            {
+                "title": "Reconectados hoje",
+                "value": latest_reconectados,
+                "description": "Recuperacoes efetivas no dia atual.",
+                "level": "ok" if latest_reconectados > 0 else "warning",
+                "action_label": "Detalhar telecom",
+                "action_url": "/telecom/",
+            },
+        ]
+
+        trend_defs = [
+            ("pessoas_logadas", "Pessoas logadas", ""),
+            ("perc_sem_whats", "% sem Whats", "%"),
+            ("numeros_entregues", "Numeros entregues", ""),
+            ("reconectados", "Reconectados", ""),
+        ]
+        trend_series = []
+        trend_points = {}
+        for key, label, suffix in trend_defs:
+            values = [float(item.get(key, 0) or 0) for item in daily]
+            trend_points[key] = values
+            first_value = values[0] if values else 0
+            latest_value = values[-1] if values else 0
+            delta = latest_value - first_value
+            trend_series.append(
+                {
+                    "key": key,
+                    "label": label,
+                    "suffix": suffix,
+                    "latest": latest_value,
+                    "delta": delta,
+                }
+            )
+
+        trend_points["labels"] = [
+            item["data"].strftime("%d/%m") for item in daily if item.get("data")
+        ]
+
+        ranking = [
+            item
+            for item in context.get("reconexao_data", [])
+            if item.get("unidade") != "Total B2B"
+        ]
+        ranking.sort(
+            key=lambda item: (
+                item.get("precisa_numero_novo", 0),
+                item.get("reconectar_whats", 0),
+            ),
+            reverse=True,
+        )
+
+        return {
+            "exception_cards": exception_cards,
+            "trend_series": trend_series,
+            "trend_points": trend_points,
+            "unit_ranking": ranking,
+        }
 
     def _build_negociador_data(self):
         employees = Employee.objects.filter(is_deleted=False)
@@ -191,11 +310,11 @@ class DashboardView(AuthenticadView, TemplateView):
 
         return {
             "sim_status_counts": [
-                {"label": label, "count": sim_counts.get(value, 0)}
+                {"value": value, "label": label, "count": sim_counts.get(value, 0)}
                 for value, label in SIMcard.Status.choices
             ],
             "line_status_counts": [
-                {"label": label, "count": line_counts.get(value, 0)}
+                {"value": value, "label": label, "count": line_counts.get(value, 0)}
                 for value, label in PhoneLine.Status.choices
             ],
         }

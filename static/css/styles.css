@@ -238,6 +238,107 @@ h1, h2, h3, h4, h5, h6 {
     align-items: start;
 }
 
+.operations-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 1rem;
+}
+
+.exception-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.exception-card {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: rgba(2, 6, 23, 0.4);
+    padding: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.exception-title {
+    margin: 0;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+}
+
+.exception-value {
+    margin: 0;
+    font-size: 1.45rem;
+    color: var(--text-strong);
+}
+
+.exception-description {
+    margin: 0;
+    font-size: 0.83rem;
+    color: var(--text-main);
+}
+
+.severity-ok {
+    border-color: rgba(16, 185, 129, 0.55);
+}
+
+.severity-warning {
+    border-color: rgba(245, 158, 11, 0.6);
+}
+
+.severity-critical {
+    border-color: rgba(239, 68, 68, 0.65);
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.22);
+}
+
+.trend-panel {
+    margin-top: 1rem;
+}
+
+.trend-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.trend-card {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: rgba(2, 6, 23, 0.35);
+    padding: 0.75rem;
+}
+
+.trend-title {
+    margin: 0 0 0.35rem;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+.trend-delta {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    padding: 0.15rem 0.35rem;
+    border-radius: 999px;
+}
+
+.trend-delta.is-up {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+}
+
+.trend-delta.is-down {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.12);
+}
+
+.trend-canvas {
+    width: 100%;
+    height: 72px;
+    display: block;
+}
+
 .flow-canvas {
     padding: 1rem;
 }
@@ -588,6 +689,10 @@ textarea:focus {
     .line-inspector {
         position: static;
     }
+
+    .operations-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 900px) {
@@ -618,6 +723,11 @@ textarea:focus {
 
     .kpi-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .exception-grid,
+    .trend-grid {
+        grid-template-columns: 1fr;
     }
 
     .top-glass {
