@@ -32,7 +32,7 @@
             <div class="mb-3">
                 <label class="form-label">Usuário vinculado</label>
                 <select name="employee" class="form-select">
-                    <option value="" {% if not allocation.employee %}selected{% endif %}>Selecione...</option>
+                    <option value="" {% if not allocation.employee or allocation.employee.pk == None %}selected{% endif %}>Selecione...</option>
                     {% for user in employees %}
                         <option value="{{ user.pk }}" {% if allocation.employee and allocation.employee.pk == user.pk %}selected{% endif %}>{{ user.full_name }} ({{ user.employee_id }})</option>
                     {% endfor %}
