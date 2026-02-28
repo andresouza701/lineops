@@ -339,6 +339,33 @@ h1, h2, h3, h4, h5, h6 {
     display: block;
 }
 
+.period-filter {
+    display: inline-flex;
+    gap: 0.35rem;
+}
+
+.period-btn {
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.78rem;
+    line-height: 1;
+    padding: 0.35rem 0.55rem;
+    transition: all 0.2s ease;
+}
+
+.period-btn:hover {
+    color: var(--text-strong);
+    border-color: rgba(124, 58, 237, 0.65);
+}
+
+.period-btn.is-active {
+    color: #ffffff;
+    border-color: rgba(124, 58, 237, 0.85);
+    background: rgba(124, 58, 237, 0.35);
+}
+
 .flow-canvas {
     padding: 1rem;
 }
@@ -487,7 +514,8 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--text-muted);
     font-size: 0.82rem;
 }
-`n.table-stack {
+
+.table-stack {
     display: grid;
     grid-template-columns: 1fr;
     gap: 1rem;

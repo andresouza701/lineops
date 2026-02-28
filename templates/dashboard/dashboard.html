@@ -57,8 +57,18 @@
 <section class="surface-card reveal-item trend-panel">
     <div class="section-header d-flex justify-content-between align-items-center mb-2">
         <div>
-            <h2>Tendencia de 7 dias</h2>
+            <h2>Tendencia de {{ trend_period }} dias</h2>
             <p class="text-muted mb-0">Evolucao dos indicadores operacionais.</p>
+        </div>
+        <div class="period-filter" role="group" aria-label="Filtro de periodo">
+            {% for option in trend_period_options %}
+                <a
+                    href="?period={{ option }}"
+                    class="period-btn {% if trend_period == option %}is-active{% endif %}"
+                >
+                    {{ option }}d
+                </a>
+            {% endfor %}
         </div>
     </div>
     <div class="trend-grid">

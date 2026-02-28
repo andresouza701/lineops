@@ -14,6 +14,8 @@ PERCENT_CRITICAL_THRESHOLD = 20
 PERCENT_WARNING_THRESHOLD = 10
 COUNT_CRITICAL_THRESHOLD = 10
 COUNT_WARNING_THRESHOLD = 5
+DEFAULT_TREND_PERIOD = 7
+ALLOWED_TREND_PERIODS = (7, 15, 30)
 
 
 class DashboardView(AuthenticadView, TemplateView):
@@ -21,6 +23,7 @@ class DashboardView(AuthenticadView, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        trend_period = self._resolve_trend_period()
         context["total_employees"] = Employee.objects.filter(
             status=Employee.Status.ACTIVE
         ).count()
@@ -32,7 +35,9 @@ class DashboardView(AuthenticadView, TemplateView):
         context["total_simcards"] = SIMcard.objects.filter(is_deleted=False).count()
 
         context.update(self._build_status_counts())
-        context["indicadores_diarios"] = self._build_daily_indicators(days=7)
+        context["indicadores_diarios"] = self._build_daily_indicators(days=trend_period)
+        context["trend_period"] = trend_period
+        context["trend_period_options"] = ALLOWED_TREND_PERIODS
 
         # Tabela de reconexão por segmento e unidade
         unidades = ["Joinville", "Araquari"]
@@ -89,6 +94,17 @@ class DashboardView(AuthenticadView, TemplateView):
         context["reconexao_data"] = reconexao_data
         context.update(self._build_dashboard_insights(context))
         return context
+
+    def _resolve_trend_period(self):
+        raw_period = self.request.GET.get("period", str(DEFAULT_TREND_PERIOD))
+        try:
+            period = int(raw_period)
+        except (TypeError, ValueError):
+            return DEFAULT_TREND_PERIOD
+
+        if period in ALLOWED_TREND_PERIODS:
+            return period
+        return DEFAULT_TREND_PERIOD
 
     def _build_dashboard_insights(self, context):
         daily = context.get("indicadores_diarios", [])
