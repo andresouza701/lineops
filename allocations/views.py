@@ -176,7 +176,6 @@ class AllocationEditView(RoleRequiredMixin, View):
         allocation = get_object_or_404(
             LineAllocation.objects.select_related("phone_line__sim_card"),
             pk=pk,
-            is_active=True,
         )
         return render(
             request, "allocations/allocation_edit.html", {"allocation": allocation}
@@ -184,7 +183,7 @@ class AllocationEditView(RoleRequiredMixin, View):
 
     def post(self, request, pk):
         allocation = get_object_or_404(
-            LineAllocation.objects.select_related("phone_line"), pk=pk, is_active=True
+            LineAllocation.objects.select_related("phone_line"), pk=pk
         )
         AllocationService.release_line(allocation, released_by=request.user)
         messages.success(request, "Linha liberada com sucesso.")
