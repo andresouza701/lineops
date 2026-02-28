@@ -292,11 +292,9 @@ class TelephonyAssignmentForm(forms.Form):
                     self.add_error(
                         "status_line",
                         (
-                            "Nao e possivel alterar o status desta linha porque "
-                            "ela possui uma alocacao ativa. "
+                            "Libere a linha primeiro e tente novamente."
                             f"Status atual: {phone_line.status}. "
                             f"Colaborador vinculado: {employee_name}. "
-                            "Libere a linha primeiro e tente novamente."
                         ),
                     )
                 if (
