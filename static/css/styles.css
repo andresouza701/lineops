@@ -1,26 +1,22 @@
 @charset "UTF-8";
 :root {
-    /* Facebook color palette */
-    --primary: #1877f2; /* Facebook blue */
-    --secondary: #242526; /* Facebook dark text */
-    --accent: #f0f2f5; /* Facebook light background */
-    --info: #65676b; /* Facebook muted text */
-    --light: #e4e6eb; /* Facebook light gray */
-
-    /* UI variables using palette */
+    /* Facebook Desktop 2024/2026 palette */
+    --primary: #1877f2;
+    --secondary: #1c1e21;
+    --accent: #f0f2f5;
+    --success: #42b72a;
+    --info: #65676b;
+    --light: #e4e6eb;
+    --card-bg: #fff;
+    --border: #dddfe2;
+    --shadow: 0 2px 4px rgba(0,0,0,0.1), 0 8px 16px rgba(0,0,0,0.1);
+    --input-radius: 6px;
+    --card-radius: 8px;
+    --font-stack: SFProDisplay-Regular, Helvetica, Arial, sans-serif;
+    --footer-link: #8a8d91;
     --bg: var(--accent);
     --text: var(--secondary);
-    --muted: var(--info);
-    --card-bg: #ffffff;
-    --border: var(--light);
-    --table-bg: #ffffff;
-    --table-header: var(--light);
-    --nav-bg: var(--primary);
-    --tab-bg: var(--accent);
-    --shadow: 0 15px 30px rgba(24, 119, 242, 0.12);
-    --input-bg: var(--accent);
-    --input-border: var(--light);
-    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    font-family: var(--font-stack);
     background: var(--bg);
     color: var(--text);
 }
@@ -31,10 +27,66 @@
 }
 
 body {
-        font-size: 0.9rem;
-        background: var(--bg);
-        color: var(--text);
-        transition: background-color 0.3s ease, color 0.3s ease;
+    font-size: 1rem;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-stack);
+    transition: background-color 0.3s, color 0.3s;
+}
+
+input, select, textarea {
+    border: 1px solid var(--border);
+    border-radius: var(--input-radius);
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    background: #fff;
+    color: var(--text);
+    font-family: var(--font-stack);
+    outline: none;
+    transition: border-color 0.2s;
+}
+input:focus, select:focus, textarea:focus {
+    border-color: var(--primary);
+}
+
+button, .btn {
+    border: none;
+    border-radius: var(--input-radius);
+    font-weight: bold;
+    font-size: 1.1rem;
+    padding: 0.75rem 0;
+    width: 100%;
+    background: var(--primary);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-family: var(--font-stack);
+}
+button.secondary, .btn.secondary {
+    background: var(--success);
+}
+button:hover, .btn:hover {
+    background: #166fe5;
+}
+button.secondary:hover, .btn.secondary:hover {
+    background: #36a420;
+}
+
+.card, .form-card {
+    background: var(--card-bg);
+    border-radius: var(--card-radius);
+    box-shadow: var(--shadow);
+    padding: 2rem;
+}
+
+.footer, .footer-links {
+    color: var(--footer-link);
+    font-size: 0.85rem;
+}
+
+.divider {
+    border-top: 1px solid var(--light);
+    margin: 1.5rem 0;
 }
 
 .messages-stack {
