@@ -256,7 +256,7 @@ class TelephonyAssignmentForm(forms.Form):
             cleaned["phone_line_status"] = None
         elif action == "existing":
             if not cleaned.get("employee"):
-                self.add_error("employee", "Selecione o colaborador.")
+                self.add_error("employee", "Selecione o usuário.")
             if not cleaned.get("phone_line"):
                 self.add_error("phone_line", "Selecione uma linha disponivel.")
             elif cleaned["phone_line"].status != PhoneLine.Status.AVAILABLE:
@@ -287,14 +287,14 @@ class TelephonyAssignmentForm(forms.Form):
                     employee_name = (
                         active_allocation.employee.full_name
                         if active_allocation.employee_id
-                        else "usuario desconhecido"
+                        else "usuário desconhecido"
                     )
                     self.add_error(
                         "status_line",
                         (
-                            "Libere a linha primeiro e tente novamente."
+                            f"Libere a linha primeiro e tente novamente!"
                             f"Status atual: {phone_line.status}. "
-                            f"Colaborador vinculado: {employee_name}. "
+                            f"Usuário vinculado: {employee_name}. "
                         ),
                     )
                 if (
@@ -303,7 +303,7 @@ class TelephonyAssignmentForm(forms.Form):
                 ):
                     self.add_error(
                         "status_line",
-                        "Use o vinculo com colaborador para deixar ALLOCATED.",
+                        "Use o vínculo com usuário para deixar ALLOCATED.",
                     )
 
             cleaned["phone_number"] = cleaned.get("phone_number") or ""
