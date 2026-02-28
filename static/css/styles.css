@@ -577,6 +577,14 @@ h1, h2, h3, h4, h5, h6 {
     white-space: nowrap;
 }
 
+.users-autofit-table th:nth-child(1),
+.users-autofit-table td:nth-child(1),
+.users-autofit-table th:nth-child(2),
+.users-autofit-table td:nth-child(2) {
+    white-space: normal;
+    word-break: break-word;
+}
+
 
 .reveal-group .reveal-item {
     opacity: 0;
