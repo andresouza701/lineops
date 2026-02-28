@@ -1,12 +1,13 @@
-{% extends "base/base.html" %}
+﻿{% extends "base/base.html" %}
 
-{% block title %}Usuário LineOps{% endblock %}
+{% block title %}UsuÃ¡rio LineOps{% endblock %}
 
 {% block content %}
+<div class="employee-page">
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3">
     <div>
         <h1 class="h3 mb-1">Equipe</h1>
-        <p class="text-muted mb-0">Gerencie os usuários e suas equipes.</p>
+        <p class="text-muted mb-0">Gerencie os usuÃ¡rios e suas equipes.</p>
     </div>
 </div>
 
@@ -56,7 +57,7 @@
                     <th>Carteira</th>
                     <th>Equipe</th>
                     <th>Status</th>
-                    <th class="text-end">Ações</th>
+                    <th class="text-end">AÃ§Ãµes</th>
                 </tr>
             </thead>
             <tbody>
@@ -69,15 +70,7 @@
                         <td>{{ employee.status }}</td>
                         <td class="text-end">
                             {%if request.user.role == 'admin' %}
-                                <a
-                                    href="{% url 'employees:employee_update' employee.pk %}"
-                                    class="btn btn-sm btn-outline-primary employee-edit-btn"
-                                    title="Editar usuario"
-                                    aria-label="Editar usuario"
-                                >
-                                    <i class="bi bi-pencil-square" aria-hidden="true"></i>
-                                    <span class="visually-hidden">Editar</span>
-                                </a>
+                                <a href="{% url 'employees:employee_update' employee.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
                             {% else %}
                                 <span class="text-muted">-</span>
                             {% endif %}
@@ -86,7 +79,7 @@
                 {% empty %}
                     <tr>
                         <td colspan="6" class="text-center text-muted">
-                            Nenhum usuário encontrado.
+                            Nenhum usuÃ¡rio encontrado.
                         </td>
                     </tr>
                 {% endfor %}
@@ -97,7 +90,7 @@
 
 {% if is_paginated %}
     {% with current_name=request.GET.name current_teams=request.GET.teams current_line=request.GET.line|default:'todos' %}
-        <nav class="mt-3" aria-label="paginação de usuários">
+        <nav class="mt-3" aria-label="paginaÃ§Ã£o de usuÃ¡rios">
             <ul class="pagination justify-content-center mb-0">
                 {% if page_obj.has_previous %}
                     <li class="page-item">
@@ -118,7 +111,7 @@
                 {% if page_obj.has_next %}
                     <li class="page-item">
                         <a class="page-link" href="?page={{ page_obj.next_page_number }}&name={{ current_name }}&teams={{ current_teams }}&line={{ current_line }}">
-                            Próxima
+                            PrÃ³xima
                         </a>
                     </li>
                 {% endif %}
@@ -126,4 +119,7 @@
         </nav>
     {% endwith %}
 {% endif %}
+</div>
 {% endblock %}
+
+
