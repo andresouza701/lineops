@@ -444,6 +444,7 @@ h1, h2, h3, h4, h5, h6 {
     --bs-table-bg: transparent;
     --bs-table-border-color: var(--border-color);
     --bs-table-hover-bg: rgba(124, 58, 237, 0.12);
+    --bs-table-color: var(--text-main);
 }
 
 .table thead.table-light {
@@ -454,6 +455,13 @@ h1, h2, h3, h4, h5, h6 {
 .table td, .table th {
     vertical-align: middle;
     font-size: 0.86rem;
+    color: var(--text-main) !important;
+}
+
+.table tbody tr td,
+.table tbody tr th,
+.table thead tr th {
+    color: var(--text-main) !important;
 }
 
 .reveal-group .reveal-item {
@@ -482,10 +490,27 @@ input,
 select,
 textarea {
     background: rgba(15, 23, 42, 0.82);
-    color: var(--text-main);
+    color: var(--text-strong) !important;
     border: 1px solid var(--border-color);
     border-radius: 10px;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-control::placeholder,
+input::placeholder,
+textarea::placeholder {
+    color: var(--text-muted) !important;
+    opacity: 1;
+}
+
+.form-label,
+label {
+    color: var(--text-main);
+}
+
+select option {
+    background: var(--bg-surface);
+    color: var(--text-strong);
 }
 
 .form-control:focus,
