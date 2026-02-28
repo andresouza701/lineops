@@ -47,8 +47,10 @@ button, .btn {
     border-radius: var(--input-radius);
     font-weight: bold;
     font-size: 1.1rem;
-    padding: 0.75rem 0;
-    width: 100%;
+    padding: 0.55rem 1.5rem;
+    min-width: 120px;
+    min-height: 40px;
+    width: auto;
     background: var(--primary);
     color: #fff;
     cursor: pointer;
