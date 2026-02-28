@@ -183,8 +183,22 @@ class AllocationEditView(RoleRequiredMixin, View):
 
     def post(self, request, pk):
         allocation = get_object_or_404(
-            LineAllocation.objects.select_related("phone_line"), pk=pk
+            LineAllocation.objects.select_related("phone_line__sim_card"), pk=pk
         )
-        AllocationService.release_line(allocation, released_by=request.user)
-        messages.success(request, "Linha liberada com sucesso.")
+        action = request.POST.get("action")
+        if action == "release":
+            AllocationService.release_line(allocation, released_by=request.user)
+            messages.success(request, "Linha liberada com sucesso.")
+            return redirect(reverse("telecom:overview"))
+        elif action == "save":
+            new_status = request.POST.get("status")
+            if new_status and new_status != allocation.phone_line.status:
+                allocation.phone_line.status = new_status
+                allocation.phone_line.save(update_fields=["status"])
+                messages.success(request, "Status da linha atualizado com sucesso.")
+            else:
+                messages.info(request, "Nenhuma alteração de status realizada.")
+            return redirect(
+                reverse("allocations:allocation_edit", args=[allocation.pk])
+            )
         return redirect(reverse("telecom:overview"))

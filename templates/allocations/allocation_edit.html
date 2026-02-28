@@ -23,9 +23,16 @@
             </div>
             <div class="mb-3">
                 <label class="form-label">Status</label>
-                <input type="text" class="form-control" value="{{ allocation.phone_line.status }}" readonly>
+                <select name="status" class="form-select">
+                    {% for key, label in allocation.phone_line.Status.choices %}
+                        <option value="{{ key }}" {% if allocation.phone_line.status == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
             </div>
-            <button type="submit" class="btn btn-danger">Liberar</button>
+            <div class="d-flex gap-2">
+                <button type="submit" name="action" value="release" class="btn btn-danger" {% if not allocation.employee %}disabled{% endif %}>Liberar</button>
+                <button type="submit" name="action" value="save" class="btn btn-primary">Salvar</button>
+            </div>
         </form>
     </div>
 </div>
