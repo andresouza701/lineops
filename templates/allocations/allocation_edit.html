@@ -29,9 +29,19 @@
                     {% endfor %}
                 </select>
             </div>
+            <div class="mb-3">
+                <label class="form-label">Vincular linha disponível</label>
+                <select name="phone_line_available" class="form-select">
+                    <option value="">Selecione...</option>
+                    {% for line in available_lines %}
+                        <option value="{{ line.pk }}">{{ line.phone_number }} ({{ line.sim_card.iccid }})</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div class="d-flex gap-2">
                 <button type="submit" name="action" value="release" class="btn btn-danger" {% if not allocation.employee %}disabled{% endif %}>Liberar</button>
                 <button type="submit" name="action" value="save" class="btn btn-primary">Salvar</button>
+                <button type="submit" name="action" value="link" class="btn btn-success">Vincular</button>
             </div>
         </form>
     </div>

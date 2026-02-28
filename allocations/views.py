@@ -178,8 +178,13 @@ class AllocationEditView(RoleRequiredMixin, View):
             LineAllocation.objects.select_related("phone_line__sim_card"),
             pk=pk,
         )
+        available_lines = PhoneLine.objects.filter(
+            is_deleted=False, status=PhoneLine.Status.AVAILABLE
+        ).select_related("sim_card")
         return render(
-            request, "allocations/allocation_edit.html", {"allocation": allocation}
+            request,
+            "allocations/allocation_edit.html",
+            {"allocation": allocation, "available_lines": available_lines},
         )
 
     def post(self, request, pk):
@@ -199,6 +204,20 @@ class AllocationEditView(RoleRequiredMixin, View):
                 messages.success(request, "Status da linha atualizado com sucesso.")
             else:
                 messages.info(request, "Nenhuma alteração de status realizada.")
+            return redirect(
+                reverse("allocations:allocation_edit", args=[allocation.pk])
+            )
+        elif action == "link":
+            line_pk = request.POST.get("phone_line_available")
+            if line_pk:
+                new_line = PhoneLine.objects.select_related("sim_card").get(pk=line_pk)
+                allocation.phone_line = new_line
+                allocation.save(update_fields=["phone_line"])
+                messages.success(
+                    request, f"Linha {new_line.phone_number} vinculada com sucesso."
+                )
+            else:
+                messages.error(request, "Selecione uma linha disponível para vincular.")
             return redirect(
                 reverse("allocations:allocation_edit", args=[allocation.pk])
             )
