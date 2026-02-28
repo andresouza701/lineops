@@ -565,26 +565,7 @@ h1, h2, h3, h4, h5, h6 {
 .table tbody tr:hover td {
     border-color: rgba(124, 58, 237, 0.35) !important;
 }
-
-.users-autofit-table {
-    width: max-content;
-    min-width: 100%;
-    table-layout: auto;
-}
-
-.users-autofit-table th,
-.users-autofit-table td {
-    white-space: nowrap;
-}
-
-.users-autofit-table th:nth-child(1),
-.users-autofit-table td:nth-child(1),
-.users-autofit-table th:nth-child(2),
-.users-autofit-table td:nth-child(2) {
-    white-space: normal;
-    word-break: break-word;
-}
-
+`n
 
 .reveal-group .reveal-item {
     opacity: 0;
@@ -818,4 +799,5 @@ textarea:focus {
         display: none;
     }
 }
+
 
