@@ -181,10 +181,17 @@ class AllocationEditView(RoleRequiredMixin, View):
         available_lines = PhoneLine.objects.filter(
             is_deleted=False, status=PhoneLine.Status.AVAILABLE
         ).select_related("sim_card")
+        employees = Employee.objects.filter(
+            is_deleted=False, status=Employee.Status.ACTIVE
+        )
         return render(
             request,
             "allocations/allocation_edit.html",
-            {"allocation": allocation, "available_lines": available_lines},
+            {
+                "allocation": allocation,
+                "available_lines": available_lines,
+                "employees": employees,
+            },
         )
 
     def post(self, request, pk):
@@ -198,26 +205,22 @@ class AllocationEditView(RoleRequiredMixin, View):
             return redirect(reverse("telecom:overview"))
         elif action == "save":
             new_status = request.POST.get("status")
+            employee_pk = request.POST.get("employee")
+            updated = False
             if new_status and new_status != allocation.phone_line.status:
                 allocation.phone_line.status = new_status
                 allocation.phone_line.save(update_fields=["status"])
-                messages.success(request, "Status da linha atualizado com sucesso.")
+                updated = True
+            if employee_pk:
+                employee = Employee.objects.get(pk=employee_pk)
+                if allocation.employee != employee:
+                    allocation.employee = employee
+                    allocation.save(update_fields=["employee"])
+                    updated = True
+            if updated:
+                messages.success(request, "Dados atualizados com sucesso.")
             else:
-                messages.info(request, "Nenhuma alteração de status realizada.")
-            return redirect(
-                reverse("allocations:allocation_edit", args=[allocation.pk])
-            )
-        elif action == "link":
-            line_pk = request.POST.get("phone_line_available")
-            if line_pk:
-                new_line = PhoneLine.objects.select_related("sim_card").get(pk=line_pk)
-                allocation.phone_line = new_line
-                allocation.save(update_fields=["phone_line"])
-                messages.success(
-                    request, f"Linha {new_line.phone_number} vinculada com sucesso."
-                )
-            else:
-                messages.error(request, "Selecione uma linha disponível para vincular.")
+                messages.info(request, "Nenhuma alteração realizada.")
             return redirect(
                 reverse("allocations:allocation_edit", args=[allocation.pk])
             )
