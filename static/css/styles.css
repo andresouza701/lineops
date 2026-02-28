@@ -566,6 +566,17 @@ h1, h2, h3, h4, h5, h6 {
     border-color: rgba(124, 58, 237, 0.35) !important;
 }
 
+.users-autofit-table {
+    width: max-content;
+    min-width: 100%;
+    table-layout: auto;
+}
+
+.users-autofit-table th,
+.users-autofit-table td {
+    white-space: nowrap;
+}
+
 
 .reveal-group .reveal-item {
     opacity: 0;
