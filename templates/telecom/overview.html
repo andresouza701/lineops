@@ -58,11 +58,7 @@
                             </td>
                             <td class="text-end">
                                 {% if allocation.is_active %}
-                                    <form method="post" action="{% url 'allocations:allocation_release' allocation.pk %}">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="next" value="{% url 'telecom:overview' %}" />
-                                        <button type="submit" class="btn btn-outline-danger btn-sm">Liberar</button>
-                                    </form>
+                                    <a href="{% url 'allocations:allocation_edit' allocation.pk %}" class="btn btn-outline-primary btn-sm">Editar</a>
                                 {% else %}
                                     <span class="text-muted">—</span>
                                 {% endif %}

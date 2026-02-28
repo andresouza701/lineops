@@ -1,7 +1,8 @@
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.generic import TemplateView, View
 
 from core.exceptions.domain_exceptions import BusinessRuleException
@@ -166,3 +167,25 @@ class LineAllocationReleaseView(RoleRequiredMixin, View):
         if next_url:
             return redirect(next_url)
         return redirect("allocations:allocation_list")
+
+
+class AllocationEditView(RoleRequiredMixin, View):
+    allowed_roles = [SystemUser.Role.ADMIN, SystemUser.Role.OPERATOR]
+
+    def get(self, request, pk):
+        allocation = get_object_or_404(
+            LineAllocation.objects.select_related("phone_line__sim_card"),
+            pk=pk,
+            is_active=True,
+        )
+        return render(
+            request, "allocations/allocation_edit.html", {"allocation": allocation}
+        )
+
+    def post(self, request, pk):
+        allocation = get_object_or_404(
+            LineAllocation.objects.select_related("phone_line"), pk=pk, is_active=True
+        )
+        AllocationService.release_line(allocation, released_by=request.user)
+        messages.success(request, "Linha liberada com sucesso.")
+        return redirect(reverse("telecom:overview"))

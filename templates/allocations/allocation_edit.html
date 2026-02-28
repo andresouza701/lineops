@@ -1,0 +1,32 @@
+{% extends "base/base.html" %}
+{% block title %}Editar Alocação{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="fw-semibold">Editar Alocação</h2>
+    <a href="{% url 'telecom:overview' %}" class="btn btn-outline-secondary">Voltar</a>
+</div>
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label">Linha</label>
+                <input type="text" class="form-control" value="{{ allocation.phone_line.phone_number }}" readonly>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">ICCID</label>
+                <input type="text" class="form-control" value="{{ allocation.phone_line.sim_card.iccid }}" readonly>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Operadora</label>
+                <input type="text" class="form-control" value="{{ allocation.phone_line.sim_card.carrier }}" readonly>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Status</label>
+                <input type="text" class="form-control" value="{{ allocation.phone_line.status }}" readonly>
+            </div>
+            <button type="submit" class="btn btn-danger">Liberar</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
