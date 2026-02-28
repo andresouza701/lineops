@@ -20,8 +20,8 @@ class Employee(models.Model):
         ACTIVE = "active", "Ativo"
         INACTIVE = "inactive", "Inativo"
 
-    full_name = models.CharField(max_length=100)
-    corporate_email = models.CharField(max_length=100, verbose_name="Supervisor")
+    full_name = models.CharField(max_length=40)
+    corporate_email = models.CharField(max_length=40, verbose_name="Supervisor")
     employee_id = models.CharField(max_length=50, verbose_name="Carteira")
 
     class UnitChoices(models.TextChoices):
