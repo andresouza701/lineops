@@ -50,7 +50,17 @@
                             <td>{{ allocation.allocated_at|date:"d/m/Y H:i" }}</td>
                             <td>{{ allocation.released_at|date:"d/m/Y H:i"|default:"—" }}</td>
                             <td>
-                                <span class="badge bg-info">{{ allocation.phone_line.get_status_display }}</span>
+                                {% if allocation.phone_line.status == 'AVAILABLE' %}
+                                    <span class="badge bg-success">{{ allocation.phone_line.get_status_display }}</span>
+                                {% elif allocation.phone_line.status == 'SUSPENDED' %}
+                                    <span class="badge" style="background-color: orange; color: #fff;">{{ allocation.phone_line.get_status_display }}</span>
+                                {% elif allocation.phone_line.status == 'ALLOCATED' %}
+                                    <span class="badge bg-secondary">{{ allocation.phone_line.get_status_display }}</span>
+                                {% elif allocation.phone_line.status == 'CANCELLED' %}
+                                    <span class="badge bg-danger">{{ allocation.phone_line.get_status_display }}</span>
+                                {% else %}
+                                    <span class="badge bg-info">{{ allocation.phone_line.get_status_display }}</span>
+                                {% endif %}
                             </td>
                             <td class="text-end">
                                 <a href="{% url 'allocations:allocation_edit' allocation.pk %}" class="btn btn-outline-primary btn-sm">Editar</a>
