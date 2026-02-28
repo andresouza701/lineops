@@ -26,19 +26,8 @@
 }
 
 .theme-dark {
-    /* Facebook dark mode palette */
+    /* Modo dark: muda apenas o background */
     --bg: #18191a;
-    --text: #e4e6eb;
-    --muted: #b0b3b8;
-    --card-bg: #242526;
-    --border: #3a3b3c;
-    --table-bg: #242526;
-    --table-header: #3a3b3c;
-    --nav-bg: #242526;
-    --tab-bg: #18191a;
-    --shadow: 0 10px 24px rgba(24, 119, 242, 0.12);
-    --input-bg: #242526;
-    --input-border: #3a3b3c;
 }
 
 body {
