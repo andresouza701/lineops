@@ -33,7 +33,7 @@
         ctx.stroke();
 
         ctx.lineWidth = 2;
-        ctx.strokeStyle = "#7c3aed";
+        ctx.strokeStyle = "#2563eb";
         ctx.beginPath();
 
         points.forEach((value, index) => {

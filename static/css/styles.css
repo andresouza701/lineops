@@ -17,7 +17,7 @@
     --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
     --surface-glass: rgba(15, 23, 42, 0.65);
     --border-strong: rgba(148, 163, 184, 0.45);
-    --border-focus: rgba(124, 58, 237, 0.95);
+    --border-focus: rgba(37, 99, 235, 0.95);
 }
 
 * {
@@ -27,7 +27,7 @@
 body {
     margin: 0;
     font-family: var(--font-main);
-    background: radial-gradient(circle at 20% -10%, rgba(124, 58, 237, 0.25) 0, rgba(2, 6, 23, 0) 35%), var(--bg-main);
+    background: radial-gradient(circle at 20% -10%, rgba(37, 99, 235, 0.25) 0, rgba(2, 6, 23, 0) 35%), var(--bg-main);
     color: var(--text-main);
 }
 
@@ -99,14 +99,14 @@ h1, h2, h3, h4, h5, h6 {
 .rail-link:hover,
 .rail-link:focus-visible {
     color: #ffffff;
-    background: rgba(124, 58, 237, 0.25);
-    border-color: rgba(124, 58, 237, 0.6);
+    background: rgba(37, 99, 235, 0.25);
+    border-color: rgba(37, 99, 235, 0.6);
 }
 
 .rail-link.is-active {
     color: #ffffff;
-    background: rgba(124, 58, 237, 0.35);
-    border-color: rgba(124, 58, 237, 0.8);
+    background: rgba(37, 99, 235, 0.35);
+    border-color: rgba(37, 99, 235, 0.8);
 }
 
 .app-main {
@@ -214,7 +214,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .metric-card:hover {
     transform: translateY(-2px);
-    border-color: rgba(124, 58, 237, 0.65);
+    border-color: rgba(37, 99, 235, 0.65);
 }
 
 .metric-label {
@@ -357,13 +357,13 @@ h1, h2, h3, h4, h5, h6 {
 
 .period-btn:hover {
     color: var(--text-strong);
-    border-color: rgba(124, 58, 237, 0.65);
+    border-color: rgba(37, 99, 235, 0.65);
 }
 
 .period-btn.is-active {
     color: #ffffff;
-    border-color: rgba(124, 58, 237, 0.85);
-    background: rgba(124, 58, 237, 0.35);
+    border-color: rgba(37, 99, 235, 0.85);
+    background: rgba(37, 99, 235, 0.35);
 }
 
 .flow-canvas {
@@ -403,8 +403,8 @@ h1, h2, h3, h4, h5, h6 {
 .line-card:focus-visible,
 .line-card.is-selected {
     transform: translateY(-1px);
-    border-color: rgba(124, 58, 237, 0.85);
-    box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.35);
+    border-color: rgba(37, 99, 235, 0.85);
+    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.35);
 }
 
 .line-badge {
@@ -532,7 +532,7 @@ h1, h2, h3, h4, h5, h6 {
 .table-responsive {
     border-radius: 10px;
     border: 1px solid var(--border-strong);
-    box-shadow: inset 0 0 0 1px rgba(124, 58, 237, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.12);
 }
 
 .table {
@@ -540,7 +540,7 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--text-main);
     --bs-table-bg: transparent;
     --bs-table-border-color: var(--border-color);
-    --bs-table-hover-bg: rgba(124, 58, 237, 0.12);
+    --bs-table-hover-bg: rgba(37, 99, 235, 0.12);
     --bs-table-color: var(--text-main);
 }
 
@@ -659,7 +659,7 @@ input:focus,
 select:focus,
 textarea:focus {
     border-color: var(--border-focus);
-    box-shadow: 0 0 0 0.22rem rgba(124, 58, 237, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    box-shadow: 0 0 0 0.22rem rgba(37, 99, 235, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.04);
     background: rgba(15, 23, 42, 0.95);
     color: #ffffff;
 }
@@ -705,7 +705,7 @@ textarea:focus {
 }
 
 .auth-background {
-    background: radial-gradient(circle at 20% 20%, rgba(124, 58, 237, 0.35), transparent 50%), var(--bg-main);
+    background: radial-gradient(circle at 20% 20%, rgba(37, 99, 235, 0.35), transparent 50%), var(--bg-main);
 }
 
 .auth-card {
