@@ -9,7 +9,7 @@
         {% if request.user.role == 'admin' %}
             <li class="nav-item">
                 <a class="nav-link px-3 py-2 {% if current_ns == 'employees' %}active{% endif %}" href="{% url 'employees:employee_list' %}">
-                    Usuários
+                    Usuarios
                 </a>
             </li>
         {% endif %}

@@ -1,4 +1,4 @@
-{% with current_ns=request.resolver_match.namespace|default:'' current_name=request.resolver_match.url_name|default:'' %}
+﻿{% with current_ns=request.resolver_match.namespace|default:'' current_name=request.resolver_match.url_name|default:'' %}
 <ul class="nav nav-pills flex-column mb-auto">
 
     <li class="nav-item">
@@ -13,7 +13,7 @@
         <li>
             <a href="{% url 'employees:employee_list' %}"
                class="nav-link {% if current_ns == 'employees' %}active{% endif %}">
-                Funcionários
+                Usuarios
             </a>
         </li>
         {% endif %}
@@ -29,7 +29,7 @@
         <li>
             <a href="{% url 'allocations:allocation_list' %}"
                class="nav-link {% if current_ns == 'allocations' %}active{% endif %}">
-                Alocações
+                AlocaÃ§Ãµes
             </a>
         </li>
         {% endif %}
