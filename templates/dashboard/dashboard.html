@@ -1,147 +1,165 @@
-﻿{% extends "base/base.html" %}
+{% extends "base/base.html" %}
 
 {% block title %}Dashboard{% endblock %}
+{% block page_title %}Linha de Operacoes{% endblock %}
+{% block top_kpi %}98%{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
-    <div>
-        <h1 class="h3 mb-1">Dashboard</h1>
-        <p class="text-muted mb-0">Monitoração</p>
-    </div>
-</div>
-<div class="row g-3 mt-3">
-    <div class="col-12 col-md-6 col-xl-3">
-        <article class="card h-100 shadow-sm border-0">
-            <div class="card-body">
-                <p class="text-uppercase text-muted small mb-1">Usuários ativos</p>
-                <h2 class="fw-bold display-5 mb-2">
-                    {{ total_employees|default:0 }}
-                </h2>
-                <p class="mb-0 text-muted small">
-                    {{ total_employees|yesno:"Equipe pronta,Sem usuários ativos" }}
-                </p>
-            </div>
-        </article>
+<section class="kpi-grid reveal-group">
+    <article class="metric-card reveal-item">
+        <p class="metric-label">Usuarios ativos</p>
+        <h2 class="metric-value metric-mono" data-live-metric data-base="{{ total_employees|default:0 }}">{{ total_employees|default:0 }}</h2>
+    </article>
+    <article class="metric-card reveal-item">
+        <p class="metric-label">Linhas totais</p>
+        <h2 class="metric-value metric-mono" data-live-metric data-base="{{ total_lines|default:0 }}">{{ total_lines|default:0 }}</h2>
+    </article>
+    <article class="metric-card reveal-item">
+        <p class="metric-label">Linhas alocadas</p>
+        <h2 class="metric-value metric-mono" data-live-metric data-base="{{ allocated_lines|default:0 }}">{{ allocated_lines|default:0 }}</h2>
+    </article>
+    <article class="metric-card reveal-item">
+        <p class="metric-label">Disponiveis</p>
+        <h2 class="metric-value metric-mono" data-live-metric data-base="{{ available_lines|default:0 }}">{{ available_lines|default:0 }}</h2>
+    </article>
+</section>
+
+<section class="dashboard-layout reveal-group">
+    <div class="flow-canvas reveal-item" aria-label="Fluxo de linhas">
+        <header class="section-header">
+            <h2>Flow Canvas</h2>
+            <p class="text-muted mb-0">Selecione uma linha para inspecionar logs e desempenho.</p>
+        </header>
+        <div class="flow-list" role="list">
+            {% for status in line_status_counts %}
+                <button
+                    type="button"
+                    class="line-card"
+                    role="listitem"
+                    data-line-select
+                    data-line-label="{{ status.label }}"
+                    data-line-count="{{ status.count }}"
+                    data-line-health="{% cycle 93 98 88 95 %}"
+                    aria-expanded="false"
+                >
+                    <span class="line-badge {% if status.count > 0 %}status-live{% else %}status-idle{% endif %}" aria-hidden="true"></span>
+                    <span class="line-title">{{ status.label }}</span>
+                    <span class="line-count metric-mono">{{ status.count }}</span>
+                    <span class="line-progress">
+                        <span class="line-progress-bar" style="width: {% widthratio status.count total_lines|default:1 100 %}%;" data-live-progress></span>
+                    </span>
+                </button>
+            {% empty %}
+                <p class="text-muted mb-0">Nenhuma linha encontrada no inventario.</p>
+            {% endfor %}
+        </div>
     </div>
 
-    <div class="col-12 col-md-6 col-xl-3">
-        <article class="card h-100 shadow-sm border-0">
-            <div class="card-body">
-                <p class="text-uppercase text-muted small mb-1">Total de linhas</p>
-                <h2 class="fw-bold display-5 mb-2">
-                    {{ total_lines|default:0 }}
-                </h2>
-                <p class="mb-0 text-muted small">Linhas registradas no inventário.</p>
-            </div>
-        </article>
-    </div>
+    <aside id="line-inspector" class="line-inspector reveal-item" aria-live="polite" aria-label="Inspector tecnico">
+        <button type="button" class="inspector-close" data-close-inspector aria-label="Fechar painel">
+            <i class="bi bi-x-lg"></i>
+        </button>
+        <h3 class="inspector-title" data-inspector-label>Selecione uma linha</h3>
+        <p class="inspector-subtitle">Status tecnico em tempo real</p>
 
-    <div class="col-12 col-md-6 col-xl-3">
-        <article class="card h-100 shadow-sm border-0">
-            <div class="card-body">
-                <p class="text-uppercase text-muted small mb-1">Linhas alocadas</p>
-                <h2 class="fw-bold display-5 mb-2">
-                    {{ allocated_lines|default:0 }}
-                </h2>
-                <p class="mb-0 text-muted small">Chamadas em uso pelos usuários.</p>
-            </div>
-        </article>
-    </div>
+        <div class="inspector-block">
+            <span>Quantidade</span>
+            <strong class="metric-mono" data-inspector-count>0</strong>
+        </div>
+        <div class="inspector-block">
+            <span>Saude operacional</span>
+            <strong class="metric-mono" data-inspector-health>0%</strong>
+        </div>
+        <div class="inspector-block">
+            <span>Latencia media</span>
+            <strong class="metric-mono" data-inspector-latency>0 ms</strong>
+        </div>
 
-    <div class="col-12 col-md-6 col-xl-3">
-        <article class="card h-100 shadow-sm border-0">
-            <div class="card-body">
-                <p class="text-uppercase text-muted small mb-1">Linhas disponíveis</p>
-                <h2 class="fw-bold display-5 mb-2">
-                    {{ available_lines|default:0 }}
-                </h2>
-                <p class="mb-0 text-muted small">Prontas para novas alocações.</p>
-            </div>
-        </article>
-    </div>
-</div>
+        <div class="inspector-log">
+            <p class="log-title">Logs recentes</p>
+            <ul class="log-list" data-inspector-logs>
+                <li>Aguardando selecao de linha...</li>
+            </ul>
+        </div>
+    </aside>
+    <button type="button" class="inspector-backdrop" data-inspector-backdrop aria-label="Fechar inspector"></button>
+</section>
 
-{% if total_employees == 0 and total_lines == 0 %}
-    <div class="alert alert-info mt-4">
-        Nenhum registro foi cadastrado ainda. Comece adicionando usuários ou linhas telefônicas para desbloquear as métricas.
-    </div>
-{% endif %}
-
-<div class="mt-4">
-    <h2 class="h5 mb-3">Indicadores Diários</h2>
-    <div class="table-responsive">
-        <table class="table table-bordered table-hover align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th>Data</th>
-                    <th>Pessoas Logadas</th>
-                    <th>% sem Whats</th>
-                    <th>B2B sem Whats</th>
-                    <th>B2C sem Whats</th>
-                    <th>Números Disponíveis</th>
-                    <th>Números Entregues</th>
-                    <th>Reconectados</th>
-                    <th>Novos</th>
-                    <th>Total Descoberto DIA</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% if indicadores_diarios and indicadores_diarios|length > 0 %}
-                    {% for item in indicadores_diarios %}
-                        <tr>
-                            <td>{{ item.data|date:"d/m/Y" }}</td>
-                            <td>{{ item.pessoas_logadas|floatformat:0 }}</td>
-                            <td>{{ item.perc_sem_whats|floatformat:2 }}%</td>
-                            <td>{{ item.b2b_sem_whats|floatformat:0 }}</td>
-                            <td>{{ item.b2c_sem_whats|floatformat:0 }}</td>
-                            <td>{{ item.numeros_disponiveis|floatformat:0 }}</td>
-                            <td>{{ item.numeros_entregues|floatformat:0 }}</td>
-                            <td>{{ item.reconectados|floatformat:0 }}</td>
-                            <td>{{ item.novos|floatformat:0 }}</td>
-                            <td>{{ item.total_descoberto_dia|floatformat:0 }}</td>
-                        </tr>
-                    {% endfor %}
-                {% else %}
+<section class="table-stack reveal-group">
+    <div class="surface-card reveal-item">
+        <h2 class="h5 mb-3">Indicadores Diarios</h2>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle mb-0">
+                <thead class="table-light">
                     <tr>
-                        <td colspan="10" class="text-center text-muted">Nenhum indicador disponível para o dia.</td>
+                        <th>Data</th>
+                        <th>Pessoas Logadas</th>
+                        <th>% sem Whats</th>
+                        <th>B2B sem Whats</th>
+                        <th>B2C sem Whats</th>
+                        <th>Numeros Disponiveis</th>
+                        <th>Numeros Entregues</th>
+                        <th>Reconectados</th>
+                        <th>Novos</th>
+                        <th>Total Descoberto DIA</th>
                     </tr>
-                {% endif %}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-
-<div class="mt-4">
-    <h2 class="h5 mb-3">Reconexão por Segmento e Unidade (B2B)</h2>
-    <div class="table-responsive">
-        <table class="table table-bordered table-hover align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th>Unidade</th>
-                    <th>Negociadores Logados</th>
-                    <th>Reconectar Whats</th>
-                    <th>Precisa de número novo</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% if reconexao_data and reconexao_data|length > 0 %}
-                    {% for item in reconexao_data %}
+                </thead>
+                <tbody>
+                    {% if indicadores_diarios and indicadores_diarios|length > 0 %}
+                        {% for item in indicadores_diarios %}
+                            <tr>
+                                <td>{{ item.data|date:"d/m/Y" }}</td>
+                                <td class="metric-mono">{{ item.pessoas_logadas|floatformat:0 }}</td>
+                                <td class="metric-mono">{{ item.perc_sem_whats|floatformat:2 }}%</td>
+                                <td class="metric-mono">{{ item.b2b_sem_whats|floatformat:0 }}</td>
+                                <td class="metric-mono">{{ item.b2c_sem_whats|floatformat:0 }}</td>
+                                <td class="metric-mono">{{ item.numeros_disponiveis|floatformat:0 }}</td>
+                                <td class="metric-mono">{{ item.numeros_entregues|floatformat:0 }}</td>
+                                <td class="metric-mono">{{ item.reconectados|floatformat:0 }}</td>
+                                <td class="metric-mono">{{ item.novos|floatformat:0 }}</td>
+                                <td class="metric-mono">{{ item.total_descoberto_dia|floatformat:0 }}</td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
                         <tr>
-                            <td>{{ item.unidade }}</td>
-                            <td>{{ item.negociadores_logados }}</td>
-                            <td>{{ item.reconectar_whats }}</td>
-                            <td>{{ item.precisa_numero_novo }}</td>
+                            <td colspan="10" class="text-center text-muted">Nenhum indicador disponivel para o dia.</td>
                         </tr>
-                    {% endfor %}
-                {% else %}
-                    <tr>
-                        <td colspan="4" class="text-center text-muted">Nenhum dado de reconexão disponível.</td>
-                    </tr>
-                {% endif %}
-            </tbody>
-        </table>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
     </div>
-</div>
 
+    <div class="surface-card reveal-item">
+        <h2 class="h5 mb-3">Reconexao por Segmento e Unidade (B2B)</h2>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Unidade</th>
+                        <th>Negociadores Logados</th>
+                        <th>Reconectar Whats</th>
+                        <th>Precisa de numero novo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if reconexao_data and reconexao_data|length > 0 %}
+                        {% for item in reconexao_data %}
+                            <tr>
+                                <td>{{ item.unidade }}</td>
+                                <td class="metric-mono">{{ item.negociadores_logados }}</td>
+                                <td class="metric-mono">{{ item.reconectar_whats }}</td>
+                                <td class="metric-mono">{{ item.precisa_numero_novo }}</td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted">Nenhum dado de reconexao disponivel.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
 {% endblock %}

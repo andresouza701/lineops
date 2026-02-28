@@ -7,7 +7,7 @@
     <h2 class="fw-semibold">Detalhes do Usuário</h2>
     <div>
         {% if request.user.role == 'admin' %}
-            <a href="{% url 'employees:employee_edit' employee.id %}" class="btn btn-outline-primary">
+            <a href="{% url 'employees:employee_update' employee.id %}" class="btn btn-outline-primary">
                 Editar
             </a>
         {% endif %}
