@@ -4,7 +4,7 @@
     --bg-main: #020617;
     --bg-surface: #0f172a;
     --border-color: rgba(30, 41, 59, 0.5);
-    --primary-accent: #7c3aed;
+    --primary-accent: #2563eb;
     --status-success: #10b981;
     --status-warning: #f59e0b;
     --status-danger: #ef4444;
@@ -446,7 +446,7 @@ h1, h2, h3, h4, h5, h6 {
     height: 100%;
     display: block;
     border-radius: inherit;
-    background: linear-gradient(90deg, var(--primary-accent), #a78bfa);
+    background: linear-gradient(90deg, var(--primary-accent), #60a5fa);
     transition: width 0.2s ease;
 }
 
