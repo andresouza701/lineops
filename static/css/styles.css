@@ -566,6 +566,51 @@ h1, h2, h3, h4, h5, h6 {
     border-color: rgba(124, 58, 237, 0.35) !important;
 }
 
+.employee-table-wrap {
+    max-width: 100%;
+}
+
+.employee-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.employee-table th:nth-child(1),
+.employee-table td:nth-child(1) {
+    width: 24%;
+}
+
+.employee-table th:nth-child(2),
+.employee-table td:nth-child(2) {
+    width: 24%;
+}
+
+.employee-table th:nth-child(3),
+.employee-table td:nth-child(3) {
+    width: 17%;
+}
+
+.employee-table th:nth-child(4),
+.employee-table td:nth-child(4) {
+    width: 13%;
+}
+
+.employee-table th:nth-child(5),
+.employee-table td:nth-child(5) {
+    width: 10%;
+}
+
+.employee-table th:nth-child(6),
+.employee-table td:nth-child(6) {
+    width: 12%;
+}
+
+.employee-table .truncate-cell {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .reveal-group .reveal-item {
     opacity: 0;
     transform: translateY(8px);

@@ -47,8 +47,8 @@
 </div>
 
 <div class="card shadow-sm">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+    <div class="table-responsive employee-table-wrap">
+        <table class="table table-hover align-middle mb-0 employee-table">
             <thead class="table-light">
                 <tr>
                     <th>Supervisor</th>
@@ -62,8 +62,8 @@
             <tbody>
                 {% for employee in employees %}
                     <tr>
-                        <td>{{ employee.corporate_email }}</td>
-                        <td>{{ employee.full_name }}</td>
+                        <td class="truncate-cell" title="{{ employee.corporate_email }}">{{ employee.corporate_email }}</td>
+                        <td class="truncate-cell" title="{{ employee.full_name }}">{{ employee.full_name }}</td>
                         <td>{{ employee.employee_id }}</td>
                         <td>{{ employee.teams }}</td>
                         <td>{{ employee.status }}</td>
