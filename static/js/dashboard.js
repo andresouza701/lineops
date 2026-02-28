@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
     const metricEls = Array.from(document.querySelectorAll("[data-live-metric]"));
     const progressEls = Array.from(document.querySelectorAll("[data-live-progress]"));
     const lineCards = Array.from(document.querySelectorAll("[data-line-select]"));
@@ -9,24 +9,9 @@
     const inspectorCount = document.querySelector("[data-inspector-count]");
     const inspectorHealth = document.querySelector("[data-inspector-health]");
     const inspectorLatency = document.querySelector("[data-inspector-latency]");
-    const inspectorLogs = document.querySelector("[data-inspector-logs]");
-    const inspectorBackdrop = document.querySelector("[data-inspector-backdrop]");
+        const inspectorBackdrop = document.querySelector("[data-inspector-backdrop]");
 
     const pick = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-
-    const renderInspectorLogs = (lineLabel) => {
-        if (!inspectorLogs) return;
-
-        const now = new Date();
-        const hhmmss = now.toLocaleTimeString("pt-BR", { hour12: false });
-        const logs = [
-            `[${hhmmss}] Sync de roteamento para ${lineLabel} concluído`,
-            `[${hhmmss}] Telemetria recebida sem perda de pacote`,
-            `[${hhmmss}] SLA operacional dentro do esperado`,
-        ];
-        inspectorLogs.innerHTML = logs.map((item) => `<li>${item}</li>`).join("");
-    };
-
     const openInspector = (card) => {
         if (!inspector || !card) return;
 
@@ -46,9 +31,7 @@
         if (inspectorLabel) inspectorLabel.textContent = label;
         if (inspectorCount) inspectorCount.textContent = String(count);
         if (inspectorHealth) inspectorHealth.textContent = `${health}%`;
-        if (inspectorLatency) inspectorLatency.textContent = `${pick(12, 78)} ms`;
-        renderInspectorLogs(label);
-    };
+        if (inspectorLatency) inspectorLatency.textContent = `${pick(12, 78)} ms`;    };
 
     lineCards.forEach((card) => {
         card.addEventListener("click", () => openInspector(card));
@@ -114,3 +97,4 @@
 
     if (lineCards.length > 0) openInspector(lineCards[0]);
 })();
+

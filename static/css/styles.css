@@ -1,4 +1,4 @@
-@charset "UTF-8";
+﻿@charset "UTF-8";
 
 :root {
     --bg-main: #020617;
@@ -147,8 +147,6 @@ h1, h2, h3, h4, h5, h6 {
     align-items: center;
     gap: 0.75rem;
 }
-
-.kpi-chip,
 .user-chip {
     background: rgba(15, 23, 42, 0.72);
     border: 1px solid var(--border-color);
@@ -157,16 +155,6 @@ h1, h2, h3, h4, h5, h6 {
     display: inline-flex;
     align-items: center;
     gap: 0.65rem;
-}
-
-.kpi-chip span {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-}
-
-.kpi-chip strong {
-    font-family: var(--font-mono);
-    color: #ffffff;
 }
 
 .user-name {
@@ -398,30 +386,7 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--text-muted);
     font-size: 0.82rem;
 }
-
-.inspector-log {
-    margin-top: 0.85rem;
-    border-top: 1px solid var(--border-color);
-    padding-top: 0.7rem;
-}
-
-.log-title {
-    margin: 0 0 0.45rem;
-    color: var(--text-muted);
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.log-list {
-    margin: 0;
-    padding-left: 1rem;
-    display: grid;
-    gap: 0.25rem;
-    font-size: 0.84rem;
-}
-
-.table-stack {
+`n.table-stack {
     display: grid;
     grid-template-columns: 1fr;
     gap: 1rem;
@@ -695,3 +660,4 @@ textarea:focus {
         display: none;
     }
 }
+

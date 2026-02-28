@@ -1,8 +1,7 @@
-{% extends "base/base.html" %}
+﻿{% extends "base/base.html" %}
 
 {% block title %}Dashboard{% endblock %}
 {% block page_title %}Linha de Operacoes{% endblock %}
-{% block top_kpi %}98%{% endblock %}
 
 {% block content %}
 <section class="kpi-grid reveal-group">
@@ -73,15 +72,7 @@
         <div class="inspector-block">
             <span>Latencia media</span>
             <strong class="metric-mono" data-inspector-latency>0 ms</strong>
-        </div>
-
-        <div class="inspector-log">
-            <p class="log-title">Logs recentes</p>
-            <ul class="log-list" data-inspector-logs>
-                <li>Aguardando selecao de linha...</li>
-            </ul>
-        </div>
-    </aside>
+        </div></aside>
     <button type="button" class="inspector-backdrop" data-inspector-backdrop aria-label="Fechar inspector"></button>
 </section>
 
@@ -163,3 +154,4 @@
     </div>
 </section>
 {% endblock %}
+
