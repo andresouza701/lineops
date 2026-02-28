@@ -1,11 +1,11 @@
 @charset "UTF-8";
 :root {
-    /* Custom color palette */
-    --primary: #156ed9;
-    --secondary: #203554;
-    --accent: #c3d1e6;
-    --info: #6489bc;
-    --light: #7da4d4;
+    /* Facebook color palette */
+    --primary: #1877f2; /* Facebook blue */
+    --secondary: #242526; /* Facebook dark text */
+    --accent: #f0f2f5; /* Facebook light background */
+    --info: #65676b; /* Facebook muted text */
+    --light: #e4e6eb; /* Facebook light gray */
 
     /* UI variables using palette */
     --bg: var(--accent);
@@ -17,7 +17,7 @@
     --table-header: var(--light);
     --nav-bg: var(--primary);
     --tab-bg: var(--accent);
-    --shadow: 0 15px 30px rgba(32, 53, 84, 0.12);
+    --shadow: 0 15px 30px rgba(24, 119, 242, 0.12);
     --input-bg: var(--accent);
     --input-border: var(--light);
     font-family: "Inter", "Segoe UI", system-ui, sans-serif;
@@ -26,19 +26,19 @@
 }
 
 .theme-dark {
-    /* Custom palette for dark mode */
-    --bg: #203554;
-    --text: #c3d1e6;
-    --muted: #6489bc;
-    --card-bg: #203554;
-    --border: #156ed9;
-    --table-bg: #203554;
-    --table-header: #156ed9;
-    --nav-bg: #156ed9;
-    --tab-bg: #203554;
-    --shadow: 0 10px 24px rgba(21, 110, 217, 0.12);
-    --input-bg: #203554;
-    --input-border: #156ed9;
+    /* Facebook dark mode palette */
+    --bg: #18191a;
+    --text: #e4e6eb;
+    --muted: #b0b3b8;
+    --card-bg: #242526;
+    --border: #3a3b3c;
+    --table-bg: #242526;
+    --table-header: #3a3b3c;
+    --nav-bg: #242526;
+    --tab-bg: #18191a;
+    --shadow: 0 10px 24px rgba(24, 119, 242, 0.12);
+    --input-bg: #242526;
+    --input-border: #3a3b3c;
 }
 
 body {
