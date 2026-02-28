@@ -50,11 +50,7 @@
                             <td>{{ allocation.allocated_at|date:"d/m/Y H:i" }}</td>
                             <td>{{ allocation.released_at|date:"d/m/Y H:i"|default:"—" }}</td>
                             <td>
-                                {% if allocation.is_active %}
-                                    <span class="badge bg-success">Ativa</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">Encerrada</span>
-                                {% endif %}
+                                <span class="badge bg-info">{{ allocation.phone_line.get_status_display }}</span>
                             </td>
                             <td class="text-end">
                                 <a href="{% url 'allocations:allocation_edit' allocation.pk %}" class="btn btn-outline-primary btn-sm">Editar</a>
