@@ -562,10 +562,26 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--text-main) !important;
 }
 
-.table tbody tr:hover td {
-    border-color: rgba(124, 58, 237, 0.35) !important;
+
+.users-auto-table {
+    width: auto;
+    table-layout: auto;
+    margin-bottom: 0;
 }
-`n
+
+.users-auto-table th,
+.users-auto-table td {
+    white-space: nowrap;
+}
+
+.users-auto-table th:nth-child(1),
+.users-auto-table td:nth-child(1) {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+
+
 
 .reveal-group .reveal-item {
     opacity: 0;
@@ -799,5 +815,7 @@ textarea:focus {
         display: none;
     }
 }
+
+
 
 
