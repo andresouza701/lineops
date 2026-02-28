@@ -57,11 +57,7 @@
                                 {% endif %}
                             </td>
                             <td class="text-end">
-                                {% if allocation.is_active %}
-                                    <a href="{% url 'allocations:allocation_edit' allocation.pk %}" class="btn btn-outline-primary btn-sm">Editar</a>
-                                {% else %}
-                                    <span class="text-muted">—</span>
-                                {% endif %}
+                                <a href="{% url 'allocations:allocation_edit' allocation.pk %}" class="btn btn-outline-primary btn-sm">Editar</a>
                             </td>
                         </tr>
                     {% empty %}
