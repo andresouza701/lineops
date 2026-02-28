@@ -10,45 +10,46 @@
     </div>
 </div>
 
-<div class="card shadow-sm mb-3">
-    <form method="get" class="card-body row g-3 align-items-end">
-        <div class="col-lg-6">
-            <label class="form-label mb-1">Nome</label>
-            <input type="text"
-                   name="name"
-                   class="form-control"
-                   placeholder="Ex.: Joao "
-                   value="{{ request.GET.name }}">
-        </div>
+<div class="users-page-shell">
+    <div class="card shadow-sm mb-3">
+        <form method="get" class="card-body row g-3 align-items-end">
+            <div class="col-lg-6">
+                <label class="form-label mb-1">Nome</label>
+                <input type="text"
+                    name="name"
+                    class="form-control"
+                    placeholder="Ex.: Joao "
+                    value="{{ request.GET.name }}">
+            </div>
 
-        <div class="col-lg-3">
-            <label class="form-label mb-1">Unidade</label>
-            <input type="text"
-                   name="team"
-                   class="form-control"
-                   placeholder="Ex.: Unidade"
-                   value="{{ request.GET.team }}">
-        </div>
+            <div class="col-lg-3">
+                <label class="form-label mb-1">Unidade</label>
+                <input type="text"
+                    name="team"
+                    class="form-control"
+                    placeholder="Ex.: Unidade"
+                    value="{{ request.GET.team }}">
+            </div>
 
-        <div class="col-lg-3">
-            <label class="form-label mb-1">Supervisor</label>
-            <input type="text"
-                   name="supervisor"
-                   class="form-control"
-                   placeholder="Ex.: email@supervisor.com"
-                   value="{{ request.GET.supervisor }}">
-        </div>
+            <div class="col-lg-3">
+                <label class="form-label mb-1">Supervisor</label>
+                <input type="text"
+                    name="supervisor"
+                    class="form-control"
+                    placeholder="Ex.: email@supervisor.com"
+                    value="{{ request.GET.supervisor }}">
+            </div>
 
-        <div class="d-flex justify-content-end gap-2 mt-2">
-            <button type="submit" class="btn btn-primary">Buscar</button>
-            <a href="{% url 'employees:employee_list' %}" class="btn btn-outline-secondary">Limpar filtro</a>
-        </div>
-    </form>
-</div>
+            <div class="d-flex justify-content-end gap-2 mt-2">
+                <button type="submit" class="btn btn-primary">Buscar</button>
+                <a href="{% url 'employees:employee_list' %}" class="btn btn-outline-secondary">Limpar filtro</a>
+            </div>
+        </form>
+    </div>
 
-<div class="card shadow-sm">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+    <div class="card shadow-sm">
+        <div class="table-responsive users-table-wrap">
+            <table class="table table-hover align-middle mb-0 users-table">
             <thead class="table-light">
                 <tr>
                     <th>Supervisor</th>
@@ -118,6 +119,7 @@
         </nav>
     {% endwith %}
 {% endif %}
+</div>
 {% endblock %}
 
 

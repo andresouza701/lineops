@@ -566,6 +566,34 @@ h1, h2, h3, h4, h5, h6 {
     border-color: rgba(124, 58, 237, 0.35) !important;
 }
 
+.users-page-shell {
+    width: 100%;
+    max-width: 1180px;
+    margin: 0 auto;
+}
+
+.users-table-wrap {
+    overflow-x: auto;
+}
+
+.users-table {
+    table-layout: auto;
+    width: 100%;
+}
+
+.users-table th,
+.users-table td {
+    white-space: nowrap;
+}
+
+.users-table th:nth-child(1),
+.users-table td:nth-child(1),
+.users-table th:nth-child(2),
+.users-table td:nth-child(2) {
+    white-space: normal;
+    word-break: break-word;
+}
+
 .reveal-group .reveal-item {
     opacity: 0;
     transform: translateY(8px);
@@ -706,6 +734,12 @@ textarea:focus {
     to {
         opacity: 1;
         transform: translateY(0);
+    }
+}
+
+@media (max-width: 1280px) {
+    .users-page-shell {
+        max-width: 100%;
     }
 }
 
