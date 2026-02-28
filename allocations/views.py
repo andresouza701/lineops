@@ -131,9 +131,10 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
             raise PermissionDenied("Acesso negado: funcao insuficiente.")
 
     def _allocations_qs(self):
-        return LineAllocation.objects.select_related("employee", "phone_line").order_by(
-            "-allocated_at"
-        )
+        # Atualiza para buscar phone_line com sim_card e status atualizado
+        return LineAllocation.objects.select_related(
+            "employee", "phone_line__sim_card", "phone_line"
+        ).order_by("-allocated_at")
 
     def _available_lines_qs(self):
         return PhoneLine.objects.filter(
