@@ -21,7 +21,7 @@ from core.mixins import RoleRequiredMixin, StandardPaginationMixin
 from users.models import SystemUser
 
 from .forms import PhoneLineForm
-from .models import PhoneLine, SIMcard
+from .models import PhoneLine, PhoneLineHistory, SIMcard
 
 
 class SIMCardFilterForm(forms.Form):
@@ -178,37 +178,22 @@ class PhoneLineHistoryView(RoleRequiredMixin, DetailView):
     model = PhoneLine
     template_name = "telecom/phoneline_history.html"
     context_object_name = "phone_line"
+    paginate_by = 50
 
     def get_queryset(self):
-        return PhoneLine.objects.filter(is_deleted=False).prefetch_related(
-            "allocations__employee", "allocations__allocated_by"
-        )
+        return PhoneLine.objects.filter(is_deleted=False).select_related("sim_card")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        allocations = (
-            LineAllocation.objects.filter(phone_line=context["phone_line"])
-            .select_related("employee", "allocated_by")
-            .order_by("-allocated_at")
+        # Consulta o histórico completo da linha
+        history = (
+            PhoneLineHistory.objects.filter(phone_line=context["phone_line"])
+            .select_related("changed_by")
+            .order_by("-changed_at")
         )
 
-        start_date = self.request.GET.get("start_date")
-        end_date = self.request.GET.get("end_date")
-
-        if start_date:
-            start_date_parsed = parse_date(start_date)
-            if start_date_parsed:
-                allocations = allocations.filter(
-                    allocated_at__date__gte=start_date_parsed
-                )
-        if end_date:
-            end_date_parsed = parse_date(end_date)
-            if end_date_parsed:
-                allocations = allocations.filter(
-                    allocated_at__date__lte=end_date_parsed
-                )
-        context["allocations"] = allocations
+        context["history"] = history
         return context
 
 

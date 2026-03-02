@@ -1,43 +1,112 @@
 {% extends "base/base.html" %}
 
-{% block title %}Histórico da Linha Telefônica{% endblock %}
+{% block title %}Histórico da Linha {{ phone_line.phone_number }}{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-        <h1 class="h3 mb-1">Histórico da linha {{ phone_line.phone_number }}</h1>
-        <p class="text-muted mb-0">Alocações de {{ phone_line.sim_card }} ordenadas por data.</p>
+        <h2 class="fw-semibold">Histórico da Linha</h2>
+        <p class="text-muted mb-0">{{ phone_line.phone_number }} - {{ phone_line.get_status_display }}</p>
+    </div>
+    <a href="{% url 'telecom:overview' %}" class="btn btn-outline-secondary">Voltar</a>
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+        <h6 class="text-uppercase text-muted small mb-2">Informações da Linha</h6>
+        <div class="row">
+            <div class="col-md-4">
+                <strong>Linha:</strong> {{ phone_line.phone_number }}
+            </div>
+            <div class="col-md-4">
+                <strong>ICCID:</strong> {{ phone_line.sim_card.iccid }}
+            </div>
+            <div class="col-md-4">
+                <strong>Operadora:</strong> {{ phone_line.sim_card.carrier }}
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="card shadow-sm">
-    <div class="card-body">
-        <ul class="list-group list-group-flush">
-            {% for allocation in allocations %}
-                <li class="list-group-item d-flex justify-content-between align-items-start">
-                    <div>
-                        <strong>{{ allocation.employee.full_name }}</strong>
-                        <div class="text-muted small">
-                            Alocada em {{ allocation.allocated_at }}
-                            {% if not allocation.is_active %}
-                                · encerrada em {{ allocation.released_at|default:"-" }}
-                            {% endif %}
-                        </div>
-                    </div>
-                    <span class="badge {% if allocation.is_active %}bg-success{% else %}bg-secondary{% endif %}">
-                        {% if allocation.is_active %}
-                            <i class="bi bi-check-circle-fill me-1"></i>Ativa
-                        {% else %}
-                            <i class="bi bi-dash-circle me-1"></i>Encerrada
-                        {% endif %}
-                    </span>
-                </li>
-            {% empty %}
-                <li class="list-group-item text-muted">
-                    Nenhuma alocação registrada para esta linha.
-                </li>
-            {% endfor %}
-        </ul>
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-transparent">
+        <h5 class="mb-0">Registro de Alterações</h5>
+    </div>
+    <div class="card-body p-0">
+        {% if history %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Data/Hora</th>
+                            <th>Ação</th>
+                            <th>Valor Anterior</th>
+                            <th>Novo Valor</th>
+                            <th>Alterado Por</th>
+                            <th>Descrição</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in history %}
+                            <tr>
+                                <td class="text-nowrap">{{ item.changed_at|date:"d/m/Y H:i:s" }}</td>
+                                <td>
+                                    {% if item.action == 'CREATED' %}
+                                        <span class="badge bg-success">{{ item.get_action_display }}</span>
+                                    {% elif item.action == 'STATUS_CHANGED' %}
+                                        <span class="badge bg-info">{{ item.get_action_display }}</span>
+                                    {% elif item.action == 'SIMCARD_CHANGED' %}
+                                        <span class="badge bg-warning">{{ item.get_action_display }}</span>
+                                    {% elif item.action == 'EMPLOYEE_CHANGED' %}
+                                        <span class="badge bg-primary">{{ item.get_action_display }}</span>
+                                    {% elif item.action == 'DELETED' %}
+                                        <span class="badge bg-danger">{{ item.get_action_display }}</span>
+                                    {% elif item.action == 'ALLOCATED' %}
+                                        <span class="badge" style="background-color: #2563eb;">{{ item.get_action_display }}</span>
+                                    {% elif item.action == 'RELEASED' %}
+                                        <span class="badge bg-secondary">{{ item.get_action_display }}</span>
+                                    {% else %}
+                                        <span class="badge bg-light text-dark">{{ item.get_action_display }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted small">{{ item.old_value|default:"—" }}</td>
+                                <td class="small">{{ item.new_value|default:"—" }}</td>
+                                <td class="text-muted small">{{ item.changed_by|default:"Sistema" }}</td>
+                                <td class="small">{{ item.description }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-5 text-muted">
+                <p>Nenhum histórico registrado para esta linha.</p>
+            </div>
+        {% endif %}
     </div>
 </div>
+
+{% if is_paginated %}
+    <nav class="mt-3" aria-label="Paginação do histórico">
+        <ul class="pagination justify-content-center mb-0">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                </li>
+            {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+                <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                </li>
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+{% endif %}
 {% endblock %}
