@@ -58,6 +58,32 @@ class TelephonyRegistrationFlowTests(TestCase):
         self.line.refresh_from_db()
         self.assertEqual(self.line.status, PhoneLine.Status.ALLOCATED)
 
+    def test_new_line_creation_flow_creates_sim_and_line_without_allocation(self):
+        response = self.client.post(
+            reverse("allocations:allocation_list"),
+            {
+                "action": "telephony",
+                "line_action": "new",
+                "phone_number": "+5511999990999",
+                "iccid": "8900000000000000999",
+                "carrier": "CarrierNew",
+            },
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        line = PhoneLine.objects.get(phone_number="+5511999990999")
+        self.assertEqual(line.status, PhoneLine.Status.AVAILABLE)
+        self.assertEqual(line.sim_card.iccid, "8900000000000000999")
+        self.assertFalse(LineAllocation.objects.filter(phone_line=line).exists())
+
+    def test_allocation_template_has_default_line_action_new(self):
+        response = self.client.get(reverse("allocations:allocation_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response, '<input type="hidden" name="line_action" value="new">', html=True
+        )
+
     def test_change_status_updates_line_when_no_active_allocation(self):
         response = self.client.post(
             reverse("allocations:allocation_list"),
