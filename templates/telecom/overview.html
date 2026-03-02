@@ -30,6 +30,34 @@
             <span class="text-muted small">Total: {{ allocations|length }}</span>
         </div>
 
+        <form method="get" class="row g-2 align-items-end mb-3">
+            <div class="col-md-4">
+                <label class="form-label mb-1">Linha</label>
+                <input
+                    type="text"
+                    name="line"
+                    class="form-control"
+                    placeholder="Ex.: +5511..."
+                    value="{{ allocation_line_filter }}"
+                >
+            </div>
+            <div class="col-md-4">
+                <label class="form-label mb-1">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">Todos</option>
+                    {% for value, label in allocation_status_choices %}
+                        <option value="{{ value }}" {% if allocation_status_filter == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Filtrar</button>
+                <a href="{% url 'telecom:overview' %}" class="btn btn-outline-secondary">Limpar</a>
+            </div>
+        </form>
+
         <div class="table-responsive">
             <table class="table table-striped table-hover align-middle">
                 <thead class="table-light">
@@ -78,7 +106,7 @@
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="5" class="text-center">Nenhuma alocaÃ§Ã£o cadastrada.</td>
+                            <td colspan="6" class="text-center">Nenhuma alocacao cadastrada.</td>
                         </tr>
                     {% endfor %}
                 </tbody>

@@ -143,7 +143,7 @@ class PhoneLineCreateView(RoleRequiredMixin, CreateView):
     success_url = reverse_lazy("telecom:phoneline_list")
 
     def form_valid(self, form):
-        messages.success(self.request, "Linha telefônica criada com sucesso.")
+        messages.success(self.request, "Linha telefÃ´nica criada com sucesso.")
         return super().form_valid(form)
 
 
@@ -155,7 +155,7 @@ class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
     success_url = reverse_lazy("telecom:phoneline_list")
 
     def form_valid(self, form):
-        messages.success(self.request, "Linha telefônica atualizada com sucesso.")
+        messages.success(self.request, "Linha telefÃ´nica atualizada com sucesso.")
         return super().form_valid(form)
 
     def get_queryset(self):
@@ -169,7 +169,7 @@ class PhoneLineDeleteView(RoleRequiredMixin, View):
         phone_line = get_object_or_404(PhoneLine, pk=pk, is_deleted=False)
         phone_line.is_deleted = True
         phone_line.save(update_fields=["is_deleted"])
-        messages.success(request, "Linha telefônica excluída com sucesso.")
+        messages.success(request, "Linha telefÃ´nica excluÃ­da com sucesso.")
         return redirect("telecom:phoneline_list")
 
 
@@ -186,7 +186,7 @@ class PhoneLineHistoryView(RoleRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        # Consulta o histórico completo da linha
+        # Consulta o histÃ³rico completo da linha
         history = (
             PhoneLineHistory.objects.filter(phone_line=context["phone_line"])
             .select_related("changed_by")
@@ -223,10 +223,29 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
                 Q(phone_number__icontains=search) | Q(sim_card__iccid__icontains=search)
             )
         context["phone_lines"] = lines_qs
-        # Adiciona as alocações recentes (últimas 10)
-        context["allocations"] = LineAllocation.objects.select_related(
+
+        line_filter = self.request.GET.get("line", "").strip()
+        status_filter = self.request.GET.get("status", "").strip()
+        valid_statuses = {choice[0] for choice in PhoneLine.Status.choices}
+
+        allocations_qs = LineAllocation.objects.select_related(
             "employee", "phone_line"
-        ).order_by("-allocated_at")[:10]
+        ).order_by("-allocated_at")
+
+        if line_filter:
+            allocations_qs = allocations_qs.filter(
+                phone_line__phone_number__icontains=line_filter
+            )
+
+        if status_filter in valid_statuses:
+            allocations_qs = allocations_qs.filter(phone_line__status=status_filter)
+        else:
+            status_filter = ""
+
+        context["allocations"] = allocations_qs[:50]
+        context["allocation_line_filter"] = line_filter
+        context["allocation_status_filter"] = status_filter
+        context["allocation_status_choices"] = PhoneLine.Status.choices
         context.update(self._line_status_summary(counts))
         return context
 
@@ -240,7 +259,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         boxes = [
             {
                 "value": PhoneLine.Status.AVAILABLE,
-                "label": "Disponíveis",
+                "label": "DisponÃ­veis",
                 "description": "Prontas para novos colaboradores",
                 "variant": "success",
             },
@@ -322,10 +341,10 @@ class ExportPhoneLinesCSVView(RoleRequiredMixin, View):
                 "ICCID",
                 "Status",
                 "Colaborador",
-                "Matrícula",
+                "MatrÃ­cula",
                 "Alocado por",
-                "Data alocação",
-                "Data liberação",
+                "Data alocaÃ§Ã£o",
+                "Data liberaÃ§Ã£o",
                 "Ativa",
             ]
         )
@@ -341,7 +360,7 @@ class ExportPhoneLinesCSVView(RoleRequiredMixin, View):
                     allocation.allocated_by.email if allocation.allocated_by else "N/A",
                     allocation.allocated_at,
                     allocation.released_at or "",
-                    "Sim" if allocation.is_active else "Não",
+                    "Sim" if allocation.is_active else "NÃ£o",
                 ]
             )
 
