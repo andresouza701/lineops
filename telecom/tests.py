@@ -1,92 +1,201 @@
-from django.db import connection
 from django.test import TestCase
-from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
 from core.services.allocation_service import AllocationService
 from employees.models import Employee
-from telecom.models import PhoneLine, SIMcard
+from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
 
 
-class PhoneLineHistoryViewTest(TestCase):
+class PhoneLineHistoryAuditTest(TestCase):
     def setUp(self):
         self.admin = SystemUser.objects.create_user(
-            email="admin2@test.com", password="123456", role=SystemUser.Role.ADMIN
+            email="audit.admin@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
         )
+        self.operator = SystemUser.objects.create_user(
+            email="audit.operator@test.com",
+            password="123456",
+            role=SystemUser.Role.OPERATOR,
+        )
+
         self.client.force_login(self.admin)
 
-        self.employee = Employee.objects.create(
-            full_name="History User",
-            corporate_email="history@corp.com",
+        self.employee_a = Employee.objects.create(
+            full_name="Employee A",
+            corporate_email="supa@corp.com",
             employee_id="EMP100",
-            teams="IT",
+            teams="Joinville",
         )
-
-        self.sim = SIMcard.objects.create(iccid="777", carrier="CarrierX")
-        self.phone_line = PhoneLine.objects.create(
-            phone_number="555123", sim_card=self.sim
-        )
-
-        self.first_allocation = AllocationService.allocate_line(
-            employee=self.employee, phone_line=self.phone_line, allocated_by=self.admin
-        )
-        AllocationService.release_line(self.first_allocation, released_by=self.admin)
-
-        self.second_allocation = AllocationService.allocate_line(
-            employee=self.employee, phone_line=self.phone_line, allocated_by=self.admin
-        )
-
-    def test_phone_line_history_returns_all_allocations(self):
-        url = reverse("telecom:phoneline_history", args=[self.phone_line.pk])
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, 200)
-        allocations = list(response.context["allocations"])
-        self.assertEqual(len(allocations), 2)
-        self.assertIn(self.employee.full_name, response.content.decode())
-        self.assertEqual(
-            {allocation.pk for allocation in allocations},
-            {self.first_allocation.pk, self.second_allocation.pk},
-        )
-
-    def test_phone_line_history_avoid_n_plus_one(self):
-        url = reverse("telecom:phoneline_history", args=[self.phone_line.pk])
-
-        with CaptureQueriesContext(connection) as queries:
-            self.client.get(url)
-
-        self.assertLessEqual(len(queries), 10)
-
-    def test_filter_phone_line_history_by_period(self):
-        admin = SystemUser.objects.create_user(
-            email="admin3@test.com", password="123456", role="ADMIN"
-        )
-
-        employee = Employee.objects.create(
-            full_name="Filter User",
-            corporate_email="filter@corp.com",
+        self.employee_b = Employee.objects.create(
+            full_name="Employee B",
+            corporate_email="supb@corp.com",
             employee_id="EMP200",
-            teams="IT",
+            teams="Araquari",
         )
 
-        sim = SIMcard.objects.create(iccid="555", carrier="CarrierX")
-        line = PhoneLine.objects.create(phone_number="444555", sim_card=sim)
+        self.sim_a = SIMcard.objects.create(
+            iccid="8900000000000000101",
+            carrier="CarrierA",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.sim_b = SIMcard.objects.create(
+            iccid="8900000000000000202",
+            carrier="CarrierB",
+            status=SIMcard.Status.AVAILABLE,
+        )
 
+        create_url = reverse("telecom:phoneline_create")
+        response = self.client.post(
+            create_url,
+            data={
+                "phone_number": "+551199999111",
+                "sim_card": self.sim_a.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.phone_line = PhoneLine.objects.get(phone_number="+551199999111")
+
+    def test_action_types_has_all_required_actions(self):
+        expected = {
+            "CREATED",
+            "STATUS_CHANGED",
+            "SIMCARD_CHANGED",
+            "EMPLOYEE_CHANGED",
+            "DELETED",
+            "ALLOCATED",
+            "RELEASED",
+        }
+        current = {choice[0] for choice in PhoneLineHistory.ActionType.choices}
+        self.assertEqual(current, expected)
+
+    def test_signals_register_all_required_history_actions(self):
         allocation = AllocationService.allocate_line(
-            employee=employee, phone_line=line, allocated_by=admin
+            employee=self.employee_a,
+            phone_line=self.phone_line,
+            allocated_by=self.admin,
         )
 
-        allocation_date = timezone.localtime(allocation.allocated_at).date().isoformat()
+        edit_url = reverse("allocations:allocation_edit", args=[allocation.pk])
+        response = self.client.post(
+            edit_url,
+            data={
+                "action": "save",
+                "status": PhoneLine.Status.SUSPENDED,
+                "employee": self.employee_b.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        allocation.refresh_from_db()
+        self.phone_line.refresh_from_db()
+        self.assertEqual(allocation.employee_id, self.employee_b.pk)
+        self.assertEqual(self.phone_line.status, PhoneLine.Status.SUSPENDED)
 
-        self.client.force_login(admin)
+        update_url = reverse("telecom:phoneline_update", args=[self.phone_line.pk])
+        response = self.client.post(
+            update_url,
+            data={
+                "phone_number": self.phone_line.phone_number,
+                "sim_card": self.sim_b.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
 
-        url = reverse("telecom:phoneline_history", args=[line.pk])
-        response = self.client.get(f"{url}?start_date={allocation_date}")
+        release_url = reverse("allocations:allocation_edit", args=[allocation.pk])
+        response = self.client.post(release_url, data={"action": "release"})
+        self.assertEqual(response.status_code, 302)
 
+        delete_url = reverse("telecom:phoneline_delete", args=[self.phone_line.pk])
+        response = self.client.post(delete_url)
+        self.assertEqual(response.status_code, 302)
+
+        actions = set(
+            PhoneLineHistory.objects.filter(phone_line=self.phone_line).values_list(
+                "action", flat=True
+            )
+        )
+        self.assertTrue(
+            {
+                PhoneLineHistory.ActionType.CREATED,
+                PhoneLineHistory.ActionType.STATUS_CHANGED,
+                PhoneLineHistory.ActionType.SIMCARD_CHANGED,
+                PhoneLineHistory.ActionType.EMPLOYEE_CHANGED,
+                PhoneLineHistory.ActionType.DELETED,
+                PhoneLineHistory.ActionType.ALLOCATED,
+                PhoneLineHistory.ActionType.RELEASED,
+            }.issubset(actions)
+        )
+
+        status_event = PhoneLineHistory.objects.filter(
+            phone_line=self.phone_line,
+            action=PhoneLineHistory.ActionType.STATUS_CHANGED,
+        ).first()
+        self.assertIsNotNone(status_event)
+        self.assertEqual(status_event.changed_by, self.admin)
+
+        sim_event = PhoneLineHistory.objects.filter(
+            phone_line=self.phone_line,
+            action=PhoneLineHistory.ActionType.SIMCARD_CHANGED,
+        ).first()
+        self.assertIsNotNone(sim_event)
+        self.assertEqual(sim_event.changed_by, self.admin)
+
+        employee_event = PhoneLineHistory.objects.filter(
+            phone_line=self.phone_line,
+            action=PhoneLineHistory.ActionType.EMPLOYEE_CHANGED,
+        ).first()
+        self.assertIsNotNone(employee_event)
+        self.assertEqual(employee_event.changed_by, self.admin)
+
+        deleted_event = PhoneLineHistory.objects.filter(
+            phone_line=self.phone_line,
+            action=PhoneLineHistory.ActionType.DELETED,
+        ).first()
+        self.assertIsNotNone(deleted_event)
+        self.assertEqual(deleted_event.changed_by, self.admin)
+
+        allocated_event = PhoneLineHistory.objects.filter(
+            phone_line=self.phone_line,
+            action=PhoneLineHistory.ActionType.ALLOCATED,
+        ).first()
+        self.assertIsNotNone(allocated_event)
+        self.assertEqual(allocated_event.changed_by, self.admin)
+
+        released_event = PhoneLineHistory.objects.filter(
+            phone_line=self.phone_line,
+            action=PhoneLineHistory.ActionType.RELEASED,
+        ).first()
+        self.assertIsNotNone(released_event)
+        self.assertEqual(released_event.changed_by, self.admin)
+
+    def test_history_view_admin_only(self):
+        url = reverse("telecom:phoneline_history", args=[self.phone_line.pk])
+
+        self.client.force_login(self.operator)
+        denied = self.client.get(url)
+        self.assertEqual(denied.status_code, 403)
+
+        self.client.force_login(self.admin)
+        ok = self.client.get(url)
+        self.assertEqual(ok.status_code, 200)
+        self.assertIn("history", ok.context)
+
+    def test_overview_shows_history_button_for_admin(self):
+        allocation = AllocationService.allocate_line(
+            employee=self.employee_a,
+            phone_line=self.phone_line,
+            allocated_by=self.admin,
+        )
+
+        response = self.client.get(reverse("telecom:overview"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Filter User")
+        self.assertContains(response, "bi bi-clock-history")
+        self.assertContains(
+            response,
+            reverse("telecom:phoneline_history", args=[allocation.phone_line.pk]),
+        )
 
 
 class ExportPhoneLineHistoryTest(TestCase):
