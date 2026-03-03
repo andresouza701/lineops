@@ -2,6 +2,7 @@ import csv
 
 from django import forms
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -214,38 +215,30 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         context["cancelled_lines"] = counts.get(PhoneLine.Status.CANCELLED, 0)
         context["blocked_lines"] = counts.get(PhoneLine.Status.SUSPENDED, 0)
 
-        search = self.request.GET.get("search", "").strip()
-        context["search_query"] = search
-
-        lines_qs = base_lines.select_related("sim_card").order_by("phone_number")
-        if search:
-            lines_qs = lines_qs.filter(
-                Q(phone_number__icontains=search) | Q(sim_card__iccid__icontains=search)
-            )
-        context["phone_lines"] = lines_qs
-
         line_filter = self.request.GET.get("line", "").strip()
         status_filter = self.request.GET.get("status", "").strip()
         valid_statuses = {choice[0] for choice in PhoneLine.Status.choices}
 
-        allocations_qs = LineAllocation.objects.select_related(
-            "employee", "phone_line"
-        ).order_by("-allocated_at")
+        # Consultar todas as linhas com filtros
+        lines_qs = base_lines.select_related("sim_card").order_by("phone_number")
 
         if line_filter:
-            allocations_qs = allocations_qs.filter(
-                phone_line__phone_number__icontains=line_filter
-            )
+            lines_qs = lines_qs.filter(phone_number__icontains=line_filter)
 
         if status_filter in valid_statuses:
-            allocations_qs = allocations_qs.filter(phone_line__status=status_filter)
+            lines_qs = lines_qs.filter(status=status_filter)
         else:
             status_filter = ""
 
-        context["allocations"] = allocations_qs[:50]
-        context["allocation_line_filter"] = line_filter
-        context["allocation_status_filter"] = status_filter
-        context["allocation_status_choices"] = PhoneLine.Status.choices
+        # Paginar as linhas (10 por página)
+        paginator = Paginator(lines_qs, 10)
+        page_number = self.request.GET.get("page", 1)
+        lines_page = paginator.get_page(page_number)
+
+        context["lines_page"] = lines_page
+        context["line_filter"] = line_filter
+        context["status_filter"] = status_filter
+        context["status_choices"] = PhoneLine.Status.choices
         context.update(self._line_status_summary(counts))
         return context
 
