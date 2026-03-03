@@ -74,6 +74,11 @@
                 {{ form.status }}
             </div>
 
+            <div class="mb-3">
+                <label class="form-label">PA <span class="text-muted">(opcional)</span></label>
+                {{ form.pa }}
+            </div>
+
             <button type="submit" class="btn btn-primary">
                 {% if object %}Atualizar{% else %}Salvar{% endif %}
             </button>

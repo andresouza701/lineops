@@ -36,6 +36,13 @@ class Employee(models.Model):
     status = models.CharField(
         max_length=10, choices=Status.choices, default=Status.INACTIVE, db_index=True
     )
+    pa = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name="PA",
+        help_text="Preenchimento opcional",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

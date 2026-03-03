@@ -6,7 +6,14 @@ from .models import Employee
 class EmployeeForm(forms.ModelForm):
     class Meta:
         model = Employee
-        fields = ["full_name", "corporate_email", "employee_id", "teams", "status"]
+        fields = [
+            "full_name",
+            "corporate_email",
+            "employee_id",
+            "teams",
+            "status",
+            "pa",
+        ]
 
     def clean(self):
         cleaned_data = super().clean()
