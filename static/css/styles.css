@@ -586,6 +586,12 @@ h1, h2, h3, h4, h5, h6 {
     margin: 0 auto;
 }
 
+.telecom-content-shell {
+    width: 100%;
+    max-width: calc(100vw - 140px);
+    margin: 0 auto;
+}
+
 .telecom-list-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -619,7 +625,6 @@ h1, h2, h3, h4, h5, h6 {
 
 .telecom-table-wrap {
     width: 100%;
-    max-width: calc(100vw - 140px);
     overflow-x: auto;
 }
 
@@ -628,7 +633,7 @@ h1, h2, h3, h4, h5, h6 {
         max-width: 100%;
     }
 
-    .telecom-table-wrap {
+    .telecom-content-shell {
         max-width: calc(100vw - 2rem);
     }
 }
@@ -888,6 +893,5 @@ textarea:focus {
         display: none;
     }
 }
-
 
 
