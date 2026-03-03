@@ -14,30 +14,17 @@
             <select name="status" class="form-select">
                 <option value="">Todos</option>
                 {% for value, label in form.status.field.choices %}
-                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>
-                        {{ label }}
-                    </option>
+                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
         </div>
-
         <div class="telecom-filter-item telecom-filter-search">
             <label class="form-label">Busca</label>
-            <input type="text"
-                   name="search"
-                   class="form-control"
-                   placeholder="Buscar por ICCID"
-                   aria-label="Buscar por ICCID"
-                   value="{{ search_query }}">
+            <input type="text" name="search" class="form-control" placeholder="Buscar por ICCID" aria-label="Buscar por ICCID" value="{{ search_query }}">
         </div>
-
         <div class="telecom-filter-actions">
-            <button type="submit" class="btn btn-primary">
-                Filtrar
-            </button>
-            <a class="btn btn-outline-secondary" href="{% url 'telecom:simcard_list' %}">
-                Limpar
-            </a>
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            <a class="btn btn-outline-secondary" href="{% url 'telecom:simcard_list' %}">Limpar</a>
         </div>
     </form>
 
@@ -56,42 +43,22 @@
                     <tr>
                         <td>{{ sim.iccid }}</td>
                         <td>{{ sim.carrier }}</td>
-                        <td>
-                            {% if sim.status == 'ACTIVE' %}
-                                <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Ativo</span>
-                            {% elif sim.status == 'AVAILABLE' %}
-                                <span class="badge bg-primary"><i class="bi bi-circle me-1"></i>Disponível</span>
-                            {% elif sim.status == 'SUSPENDED' %}
-                                <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle-fill me-1"></i>Suspenso</span>
-                            {% elif sim.status == 'CANCELLED' %}
-                                <span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Cancelado</span>
-                            {% else %}
-                                <span class="badge bg-secondary">{{ sim.get_status_display }}</span>
-                            {% endif %}
-                        </td>
+                        <td>{{ sim.get_status_display }}</td>
                         <td>{{ sim.activated_at|date:"d/m/Y H:i"|default:"—" }}</td>
                     </tr>
                 {% empty %}
-                    <tr id="simcard-no-data">
-                        <td colspan="4" class="text-center">Nenhum SIM Card registrado.</td>
-                    </tr>
+                    <tr id="simcard-no-data"><td colspan="4" class="text-center">Nenhum SIM Card registrado.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
         <div class="text-center py-2">
-            <button id="simcard-load-more" type="button" class="btn btn-outline-primary btn-sm" style="display: none;">
-                Carregar mais
-            </button>
+            <button id="simcard-load-more" type="button" class="btn btn-outline-primary btn-sm" style="display: none;">Carregar mais</button>
         </div>
         <div id="simcard-loading" class="text-center py-3" style="display: none;">
-            <div class="spinner-border spinner-border-sm text-primary" role="status">
-                <span class="visually-hidden">Carregando...</span>
-            </div>
+            <div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">Carregando...</span></div>
             <span class="ms-2 text-muted">Carregando mais SIMCards...</span>
         </div>
-        <div id="simcard-no-more" class="text-center py-3 text-muted" style="display: none;">
-            Todos os SIMCards foram carregados
-        </div>
+        <div id="simcard-no-more" class="text-center py-3 text-muted" style="display: none;">Todos os SIMCards foram carregados</div>
     </div>
 </div>
 {% endblock %}
@@ -111,30 +78,9 @@ document.addEventListener('DOMContentLoaded', function () {
         isLoading: false
     };
 
-    function statusBadge(status, statusDisplay) {
-        if (status === 'ACTIVE') {
-            return '<span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Ativo</span>';
-        }
-        if (status === 'AVAILABLE') {
-            return '<span class="badge bg-primary"><i class="bi bi-circle me-1"></i>Disponível</span>';
-        }
-        if (status === 'SUSPENDED') {
-            return '<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle-fill me-1"></i>Suspenso</span>';
-        }
-        if (status === 'CANCELLED') {
-            return '<span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Cancelado</span>';
-        }
-        return `<span class="badge bg-secondary">${statusDisplay}</span>`;
-    }
-
     function createRow(sim) {
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${sim.iccid}</td>
-            <td>${sim.carrier}</td>
-            <td>${statusBadge(sim.status, sim.status_display)}</td>
-            <td>${sim.activated_at || '—'}</td>
-        `;
+        tr.innerHTML = `<td>${sim.iccid}</td><td>${sim.carrier}</td><td>${sim.status_display}</td><td>${sim.activated_at || '—'}</td>`;
         return tr;
     }
 
@@ -142,34 +88,23 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!table.hasMore || table.isLoading) return;
         table.isLoading = true;
         table.loading.style.display = 'block';
-
+        table.loadMoreBtn.disabled = true;
         try {
             const params = new URLSearchParams();
             params.append('offset', table.offset);
             params.append('limit', table.limit);
-
             const search = '{{ search_query|escapejs }}';
             const status = '{{ status_filter|escapejs }}';
             if (search) params.append('search', search);
             if (status) params.append('status', status);
-
-            const response = await fetch(`?${params.toString()}`, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
+            const response = await fetch(`?${params.toString()}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
             if (!response.ok) throw new Error('Falha ao carregar SIMCards');
-
             const data = await response.json();
             if (table.noData) {
                 table.noData.remove();
                 table.noData = null;
             }
-
-            data.data.forEach((sim) => {
-                table.tbody.appendChild(createRow(sim));
-            });
-
+            data.data.forEach((sim) => table.tbody.appendChild(createRow(sim)));
             table.offset = data.offset;
             table.hasMore = data.has_more;
             if (!table.hasMore) {
@@ -180,6 +115,7 @@ document.addEventListener('DOMContentLoaded', function () {
             console.error(error);
         } finally {
             table.loading.style.display = 'none';
+            table.loadMoreBtn.disabled = false;
             table.isLoading = false;
         }
     }
@@ -189,10 +125,7 @@ document.addEventListener('DOMContentLoaded', function () {
     } else if (table.offset > 0) {
         table.noMore.style.display = 'block';
     }
-
-    table.loadMoreBtn.addEventListener('click', () => {
-        loadMore();
-    });
+    table.loadMoreBtn.addEventListener('click', () => loadMore());
 });
 </script>
 {% endblock %}

@@ -46,151 +46,15 @@
                     <tr>
                         <td>{{ line.phone_number }}</td>
                         <td>{{ line.sim_card.iccid }}</td>
-                        <td>
-                            {% if line.active_allocations %}
-                                {{ line.active_allocations.0.employee.full_name }}
-                            {% else %}
-                                <span class="text-muted">Sem vínculo</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if line.status == 'ACTIVE' %}
-                                <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Ativa</span>
-                            {% elif line.status == 'AVAILABLE' %}
-                                <span class="badge bg-primary"><i class="bi bi-circle me-1"></i>Disponível</span>
-                            {% elif line.status == 'SUSPENDED' %}
-                                <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle-fill me-1"></i>Suspensa</span>
-                            {% elif line.status == 'CANCELLED' %}
-                                <span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Cancelada</span>
-                            {% else %}
-                                <span class="badge bg-secondary">{{ line.get_status_display }}</span>
-                            {% endif %}
-                        </td>
+                        <td>{% if line.active_allocations %}{{ line.active_allocations.0.employee.full_name }}{% else %}<span class="text-muted">Sem vínculo</span>{% endif %}</td>
+                        <td>{{ line.get_status_display }}</td>
                         <td>{{ line.activated_at|date:"d/m/Y"|default:"—" }}</td>
                     </tr>
                 {% empty %}
-                    <tr id="phoneline-no-data">
-                        <td colspan="5" class="text-center">Nenhuma linha cadastrada.</td>
-                    </tr>
+                    <tr id="phoneline-no-data"><td colspan="5" class="text-center">Nenhuma linha cadastrada.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
-        <div id="phoneline-sentinel" style="height: 1px;"></div>
-        <div id="phoneline-loading" class="text-center py-3" style="display: none;">
-            <div class="spinner-border spinner-border-sm text-primary" role="status">
-                <span class="visually-hidden">Carregando...</span>
-            </div>
-            <span class="ms-2 text-muted">Carregando mais linhas...</span>
-        </div>
-        <div id="phoneline-no-more" class="text-center py-3 text-muted" style="display: none;">
-            Todas as linhas foram carregadas
-        </div>
     </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const table = {
-        tbody: document.getElementById('phoneline-table-body'),
-        loading: document.getElementById('phoneline-loading'),
-        noMore: document.getElementById('phoneline-no-more'),
-        noData: document.getElementById('phoneline-no-data'),
-        sentinel: document.getElementById('phoneline-sentinel'),
-        offset: {{ initial_lines|length }},
-        limit: 10,
-        hasMore: {% if has_more_lines %}true{% else %}false{% endif %},
-        isLoading: false
-    };
-
-    function statusBadge(status, statusDisplay) {
-        if (status === 'ACTIVE') {
-            return '<span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Ativa</span>';
-        }
-        if (status === 'AVAILABLE') {
-            return '<span class="badge bg-primary"><i class="bi bi-circle me-1"></i>Disponível</span>';
-        }
-        if (status === 'SUSPENDED') {
-            return '<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle-fill me-1"></i>Suspensa</span>';
-        }
-        if (status === 'CANCELLED') {
-            return '<span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Cancelada</span>';
-        }
-        return `<span class="badge bg-secondary">${statusDisplay}</span>`;
-    }
-
-    function createRow(line) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${line.phone_number}</td>
-            <td>${line.iccid}</td>
-            <td>${line.employee || '<span class="text-muted">Sem vínculo</span>'}</td>
-            <td>${statusBadge(line.status, line.status_display)}</td>
-            <td>${line.activated_at || '—'}</td>
-        `;
-        return tr;
-    }
-
-    async function loadMore() {
-        if (!table.hasMore || table.isLoading) return;
-        table.isLoading = true;
-        table.loading.style.display = 'block';
-
-        try {
-            const params = new URLSearchParams();
-            params.append('offset', table.offset);
-            params.append('limit', table.limit);
-
-            const search = '{{ search_query|escapejs }}';
-            const status = '{{ status_filter|escapejs }}';
-            if (search) params.append('search', search);
-            if (status) params.append('status', status);
-
-            const response = await fetch(`?${params.toString()}`, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-            if (!response.ok) throw new Error('Falha ao carregar linhas');
-
-            const data = await response.json();
-            if (table.noData) {
-                table.noData.remove();
-                table.noData = null;
-            }
-
-            data.data.forEach((line) => {
-                table.tbody.appendChild(createRow(line));
-            });
-
-            table.offset = data.offset;
-            table.hasMore = data.has_more;
-            if (!table.hasMore) {
-                table.noMore.style.display = 'block';
-            }
-        } catch (error) {
-            console.error(error);
-        } finally {
-            table.loading.style.display = 'none';
-            table.isLoading = false;
-        }
-    }
-
-    if (!table.hasMore) {
-        table.noMore.style.display = table.offset > 0 ? 'block' : 'none';
-        return;
-    }
-
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-                loadMore();
-            }
-        });
-    }, { root: null, rootMargin: '120px', threshold: 0 });
-
-    observer.observe(table.sentinel);
-});
-</script>
 {% endblock %}

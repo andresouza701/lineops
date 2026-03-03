@@ -9,9 +9,7 @@
     {% else %}
         <h2 class="fw-semibold">Nova Linha</h2>
     {% endif %}
-    <a href="{% url 'telecom:overview' %}" class="btn btn-outline-secondary">
-        Voltar
-    </a>
+    <a href="{% url 'telecom:overview' %}" class="btn btn-outline-secondary">Voltar</a>
 </div>
 
 <div class="row g-3">
@@ -49,13 +47,9 @@
                     {% endif %}
 
                     <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">
-                            {% if object %}Atualizar{% else %}Salvar{% endif %}
-                        </button>
+                        <button type="submit" class="btn btn-primary">{% if object %}Atualizar{% else %}Salvar{% endif %}</button>
                         {% if object %}
-                            <button type="submit" name="action" value="release_line" class="btn btn-outline-danger">
-                                Liberar
-                            </button>
+                            <button type="submit" name="action" value="release_line" class="btn btn-outline-danger">Liberar</button>
                         {% endif %}
                     </div>
                 </form>
@@ -71,13 +65,10 @@
                     <dl class="row mb-0">
                         <dt class="col-5">Status</dt>
                         <dd class="col-7">{{ object.get_status_display }}</dd>
-
                         <dt class="col-5">ICCID atual</dt>
                         <dd class="col-7">{{ object.sim_card.iccid|default:"-" }}</dd>
-
                         <dt class="col-5">Operadora</dt>
                         <dd class="col-7">{{ object.sim_card.carrier|default:"-" }}</dd>
-
                         <dt class="col-5">Usuário vinculado</dt>
                         <dd class="col-7">
                             {% if active_allocation %}
@@ -86,10 +77,8 @@
                                 <span class="text-muted">Sem vínculo</span>
                             {% endif %}
                         </dd>
-
                         <dt class="col-5">Ativada em</dt>
                         <dd class="col-7">{{ object.activated_at|date:"d/m/Y H:i"|default:"-" }}</dd>
-
                         <dt class="col-5">Atualizada em</dt>
                         <dd class="col-7">{{ object.updated_at|date:"d/m/Y H:i"|default:"-" }}</dd>
                     </dl>
