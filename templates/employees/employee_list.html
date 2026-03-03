@@ -62,6 +62,7 @@
                             <th>Supervisor</th>
                             <th>Nome</th>
                             <th>Carteira</th>
+                            <th>PA</th>
                             <th>Equipe</th>
                             <th>Status</th>
                             <th class="text-end">Ações</th>
@@ -73,6 +74,7 @@
                                 <td>{{ employee.corporate_email }}</td>
                                 <td>{{ employee.full_name }}</td>
                                 <td>{{ employee.employee_id }}</td>
+                                <td>{{ employee.pa|default:"-" }}</td>
                                 <td>{{ employee.teams }}</td>
                                 <td>
                                     {% if employee.status == 'active' %}
@@ -98,7 +100,7 @@
                             </tr>
                         {% empty %}
                             <tr id="no-data-employees">
-                                <td colspan="6" class="text-center text-muted">Nenhum usuário encontrado.</td>
+                                <td colspan="7" class="text-center text-muted">Nenhum usuário encontrado.</td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -179,6 +181,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <td>${employee.corporate_email}</td>
             <td>${employee.full_name}</td>
             <td>${employee.employee_id}</td>
+            <td>${employee.pa || '-'}</td>
             <td>${employee.teams}</td>
             <td>${renderStatus(employee.status)}</td>
             <td class=\"text-end\">${actionsHtml}</td>

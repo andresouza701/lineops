@@ -44,6 +44,7 @@ class EmployeeListView(RoleRequiredMixin, ListView):
                     "corporate_email": emp.corporate_email,
                     "full_name": emp.full_name,
                     "employee_id": emp.employee_id,
+                    "pa": emp.pa or "",
                     "teams": emp.teams,
                     "status": emp.status,
                     "edit_url": f"/employees/{emp.pk}/update/",
