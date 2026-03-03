@@ -112,19 +112,21 @@
         <div class="card-body">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-3">
                 <h5 class="mb-0">Ações recentes</h5>
-                <form method="get" class="telecom-filter-form">
-                    <div class="telecom-filter-item telecom-filter-search">
-                        <label class="form-label mb-1">Busca</label>
-                        <input type="search" name="search" class="form-control form-control-sm" placeholder="Número ou ICCID" value="{{ search_query }}">
-                    </div>
-                    <div class="telecom-filter-item">
-                        <label class="form-label mb-1">Status</label>
-                        <select name="status_recent" class="form-select form-select-sm">
-                            <option value="">Todos</option>
-                            {% for value, label in status_choices %}
-                                <option value="{{ value }}" {% if status_filter_recent == value %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
+                <form method="get" class="telecom-filter-form telecom-filter-form-recent">
+                    <div class="telecom-filter-pair">
+                        <div class="telecom-filter-item telecom-filter-search">
+                            <label class="form-label mb-1">Busca</label>
+                            <input type="search" name="search" class="form-control form-control-sm" placeholder="Número ou ICCID" value="{{ search_query }}">
+                        </div>
+                        <div class="telecom-filter-item">
+                            <label class="form-label mb-1">Status</label>
+                            <select name="status_recent" class="form-select form-select-sm">
+                                <option value="">Todos</option>
+                                {% for value, label in status_choices %}
+                                    <option value="{{ value }}" {% if status_filter_recent == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
                     <div class="telecom-filter-actions">
                         <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>

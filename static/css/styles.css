@@ -623,6 +623,21 @@ h1, h2, h3, h4, h5, h6 {
     gap: 0.5rem;
 }
 
+.telecom-filter-form-recent {
+    align-items: flex-end;
+}
+
+.telecom-filter-pair {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+    flex-wrap: nowrap;
+}
+
+.telecom-filter-form-recent .telecom-filter-search {
+    min-width: 260px;
+}
+
 .telecom-table-wrap {
     width: 100%;
     overflow-x: auto;
@@ -887,6 +902,11 @@ textarea:disabled {
 
     .telecom-filter-actions .btn {
         flex: 1 1 0;
+    }
+
+    .telecom-filter-pair {
+        width: 100%;
+        flex-wrap: wrap;
     }
 }
 
