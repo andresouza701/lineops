@@ -170,6 +170,29 @@ class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
     success_url = reverse_lazy("telecom:phoneline_list")
 
     @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+
+        if request.POST.get("action") == "release_line":
+            active_allocation = (
+                LineAllocation.objects.select_related("employee")
+                .filter(phone_line=self.object, is_active=True)
+                .first()
+            )
+
+            if active_allocation:
+                AllocationService.release_line(active_allocation, request.user)
+
+            if self.object.status != PhoneLine.Status.AVAILABLE:
+                self.object.status = PhoneLine.Status.AVAILABLE
+                self.object.save(update_fields=["status"])
+
+            messages.success(request, "Linha liberada com sucesso.")
+            return redirect("telecom:phoneline_update", pk=self.object.pk)
+
+        return super().post(request, *args, **kwargs)
+
+    @transaction.atomic
     def form_valid(self, form):
         selected_employee = form.cleaned_data.get("employee")
         active_allocation = (

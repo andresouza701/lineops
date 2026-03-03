@@ -59,6 +59,10 @@ class PhoneLineUpdateForm(PhoneLineForm):
         self.fields["status"].label = "Status"
         self.fields["status"].widget.attrs.setdefault("class", "form-select")
 
+        if self.instance and self.instance.pk:
+            self.fields["phone_number"].disabled = True
+            self.fields["sim_card"].disabled = True
+
         self.fields["employee"].queryset = Employee.objects.filter(
             is_deleted=False,
             status=Employee.Status.ACTIVE,

@@ -48,9 +48,16 @@
                         </div>
                     {% endif %}
 
-                    <button type="submit" class="btn btn-primary">
-                        {% if object %}Atualizar{% else %}Salvar{% endif %}
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            {% if object %}Atualizar{% else %}Salvar{% endif %}
+                        </button>
+                        {% if object %}
+                            <button type="submit" name="action" value="release_line" class="btn btn-outline-danger">
+                                Liberar
+                            </button>
+                        {% endif %}
+                    </div>
                 </form>
             </div>
         </div>
