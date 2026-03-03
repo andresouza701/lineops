@@ -245,7 +245,7 @@ class PhoneLineCreateView(RoleRequiredMixin, CreateView):
     model = PhoneLine
     form_class = PhoneLineForm
     template_name = "telecom/phoneline_form.html"
-    success_url = reverse_lazy("telecom:phoneline_list")
+    success_url = reverse_lazy("telecom:overview")
 
     def form_valid(self, form):
         messages.success(self.request, "Linha telefÃ´nica criada com sucesso.")
@@ -257,7 +257,7 @@ class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
     model = PhoneLine
     form_class = PhoneLineUpdateForm
     template_name = "telecom/phoneline_form.html"
-    success_url = reverse_lazy("telecom:phoneline_list")
+    success_url = reverse_lazy("telecom:overview")
 
     @transaction.atomic
     def post(self, request, *args, **kwargs):
@@ -347,7 +347,7 @@ class PhoneLineDeleteView(RoleRequiredMixin, View):
         phone_line.is_deleted = True
         phone_line.save(update_fields=["is_deleted"])
         messages.success(request, "Linha telefÃ´nica excluÃ­da com sucesso.")
-        return redirect("telecom:phoneline_list")
+        return redirect("telecom:overview")
 
 
 class PhoneLineHistoryView(RoleRequiredMixin, DetailView):

@@ -358,17 +358,17 @@ class TelecomPermissionTest(TestCase):
     def test_admin_can_access_all_telecom_views(self):
         self.client.force_login(self.admin)
 
-        resp = self.client.get(reverse("telecom:phoneline_list"))
+        resp = self.client.get(reverse("telecom:overview"))
         self.assertEqual(resp.status_code, 200)
 
     def test_operator_is_denied_on_telecom_views(self):
         self.client.force_login(self.operator)
 
-        resp = self.client.get(reverse("telecom:phoneline_list"))
+        resp = self.client.get(reverse("telecom:overview"))
         self.assertEqual(resp.status_code, 403)
 
     def test_anonymous_redirected_to_login(self):
-        resp = self.client.get(reverse("telecom:phoneline_list"))
+        resp = self.client.get(reverse("telecom:overview"))
         self.assertEqual(resp.status_code, 403)
 
 
@@ -404,7 +404,7 @@ class PhoneLineViewsTest(TestCase):
         )
 
     def test_list_view_shows_lines_and_sim_binding(self):
-        url = reverse("telecom:phoneline_list")
+        url = reverse("telecom:overview")
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 200)
@@ -413,20 +413,20 @@ class PhoneLineViewsTest(TestCase):
         self.assertIn(self.sim_available.iccid, content)
 
     def test_filter_by_status(self):
-        url = reverse("telecom:phoneline_list")
+        url = reverse("telecom:overview")
         response = self.client.get(url, {"status": PhoneLine.Status.AVAILABLE})
 
         self.assertEqual(response.status_code, 200)
-        lines = list(response.context["phone_lines"])
+        lines = list(response.context["initial_lines"])
         self.assertEqual(len(lines), 1)
         self.assertEqual(lines[0].pk, self.line_available.pk)
 
     def test_search_by_phone_number(self):
-        url = reverse("telecom:phoneline_list")
-        response = self.client.get(url, {"search": "9999002"})
+        url = reverse("telecom:overview")
+        response = self.client.get(url, {"line": "9999002"})
 
         self.assertEqual(response.status_code, 200)
-        lines = list(response.context["phone_lines"])
+        lines = list(response.context["initial_lines"])
         self.assertEqual(len(lines), 1)
         self.assertEqual(lines[0].pk, self.line_allocated.pk)
 
@@ -446,7 +446,7 @@ class PhoneLineViewsTest(TestCase):
         response = self.client.post(url, data=payload)
 
         self.assertEqual(response.status_code, 302)
-        self.assertRedirects(response, reverse("telecom:phoneline_list"))
+        self.assertRedirects(response, reverse("telecom:overview"))
         self.assertTrue(
             PhoneLine.objects.filter(
                 phone_number=payload["phone_number"], sim_card=new_sim
@@ -464,7 +464,7 @@ class PhoneLineViewsTest(TestCase):
         response = self.client.post(url, data=payload)
 
         self.assertEqual(response.status_code, 302)
-        self.assertRedirects(response, reverse("telecom:phoneline_list"))
+        self.assertRedirects(response, reverse("telecom:overview"))
         self.line_available.refresh_from_db()
         self.assertEqual(self.line_available.phone_number, "+551199999001")
         self.assertEqual(self.line_available.sim_card_id, self.sim_available.pk)
