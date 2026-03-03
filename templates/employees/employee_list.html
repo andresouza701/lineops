@@ -67,8 +67,8 @@
                             <th class="text-end">Acoes</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {% for employee in employees %}
+                    <tbody id="employee-table-body">
+                        {% for employee in initial_employees %}
                             <tr>
                                 <td>{{ employee.corporate_email }}</td>
                                 <td>{{ employee.full_name }}</td>
@@ -84,47 +84,137 @@
                                 </td>
                             </tr>
                         {% empty %}
-                            <tr>
+                            <tr id="no-data-employees">
                                 <td colspan="6" class="text-center text-muted">Nenhum usuario encontrado.</td>
                             </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+            
+            <div class="text-center py-3">
+                <button id="load-more-btn" type="button" class="btn btn-outline-primary btn-sm" {% if not has_more_employees %}style="display: none;"{% endif %}>
+                    Carregar mais
+                </button>
+                <div id="loading-indicator" class="text-center py-2" style="display: none;">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <span class="ms-2 text-muted">Carregando...</span>
+                </div>
+                <div id="no-more-data" class="text-muted" style="display: none;">
+                    Todos os usuários foram carregados
+                </div>
+            </div>
         </div>
     </div>
-
-    {% if is_paginated %}
-        {% with current_name=request.GET.name current_teams=request.GET.teams current_line=request.GET.line|default:'todos' %}
-            <nav class="mt-3" aria-label="paginacao de usuarios">
-                <ul class="pagination justify-content-center mb-0">
-                    {% if page_obj.has_previous %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}&name={{ current_name }}&teams={{ current_teams }}&line={{ current_line }}">
-                                Anterior
-                            </a>
-                        </li>
-                    {% endif %}
-
-                    {% for num in page_obj.paginator.page_range %}
-                        <li class="page-item {% if page_obj.number == num %}active{% endif %}">
-                            <a class="page-link" href="?page={{ num }}&name={{ current_name }}&teams={{ current_teams }}&line={{ current_line }}">
-                                {{ num }}
-                            </a>
-                        </li>
-                    {% endfor %}
-
-                    {% if page_obj.has_next %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.next_page_number }}&name={{ current_name }}&teams={{ current_teams }}&line={{ current_line }}">
-                                Proxima
-                            </a>
-                        </li>
-                    {% endif %}
-                </ul>
-            </nav>
-        {% endwith %}
-    {% endif %}
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tbody = document.getElementById('employee-table-body');
+    const loadMoreBtn = document.getElementById('load-more-btn');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const noMoreData = document.getElementById('no-more-data');
+    const noDataRow = document.getElementById('no-data-employees');
+    
+    let offset = {{ initial_employees|length }};
+    let isLoading = false;
+    let hasMore = {% if has_more_employees %}true{% else %}false{% endif %};
+    
+    const filters = {
+        name: '{{ request.GET.name|escapejs }}',
+        team: '{{ request.GET.team|escapejs }}',
+        teams: '{{ request.GET.teams|escapejs }}',
+        supervisor: '{{ request.GET.supervisor|escapejs }}'
+    };
+    
+    function buildQueryString() {
+        const params = new URLSearchParams();
+        params.append('offset', offset);
+        params.append('limit', {{ items_per_page }});
+        
+        if (filters.name) params.append('name', filters.name);
+        if (filters.team) params.append('team', filters.team);
+        if (filters.teams) params.append('teams', filters.teams);
+        if (filters.supervisor) params.append('supervisor', filters.supervisor);
+        
+        return params.toString();
+    }
+    
+    function createEmployeeRow(employee) {
+        const tr = document.createElement('tr');
+        const isAdmin = {% if request.user.role == 'admin' %}true{% else %}false{% endif %};
+        
+        let actionsHtml = '<span class=\"text-muted\">-</span>';
+        if (isAdmin) {
+            actionsHtml = `<a href=\"${employee.edit_url}\" class=\"btn btn-sm btn-outline-primary\">Editar</a>`;
+        }
+        
+        tr.innerHTML = `
+            <td>${employee.corporate_email}</td>
+            <td>${employee.full_name}</td>
+            <td>${employee.employee_id}</td>
+            <td>${employee.teams}</td>
+            <td>${employee.status}</td>
+            <td class=\"text-end\">${actionsHtml}</td>
+        `;
+        
+        return tr;
+    }
+    
+    async function loadMore() {
+        if (isLoading || !hasMore) return;
+        
+        isLoading = true;
+        loadMoreBtn.style.display = 'none';
+        loadingIndicator.style.display = 'block';
+        
+        try {
+            const response = await fetch(`?${buildQueryString()}`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            
+            if (!response.ok) throw new Error('Erro na requisição');
+            
+            const data = await response.json();
+            
+            // Remover mensagem de "sem dados" se existir
+            if (noDataRow) {
+                noDataRow.remove();
+            }
+            
+            // Adicionar novas linhas
+            data.data.forEach(employee => {
+                const row = createEmployeeRow(employee);
+                tbody.appendChild(row);
+            });
+            
+            // Atualizar estado
+            offset = data.offset;
+            hasMore = data.has_more;
+            
+            if (hasMore) {
+                loadMoreBtn.style.display = 'inline-block';
+            } else {
+                noMoreData.style.display = 'block';
+            }
+            
+        } catch (error) {
+            console.error('Erro ao carregar dados:', error);
+            loadMoreBtn.style.display = 'inline-block';
+        } finally {
+            loadingIndicator.style.display = 'none';
+            isLoading = false;
+        }
+    }
+    
+    if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', loadMore);
+    }
+});
+</script>
 {% endblock %}
 
