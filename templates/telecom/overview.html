@@ -88,8 +88,16 @@
                             <td class="text-end">
                                 {% if request.user.role == 'admin' %}
                                     <a
+                                        href="{% url 'telecom:phoneline_update' line.pk %}"
+                                        class="btn btn-outline-primary btn-sm"
+                                        aria-label="Editar"
+                                        title="Editar"
+                                    >
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a
                                         href="{% url 'telecom:phoneline_history' line.pk %}"
-                                        class="btn btn-outline-secondary btn-sm"
+                                        class="btn btn-outline-secondary btn-sm ms-1"
                                         aria-label="Historico"
                                         title="Historico"
                                     >
