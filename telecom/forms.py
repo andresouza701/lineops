@@ -51,18 +51,11 @@ class PhoneLineUpdateForm(PhoneLineForm):
     )
 
     class Meta(PhoneLineForm.Meta):
-        fields = ["phone_number", "sim_card", "status"]
+        fields = ["phone_number", "sim_card"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["sim_card"].label = "SIM card"
-        self.fields["status"].label = "Status"
-        self.fields["status"].widget.attrs.setdefault("class", "form-select")
-
-        if self.instance and self.instance.pk:
-            self.fields["phone_number"].disabled = True
-            self.fields["sim_card"].disabled = True
-
         self.fields["employee"].queryset = Employee.objects.filter(
             is_deleted=False,
             status=Employee.Status.ACTIVE,
@@ -76,25 +69,6 @@ class PhoneLineUpdateForm(PhoneLineForm):
             )
             if active_allocation:
                 self.fields["employee"].initial = active_allocation.employee
-
-    def clean(self):
-        cleaned_data = super().clean()
-        status = cleaned_data.get("status")
-        employee = cleaned_data.get("employee")
-
-        if employee and status != PhoneLine.Status.ALLOCATED:
-            self.add_error(
-                "status",
-                "Quando houver usuário vinculado, o status deve ser Alocada.",
-            )
-
-        if not employee and status == PhoneLine.Status.ALLOCATED:
-            self.add_error(
-                "employee",
-                "Selecione um usuário para manter a linha como Alocada.",
-            )
-
-        return cleaned_data
 
 
 class CombinedSimLineForm(forms.Form):

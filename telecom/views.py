@@ -257,7 +257,7 @@ class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
     model = PhoneLine
     form_class = PhoneLineUpdateForm
     template_name = "telecom/phoneline_form.html"
-    success_url = reverse_lazy("telecom:overview")
+    success_url = reverse_lazy("telecom:phoneline_list")
 
     @transaction.atomic
     def post(self, request, *args, **kwargs):
