@@ -39,6 +39,12 @@
                 <p>{{ employee.teams }}</p>
             </div>
         </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <strong>PA:</strong>
+                <p>{{ employee.pa|default:"Nao informado" }}</p>
+            </div>
+        </div>
         <div class="mb-0">
             <strong>Status:</strong>
             {% if employee.status == 'active' %}

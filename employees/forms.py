@@ -14,6 +14,11 @@ class EmployeeForm(forms.ModelForm):
             "status",
             "pa",
         ]
+        widgets = {
+            "pa": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Opcional"}
+            )
+        }
 
     def clean(self):
         cleaned_data = super().clean()
@@ -109,3 +114,5 @@ class EmployeeForm(forms.ModelForm):
 
         self.fields["full_name"].widget.attrs.setdefault("class", "form-control")
         self.fields["status"].widget.attrs.setdefault("class", "form-select")
+        self.fields["pa"].required = False
+        self.fields["pa"].widget.attrs.setdefault("class", "form-control")
