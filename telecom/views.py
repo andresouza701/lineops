@@ -3,6 +3,7 @@ import csv
 from django import forms
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -19,9 +20,10 @@ from django.views.generic import (
 
 from allocations.models import LineAllocation
 from core.mixins import RoleRequiredMixin, StandardPaginationMixin
+from core.services.allocation_service import AllocationService
 from users.models import SystemUser
 
-from .forms import PhoneLineForm
+from .forms import PhoneLineForm, PhoneLineUpdateForm
 from .models import PhoneLine, PhoneLineHistory, SIMcard
 
 
@@ -163,13 +165,42 @@ class PhoneLineCreateView(RoleRequiredMixin, CreateView):
 class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
     allowed_roles = [SystemUser.Role.ADMIN]
     model = PhoneLine
-    form_class = PhoneLineForm
+    form_class = PhoneLineUpdateForm
     template_name = "telecom/phoneline_form.html"
     success_url = reverse_lazy("telecom:phoneline_list")
 
+    @transaction.atomic
     def form_valid(self, form):
+        selected_employee = form.cleaned_data.get("employee")
+        active_allocation = (
+            LineAllocation.objects.select_related("employee")
+            .filter(phone_line=self.object, is_active=True)
+            .first()
+        )
+
+        response = super().form_valid(form)
+
+        if active_allocation and (
+            selected_employee is None
+            or active_allocation.employee_id != selected_employee.id
+        ):
+            AllocationService.release_line(active_allocation, self.request.user)
+
+        if selected_employee and (
+            active_allocation is None
+            or active_allocation.employee_id != selected_employee.id
+        ):
+            self.object.refresh_from_db(fields=["status"])
+            if self.object.status != PhoneLine.Status.AVAILABLE:
+                self.object.status = PhoneLine.Status.AVAILABLE
+                self.object.save(update_fields=["status"])
+
+            AllocationService.allocate_line(
+                selected_employee, self.object, self.request.user
+            )
+
         messages.success(self.request, "Linha telefÃ´nica atualizada com sucesso.")
-        return super().form_valid(form)
+        return response
 
     def get_queryset(self):
         return (

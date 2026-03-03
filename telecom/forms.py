@@ -1,5 +1,7 @@
 from django import forms
 
+from employees.models import Employee
+
 from .models import PhoneLine, SIMcard
 
 
@@ -37,6 +39,58 @@ class PhoneLineForm(forms.ModelForm):
         self.fields["sim_card"].queryset = available_simcards
         self.fields["phone_number"].widget.attrs.setdefault("class", "form-control")
         self.fields["sim_card"].widget.attrs.setdefault("class", "form-select")
+
+
+class PhoneLineUpdateForm(PhoneLineForm):
+    employee = forms.ModelChoiceField(
+        label="Usuário vinculado",
+        queryset=Employee.objects.none(),
+        required=False,
+        empty_label="Sem vínculo",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    class Meta(PhoneLineForm.Meta):
+        fields = ["phone_number", "sim_card", "status"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["sim_card"].label = "SIM card"
+        self.fields["status"].label = "Status"
+        self.fields["status"].widget.attrs.setdefault("class", "form-select")
+
+        self.fields["employee"].queryset = Employee.objects.filter(
+            is_deleted=False,
+            status=Employee.Status.ACTIVE,
+        ).order_by("full_name")
+
+        if self.instance and self.instance.pk:
+            active_allocation = (
+                self.instance.allocations.filter(is_active=True)
+                .select_related("employee")
+                .first()
+            )
+            if active_allocation:
+                self.fields["employee"].initial = active_allocation.employee
+
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get("status")
+        employee = cleaned_data.get("employee")
+
+        if employee and status != PhoneLine.Status.ALLOCATED:
+            self.add_error(
+                "status",
+                "Quando houver usuário vinculado, o status deve ser Alocada.",
+            )
+
+        if not employee and status == PhoneLine.Status.ALLOCATED:
+            self.add_error(
+                "employee",
+                "Selecione um usuário para manter a linha como Alocada.",
+            )
+
+        return cleaned_data
 
 
 class CombinedSimLineForm(forms.Form):

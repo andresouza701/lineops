@@ -29,10 +29,24 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">SIM Card</label>
+                        <label class="form-label">SIM card</label>
                         {{ form.sim_card }}
                         {{ form.sim_card.errors }}
                     </div>
+
+                    {% if object %}
+                        <div class="mb-3">
+                            <label class="form-label">Usuário vinculado</label>
+                            {{ form.employee }}
+                            {{ form.employee.errors }}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Status</label>
+                            {{ form.status }}
+                            {{ form.status.errors }}
+                        </div>
+                    {% endif %}
 
                     <button type="submit" class="btn btn-primary">
                         {% if object %}Atualizar{% else %}Salvar{% endif %}
