@@ -10,7 +10,7 @@ from allocations.models import LineAllocation
 from core.mixins import RoleRequiredMixin
 from users.models import SystemUser
 
-from .models import Employee
+from .models import Employee, EmployeeHistory
 
 
 class EmployeeListView(RoleRequiredMixin, ListView):
@@ -47,6 +47,7 @@ class EmployeeListView(RoleRequiredMixin, ListView):
                     "teams": emp.teams,
                     "status": emp.status,
                     "edit_url": f"/employees/{emp.pk}/update/",
+                    "history_url": f"/employees/{emp.pk}/history/",
                 }
             )
 
@@ -154,4 +155,23 @@ class EmployeeDetailView(RoleRequiredMixin, DetailView):
         ).order_by("-allocated_at")
         context["start_date"] = start_date
         context["end_date"] = end_date
+        return context
+
+
+class EmployeeHistoryView(RoleRequiredMixin, DetailView):
+    allowed_roles = [SystemUser.Role.ADMIN]
+    model = Employee
+    template_name = "employees/employee_history.html"
+    context_object_name = "employee"
+
+    def get_queryset(self):
+        return Employee.objects.filter(is_deleted=False)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["history"] = (
+            EmployeeHistory.objects.filter(employee=context["employee"])
+            .select_related("changed_by")
+            .order_by("-changed_at")
+        )
         return context

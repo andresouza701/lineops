@@ -1,0 +1,62 @@
+{% extends "base/base.html" %}
+
+{% block title %}Historico do Usuario {{ employee.full_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2 class="fw-semibold">Historico do Usuario</h2>
+        <p class="text-muted mb-0">{{ employee.full_name }} - {{ employee.employee_id }}</p>
+    </div>
+    <a href="{% url 'employees:employee_list' %}" class="btn btn-outline-secondary">Voltar</a>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        {% if history %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Data/Hora</th>
+                            <th>Acao</th>
+                            <th>Valor Anterior</th>
+                            <th>Novo Valor</th>
+                            <th>Alterado Por</th>
+                            <th>Descricao</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in history %}
+                            <tr>
+                                <td class="text-nowrap">{{ item.changed_at|date:"d/m/Y H:i:s" }}</td>
+                                <td>
+                                    {% if item.action == 'CREATED' %}
+                                        <span class="badge bg-success">{{ item.get_action_display }}</span>
+                                    {% elif item.action == 'UPDATED' %}
+                                        <span class="badge bg-primary">{{ item.get_action_display }}</span>
+                                    {% elif item.action == 'STATUS_CHANGED' %}
+                                        <span class="badge bg-info">{{ item.get_action_display }}</span>
+                                    {% elif item.action == 'DELETED' %}
+                                        <span class="badge bg-danger">{{ item.get_action_display }}</span>
+                                    {% else %}
+                                        <span class="badge bg-light text-dark">{{ item.get_action_display }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted small">{{ item.old_value|default:"-" }}</td>
+                                <td class="small">{{ item.new_value|default:"-" }}</td>
+                                <td class="text-muted small">{{ item.changed_by|default:"Sistema" }}</td>
+                                <td class="small">{{ item.description }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-5 text-muted">
+                <p>Nenhum historico registrado para este usuario.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

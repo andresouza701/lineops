@@ -2,10 +2,11 @@ from django.test import TestCase
 from django.urls import reverse
 
 from allocations.models import LineAllocation
+from core.current_user import clear_current_user, set_current_user
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 
-from .models import Employee
+from .models import Employee, EmployeeHistory
 
 
 class EmployeeModelTest(TestCase):
@@ -100,3 +101,68 @@ class EmployeeListViewTest(TestCase):
     def test_anonymous_cannot_access_employee_list(self) -> None:
         response = self.client.get(reverse("employees:employee_list"))
         self.assertEqual(response.status_code, 403)
+
+    def test_employee_list_shows_history_button_for_admin(self) -> None:
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("employees:employee_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            reverse("employees:employee_history", args=[self.employee.pk]),
+        )
+
+
+class EmployeeHistoryAuditTest(TestCase):
+    def setUp(self) -> None:
+        self.admin = SystemUser.objects.create_user(
+            email="admin.history@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.operator = SystemUser.objects.create_user(
+            email="operator.history@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.OPERATOR,
+        )
+        self.employee = Employee.objects.create(
+            full_name="Usuario Historico",
+            corporate_email="historico@lineops.tech",
+            employee_id="EMP-H-01",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+
+    def test_history_is_created_for_create_update_status_and_delete(self) -> None:
+        set_current_user(self.admin)
+        try:
+            self.employee.full_name = "Usuario Historico Atualizado"
+            self.employee.save(update_fields=["full_name"])
+
+            self.employee.status = Employee.Status.INACTIVE
+            self.employee.save(update_fields=["status"])
+
+            self.employee.delete()
+        finally:
+            clear_current_user()
+
+        actions = set(
+            EmployeeHistory.objects.filter(employee=self.employee).values_list(
+                "action", flat=True
+            )
+        )
+        self.assertIn(EmployeeHistory.ActionType.CREATED, actions)
+        self.assertIn(EmployeeHistory.ActionType.UPDATED, actions)
+        self.assertIn(EmployeeHistory.ActionType.STATUS_CHANGED, actions)
+        self.assertIn(EmployeeHistory.ActionType.DELETED, actions)
+
+    def test_history_view_admin_only(self) -> None:
+        url = reverse("employees:employee_history", args=[self.employee.pk])
+
+        self.client.force_login(self.operator)
+        denied = self.client.get(url)
+        self.assertEqual(denied.status_code, 403)
+
+        self.client.force_login(self.admin)
+        ok = self.client.get(url)
+        self.assertEqual(ok.status_code, 200)
+        self.assertIn("history", ok.context)

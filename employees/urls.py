@@ -4,6 +4,7 @@ from .views import (
     EmployeeCreateView,
     EmployeeDeactivateView,
     EmployeeDetailView,
+    EmployeeHistoryView,
     EmployeeListView,
     EmployeeUpdateView,
 )
@@ -17,5 +18,6 @@ urlpatterns = [
     path(
         "<int:pk>/delete/", EmployeeDeactivateView.as_view(), name="employee_deactivate"
     ),
+    path("<int:pk>/history/", EmployeeHistoryView.as_view(), name="employee_history"),
     path("<int:pk>/", EmployeeDetailView.as_view(), name="employee_detail"),
 ]
