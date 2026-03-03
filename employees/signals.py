@@ -21,6 +21,7 @@ def track_employee_creation(sender, instance, created, **kwargs):
                 f"Nome: {instance.full_name}, "
                 f"Supervisor: {instance.corporate_email}, "
                 f"Carteira: {instance.employee_id}, "
+                f"PA: {instance.pa or '-'}, "
                 f"Equipe: {instance.teams}, "
                 f"Status: {instance.get_status_display()}"
             ),
@@ -73,6 +74,7 @@ def track_employee_changes(sender, instance, **kwargs):
         "full_name": "Nome",
         "corporate_email": "Supervisor",
         "employee_id": "Carteira",
+        "pa": "PA",
         "teams": "Equipe",
     }
     for field in field_labels:

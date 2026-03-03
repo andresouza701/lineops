@@ -166,3 +166,20 @@ class EmployeeHistoryAuditTest(TestCase):
         ok = self.client.get(url)
         self.assertEqual(ok.status_code, 200)
         self.assertIn("history", ok.context)
+
+    def test_pa_change_is_recorded_in_updated_history(self) -> None:
+        set_current_user(self.admin)
+        try:
+            self.employee.pa = "PA-123"
+            self.employee.save(update_fields=["pa"])
+        finally:
+            clear_current_user()
+
+        updated_event = EmployeeHistory.objects.filter(
+            employee=self.employee,
+            action=EmployeeHistory.ActionType.UPDATED,
+        ).first()
+
+        self.assertIsNotNone(updated_event)
+        self.assertIn("PA:", updated_event.new_value)
+        self.assertIn("PA-123", updated_event.new_value)
