@@ -2,10 +2,9 @@ import csv
 
 from django import forms
 from django.contrib import messages
-from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils.dateparse import parse_date
@@ -288,6 +287,109 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
     allowed_roles = [SystemUser.Role.ADMIN]
     template_name = "telecom/overview.html"
 
+    def get(self, request, *args, **kwargs):
+        # Se for requisição AJAX para lazy loading
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return self._handle_ajax_request(request)
+        return super().get(request, *args, **kwargs)
+
+    def _handle_ajax_request(self, request):
+        """Retorna dados em JSON para lazy loading"""
+        table_type = request.GET.get("table", "main")
+        offset = int(request.GET.get("offset", 0))
+        limit = int(request.GET.get("limit", 10))
+
+        base_lines = PhoneLine.objects.filter(is_deleted=False)
+        valid_statuses = {choice[0] for choice in PhoneLine.Status.choices}
+
+        if table_type == "main":
+            line_filter = request.GET.get("line", "").strip()
+            status_filter = request.GET.get("status", "").strip()
+
+            lines_qs = (
+                base_lines.select_related("sim_card")
+                .prefetch_related(
+                    Prefetch(
+                        "allocations",
+                        queryset=LineAllocation.objects.filter(is_active=True)
+                        .select_related("employee")
+                        .order_by("-allocated_at"),
+                        to_attr="active_allocations",
+                    )
+                )
+                .order_by("phone_number")
+            )
+
+            if line_filter:
+                lines_qs = lines_qs.filter(phone_number__icontains=line_filter)
+            if status_filter in valid_statuses:
+                lines_qs = lines_qs.filter(status=status_filter)
+
+            lines = list(lines_qs[offset : offset + limit])
+            has_more = lines_qs.count() > (offset + limit)
+
+        else:  # table_type == 'recent'
+            search_query = request.GET.get("search", "").strip()
+            status_filter_recent = request.GET.get("status_recent", "").strip()
+
+            lines_qs = (
+                base_lines.select_related("sim_card")
+                .prefetch_related(
+                    Prefetch(
+                        "allocations",
+                        queryset=LineAllocation.objects.filter(is_active=True)
+                        .select_related("employee")
+                        .order_by("-allocated_at"),
+                        to_attr="active_allocations",
+                    )
+                )
+                .order_by("-updated_at")
+            )
+
+            if search_query:
+                lines_qs = lines_qs.filter(
+                    Q(phone_number__icontains=search_query)
+                    | Q(sim_card__iccid__icontains=search_query)
+                )
+            if status_filter_recent in valid_statuses:
+                lines_qs = lines_qs.filter(status=status_filter_recent)
+
+            lines = list(lines_qs[offset : offset + limit])
+            has_more = lines_qs.count() > (offset + limit)
+
+        # Formatar dados para JSON
+        data = []
+        is_admin = request.user.role == "admin"
+
+        for line in lines:
+            employee_name = (
+                line.active_allocations[0].employee.full_name
+                if line.active_allocations
+                else None
+            )
+
+            line_data = {
+                "id": line.pk,
+                "phone_number": line.phone_number,
+                "iccid": line.sim_card.iccid if line.sim_card else "",
+                "employee": employee_name,
+                "status": line.status,
+                "status_display": line.get_status_display(),
+                "activated_at": (
+                    line.activated_at.strftime("%d/%m/%Y") if line.activated_at else ""
+                ),
+            }
+
+            if table_type == "main" and is_admin:
+                line_data["edit_url"] = f"/telecom/phoneline/{line.pk}/update/"
+                line_data["history_url"] = f"/telecom/phoneline/{line.pk}/history/"
+
+            data.append(line_data)
+
+        return JsonResponse(
+            {"data": data, "has_more": has_more, "offset": offset + len(lines)}
+        )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["total_simcards"] = SIMcard.objects.filter(is_deleted=False).count()
@@ -305,7 +407,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         status_filter = self.request.GET.get("status", "").strip()
         valid_statuses = {choice[0] for choice in PhoneLine.Status.choices}
 
-        # Consultar todas as linhas com filtros
+        # Consultar apenas as primeiras linhas (lazy loading carregará o resto)
         lines_qs = (
             base_lines.select_related("sim_card")
             .prefetch_related(
@@ -328,17 +430,13 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         else:
             status_filter = ""
 
-        # Paginar as linhas (10 por página)
-        paginator = Paginator(lines_qs, 10)
-        page_number = self.request.GET.get("page", 1)
-        lines_page = paginator.get_page(page_number)
-
-        context["lines_page"] = lines_page
+        # Carregar primeiros 10 itens
+        context["initial_lines"] = list(lines_qs[:10])
         context["line_filter"] = line_filter
         context["status_filter"] = status_filter
         context["status_choices"] = PhoneLine.Status.choices
 
-        # Segunda tabela: Ações recentes (todas as linhas com mais detalhes)
+        # Segunda tabela: Ações recentes
         search_query = self.request.GET.get("search", "").strip()
         status_filter_recent = self.request.GET.get("status_recent", "").strip()
 
@@ -367,20 +465,10 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         else:
             status_filter_recent = ""
 
-        # Paginar ações recentes (20 por página)
-        recent_paginator = Paginator(recent_lines_qs, 20)
-        recent_page_number = self.request.GET.get("page_recent", 1)
-        recent_lines_page = recent_paginator.get_page(recent_page_number)
-
-        context["recent_lines_page"] = recent_lines_page
+        # Carregar primeiros 20 itens
+        context["initial_recent_lines"] = list(recent_lines_qs[:20])
         context["search_query"] = search_query
         context["status_filter_recent"] = status_filter_recent
-
-        # Query string para paginação
-        query_params = self.request.GET.copy()
-        query_params.pop("page_recent", None)
-        encoded = query_params.urlencode()
-        context["query_string_recent"] = f"&{encoded}" if encoded else ""
 
         context.update(self._line_status_summary(counts))
         return context
