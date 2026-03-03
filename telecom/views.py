@@ -580,7 +580,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         boxes = [
             {
                 "value": PhoneLine.Status.AVAILABLE,
-                "label": "DisponÃ­veis",
+                "label": "Disponíveis",
                 "description": "Prontas para novos colaboradores",
                 "variant": "success",
             },
