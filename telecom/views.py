@@ -172,7 +172,27 @@ class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
         return super().form_valid(form)
 
     def get_queryset(self):
-        return PhoneLine.objects.filter(is_deleted=False)
+        return (
+            PhoneLine.objects.filter(is_deleted=False)
+            .select_related("sim_card")
+            .prefetch_related(
+                Prefetch(
+                    "allocations",
+                    queryset=LineAllocation.objects.filter(is_active=True)
+                    .select_related("employee")
+                    .order_by("-allocated_at"),
+                    to_attr="active_allocations",
+                )
+            )
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        active_allocations = getattr(self.object, "active_allocations", [])
+        context["active_allocation"] = (
+            active_allocations[0] if active_allocations else None
+        )
+        return context
 
 
 class PhoneLineDeleteView(RoleRequiredMixin, View):

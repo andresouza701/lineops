@@ -14,28 +14,67 @@
     </a>
 </div>
 
-<div class="card shadow-sm border-0">
-    <div class="card-body">
-        <form method="post">
-            {% csrf_token %}
-            {{ form.non_field_errors }}
+<div class="row g-3">
+    <div class="col-12 col-lg-7">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form.non_field_errors }}
 
-            <div class="mb-3">
-                <label class="form-label">Número</label>
-                {{ form.phone_number }}
-                {{ form.phone_number.errors }}
+                    <div class="mb-3">
+                        <label class="form-label">Número</label>
+                        {{ form.phone_number }}
+                        {{ form.phone_number.errors }}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">SIM Card</label>
+                        {{ form.sim_card }}
+                        {{ form.sim_card.errors }}
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        {% if object %}Atualizar{% else %}Salvar{% endif %}
+                    </button>
+                </form>
             </div>
-
-            <div class="mb-3">
-                <label class="form-label">SIM Card</label>
-                {{ form.sim_card }}
-                {{ form.sim_card.errors }}
-            </div>
-
-            <button type="submit" class="btn btn-primary">
-                {% if object %}Atualizar{% else %}Salvar{% endif %}
-            </button>
-        </form>
+        </div>
     </div>
+
+    {% if object %}
+        <div class="col-12 col-lg-5">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <h3 class="h6 mb-3">Informações atuais</h3>
+                    <dl class="row mb-0">
+                        <dt class="col-5">Status</dt>
+                        <dd class="col-7">{{ object.get_status_display }}</dd>
+
+                        <dt class="col-5">ICCID atual</dt>
+                        <dd class="col-7">{{ object.sim_card.iccid|default:"-" }}</dd>
+
+                        <dt class="col-5">Operadora</dt>
+                        <dd class="col-7">{{ object.sim_card.carrier|default:"-" }}</dd>
+
+                        <dt class="col-5">Usuário vinculado</dt>
+                        <dd class="col-7">
+                            {% if active_allocation %}
+                                {{ active_allocation.employee.full_name }}
+                            {% else %}
+                                <span class="text-muted">Sem vínculo</span>
+                            {% endif %}
+                        </dd>
+
+                        <dt class="col-5">Ativada em</dt>
+                        <dd class="col-7">{{ object.activated_at|date:"d/m/Y H:i"|default:"-" }}</dd>
+
+                        <dt class="col-5">Atualizada em</dt>
+                        <dd class="col-7">{{ object.updated_at|date:"d/m/Y H:i"|default:"-" }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    {% endif %}
 </div>
 {% endblock %}
