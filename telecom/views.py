@@ -3,7 +3,7 @@ import csv
 from django import forms
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
@@ -98,7 +98,19 @@ class PhoneLineListView(StandardPaginationMixin, RoleRequiredMixin, ListView):
     def get_queryset(self):
         self.search_query = self.request.GET.get("search", "").strip()
         self.status_filter = self.request.GET.get("status")
-        queryset = PhoneLine.objects.filter(is_deleted=False).select_related("sim_card")
+        queryset = (
+            PhoneLine.objects.filter(is_deleted=False)
+            .select_related("sim_card")
+            .prefetch_related(
+                Prefetch(
+                    "allocations",
+                    queryset=LineAllocation.objects.filter(is_active=True)
+                    .select_related("employee")
+                    .order_by("-allocated_at"),
+                    to_attr="active_allocations",
+                )
+            )
+        )
 
         valid_statuses = {choice[0] for choice in PhoneLine.Status.choices}
         if self.status_filter in valid_statuses:
@@ -220,7 +232,19 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         valid_statuses = {choice[0] for choice in PhoneLine.Status.choices}
 
         # Consultar todas as linhas com filtros
-        lines_qs = base_lines.select_related("sim_card").order_by("phone_number")
+        lines_qs = (
+            base_lines.select_related("sim_card")
+            .prefetch_related(
+                Prefetch(
+                    "allocations",
+                    queryset=LineAllocation.objects.filter(is_active=True)
+                    .select_related("employee")
+                    .order_by("-allocated_at"),
+                    to_attr="active_allocations",
+                )
+            )
+            .order_by("phone_number")
+        )
 
         if line_filter:
             lines_qs = lines_qs.filter(phone_number__icontains=line_filter)

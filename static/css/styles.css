@@ -586,9 +586,50 @@ h1, h2, h3, h4, h5, h6 {
     margin: 0 auto;
 }
 
+.telecom-list-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem;
+    width: 100%;
+}
+
+.telecom-filter-form {
+    margin-left: auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: flex-end;
+    gap: 0.75rem;
+}
+
+.telecom-filter-item {
+    min-width: 180px;
+}
+
+.telecom-filter-search {
+    min-width: min(360px, 100%);
+}
+
+.telecom-filter-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.telecom-table-wrap {
+    width: 100%;
+    max-width: calc(100vw - 140px);
+    overflow-x: auto;
+}
+
 @media (max-width: 992px) {
     .users-content-shell {
         max-width: 100%;
+    }
+
+    .telecom-table-wrap {
+        max-width: calc(100vw - 2rem);
     }
 }
 
@@ -811,6 +852,26 @@ textarea:focus {
     .inspector-backdrop.is-open {
         display: block;
     }
+
+    .telecom-filter-form {
+        margin-left: 0;
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .telecom-filter-item,
+    .telecom-filter-search {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .telecom-filter-actions {
+        width: 100%;
+    }
+
+    .telecom-filter-actions .btn {
+        flex: 1 1 0;
+    }
 }
 
 @media (max-width: 560px) {
@@ -827,7 +888,6 @@ textarea:focus {
         display: none;
     }
 }
-
 
 
 
