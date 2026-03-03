@@ -41,24 +41,69 @@ class SIMcardListView(RoleRequiredMixin, ListView):
     context_object_name = "simcards"
     ordering = ["iccid"]
 
-    def get_queryset(self):
+    def get(self, request, *args, **kwargs):
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return self._handle_ajax_request(request)
+        return super().get(request, *args, **kwargs)
+
+    def _base_filtered_queryset(self, request):
         queryset = SIMcard.objects.filter(is_deleted=False)
-        status = self.request.GET.get("status", "").strip()
-        self.search_query = self.request.GET.get("search", "").strip()
+        search_query = request.GET.get("search", "").strip()
+        status_filter = request.GET.get("status", "").strip()
 
         valid_statuses = {choice[0] for choice in SIMcard.Status.choices}
-        if status in valid_statuses:
-            queryset = queryset.filter(status=status)
+        if status_filter in valid_statuses:
+            queryset = queryset.filter(status=status_filter)
+        else:
+            status_filter = ""
 
-        if self.search_query:
-            queryset = queryset.filter(iccid__icontains=self.search_query)
+        if search_query:
+            queryset = queryset.filter(iccid__icontains=search_query)
 
-        return queryset.order_by("iccid")
+        return queryset.order_by("iccid"), search_query, status_filter
+
+    def _handle_ajax_request(self, request):
+        offset = max(int(request.GET.get("offset", 0)), 0)
+        limit = max(int(request.GET.get("limit", 20)), 1)
+        queryset, _, _ = self._base_filtered_queryset(request)
+
+        simcards = list(queryset[offset : offset + limit])
+        has_more = queryset.count() > (offset + len(simcards))
+
+        data = [
+            {
+                "iccid": sim.iccid,
+                "carrier": sim.carrier,
+                "status": sim.status,
+                "status_display": sim.get_status_display(),
+                "activated_at": (
+                    sim.activated_at.strftime("%d/%m/%Y %H:%M")
+                    if sim.activated_at
+                    else ""
+                ),
+            }
+            for sim in simcards
+        ]
+
+        return JsonResponse(
+            {"data": data, "has_more": has_more, "offset": offset + len(simcards)}
+        )
+
+    def get_queryset(self):
+        queryset, self.search_query, self.status_filter = self._base_filtered_queryset(
+            self.request
+        )
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["form"] = SIMCardFilterForm(self.request.GET or None)
         context["search_query"] = self.search_query
+        context["status_filter"] = self.status_filter
+        context["initial_simcards"] = list(context["simcards"][:20])
+        context["has_more_simcards"] = context["simcards"].count() > len(
+            context["initial_simcards"]
+        )
         return context
 
 
@@ -94,11 +139,16 @@ class PhoneLineListView(StandardPaginationMixin, RoleRequiredMixin, ListView):
     model = PhoneLine
     template_name = "telecom/phoneline_list.html"
     context_object_name = "phone_lines"
-    paginate_by = 20
+    chunk_size = 20
 
-    def get_queryset(self):
-        self.search_query = self.request.GET.get("search", "").strip()
-        self.status_filter = self.request.GET.get("status")
+    def get(self, request, *args, **kwargs):
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return self._handle_ajax_request(request)
+        return super().get(request, *args, **kwargs)
+
+    def _base_filtered_queryset(self, request):
+        search_query = request.GET.get("search", "").strip()
+        status_filter = request.GET.get("status", "").strip()
         queryset = (
             PhoneLine.objects.filter(is_deleted=False)
             .select_related("sim_card")
@@ -114,27 +164,67 @@ class PhoneLineListView(StandardPaginationMixin, RoleRequiredMixin, ListView):
         )
 
         valid_statuses = {choice[0] for choice in PhoneLine.Status.choices}
-        if self.status_filter in valid_statuses:
-            queryset = queryset.filter(status=self.status_filter)
+        if status_filter in valid_statuses:
+            queryset = queryset.filter(status=status_filter)
+        else:
+            status_filter = ""
 
-        if self.search_query:
+        if search_query:
             queryset = queryset.filter(
-                Q(phone_number__icontains=self.search_query)
-                | Q(sim_card__iccid__icontains=self.search_query)
+                Q(phone_number__icontains=search_query)
+                | Q(sim_card__iccid__icontains=search_query)
             )
 
-        return queryset.order_by("phone_number")
+        return queryset.order_by("phone_number"), search_query, status_filter
+
+    def _handle_ajax_request(self, request):
+        offset = max(int(request.GET.get("offset", 0)), 0)
+        limit = max(int(request.GET.get("limit", self.chunk_size)), 1)
+        queryset, _, _ = self._base_filtered_queryset(request)
+
+        lines = list(queryset[offset : offset + limit])
+        has_more = queryset.count() > (offset + len(lines))
+        data = []
+        for line in lines:
+            employee_name = (
+                line.active_allocations[0].employee.full_name
+                if line.active_allocations
+                else None
+            )
+            data.append(
+                {
+                    "phone_number": line.phone_number,
+                    "iccid": line.sim_card.iccid,
+                    "employee": employee_name,
+                    "status": line.status,
+                    "status_display": line.get_status_display(),
+                    "activated_at": (
+                        line.activated_at.strftime("%d/%m/%Y")
+                        if line.activated_at
+                        else ""
+                    ),
+                }
+            )
+
+        return JsonResponse(
+            {"data": data, "has_more": has_more, "offset": offset + len(lines)}
+        )
+
+    def get_queryset(self):
+        queryset, self.search_query, self.status_filter = self._base_filtered_queryset(
+            self.request
+        )
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["status_choices"] = PhoneLine.Status.choices
         context["status_filter"] = self.status_filter
         context["search_query"] = self.search_query
-
-        query_params = self.request.GET.copy()
-        query_params.pop("page", None)
-        encoded = query_params.urlencode()
-        context["query_string"] = f"&{encoded}" if encoded else ""
+        context["initial_lines"] = list(context["phone_lines"][: self.chunk_size])
+        context["has_more_lines"] = context["phone_lines"].count() > len(
+            context["initial_lines"]
+        )
 
         return context
 
