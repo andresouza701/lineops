@@ -208,6 +208,27 @@ class PhoneLineHistoryAuditTest(TestCase):
             reverse("telecom:phoneline_history", args=[allocation.phone_line.pk]),
         )
 
+    def test_allocate_and_release_do_not_duplicate_status_changed_history(self):
+        allocation = AllocationService.allocate_line(
+            employee=self.employee_a,
+            phone_line=self.phone_line,
+            allocated_by=self.admin,
+        )
+        AllocationService.release_line(allocation, released_by=self.admin)
+
+        history = PhoneLineHistory.objects.filter(phone_line=self.phone_line)
+
+        self.assertTrue(
+            history.filter(action=PhoneLineHistory.ActionType.ALLOCATED).exists()
+        )
+        self.assertTrue(
+            history.filter(action=PhoneLineHistory.ActionType.RELEASED).exists()
+        )
+        self.assertEqual(
+            history.filter(action=PhoneLineHistory.ActionType.STATUS_CHANGED).count(),
+            0,
+        )
+
 
 class ExportPhoneLineHistoryTest(TestCase):
     def setUp(self):

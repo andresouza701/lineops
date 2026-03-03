@@ -1,11 +1,11 @@
-{% extends "base/base.html" %}
+﻿{% extends "base/base.html" %}
 
-{% block title %}Histórico da Linha {{ phone_line.phone_number }}{% endblock %}
+{% block title %}HistÃ³rico da Linha {{ phone_line.phone_number }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-        <h2 class="fw-semibold">Histórico da Linha</h2>
+        <h2 class="fw-semibold">HistÃ³rico da Linha</h2>
         <p class="text-muted mb-0">{{ phone_line.phone_number }} - {{ phone_line.get_status_display }}</p>
     </div>
     <a href="{% url 'telecom:overview' %}" class="btn btn-outline-secondary">Voltar</a>
@@ -13,7 +13,7 @@
 
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
-        <h6 class="text-uppercase text-muted small mb-2">Informações da Linha</h6>
+        <h6 class="text-uppercase text-muted small mb-2">InformaÃ§Ãµes da Linha</h6>
         <div class="row">
             <div class="col-md-4">
                 <strong>Linha:</strong> {{ phone_line.phone_number }}
@@ -30,7 +30,7 @@
 
 <div class="card shadow-sm border-0">
     <div class="card-header bg-transparent">
-        <h5 class="mb-0">Registro de Alterações</h5>
+        <h5 class="mb-0">Histórico de Alterações</h5>
     </div>
     <div class="card-body p-0">
         {% if history %}
@@ -39,11 +39,11 @@
                     <thead class="table-light">
                         <tr>
                             <th>Data/Hora</th>
-                            <th>Ação</th>
+                            <th>AÃ§Ã£o</th>
                             <th>Valor Anterior</th>
                             <th>Novo Valor</th>
                             <th>Alterado Por</th>
-                            <th>Descrição</th>
+                            <th>DescriÃ§Ã£o</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -69,8 +69,8 @@
                                         <span class="badge bg-light text-dark">{{ item.get_action_display }}</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-muted small">{{ item.old_value|default:"—" }}</td>
-                                <td class="small">{{ item.new_value|default:"—" }}</td>
+                                <td class="text-muted small">{{ item.old_value|default:"â€”" }}</td>
+                                <td class="small">{{ item.new_value|default:"â€”" }}</td>
                                 <td class="text-muted small">{{ item.changed_by|default:"Sistema" }}</td>
                                 <td class="small">{{ item.description }}</td>
                             </tr>
@@ -80,14 +80,14 @@
             </div>
         {% else %}
             <div class="text-center py-5 text-muted">
-                <p>Nenhum histórico registrado para esta linha.</p>
+                <p>Nenhum histÃ³rico registrado para esta linha.</p>
             </div>
         {% endif %}
     </div>
 </div>
 
 {% if is_paginated %}
-    <nav class="mt-3" aria-label="Paginação do histórico">
+    <nav class="mt-3" aria-label="PaginaÃ§Ã£o do histÃ³rico">
         <ul class="pagination justify-content-center mb-0">
             {% if page_obj.has_previous %}
                 <li class="page-item">
@@ -103,10 +103,11 @@
 
             {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a>
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">PrÃ³xima</a>
                 </li>
             {% endif %}
         </ul>
     </nav>
 {% endif %}
 {% endblock %}
+

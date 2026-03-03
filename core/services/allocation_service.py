@@ -64,7 +64,10 @@ class AllocationService:
         )
 
         phone_line.status = PhoneLine.Status.ALLOCATED
+        phone_line._history_origin_action = "ALLOCATED"
         phone_line.save(update_fields=["status"])
+        if hasattr(phone_line, "_history_origin_action"):
+            delattr(phone_line, "_history_origin_action")
 
         logger.info(
             "Line allocated",
@@ -90,7 +93,10 @@ class AllocationService:
 
         phone_line = allocation.phone_line
         phone_line.status = PhoneLine.Status.AVAILABLE
+        phone_line._history_origin_action = "RELEASED"
         phone_line.save(update_fields=["status"])
+        if hasattr(phone_line, "_history_origin_action"):
+            delattr(phone_line, "_history_origin_action")
 
         logger.info(
             "Line released",

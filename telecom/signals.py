@@ -51,7 +51,13 @@ def track_phoneline_changes(sender, instance, **kwargs):
             description=f"Linha {old_instance.phone_number} excluida",
         )
 
-    if old_instance.status != instance.status:
+    origin_action = getattr(instance, "_history_origin_action", None)
+    is_status_from_allocation_flow = origin_action in {
+        PhoneLineHistory.ActionType.ALLOCATED,
+        PhoneLineHistory.ActionType.RELEASED,
+    }
+
+    if old_instance.status != instance.status and not is_status_from_allocation_flow:
         PhoneLineHistory.objects.create(
             phone_line=instance,
             action=PhoneLineHistory.ActionType.STATUS_CHANGED,
