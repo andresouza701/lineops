@@ -314,7 +314,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const tr = document.createElement('tr');
         
         const employeeText = line.employee || '<span class="text-muted">Sem vínculo</span>';
-        const isAdmin = {{ request.user.role == 'admin'|lower }};
+        const isAdmin = {% if request.user.role == 'admin' %}true{% else %}false{% endif %};
         
         let actionsHtml = '';
         if (isAdmin) {
