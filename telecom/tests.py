@@ -2,6 +2,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from core.current_user import clear_current_user, set_current_user
 from core.services.allocation_service import AllocationService
 from employees.models import Employee
 from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
@@ -98,10 +99,20 @@ class PhoneLineHistoryAuditTest(TestCase):
             update_url,
             data={
                 "phone_number": self.phone_line.phone_number,
-                "sim_card": self.sim_b.pk,
+                "sim_card": self.phone_line.sim_card.pk,
+                "status": PhoneLine.Status.SUSPENDED,
             },
         )
         self.assertEqual(response.status_code, 302)
+
+        # Simula troca de SIM por fluxo interno e valida evento de histórico.
+        self.phone_line.refresh_from_db()
+        set_current_user(self.admin)
+        try:
+            self.phone_line.sim_card = self.sim_b
+            self.phone_line.save(update_fields=["sim_card"])
+        finally:
+            clear_current_user()
 
         release_url = reverse("allocations:allocation_edit", args=[allocation.pk])
         response = self.client.post(release_url, data={"action": "release"})
@@ -447,6 +458,7 @@ class PhoneLineViewsTest(TestCase):
         payload = {
             "phone_number": "+551199999999",
             "sim_card": self.sim_available.pk,
+            "status": PhoneLine.Status.SUSPENDED,
         }
 
         response = self.client.post(url, data=payload)
@@ -454,4 +466,6 @@ class PhoneLineViewsTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertRedirects(response, reverse("telecom:phoneline_list"))
         self.line_available.refresh_from_db()
-        self.assertEqual(self.line_available.phone_number, payload["phone_number"])
+        self.assertEqual(self.line_available.phone_number, "+551199999001")
+        self.assertEqual(self.line_available.sim_card_id, self.sim_available.pk)
+        self.assertEqual(self.line_available.status, PhoneLine.Status.SUSPENDED)
