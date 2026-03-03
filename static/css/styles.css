@@ -710,6 +710,17 @@ textarea:focus {
     color: #ffffff;
 }
 
+.form-control:disabled,
+.form-select:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+    background: rgba(15, 23, 42, 0.62) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border-color);
+    opacity: 1;
+}
+
 .btn {
     border-radius: 10px;
     transition: all 0.2s ease;
