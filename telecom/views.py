@@ -167,7 +167,7 @@ class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
     model = PhoneLine
     form_class = PhoneLineUpdateForm
     template_name = "telecom/phoneline_form.html"
-    success_url = reverse_lazy("telecom:phoneline_list")
+    success_url = reverse_lazy("telecom:overview")
 
     @transaction.atomic
     def post(self, request, *args, **kwargs):
@@ -337,6 +337,51 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         context["line_filter"] = line_filter
         context["status_filter"] = status_filter
         context["status_choices"] = PhoneLine.Status.choices
+
+        # Segunda tabela: Ações recentes (todas as linhas com mais detalhes)
+        search_query = self.request.GET.get("search", "").strip()
+        status_filter_recent = self.request.GET.get("status_recent", "").strip()
+
+        recent_lines_qs = (
+            base_lines.select_related("sim_card")
+            .prefetch_related(
+                Prefetch(
+                    "allocations",
+                    queryset=LineAllocation.objects.filter(is_active=True)
+                    .select_related("employee")
+                    .order_by("-allocated_at"),
+                    to_attr="active_allocations",
+                )
+            )
+            .order_by("-updated_at")
+        )
+
+        if search_query:
+            recent_lines_qs = recent_lines_qs.filter(
+                Q(phone_number__icontains=search_query)
+                | Q(sim_card__iccid__icontains=search_query)
+            )
+
+        if status_filter_recent in valid_statuses:
+            recent_lines_qs = recent_lines_qs.filter(status=status_filter_recent)
+        else:
+            status_filter_recent = ""
+
+        # Paginar ações recentes (20 por página)
+        recent_paginator = Paginator(recent_lines_qs, 20)
+        recent_page_number = self.request.GET.get("page_recent", 1)
+        recent_lines_page = recent_paginator.get_page(recent_page_number)
+
+        context["recent_lines_page"] = recent_lines_page
+        context["search_query"] = search_query
+        context["status_filter_recent"] = status_filter_recent
+
+        # Query string para paginação
+        query_params = self.request.GET.copy()
+        query_params.pop("page_recent", None)
+        encoded = query_params.urlencode()
+        context["query_string_recent"] = f"&{encoded}" if encoded else ""
+
         context.update(self._line_status_summary(counts))
         return context
 
