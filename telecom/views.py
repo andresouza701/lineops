@@ -40,6 +40,7 @@ class SIMcardListView(RoleRequiredMixin, ListView):
     template_name = "telecom/simcard_list.html"
     context_object_name = "simcards"
     ordering = ["iccid"]
+    chunk_size = 10
 
     def get(self, request, *args, **kwargs):
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
@@ -64,7 +65,7 @@ class SIMcardListView(RoleRequiredMixin, ListView):
 
     def _handle_ajax_request(self, request):
         offset = max(int(request.GET.get("offset", 0)), 0)
-        limit = max(int(request.GET.get("limit", 20)), 1)
+        limit = max(int(request.GET.get("limit", self.chunk_size)), 1)
         queryset, _, _ = self._base_filtered_queryset(request)
 
         simcards = list(queryset[offset : offset + limit])
@@ -100,7 +101,7 @@ class SIMcardListView(RoleRequiredMixin, ListView):
         context["form"] = SIMCardFilterForm(self.request.GET or None)
         context["search_query"] = self.search_query
         context["status_filter"] = self.status_filter
-        context["initial_simcards"] = list(context["simcards"][:20])
+        context["initial_simcards"] = list(context["simcards"][: self.chunk_size])
         context["has_more_simcards"] = context["simcards"].count() > len(
             context["initial_simcards"]
         )
@@ -139,7 +140,7 @@ class PhoneLineListView(StandardPaginationMixin, RoleRequiredMixin, ListView):
     model = PhoneLine
     template_name = "telecom/phoneline_list.html"
     context_object_name = "phone_lines"
-    chunk_size = 20
+    chunk_size = 10
 
     def get(self, request, *args, **kwargs):
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":

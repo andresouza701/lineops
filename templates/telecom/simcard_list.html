@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', function () {
         noData: document.getElementById('simcard-no-data'),
         sentinel: document.getElementById('simcard-sentinel'),
         offset: {{ initial_simcards|length }},
-        limit: 20,
+        limit: 10,
         hasMore: {% if has_more_simcards %}true{% else %}false{% endif %},
         isLoading: false
     };

@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', function () {
         noData: document.getElementById('phoneline-no-data'),
         sentinel: document.getElementById('phoneline-sentinel'),
         offset: {{ initial_lines|length }},
-        limit: 20,
+        limit: 10,
         hasMore: {% if has_more_lines %}true{% else %}false{% endif %},
         isLoading: false
     };
