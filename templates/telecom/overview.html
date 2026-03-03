@@ -122,6 +122,7 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                <div id="main-sentinel" style="height: 1px;"></div>
                 <div id="main-loading" class="text-center py-3" style="display: none;">
                     <div class="spinner-border spinner-border-sm text-primary" role="status">
                         <span class="visually-hidden">Carregando...</span>
@@ -213,6 +214,7 @@
                     {% endfor %}
                 </tbody>
             </table>
+            <div id="recent-sentinel" style="height: 1px;"></div>
             <div id="recent-loading" class="text-center py-3" style="display: none;">
                 <div class="spinner-border spinner-border-sm text-primary" role="status">
                     <span class="visually-hidden">Carregando...</span>
@@ -235,6 +237,7 @@ document.addEventListener('DOMContentLoaded', function() {
         loading: document.getElementById('main-loading'),
         noMore: document.getElementById('main-no-more'),
         noData: document.getElementById('no-data-main'),
+        sentinel: document.getElementById('main-sentinel'),
         offset: {{ initial_lines|length }},
         limit: 10,
         tableType: 'main',
@@ -262,6 +265,7 @@ document.addEventListener('DOMContentLoaded', function() {
         loading: document.getElementById('recent-loading'),
         noMore: document.getElementById('recent-no-more'),
         noData: document.getElementById('no-data-recent'),
+        sentinel: document.getElementById('recent-sentinel'),
         offset: {{ initial_recent_lines|length }},
         limit: 20,
         tableType: 'recent',
@@ -402,6 +406,7 @@ document.addEventListener('DOMContentLoaded', function() {
             table.hasMore = data.has_more;
             
             if (!data.has_more) {
+                table.sentinel.style.display = 'none';
                 table.noMore.style.display = 'block';
             }
             
@@ -428,12 +433,12 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }, {
             root: null,
-            rootMargin: '200px',
-            threshold: 0.1
+            rootMargin: '100px',
+            threshold: 0
         });
         
-        // Observar o elemento de loading
-        observer.observe(table.loading);
+        // Observar o elemento sentinela
+        observer.observe(table.sentinel);
     }
 
     // Inicializar lazy loading para ambas as tabelas
