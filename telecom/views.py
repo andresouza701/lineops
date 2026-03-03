@@ -523,6 +523,9 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
 
         # Carregar primeiros 10 itens
         context["initial_lines"] = list(lines_qs[:10])
+        context["has_more_main_lines"] = lines_qs.count() > len(
+            context["initial_lines"]
+        )
         context["line_filter"] = line_filter
         context["status_filter"] = status_filter
         context["status_choices"] = PhoneLine.Status.choices
@@ -556,8 +559,11 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         else:
             status_filter_recent = ""
 
-        # Carregar primeiros 20 itens
-        context["initial_recent_lines"] = list(recent_lines_qs[:20])
+        # Carregar primeiros 10 itens
+        context["initial_recent_lines"] = list(recent_lines_qs[:10])
+        context["has_more_recent_lines"] = recent_lines_qs.count() > len(
+            context["initial_recent_lines"]
+        )
         context["search_query"] = search_query
         context["status_filter_recent"] = status_filter_recent
 

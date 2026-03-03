@@ -78,7 +78,11 @@
                 {% endfor %}
             </tbody>
         </table>
-        <div id="simcard-sentinel" style="height: 1px;"></div>
+        <div class="text-center py-2">
+            <button id="simcard-load-more" type="button" class="btn btn-outline-primary btn-sm" style="display: none;">
+                Carregar mais
+            </button>
+        </div>
         <div id="simcard-loading" class="text-center py-3" style="display: none;">
             <div class="spinner-border spinner-border-sm text-primary" role="status">
                 <span class="visually-hidden">Carregando...</span>
@@ -100,7 +104,7 @@ document.addEventListener('DOMContentLoaded', function () {
         loading: document.getElementById('simcard-loading'),
         noMore: document.getElementById('simcard-no-more'),
         noData: document.getElementById('simcard-no-data'),
-        sentinel: document.getElementById('simcard-sentinel'),
+        loadMoreBtn: document.getElementById('simcard-load-more'),
         offset: {{ initial_simcards|length }},
         limit: 10,
         hasMore: {% if has_more_simcards %}true{% else %}false{% endif %},
@@ -169,6 +173,7 @@ document.addEventListener('DOMContentLoaded', function () {
             table.offset = data.offset;
             table.hasMore = data.has_more;
             if (!table.hasMore) {
+                table.loadMoreBtn.style.display = 'none';
                 table.noMore.style.display = 'block';
             }
         } catch (error) {
@@ -179,20 +184,15 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    if (!table.hasMore) {
-        table.noMore.style.display = table.offset > 0 ? 'block' : 'none';
-        return;
+    if (table.hasMore) {
+        table.loadMoreBtn.style.display = 'inline-block';
+    } else if (table.offset > 0) {
+        table.noMore.style.display = 'block';
     }
 
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-                loadMore();
-            }
-        });
-    }, { root: null, rootMargin: '120px', threshold: 0 });
-
-    observer.observe(table.sentinel);
+    table.loadMoreBtn.addEventListener('click', () => {
+        loadMore();
+    });
 });
 </script>
 {% endblock %}
