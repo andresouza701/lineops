@@ -514,3 +514,58 @@ class PhoneLineViewsTest(TestCase):
         self.assertEqual(self.line_available.phone_number, "+551199999001")
         self.assertEqual(self.line_available.sim_card_id, self.sim_available.pk)
         self.assertEqual(self.line_available.status, PhoneLine.Status.SUSPENDED)
+
+    def test_update_view_shows_business_error_when_employee_has_two_lines(self):
+        employee = Employee.objects.create(
+            full_name="TESTE1",
+            corporate_email="supervisor@test.com",
+            employee_id="EMP-LIMIT",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+
+        sim_1 = SIMcard.objects.create(
+            iccid="8900000000000000707",
+            carrier="CarrierG",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        sim_2 = SIMcard.objects.create(
+            iccid="8900000000000000808",
+            carrier="CarrierH",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        line_1 = PhoneLine.objects.create(
+            phone_number="+551199999070",
+            sim_card=sim_1,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        line_2 = PhoneLine.objects.create(
+            phone_number="+551199999080",
+            sim_card=sim_2,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        AllocationService.allocate_line(
+            employee=employee, phone_line=line_1, allocated_by=self.admin
+        )
+        AllocationService.allocate_line(
+            employee=employee, phone_line=line_2, allocated_by=self.admin
+        )
+
+        url = reverse("telecom:phoneline_update", args=[self.line_available.pk])
+        response = self.client.post(
+            url,
+            data={
+                "phone_number": self.line_available.phone_number,
+                "sim_card": self.line_available.sim_card.pk,
+                "status": PhoneLine.Status.ALLOCATED,
+                "employee": employee.pk,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "O funcionario TESTE1 ja possui 2 linhas alocadas ativas.",
+        )
+        self.line_available.refresh_from_db()
+        self.assertEqual(self.line_available.status, PhoneLine.Status.AVAILABLE)

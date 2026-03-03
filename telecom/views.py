@@ -18,6 +18,7 @@ from django.views.generic import (
 )
 
 from allocations.models import LineAllocation
+from core.exceptions.domain_exceptions import BusinessRuleException
 from core.mixins import RoleRequiredMixin, StandardPaginationMixin
 from core.services.allocation_service import AllocationService
 from users.models import SystemUser
@@ -296,21 +297,26 @@ class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
             # Avoid intermediate status transitions in audit history.
             form.instance.status = PhoneLine.Status.AVAILABLE
 
-        response = super().form_valid(form)
+        try:
+            with transaction.atomic():
+                response = super().form_valid(form)
 
-        if active_allocation and (
-            selected_employee is None
-            or active_allocation.employee_id != selected_employee.id
-        ):
-            AllocationService.release_line(active_allocation, self.request.user)
+                if active_allocation and (
+                    selected_employee is None
+                    or active_allocation.employee_id != selected_employee.id
+                ):
+                    AllocationService.release_line(active_allocation, self.request.user)
 
-        if selected_employee and (
-            active_allocation is None
-            or active_allocation.employee_id != selected_employee.id
-        ):
-            AllocationService.allocate_line(
-                selected_employee, self.object, self.request.user
-            )
+                if selected_employee and (
+                    active_allocation is None
+                    or active_allocation.employee_id != selected_employee.id
+                ):
+                    AllocationService.allocate_line(
+                        selected_employee, self.object, self.request.user
+                    )
+        except BusinessRuleException as exc:
+            form.add_error(None, str(exc))
+            return self.form_invalid(form)
 
         messages.success(self.request, "Linha telefÃ´nica atualizada com sucesso.")
         return response
