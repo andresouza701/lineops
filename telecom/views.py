@@ -290,6 +290,11 @@ class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
             .filter(phone_line=self.object, is_active=True)
             .first()
         )
+        will_allocate_new = selected_employee and active_allocation is None
+
+        if will_allocate_new:
+            # Avoid intermediate status transitions in audit history.
+            form.instance.status = PhoneLine.Status.AVAILABLE
 
         response = super().form_valid(form)
 
@@ -303,11 +308,6 @@ class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
             active_allocation is None
             or active_allocation.employee_id != selected_employee.id
         ):
-            self.object.refresh_from_db(fields=["status"])
-            if self.object.status != PhoneLine.Status.AVAILABLE:
-                self.object.status = PhoneLine.Status.AVAILABLE
-                self.object.save(update_fields=["status"])
-
             AllocationService.allocate_line(
                 selected_employee, self.object, self.request.user
             )

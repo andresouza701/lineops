@@ -29,12 +29,14 @@ class PhoneLineHistoryAuditTest(TestCase):
             corporate_email="supa@corp.com",
             employee_id="EMP100",
             teams="Joinville",
+            status=Employee.Status.ACTIVE,
         )
         self.employee_b = Employee.objects.create(
             full_name="Employee B",
             corporate_email="supb@corp.com",
             employee_id="EMP200",
             teams="Araquari",
+            status=Employee.Status.ACTIVE,
         )
 
         self.sim_a = SIMcard.objects.create(
@@ -223,6 +225,28 @@ class PhoneLineHistoryAuditTest(TestCase):
         )
         self.assertTrue(
             history.filter(action=PhoneLineHistory.ActionType.RELEASED).exists()
+        )
+        self.assertEqual(
+            history.filter(action=PhoneLineHistory.ActionType.STATUS_CHANGED).count(),
+            0,
+        )
+
+    def test_update_view_allocate_does_not_generate_status_changed_noise(self):
+        update_url = reverse("telecom:phoneline_update", args=[self.phone_line.pk])
+        response = self.client.post(
+            update_url,
+            data={
+                "phone_number": self.phone_line.phone_number,
+                "sim_card": self.phone_line.sim_card.pk,
+                "status": PhoneLine.Status.ALLOCATED,
+                "employee": self.employee_a.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+
+        history = PhoneLineHistory.objects.filter(phone_line=self.phone_line)
+        self.assertTrue(
+            history.filter(action=PhoneLineHistory.ActionType.ALLOCATED).exists()
         )
         self.assertEqual(
             history.filter(action=PhoneLineHistory.ActionType.STATUS_CHANGED).count(),
