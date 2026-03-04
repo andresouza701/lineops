@@ -22,7 +22,7 @@
     <h2 class="h6 mb-3">Resumo do dia</h2>
     <div class="row g-3">
         <div class="col-6 col-md-4 col-xl-3">
-            <div class="card h-100 border-0 bg-light">
+            <div class="card h-100 detail-stat-card detail-stat-card-primary">
                 <div class="card-body">
                     <p class="text-muted mb-1">Pessoas logadas</p>
                     <strong class="h5">{{ indicator.pessoas_logadas|floatformat:0 }}</strong>
@@ -30,7 +30,7 @@
             </div>
         </div>
         <div class="col-6 col-md-4 col-xl-3">
-            <div class="card h-100 border-0 bg-light">
+            <div class="card h-100 detail-stat-card detail-stat-card-info">
                 <div class="card-body">
                     <p class="text-muted mb-1">% sem Whats</p>
                     <strong class="h5">{{ indicator.perc_sem_whats|floatformat:2 }}%</strong>
@@ -38,7 +38,7 @@
             </div>
         </div>
         <div class="col-6 col-md-4 col-xl-3">
-            <div class="card h-100 border-0 bg-light">
+            <div class="card h-100 detail-stat-card detail-stat-card-warning">
                 <div class="card-body">
                     <p class="text-muted mb-1">B2B sem Whats</p>
                     <strong class="h5">{{ indicator.b2b_sem_whats|floatformat:0 }}</strong>
@@ -46,7 +46,7 @@
             </div>
         </div>
         <div class="col-6 col-md-4 col-xl-3">
-            <div class="card h-100 border-0 bg-light">
+            <div class="card h-100 detail-stat-card detail-stat-card-warning">
                 <div class="card-body">
                     <p class="text-muted mb-1">B2C sem Whats</p>
                     <strong class="h5">{{ indicator.b2c_sem_whats|floatformat:0 }}</strong>
@@ -54,7 +54,7 @@
             </div>
         </div>
         <div class="col-6 col-md-4 col-xl-3">
-            <div class="card h-100 border-0 bg-light">
+            <div class="card h-100 detail-stat-card detail-stat-card-success">
                 <div class="card-body">
                     <p class="text-muted mb-1">Numeros disponiveis</p>
                     <strong class="h5">{{ indicator.numeros_disponiveis|floatformat:0 }}</strong>
@@ -62,7 +62,7 @@
             </div>
         </div>
         <div class="col-6 col-md-4 col-xl-3">
-            <div class="card h-100 border-0 bg-light">
+            <div class="card h-100 detail-stat-card detail-stat-card-primary">
                 <div class="card-body">
                     <p class="text-muted mb-1">Numeros entregues</p>
                     <strong class="h5">{{ indicator.numeros_entregues|floatformat:0 }}</strong>
@@ -70,7 +70,7 @@
             </div>
         </div>
         <div class="col-6 col-md-4 col-xl-3">
-            <div class="card h-100 border-0 bg-light">
+            <div class="card h-100 detail-stat-card detail-stat-card-success">
                 <div class="card-body">
                     <p class="text-muted mb-1">Reconectados</p>
                     <strong class="h5">{{ indicator.reconectados|floatformat:0 }}</strong>
@@ -78,7 +78,7 @@
             </div>
         </div>
         <div class="col-6 col-md-4 col-xl-3">
-            <div class="card h-100 border-0 bg-light">
+            <div class="card h-100 detail-stat-card detail-stat-card-info">
                 <div class="card-body">
                     <p class="text-muted mb-1">Novos</p>
                     <strong class="h5">{{ indicator.novos|floatformat:0 }}</strong>
@@ -86,7 +86,7 @@
             </div>
         </div>
         <div class="col-12 col-md-6 col-xl-3">
-            <div class="card h-100 border-0 bg-light">
+            <div class="card h-100 detail-stat-card detail-stat-card-danger">
                 <div class="card-body">
                     <p class="text-muted mb-1">Total descoberto DIA</p>
                     <strong class="h5">{{ indicator.total_descoberto_dia|floatformat:0 }}</strong>
@@ -103,7 +103,7 @@
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>Quais sao os numeros disponiveis</span>
-                    <span class="badge text-bg-secondary">{{ indicator.available_numbers|length }}</span>
+                    <span class="badge detail-count-badge">{{ indicator.available_numbers|length }}</span>
                 </div>
                 <div class="card-body">
                     {% if indicator.available_numbers %}
@@ -122,7 +122,7 @@
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>Quais numeros foram entregues</span>
-                    <span class="badge text-bg-secondary">{{ indicator.delivered_numbers|length }}</span>
+                    <span class="badge detail-count-badge">{{ indicator.delivered_numbers|length }}</span>
                 </div>
                 <div class="card-body">
                     {% if indicator.delivered_numbers %}
@@ -141,7 +141,7 @@
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>Quais foram reconectados</span>
-                    <span class="badge text-bg-secondary">{{ indicator.reconnected_numbers|length }}</span>
+                    <span class="badge detail-count-badge">{{ indicator.reconnected_numbers|length }}</span>
                 </div>
                 <div class="card-body">
                     {% if indicator.reconnected_numbers %}
@@ -160,7 +160,7 @@
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>Quais foram os novos</span>
-                    <span class="badge text-bg-secondary">{{ indicator.new_numbers|length }}</span>
+                    <span class="badge detail-count-badge">{{ indicator.new_numbers|length }}</span>
                 </div>
                 <div class="card-body">
                     {% if indicator.new_numbers %}
@@ -179,7 +179,7 @@
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>Usuarios logados</span>
-                    <span class="badge text-bg-secondary">{{ indicator.logged_users|length }}</span>
+                    <span class="badge detail-count-badge">{{ indicator.logged_users|length }}</span>
                 </div>
                 <div class="card-body">
                     {% if indicator.logged_users %}
@@ -198,7 +198,7 @@
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>Usuarios com linha</span>
-                    <span class="badge text-bg-secondary">{{ indicator.users_with_line|length }}</span>
+                    <span class="badge detail-count-badge">{{ indicator.users_with_line|length }}</span>
                 </div>
                 <div class="card-body">
                     {% if indicator.users_with_line %}
@@ -217,7 +217,7 @@
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>Usuarios sem linha</span>
-                    <span class="badge text-bg-secondary">{{ indicator.users_without_line|length }}</span>
+                    <span class="badge detail-count-badge">{{ indicator.users_without_line|length }}</span>
                 </div>
                 <div class="card-body">
                     {% if indicator.users_without_line %}

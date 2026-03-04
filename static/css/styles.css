@@ -709,6 +709,53 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--text-main);
 }
 
+.detail-stat-card {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.92));
+    border-color: rgba(148, 163, 184, 0.35);
+}
+
+.detail-stat-card::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 3px;
+    opacity: 0.95;
+}
+
+.detail-stat-card strong {
+    color: var(--text-strong);
+}
+
+.detail-stat-card-primary::before {
+    background: linear-gradient(90deg, #2563eb, #60a5fa);
+}
+
+.detail-stat-card-info::before {
+    background: linear-gradient(90deg, #0ea5e9, #38bdf8);
+}
+
+.detail-stat-card-success::before {
+    background: linear-gradient(90deg, #059669, #34d399);
+}
+
+.detail-stat-card-warning::before {
+    background: linear-gradient(90deg, #d97706, #f59e0b);
+}
+
+.detail-stat-card-danger::before {
+    background: linear-gradient(90deg, #dc2626, #f87171);
+}
+
+.detail-count-badge {
+    background: rgba(37, 99, 235, 0.2);
+    color: #bfdbfe;
+    border: 1px solid rgba(96, 165, 250, 0.45);
+}
+
 .form-control,
 .form-select,
 input,
@@ -957,4 +1004,3 @@ textarea:disabled {
         display: none;
     }
 }
-
