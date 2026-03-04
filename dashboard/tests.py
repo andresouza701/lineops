@@ -138,6 +138,22 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertEqual(latest["b2b_sem_whats"], 0)
         self.assertEqual(latest["b2c_sem_whats"], 1)
 
+    def test_dashboard_ignores_inactive_users_in_sem_linha_and_descoberto(self):
+        Employee.objects.create(
+            full_name="Inactive User",
+            corporate_email="inactive@corp.com",
+            employee_id="Natura",
+            teams="B2C Squad",
+            status=Employee.Status.INACTIVE,
+        )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        latest = response.context["indicadores_diarios"][-1]
+        self.assertEqual(latest["b2c_sem_whats"], 1)
+        self.assertEqual(latest["total_descoberto_dia"], 1)
+
     def test_dashboard_daily_row_contains_day_detail_link(self):
         response = self.client.get(reverse("dashboard"))
         self.assertEqual(response.status_code, 200)
@@ -190,10 +206,10 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertContains(response, "B2C User")
         self.assertContains(response, "+5511999999001")
         self.assertContains(response, "+5511999999002")
-        self.assertContains(response, "Quais sao os numeros disponiveis")
-        self.assertContains(response, "Quais numeros foram entregues")
-        self.assertContains(response, "Quais foram reconectados")
-        self.assertContains(response, "Quais foram os novos")
+        self.assertContains(response, "Números disponíveis")
+        self.assertContains(response, "Números entregues")
+        self.assertContains(response, "Números reconectados")
+        self.assertContains(response, "Números novos")
         self.assertContains(response, "Usuarios logados")
         self.assertContains(response, "Usuarios com linha")
         self.assertContains(response, "Usuarios sem linha")

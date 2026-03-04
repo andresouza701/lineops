@@ -164,6 +164,7 @@ def build_user_details_for_day(employees, active_allocations):
 def build_indicator_for_day(day, include_users=False):
     end_of_day = timezone.make_aware(datetime.combine(day, time.max))
     employees = Employee.objects.filter(is_deleted=False, created_at__date__lte=day)
+    active_employees = employees.filter(status=Employee.Status.ACTIVE)
 
     active_allocations = LineAllocation.objects.filter(allocated_at__lte=end_of_day)
     active_allocations = active_allocations.filter(
@@ -173,9 +174,9 @@ def build_indicator_for_day(day, include_users=False):
     allocated_employee_ids = active_allocations.values_list(
         "employee_id", flat=True
     ).distinct()
-    employees_without_whats = employees.exclude(id__in=allocated_employee_ids)
+    employees_without_whats = active_employees.exclude(id__in=allocated_employee_ids)
 
-    total_negociadores = employees.count()
+    total_negociadores = active_employees.count()
     sem_whats = employees_without_whats.count()
     perc_sem_whats = (sem_whats / total_negociadores * 100) if total_negociadores else 0
 
@@ -228,7 +229,7 @@ def build_indicator_for_day(day, include_users=False):
         return indicator
 
     users, logged_users, users_with_line, users_without_line = (
-        build_user_details_for_day(employees, active_allocations)
+        build_user_details_for_day(active_employees, active_allocations)
     )
 
     indicator["users"] = users
