@@ -15,6 +15,7 @@ B2B_SUPERVISORS = [
     ("Quezia", "Quezia"),
     ("Rodrigo", "Rodrigo"),
     ("Rosimeri", "Rosimeri"),
+    ("Textil", "Textil"),
 ]
 
 B2B_PORTFOLIOS = [
@@ -116,7 +117,7 @@ class DailyIndicatorForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Definir choices dinâmicas baseado no segmento
+        # Definir choices dinÃ¢micas baseado no segmento
         segment = self.data.get("segment") or self.initial.get("segment", "B2B")
 
         if segment == "B2B":
@@ -126,7 +127,7 @@ class DailyIndicatorForm(forms.ModelForm):
             self.fields["supervisor"].choices = B2C_SUPERVISORS
             self.fields["portfolio"].choices = B2C_PORTFOLIOS
 
-        # Pré-preencher data com hoje
+        # PrÃ©-preencher data com hoje
         if not self.data:
             self.fields["date"].initial = timezone.now().date()
 
@@ -137,23 +138,23 @@ class DailyIndicatorForm(forms.ModelForm):
         portfolio = cleaned_data.get("portfolio")
         people_logged_in = cleaned_data.get("people_logged_in")
 
-        # Validar data não pode ser futura
+        # Validar data nÃ£o pode ser futura
         if date and date > timezone.now().date():
-            self.add_error("date", "A data não pode ser no futuro.")
+            self.add_error("date", "A data nÃ£o pode ser no futuro.")
 
-        # Validar campos obrigatórios
+        # Validar campos obrigatÃ³rios
         if not supervisor:
             self.add_error("supervisor", "Selecione um supervisor.")
         if not portfolio:
             self.add_error("portfolio", "Selecione uma carteira.")
         if people_logged_in is None or people_logged_in < 0:
-            self.add_error("people_logged_in", "Insira um valor válido (≥ 0).")
+            self.add_error("people_logged_in", "Insira um valor vÃ¡lido (â‰¥ 0).")
 
         return cleaned_data
 
 
 class DailyIndicatorFilterForm(forms.Form):
-    """Formulário para filtrar indicadores na página de gestão"""
+    """FormulÃ¡rio para filtrar indicadores na pÃ¡gina de gestÃ£o"""
 
     SEGMENT_CHOICES = [("", "Todos")] + list(DailyIndicator.SEGMENT_CHOICES)
 
@@ -184,7 +185,7 @@ class DailyIndicatorFilterForm(forms.Form):
 
     date_from = forms.DateField(
         required=False,
-        label="Data início",
+        label="Data inÃ­cio",
         widget=forms.DateInput(
             attrs={
                 "class": "form-control",
@@ -206,7 +207,7 @@ class DailyIndicatorFilterForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Pré-preencher datas (últimos 30 dias)
+        # PrÃ©-preencher datas (Ãºltimos 30 dias)
         if not self.data:
             today = timezone.now().date()
             self.fields["date_from"].initial = today - timezone.timedelta(days=30)
@@ -218,6 +219,7 @@ class DailyIndicatorFilterForm(forms.Form):
         date_to = cleaned_data.get("date_to")
 
         if date_from and date_to and date_from > date_to:
-            self.add_error("date_from", "Data início não pode ser depois da data fim.")
+            message = "Data inÃ­cio nÃ£o pode ser depois da data fim."
+            self.add_error("date_from", message)
 
         return cleaned_data
