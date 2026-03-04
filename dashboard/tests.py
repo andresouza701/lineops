@@ -8,6 +8,8 @@ from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 
+from .forms import DailyIndicatorForm
+
 
 class DashboardDailyIndicatorsTests(TestCase):
     def setUp(self):
@@ -90,3 +92,24 @@ class DashboardDailyIndicatorsTests(TestCase):
             r"<td>\d+</td>"
         )
         self.assertRegex(html, re.compile(row_pattern, re.S))
+
+    def test_daily_indicator_form_renders_segment_choices_in_selects(self):
+        form_b2b = DailyIndicatorForm()
+        supervisor_html_b2b = str(form_b2b["supervisor"])
+        portfolio_html_b2b = str(form_b2b["portfolio"])
+        self.assertIn("Alex", supervisor_html_b2b)
+        self.assertIn("Alimentos", portfolio_html_b2b)
+
+        form_b2c = DailyIndicatorForm(
+            data={
+                "segment": "B2C",
+                "supervisor": "Camila",
+                "portfolio": "Natura",
+                "people_logged_in": 1,
+                "date": "2026-03-01",
+            }
+        )
+        supervisor_html_b2c = str(form_b2c["supervisor"])
+        portfolio_html_b2c = str(form_b2c["portfolio"])
+        self.assertIn("Camila", supervisor_html_b2c)
+        self.assertIn("Natura", portfolio_html_b2c)

@@ -67,6 +67,24 @@ class DailyIndicatorForm(forms.ModelForm):
         label="Segmento",
         initial="B2B",
     )
+    supervisor = forms.ChoiceField(
+        choices=[],
+        label="Supervisor",
+        widget=forms.Select(
+            attrs={
+                "class": "form-control",
+            }
+        ),
+    )
+    portfolio = forms.ChoiceField(
+        choices=[],
+        label="Carteira",
+        widget=forms.Select(
+            attrs={
+                "class": "form-control",
+            }
+        ),
+    )
 
     class Meta:
         model = DailyIndicator
@@ -79,16 +97,6 @@ class DailyIndicatorForm(forms.ModelForm):
             "date": "Data do Indicador",
         }
         widgets = {
-            "supervisor": forms.Select(
-                attrs={
-                    "class": "form-control",
-                }
-            ),
-            "portfolio": forms.Select(
-                attrs={
-                    "class": "form-control",
-                }
-            ),
             "people_logged_in": forms.NumberInput(
                 attrs={
                     "class": "form-control",
