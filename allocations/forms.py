@@ -1,6 +1,7 @@
 from django import forms
 
 from allocations.models import LineAllocation
+from core.constants import B2B_PORTFOLIOS
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 
@@ -24,32 +25,7 @@ class CombinedRegistrationForm(forms.Form):
     )
     employee_id = forms.ChoiceField(
         label="Carteira",
-        choices=[
-            ("Alimentos", "Alimentos"),
-            ("Andina", "Andina"),
-            ("BackOffice", "BackOffice"),
-            ("BAT", "BAT"),
-            ("Chilli Beans", "Chilli Beans"),
-            ("Femsa", "Femsa"),
-            ("Heineki", "Heineki"),
-            ("Industria", "Industria"),
-            ("Manual Dellys", "Manual Dellys"),
-            ("MV - Martins", "MV - Martins"),
-            ("MV - Pepsico Repique", "MV - Pepsico Repique"),
-            ("MV - Pepsico", "MV - Pepsico"),
-            ("MV - Transportes", "MV - Transportes"),
-            ("MV - Acoes", "MV - Acoes"),
-            ("MV - Mix", "MV - Mix"),
-            ("MV - Dellys", "MV - Dellys"),
-            ("MV - Potencial", "MV - Potencial"),
-            ("MV - Represado", "MV - Represado"),
-            ("Pepsico", "Pepsico"),
-            ("Pesquisa", "Pesquisa"),
-            ("Sascar", "Sascar"),
-            ("Souza", "Souza"),
-            ("Tabacos", "Tabacos"),
-            ("Textil", "Textil"),
-        ],
+        choices=B2B_PORTFOLIOS,
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     teams = forms.ChoiceField(
