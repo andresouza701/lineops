@@ -57,6 +57,8 @@ class Employee(models.Model):
         return f"{self.full_name} ({self.employee_id})"
 
     class Meta:
+        verbose_name = "NEGOCIADOR"
+        verbose_name_plural = "NEGOCIADOR"
         indexes = [
             models.Index(fields=["employee_id"]),
             models.Index(fields=["corporate_email"]),
