@@ -148,6 +148,37 @@ class DashboardDailyIndicatorsTests(TestCase):
         )
         self.assertContains(response, expected_link)
 
+    def test_dashboard_exception_cards_show_pending_action_counts(self):
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2c,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        cards = response.context["exception_cards"]
+        pending_new_number = next(
+            card for card in cards if card["title"] == "Pendêcia - Número Novo"
+        )
+        pending_reconnect = next(
+            card for card in cards if card["title"] == "Pendêcia - Reconexão Whats"
+        )
+        self.assertEqual(pending_new_number["value"], 1)
+        self.assertEqual(pending_reconnect["value"], 1)
+
     def test_daily_indicator_day_breakdown_shows_user_details(self):
         today_iso = timezone.localdate().strftime("%Y-%m-%d")
         response = self.client.get(

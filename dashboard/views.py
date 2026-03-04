@@ -316,6 +316,18 @@ class DashboardView(AuthenticadView, TemplateView):
     def _build_dashboard_insights(self, context):
         daily = context.get("indicadores_diarios", [])
         latest = daily[-1] if daily else {}
+        today = timezone.localdate()
+        pending_actions = DailyUserAction.objects.filter(day=today)
+        pending_new_number_count = pending_actions.filter(
+            action_type=DailyUserAction.ActionType.NEW_NUMBER
+        ).count()
+        pending_reconnect_whatsapp_count = pending_actions.filter(
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP
+        ).count()
+        action_board_url = (
+            f"{reverse('daily_user_action_board')}"
+            f"?{urlencode({'day': today.isoformat()})}"
+        )
 
         latest_sem_whats = float(latest.get("perc_sem_whats", 0) or 0)
         latest_descoberto = int(latest.get("total_descoberto_dia", 0) or 0)
@@ -359,6 +371,22 @@ class DashboardView(AuthenticadView, TemplateView):
                 "level": level_for_count(blocked_lines),
                 "action_label": "Ver telecom",
                 "action_url": "/telecom/",
+            },
+            {
+                "title": "Pendêcia - Número Novo",
+                "value": pending_new_number_count,
+                "description": "Pendencias marcadas como precisa numero novo.",
+                "level": level_for_count(pending_new_number_count),
+                "action_label": "Ver pendencias",
+                "action_url": action_board_url,
+            },
+            {
+                "title": "Pendêcia - Reconexão Whats",
+                "value": pending_reconnect_whatsapp_count,
+                "description": "Pendencias marcadas como precisa reconectar Whats.",
+                "level": level_for_count(pending_reconnect_whatsapp_count),
+                "action_label": "Ver pendencias",
+                "action_url": action_board_url,
             },
             {
                 "title": "Descobertos hoje",
