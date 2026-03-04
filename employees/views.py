@@ -14,7 +14,7 @@ from .models import Employee, EmployeeHistory
 
 
 class EmployeeListView(RoleRequiredMixin, ListView):
-    allowed_roles = [SystemUser.Role.ADMIN]
+    allowed_roles = [SystemUser.Role.ADMIN, SystemUser.Role.SUPER]
     model = Employee
     template_name = "employees/employee_list.html"
     context_object_name = "employees"
@@ -47,7 +47,7 @@ class EmployeeListView(RoleRequiredMixin, ListView):
                     "pa": emp.pa or "",
                     "teams": emp.teams,
                     "status": emp.status,
-                    "edit_url": f"/employees/{emp.pk}/update/",
+                    "edit_url": f"/employees/{emp.pk}/edit/",
                     "history_url": f"/employees/{emp.pk}/history/",
                 }
             )
@@ -111,7 +111,7 @@ class EmployeeCreateView(RoleRequiredMixin, CreateView):
 
 
 class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
-    allowed_roles = [SystemUser.Role.ADMIN]
+    allowed_roles = [SystemUser.Role.ADMIN, SystemUser.Role.SUPER]
     model = Employee
     template_name = "employees/employee_form.html"
     from .forms import EmployeeForm

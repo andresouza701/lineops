@@ -15,7 +15,7 @@
                 Indicadores
             </a>
         </li>
-        {% if request.user.role == 'admin' %}
+        {% if request.user.role == 'admin' or request.user.role == 'super' %}
         <li>
             <a href="{% url 'employees:employee_list' %}"
                class="nav-link {% if current_ns == 'employees' %}active{% endif %}">

@@ -30,10 +30,12 @@
                 <a href="{% url 'dashboard' %}" class="rail-link {% if current_name == 'dashboard' %}is-active{% endif %}" aria-label="Dashboard" title="Dashboard">
                     <i class="bi bi-speedometer2" aria-hidden="true"></i>
                 </a>
-                {% if request.user.is_authenticated and request.user.role == 'admin' %}
+                {% if request.user.is_authenticated %}
+                    {% if request.user.role == 'admin' or request.user.role == 'super' %}
                     <a href="{% url 'employees:employee_list' %}" class="rail-link {% if current_ns == 'employees' %}is-active{% endif %}" aria-label="Usuarios" title="Usuarios">
                         <i class="bi bi-people" aria-hidden="true"></i>
                     </a>
+                    {% endif %}
                 {% endif %}
                 {% if request.user.is_authenticated %}
                     <a href="{% url 'daily_indicator_management' %}" class="rail-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' or current_name == 'daily_user_action_board' %}is-active{% endif %}" aria-label="Indicadores" title="Indicadores">

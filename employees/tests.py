@@ -46,6 +46,11 @@ class EmployeeListViewTest(TestCase):
             password="StrongPass123",
             role=SystemUser.Role.OPERATOR,
         )
+        self.supervisor = SystemUser.objects.create_user(
+            email="super@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.SUPER,
+        )
         self.employee = Employee.objects.create(
             full_name="Aline Martins",
             corporate_email="aline.martins@lineops.tech",
@@ -98,6 +103,31 @@ class EmployeeListViewTest(TestCase):
         self.client.force_login(self.operator)
         response = self.client.get(reverse("employees:employee_list"))
         self.assertEqual(response.status_code, 403)
+
+    def test_super_can_access_employee_list(self) -> None:
+        self.client.force_login(self.supervisor)
+        response = self.client.get(reverse("employees:employee_list"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_super_can_access_employee_update(self) -> None:
+        self.client.force_login(self.supervisor)
+        response = self.client.get(
+            reverse("employees:employee_update", args=[self.employee.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_super_does_not_see_history_button(self) -> None:
+        self.client.force_login(self.supervisor)
+        response = self.client.get(reverse("employees:employee_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            reverse("employees:employee_update", args=[self.employee.pk]),
+        )
+        self.assertNotContains(
+            response,
+            reverse("employees:employee_history", args=[self.employee.pk]),
+        )
 
     def test_anonymous_cannot_access_employee_list(self) -> None:
         response = self.client.get(reverse("employees:employee_list"))
@@ -167,6 +197,18 @@ class EmployeeHistoryAuditTest(TestCase):
         ok = self.client.get(url)
         self.assertEqual(ok.status_code, 200)
         self.assertIn("history", ok.context)
+
+    def test_history_view_denies_super_user(self) -> None:
+        url = reverse("employees:employee_history", args=[self.employee.pk])
+        self.client.force_login(
+            SystemUser.objects.create_user(
+                email="super.history@test.com",
+                password="StrongPass123",
+                role=SystemUser.Role.SUPER,
+            )
+        )
+        denied = self.client.get(url)
+        self.assertEqual(denied.status_code, 403)
 
     def test_pa_change_is_recorded_in_updated_history(self) -> None:
         set_current_user(self.admin)
