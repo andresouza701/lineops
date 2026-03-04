@@ -14,7 +14,14 @@ from core.services.daily_indicator_service import DailyIndicatorService
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 
-from .forms import DailyIndicatorFilterForm, DailyIndicatorForm
+from .forms import (
+    B2B_PORTFOLIOS,
+    B2B_SUPERVISORS,
+    B2C_PORTFOLIOS,
+    B2C_SUPERVISORS,
+    DailyIndicatorFilterForm,
+    DailyIndicatorForm,
+)
 from .models import DailyIndicator
 
 PERCENT_CRITICAL_THRESHOLD = 20
@@ -370,6 +377,10 @@ def daily_indicator_entry(request):
     context = {
         "form": form,
         "title": "Registrar Indicador Diário",
+        "b2b_supervisors": B2B_SUPERVISORS,
+        "b2b_portfolios": B2B_PORTFOLIOS,
+        "b2c_supervisors": B2C_SUPERVISORS,
+        "b2c_portfolios": B2C_PORTFOLIOS,
     }
     return render(request, "dashboard/daily_indicator_form.html", context)
 
@@ -474,5 +485,9 @@ def daily_indicator_edit(request, pk):
         "form": form,
         "indicator": indicator,
         "title": f"Editar Indicador - {indicator.supervisor}",
+        "b2b_supervisors": B2B_SUPERVISORS,
+        "b2b_portfolios": B2B_PORTFOLIOS,
+        "b2c_supervisors": B2C_SUPERVISORS,
+        "b2c_portfolios": B2C_PORTFOLIOS,
     }
     return render(request, "dashboard/daily_indicator_form.html", context)

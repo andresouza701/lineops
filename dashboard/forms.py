@@ -3,7 +3,7 @@ from django.utils import timezone
 
 from .models import DailyIndicator
 
-# B2B Carteiras e Supervisores
+# B2B carteiras e supervisores
 B2B_SUPERVISORS = [
     ("Alex", "Alex"),
     ("Barbara", "Barbara"),
@@ -45,7 +45,7 @@ B2B_PORTFOLIOS = [
     ("Têxtil", "Têxtil"),
 ]
 
-# B2C Carteiras e Supervisores
+# B2C carteiras e supervisores
 B2C_SUPERVISORS = [
     ("Camila", "Camila"),
     ("Alex", "Alex"),
@@ -71,20 +71,12 @@ class DailyIndicatorForm(forms.ModelForm):
     supervisor = forms.ChoiceField(
         choices=[],
         label="Supervisor",
-        widget=forms.Select(
-            attrs={
-                "class": "form-control",
-            }
-        ),
+        widget=forms.Select(attrs={"class": "form-control"}),
     )
     portfolio = forms.ChoiceField(
         choices=[],
         label="Carteira",
-        widget=forms.Select(
-            attrs={
-                "class": "form-control",
-            }
-        ),
+        widget=forms.Select(attrs={"class": "form-control"}),
     )
 
     class Meta:
@@ -117,17 +109,18 @@ class DailyIndicatorForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Definir choices dinÃ¢micas baseado no segmento
         segment = self.data.get("segment") or self.initial.get("segment", "B2B")
 
         if segment == "B2B":
-            self.fields["supervisor"].choices = B2B_SUPERVISORS
-            self.fields["portfolio"].choices = B2B_PORTFOLIOS
-        else:  # B2C
-            self.fields["supervisor"].choices = B2C_SUPERVISORS
-            self.fields["portfolio"].choices = B2C_PORTFOLIOS
+            supervisors = B2B_SUPERVISORS
+            portfolios = B2B_PORTFOLIOS
+        else:
+            supervisors = B2C_SUPERVISORS
+            portfolios = B2C_PORTFOLIOS
 
-        # PrÃ©-preencher data com hoje
+        self.fields["supervisor"].choices = [("", "Selecione")] + supervisors
+        self.fields["portfolio"].choices = [("", "Selecione")] + portfolios
+
         if not self.data:
             self.fields["date"].initial = timezone.now().date()
 
@@ -138,23 +131,21 @@ class DailyIndicatorForm(forms.ModelForm):
         portfolio = cleaned_data.get("portfolio")
         people_logged_in = cleaned_data.get("people_logged_in")
 
-        # Validar data nÃ£o pode ser futura
         if date and date > timezone.now().date():
-            self.add_error("date", "A data nÃ£o pode ser no futuro.")
+            self.add_error("date", "A data não pode ser no futuro.")
 
-        # Validar campos obrigatÃ³rios
         if not supervisor:
             self.add_error("supervisor", "Selecione um supervisor.")
         if not portfolio:
             self.add_error("portfolio", "Selecione uma carteira.")
         if people_logged_in is None or people_logged_in < 0:
-            self.add_error("people_logged_in", "Insira um valor vÃ¡lido (â‰¥ 0).")
+            self.add_error("people_logged_in", "Insira um valor válido (>= 0).")
 
         return cleaned_data
 
 
 class DailyIndicatorFilterForm(forms.Form):
-    """FormulÃ¡rio para filtrar indicadores na pÃ¡gina de gestÃ£o"""
+    """Formulário para filtrar indicadores na página de gestão"""
 
     SEGMENT_CHOICES = [("", "Todos")] + list(DailyIndicator.SEGMENT_CHOICES)
 
@@ -185,7 +176,7 @@ class DailyIndicatorFilterForm(forms.Form):
 
     date_from = forms.DateField(
         required=False,
-        label="Data inÃ­cio",
+        label="Data início",
         widget=forms.DateInput(
             attrs={
                 "class": "form-control",
@@ -207,7 +198,6 @@ class DailyIndicatorFilterForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # PrÃ©-preencher datas (Ãºltimos 30 dias)
         if not self.data:
             today = timezone.now().date()
             self.fields["date_from"].initial = today - timezone.timedelta(days=30)
@@ -219,7 +209,6 @@ class DailyIndicatorFilterForm(forms.Form):
         date_to = cleaned_data.get("date_to")
 
         if date_from and date_to and date_from > date_to:
-            message = "Data inÃ­cio nÃ£o pode ser depois da data fim."
-            self.add_error("date_from", message)
+            self.add_error("date_from", "Data início não pode ser depois da data fim.")
 
         return cleaned_data

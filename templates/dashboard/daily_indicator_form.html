@@ -98,6 +98,68 @@
 </section>
 {% endblock %}
 
+{% block scripts %}
+{{ b2b_supervisors|json_script:"b2b-supervisors-data" }}
+{{ b2b_portfolios|json_script:"b2b-portfolios-data" }}
+{{ b2c_supervisors|json_script:"b2c-supervisors-data" }}
+{{ b2c_portfolios|json_script:"b2c-portfolios-data" }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const supervisorSelect = document.getElementById("id_supervisor");
+    const portfolioSelect = document.getElementById("id_portfolio");
+    const segmentInputs = document.querySelectorAll('input[name="segment"]');
+    if (!supervisorSelect || !portfolioSelect || !segmentInputs.length) return;
+
+    const b2bSupervisors = JSON.parse(document.getElementById("b2b-supervisors-data").textContent);
+    const b2bPortfolios = JSON.parse(document.getElementById("b2b-portfolios-data").textContent);
+    const b2cSupervisors = JSON.parse(document.getElementById("b2c-supervisors-data").textContent);
+    const b2cPortfolios = JSON.parse(document.getElementById("b2c-portfolios-data").textContent);
+
+    function fillSelect(selectEl, values, keepValue) {
+        const currentValue = keepValue ? selectEl.value : "";
+        selectEl.innerHTML = "";
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Selecione";
+        selectEl.appendChild(placeholder);
+
+        values.forEach(function (entry) {
+            const option = document.createElement("option");
+            option.value = entry[0];
+            option.textContent = entry[1];
+            if (currentValue && currentValue === entry[0]) {
+                option.selected = true;
+            }
+            selectEl.appendChild(option);
+        });
+    }
+
+    function currentSegment() {
+        const checked = document.querySelector('input[name="segment"]:checked');
+        return checked ? checked.value : "B2B";
+    }
+
+    function syncChoices(keepValue) {
+        const segment = currentSegment();
+        if (segment === "B2C") {
+            fillSelect(supervisorSelect, b2cSupervisors, keepValue);
+            fillSelect(portfolioSelect, b2cPortfolios, keepValue);
+            return;
+        }
+        fillSelect(supervisorSelect, b2bSupervisors, keepValue);
+        fillSelect(portfolioSelect, b2bPortfolios, keepValue);
+    }
+
+    syncChoices(true);
+    segmentInputs.forEach(function (input) {
+        input.addEventListener("change", function () {
+            syncChoices(false);
+        });
+    });
+});
+</script>
+{% endblock %}
+
 {% block extra_css %}
 <style>
     .form-layout {
