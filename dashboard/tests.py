@@ -23,14 +23,14 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.employee_b2b = Employee.objects.create(
             full_name="B2B User",
             corporate_email="b2b@corp.com",
-            employee_id="EMP-B2B",
+            employee_id="Alimentos",
             teams="B2B Squad",
             status=Employee.Status.ACTIVE,
         )
         self.employee_b2c = Employee.objects.create(
             full_name="B2C User",
             corporate_email="b2c@corp.com",
-            employee_id="EMP-B2C",
+            employee_id="Natura",
             teams="B2C Squad",
             status=Employee.Status.ACTIVE,
         )
@@ -123,3 +123,11 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertIn("rows", payload)
         self.assertIn("fingerprint", payload)
         self.assertTrue(payload["fingerprint"])
+
+    def test_dashboard_splits_sem_whats_by_b2b_and_b2c_portfolios(self):
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        latest = response.context["indicadores_diarios"][-1]
+        self.assertEqual(latest["b2b_sem_whats"], 0)
+        self.assertEqual(latest["b2c_sem_whats"], 1)

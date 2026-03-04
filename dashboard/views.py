@@ -1,4 +1,5 @@
 import hashlib
+import unicodedata
 from collections import defaultdict
 from datetime import datetime, time, timedelta
 
@@ -68,6 +69,24 @@ def get_daily_indicators_payload(days):
     )
     fingerprint = hashlib.md5(base.encode("utf-8")).hexdigest()
     return rows, fingerprint
+
+
+def normalize_portfolio_name(value):
+    if not value:
+        return ""
+    normalized = unicodedata.normalize("NFKD", str(value))
+    without_diacritics = "".join(
+        char for char in normalized if not unicodedata.combining(char)
+    )
+    return " ".join(without_diacritics.strip().lower().split())
+
+
+B2B_PORTFOLIO_NAMES = {
+    normalize_portfolio_name(portfolio) for portfolio, _ in B2B_PORTFOLIOS
+}
+B2C_PORTFOLIO_NAMES = {
+    normalize_portfolio_name(portfolio) for portfolio, _ in B2C_PORTFOLIOS
+}
 
 
 class DashboardView(AuthenticadView, TemplateView):
@@ -333,17 +352,24 @@ class DashboardView(AuthenticadView, TemplateView):
             .count()
         )
         novos = PhoneLine.objects.filter(created_at__date=day, is_deleted=False).count()
+        sem_whats_portfolios = employees_without_whats.values_list(
+            "employee_id", flat=True
+        )
+        b2b_sem_whats = 0
+        b2c_sem_whats = 0
+        for portfolio_name in sem_whats_portfolios:
+            normalized = normalize_portfolio_name(portfolio_name)
+            if normalized in B2B_PORTFOLIO_NAMES:
+                b2b_sem_whats += 1
+            elif normalized in B2C_PORTFOLIO_NAMES:
+                b2c_sem_whats += 1
 
         return {
             "data": day,
             "pessoas_logadas": employees.filter(status=Employee.Status.ACTIVE).count(),
             "perc_sem_whats": perc_sem_whats,
-            "b2b_sem_whats": employees_without_whats.filter(
-                teams__icontains="b2b"
-            ).count(),
-            "b2c_sem_whats": employees_without_whats.filter(
-                teams__icontains="b2c"
-            ).count(),
+            "b2b_sem_whats": b2b_sem_whats,
+            "b2c_sem_whats": b2c_sem_whats,
             "numeros_disponiveis": numeros_disponiveis,
             "numeros_entregues": numeros_entregues,
             "reconectados": reconectados,
