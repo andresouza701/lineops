@@ -119,19 +119,16 @@ class SIMcardCreateView(RoleRequiredMixin, CreateView):
     @transaction.atomic
     def form_valid(self, form):
         self.object = form.save()
-        phone_number = form.cleaned_data.get("phone_number")
-        if phone_number:
-            PhoneLine.objects.create(
-                phone_number=phone_number,
-                sim_card=self.object,
-                status=PhoneLine.Status.AVAILABLE,
-            )
-            messages.success(
-                self.request,
-                "SIM card e linha criados com sucesso.",
-            )
-        else:
-            messages.success(self.request, "SIM card criado com sucesso.")
+        phone_number = form.cleaned_data["phone_number"]
+        PhoneLine.objects.create(
+            phone_number=phone_number,
+            sim_card=self.object,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        messages.success(
+            self.request,
+            "SIM card e linha criados com sucesso.",
+        )
         return redirect(self.get_success_url())
 
 

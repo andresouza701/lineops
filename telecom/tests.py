@@ -337,13 +337,20 @@ class SIMcardViewsTest(TestCase):
         payload = {
             "iccid": "8900000000000000303",
             "carrier": "CarrierC",
+            "phone_number": "+5511999990303",
         }
 
         response = self.client.post(url, data=payload)
 
         self.assertEqual(response.status_code, 302)
         self.assertRedirects(response, reverse("telecom:simcard_list"))
-        self.assertTrue(SIMcard.objects.filter(iccid=payload["iccid"]).exists())
+        created_sim = SIMcard.objects.get(iccid=payload["iccid"])
+        self.assertTrue(
+            PhoneLine.objects.filter(
+                phone_number=payload["phone_number"],
+                sim_card=created_sim,
+            ).exists()
+        )
 
     def test_simcard_create_view_can_create_phone_line_together(self):
         url = reverse("telecom:simcard_create")
@@ -364,6 +371,20 @@ class SIMcardViewsTest(TestCase):
                 sim_card=created_sim,
             ).exists()
         )
+
+    def test_simcard_create_requires_phone_number(self):
+        url = reverse("telecom:simcard_create")
+        payload = {
+            "iccid": "8900000000000000310",
+            "carrier": "CarrierRequired",
+            "phone_number": "",
+        }
+
+        response = self.client.post(url, data=payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Este campo")
+        self.assertFalse(SIMcard.objects.filter(iccid=payload["iccid"]).exists())
 
     def test_simcard_create_view_shows_error_when_phone_number_already_exists(self):
         SIMcard.objects.create(

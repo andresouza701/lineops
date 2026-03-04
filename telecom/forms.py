@@ -18,10 +18,10 @@ class SIMcardForm(forms.ModelForm):
 
 class SIMcardCreateWithLineForm(SIMcardForm):
     phone_number = forms.CharField(
-        label="Linha (opcional)",
+        label="Linha",
         max_length=20,
-        required=False,
-        help_text="Se preenchido, cria a linha junto com o SIM card.",
+        required=True,
+        help_text="Numero da linha vinculado ao SIM card.",
     )
 
     def __init__(self, *args, **kwargs):
@@ -30,8 +30,6 @@ class SIMcardCreateWithLineForm(SIMcardForm):
 
     def clean_phone_number(self):
         phone_number = (self.cleaned_data.get("phone_number") or "").strip()
-        if not phone_number:
-            return ""
         if PhoneLine.objects.filter(
             phone_number=phone_number,
             is_deleted=False,
