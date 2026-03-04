@@ -98,140 +98,150 @@
 
 <section class="surface-card reveal-item">
     <h2 class="h6 mb-3">Listas detalhadas do dia</h2>
-    <div class="row g-3">
-        <div class="col-12 col-lg-6">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Quais sao os numeros disponiveis</span>
-                    <span class="badge detail-count-badge">{{ indicator.available_numbers|length }}</span>
-                </div>
-                <div class="card-body">
-                    {% if indicator.available_numbers %}
-                        <ul class="mb-0">
-                            {% for number in indicator.available_numbers %}
-                                <li>{{ number }}</li>
-                            {% endfor %}
-                        </ul>
-                    {% else %}
-                        <p class="text-muted mb-0">Nenhum numero disponivel no dia.</p>
-                    {% endif %}
-                </div>
+    <div class="detail-lists-grid">
+        <article class="card h-100 detail-list-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="detail-list-title">Quais sao os numeros disponiveis</span>
+                <span class="badge detail-count-badge">{{ indicator.available_numbers|length }}</span>
             </div>
-        </div>
-        <div class="col-12 col-lg-6">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Quais numeros foram entregues</span>
-                    <span class="badge detail-count-badge">{{ indicator.delivered_numbers|length }}</span>
-                </div>
-                <div class="card-body">
-                    {% if indicator.delivered_numbers %}
-                        <ul class="mb-0">
-                            {% for item in indicator.delivered_numbers %}
-                                <li>{{ item.numero }} - {{ item.usuario }} ({{ item.carteira }})</li>
-                            {% endfor %}
-                        </ul>
-                    {% else %}
-                        <p class="text-muted mb-0">Nenhum numero entregue no dia.</p>
-                    {% endif %}
-                </div>
+            <div class="card-body detail-list-body">
+                {% if indicator.available_numbers %}
+                    <ul class="detail-list">
+                        {% for number in indicator.available_numbers %}
+                            <li class="detail-list-item">
+                                <span class="detail-list-main metric-mono">{{ number }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="detail-list-empty">Nenhum numero disponivel no dia.</p>
+                {% endif %}
             </div>
-        </div>
-        <div class="col-12 col-lg-6">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Quais foram reconectados</span>
-                    <span class="badge detail-count-badge">{{ indicator.reconnected_numbers|length }}</span>
-                </div>
-                <div class="card-body">
-                    {% if indicator.reconnected_numbers %}
-                        <ul class="mb-0">
-                            {% for item in indicator.reconnected_numbers %}
-                                <li>{{ item.numero }} - {{ item.usuario }} ({{ item.carteira }})</li>
-                            {% endfor %}
-                        </ul>
-                    {% else %}
-                        <p class="text-muted mb-0">Nenhum numero reconectado no dia.</p>
-                    {% endif %}
-                </div>
+        </article>
+
+        <article class="card h-100 detail-list-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="detail-list-title">Quais numeros foram entregues</span>
+                <span class="badge detail-count-badge">{{ indicator.delivered_numbers|length }}</span>
             </div>
-        </div>
-        <div class="col-12 col-lg-6">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Quais foram os novos</span>
-                    <span class="badge detail-count-badge">{{ indicator.new_numbers|length }}</span>
-                </div>
-                <div class="card-body">
-                    {% if indicator.new_numbers %}
-                        <ul class="mb-0">
-                            {% for number in indicator.new_numbers %}
-                                <li>{{ number }}</li>
-                            {% endfor %}
-                        </ul>
-                    {% else %}
-                        <p class="text-muted mb-0">Nenhum numero novo no dia.</p>
-                    {% endif %}
-                </div>
+            <div class="card-body detail-list-body">
+                {% if indicator.delivered_numbers %}
+                    <ul class="detail-list">
+                        {% for item in indicator.delivered_numbers %}
+                            <li class="detail-list-item">
+                                <span class="detail-list-main metric-mono">{{ item.numero }}</span>
+                                <span class="detail-list-meta">{{ item.usuario }} ({{ item.carteira }})</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="detail-list-empty">Nenhum numero entregue no dia.</p>
+                {% endif %}
             </div>
-        </div>
-        <div class="col-12 col-lg-4">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Usuarios logados</span>
-                    <span class="badge detail-count-badge">{{ indicator.logged_users|length }}</span>
-                </div>
-                <div class="card-body">
-                    {% if indicator.logged_users %}
-                        <ul class="mb-0">
-                            {% for name in indicator.logged_users %}
-                                <li>{{ name }}</li>
-                            {% endfor %}
-                        </ul>
-                    {% else %}
-                        <p class="text-muted mb-0">Nenhum usuario logado no dia.</p>
-                    {% endif %}
-                </div>
+        </article>
+
+        <article class="card h-100 detail-list-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="detail-list-title">Quais foram reconectados</span>
+                <span class="badge detail-count-badge">{{ indicator.reconnected_numbers|length }}</span>
             </div>
-        </div>
-        <div class="col-12 col-lg-4">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Usuarios com linha</span>
-                    <span class="badge detail-count-badge">{{ indicator.users_with_line|length }}</span>
-                </div>
-                <div class="card-body">
-                    {% if indicator.users_with_line %}
-                        <ul class="mb-0">
-                            {% for user in indicator.users_with_line %}
-                                <li>{{ user.nome }} - {{ user.linha }}</li>
-                            {% endfor %}
-                        </ul>
-                    {% else %}
-                        <p class="text-muted mb-0">Nenhum usuario com linha no dia.</p>
-                    {% endif %}
-                </div>
+            <div class="card-body detail-list-body">
+                {% if indicator.reconnected_numbers %}
+                    <ul class="detail-list">
+                        {% for item in indicator.reconnected_numbers %}
+                            <li class="detail-list-item">
+                                <span class="detail-list-main metric-mono">{{ item.numero }}</span>
+                                <span class="detail-list-meta">{{ item.usuario }} ({{ item.carteira }})</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="detail-list-empty">Nenhum numero reconectado no dia.</p>
+                {% endif %}
             </div>
-        </div>
-        <div class="col-12 col-lg-4">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Usuarios sem linha</span>
-                    <span class="badge detail-count-badge">{{ indicator.users_without_line|length }}</span>
-                </div>
-                <div class="card-body">
-                    {% if indicator.users_without_line %}
-                        <ul class="mb-0">
-                            {% for user in indicator.users_without_line %}
-                                <li>{{ user.nome }} - {{ user.equipe }} - {{ user.carteira }}</li>
-                            {% endfor %}
-                        </ul>
-                    {% else %}
-                        <p class="text-muted mb-0">Nenhum usuario sem linha no dia.</p>
-                    {% endif %}
-                </div>
+        </article>
+
+        <article class="card h-100 detail-list-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="detail-list-title">Quais foram os novos</span>
+                <span class="badge detail-count-badge">{{ indicator.new_numbers|length }}</span>
             </div>
-        </div>
+            <div class="card-body detail-list-body">
+                {% if indicator.new_numbers %}
+                    <ul class="detail-list">
+                        {% for number in indicator.new_numbers %}
+                            <li class="detail-list-item">
+                                <span class="detail-list-main metric-mono">{{ number }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="detail-list-empty">Nenhum numero novo no dia.</p>
+                {% endif %}
+            </div>
+        </article>
+
+        <article class="card h-100 detail-list-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="detail-list-title">Usuarios logados</span>
+                <span class="badge detail-count-badge">{{ indicator.logged_users|length }}</span>
+            </div>
+            <div class="card-body detail-list-body">
+                {% if indicator.logged_users %}
+                    <ul class="detail-list">
+                        {% for name in indicator.logged_users %}
+                            <li class="detail-list-item">
+                                <span class="detail-list-main">{{ name }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="detail-list-empty">Nenhum usuario logado no dia.</p>
+                {% endif %}
+            </div>
+        </article>
+
+        <article class="card h-100 detail-list-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="detail-list-title">Usuarios com linha</span>
+                <span class="badge detail-count-badge">{{ indicator.users_with_line|length }}</span>
+            </div>
+            <div class="card-body detail-list-body">
+                {% if indicator.users_with_line %}
+                    <ul class="detail-list">
+                        {% for user in indicator.users_with_line %}
+                            <li class="detail-list-item">
+                                <span class="detail-list-main">{{ user.nome }}</span>
+                                <span class="detail-list-meta metric-mono">{{ user.linha }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="detail-list-empty">Nenhum usuario com linha no dia.</p>
+                {% endif %}
+            </div>
+        </article>
+
+        <article class="card h-100 detail-list-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="detail-list-title">Usuarios sem linha</span>
+                <span class="badge detail-count-badge">{{ indicator.users_without_line|length }}</span>
+            </div>
+            <div class="card-body detail-list-body">
+                {% if indicator.users_without_line %}
+                    <ul class="detail-list">
+                        {% for user in indicator.users_without_line %}
+                            <li class="detail-list-item">
+                                <span class="detail-list-main">{{ user.nome }}</span>
+                                <span class="detail-list-meta">{{ user.equipe }} - {{ user.carteira }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="detail-list-empty">Nenhum usuario sem linha no dia.</p>
+                {% endif %}
+            </div>
+        </article>
     </div>
 </section>
 {% endblock %}
