@@ -8,6 +8,11 @@
                 </a>
             </li>
             {% if request.user.is_authenticated %}
+                <li class="nav-item">
+                    <a class="nav-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' %}active{% endif %}" href="{% url 'daily_indicator_management' %}">
+                        Indicadores
+                    </a>
+                </li>
                 {% if request.user.role == 'admin' %}
                     <li class="nav-item">
                         <a class="nav-link {% if current_ns == 'employees' %}active{% endif %}" href="{% url 'employees:employee_list' %}">

@@ -9,6 +9,12 @@
     </li>
 
     {% if request.user.is_authenticated %}
+        <li>
+            <a href="{% url 'daily_indicator_management' %}"
+               class="nav-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' %}active{% endif %}">
+                Indicadores
+            </a>
+        </li>
         {% if request.user.role == 'admin' %}
         <li>
             <a href="{% url 'employees:employee_list' %}"

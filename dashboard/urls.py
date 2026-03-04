@@ -20,4 +20,25 @@ urlpatterns = [
         daily_indicator_edit,
         name="daily_indicator_edit",
     ),
+    # Alias de compatibilidade para acesso via /dashboard/indicadores/...
+    path(
+        "dashboard/indicadores/novo/",
+        daily_indicator_entry,
+        name="daily_indicator_entry_alias",
+    ),
+    path(
+        "dashboard/indicadores/",
+        daily_indicator_management,
+        name="daily_indicator_management_alias",
+    ),
+    path(
+        "dashboard/indicadores/<int:pk>/",
+        daily_indicator_detail,
+        name="daily_indicator_detail_alias",
+    ),
+    path(
+        "dashboard/indicadores/<int:pk>/editar/",
+        daily_indicator_edit,
+        name="daily_indicator_edit_alias",
+    ),
 ]
