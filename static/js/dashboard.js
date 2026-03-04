@@ -72,7 +72,7 @@
     const renderDailyRows = (rows) => {
         if (!dailyBody) return;
         if (!Array.isArray(rows) || rows.length === 0) {
-            dailyBody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Nenhum indicador disponivel para o dia.</td></tr>';
+            dailyBody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">Nenhum indicador disponivel para o dia.</td></tr>';
             return;
         }
 
@@ -89,6 +89,11 @@
                     <td>${formatInt(item.reconectados)}</td>
                     <td>${formatInt(item.novos)}</td>
                     <td>${formatInt(item.total_descoberto_dia)}</td>
+                    <td>
+                        <a href="${item.detail_url || "#"}" class="btn btn-sm btn-outline-primary">
+                            Ver detalhes
+                        </a>
+                    </td>
                 </tr>
             `;
         }).join("");

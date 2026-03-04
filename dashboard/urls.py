@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     DashboardView,
+    daily_indicator_day_breakdown,
     daily_indicator_detail,
     daily_indicator_edit,
     daily_indicator_entry,
@@ -12,6 +13,11 @@ from .views import (
 urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
     path("indicadores/live/", daily_indicators_live, name="daily_indicators_live"),
+    path(
+        "indicadores/dia/<str:day>/",
+        daily_indicator_day_breakdown,
+        name="daily_indicator_day_breakdown",
+    ),
     path("indicadores/novo/", daily_indicator_entry, name="daily_indicator_entry"),
     path("indicadores/", daily_indicator_management, name="daily_indicator_management"),
     path(

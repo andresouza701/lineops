@@ -6,8 +6,9 @@ from datetime import datetime, time, timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, F, Q
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.generic import TemplateView
 
@@ -46,9 +47,107 @@ def resolve_trend_period(raw_period):
     return DEFAULT_TREND_PERIOD
 
 
+def build_indicator_for_day(day, include_users=False):
+    end_of_day = timezone.make_aware(datetime.combine(day, time.max))
+    employees = Employee.objects.filter(is_deleted=False, created_at__date__lte=day)
+
+    active_allocations = LineAllocation.objects.filter(allocated_at__lte=end_of_day)
+    active_allocations = active_allocations.filter(
+        Q(released_at__isnull=True) | Q(released_at__gt=end_of_day)
+    )
+
+    allocated_employee_ids = active_allocations.values_list(
+        "employee_id", flat=True
+    ).distinct()
+    employees_without_whats = employees.exclude(id__in=allocated_employee_ids)
+
+    total_negociadores = employees.count()
+    sem_whats = employees_without_whats.count()
+    perc_sem_whats = (sem_whats / total_negociadores * 100) if total_negociadores else 0
+
+    base_lines = PhoneLine.objects.filter(is_deleted=False, created_at__date__lte=day)
+    allocated_line_ids = active_allocations.values_list(
+        "phone_line_id", flat=True
+    ).distinct()
+    numeros_disponiveis = base_lines.exclude(id__in=allocated_line_ids).count()
+
+    numeros_entregues = LineAllocation.objects.filter(allocated_at__date=day).count()
+    reconectados = (
+        LineAllocation.objects.filter(allocated_at__date=day)
+        .filter(phone_line__allocations__released_at__lt=F("allocated_at"))
+        .distinct()
+        .count()
+    )
+    novos = PhoneLine.objects.filter(created_at__date=day, is_deleted=False).count()
+    sem_whats_portfolios = employees_without_whats.values_list("employee_id", flat=True)
+    b2b_sem_whats = 0
+    b2c_sem_whats = 0
+    for portfolio_name in sem_whats_portfolios:
+        normalized = normalize_portfolio_name(portfolio_name)
+        if normalized in B2B_PORTFOLIO_NAMES:
+            b2b_sem_whats += 1
+        elif normalized in B2C_PORTFOLIO_NAMES:
+            b2c_sem_whats += 1
+
+    indicator = {
+        "data": day,
+        "pessoas_logadas": employees.filter(status=Employee.Status.ACTIVE).count(),
+        "perc_sem_whats": perc_sem_whats,
+        "b2b_sem_whats": b2b_sem_whats,
+        "b2c_sem_whats": b2c_sem_whats,
+        "numeros_disponiveis": numeros_disponiveis,
+        "numeros_entregues": numeros_entregues,
+        "reconectados": reconectados,
+        "novos": novos,
+        "total_descoberto_dia": sem_whats,
+    }
+
+    if not include_users:
+        return indicator
+
+    allocations_by_employee = {}
+    allocations_for_day = active_allocations.select_related(
+        "employee", "phone_line"
+    ).order_by("employee_id", "-allocated_at")
+    for allocation in allocations_for_day:
+        if allocation.employee_id not in allocations_by_employee:
+            allocations_by_employee[allocation.employee_id] = allocation
+
+    users = []
+    for employee in employees.order_by("full_name"):
+        allocation = allocations_by_employee.get(employee.id)
+        line = "-"
+        if allocation and allocation.phone_line:
+            line = allocation.phone_line.phone_number
+
+        portfolio_name = normalize_portfolio_name(employee.employee_id)
+        if portfolio_name in B2B_PORTFOLIO_NAMES:
+            segment = "B2B"
+        elif portfolio_name in B2C_PORTFOLIO_NAMES:
+            segment = "B2C"
+        else:
+            segment = "Nao classificado"
+
+        users.append(
+            {
+                "nome": employee.full_name,
+                "equipe": employee.teams,
+                "carteira": employee.employee_id,
+                "linha": line,
+                "segmento": segment,
+                "sem_whats": allocation is None,
+            }
+        )
+
+    indicator["users"] = users
+    return indicator
+
+
 def serialize_daily_indicator(item):
+    date_iso = item["data"].strftime("%Y-%m-%d")
     return {
         "data": item["data"].strftime("%d/%m/%Y"),
+        "date_iso": date_iso,
         "pessoas_logadas": int(item.get("pessoas_logadas", 0) or 0),
         "perc_sem_whats": float(item.get("perc_sem_whats", 0) or 0),
         "b2b_sem_whats": int(item.get("b2b_sem_whats", 0) or 0),
@@ -58,6 +157,9 @@ def serialize_daily_indicator(item):
         "reconectados": int(item.get("reconectados", 0) or 0),
         "novos": int(item.get("novos", 0) or 0),
         "total_descoberto_dia": int(item.get("total_descoberto_dia", 0) or 0),
+        "detail_url": reverse(
+            "daily_indicator_day_breakdown", kwargs={"day": date_iso}
+        ),
     }
 
 
@@ -315,67 +417,7 @@ class DashboardView(AuthenticadView, TemplateView):
         return indicators
 
     def _build_indicator_for_day(self, day):
-        end_of_day = timezone.make_aware(datetime.combine(day, time.max))
-        employees = Employee.objects.filter(is_deleted=False, created_at__date__lte=day)
-
-        active_allocations = LineAllocation.objects.filter(allocated_at__lte=end_of_day)
-        active_allocations = active_allocations.filter(
-            Q(released_at__isnull=True) | Q(released_at__gt=end_of_day)
-        )
-
-        allocated_employee_ids = active_allocations.values_list(
-            "employee_id", flat=True
-        ).distinct()
-        employees_without_whats = employees.exclude(id__in=allocated_employee_ids)
-
-        total_negociadores = employees.count()
-        sem_whats = employees_without_whats.count()
-        perc_sem_whats = (
-            (sem_whats / total_negociadores * 100) if total_negociadores else 0
-        )
-
-        base_lines = PhoneLine.objects.filter(
-            is_deleted=False, created_at__date__lte=day
-        )
-        allocated_line_ids = active_allocations.values_list(
-            "phone_line_id", flat=True
-        ).distinct()
-        numeros_disponiveis = base_lines.exclude(id__in=allocated_line_ids).count()
-
-        numeros_entregues = LineAllocation.objects.filter(
-            allocated_at__date=day
-        ).count()
-        reconectados = (
-            LineAllocation.objects.filter(allocated_at__date=day)
-            .filter(phone_line__allocations__released_at__lt=F("allocated_at"))
-            .distinct()
-            .count()
-        )
-        novos = PhoneLine.objects.filter(created_at__date=day, is_deleted=False).count()
-        sem_whats_portfolios = employees_without_whats.values_list(
-            "employee_id", flat=True
-        )
-        b2b_sem_whats = 0
-        b2c_sem_whats = 0
-        for portfolio_name in sem_whats_portfolios:
-            normalized = normalize_portfolio_name(portfolio_name)
-            if normalized in B2B_PORTFOLIO_NAMES:
-                b2b_sem_whats += 1
-            elif normalized in B2C_PORTFOLIO_NAMES:
-                b2c_sem_whats += 1
-
-        return {
-            "data": day,
-            "pessoas_logadas": employees.filter(status=Employee.Status.ACTIVE).count(),
-            "perc_sem_whats": perc_sem_whats,
-            "b2b_sem_whats": b2b_sem_whats,
-            "b2c_sem_whats": b2c_sem_whats,
-            "numeros_disponiveis": numeros_disponiveis,
-            "numeros_entregues": numeros_entregues,
-            "reconectados": reconectados,
-            "novos": novos,
-            "total_descoberto_dia": sem_whats,
-        }
+        return build_indicator_for_day(day)
 
     def _build_status_counts(self):
         sim_counts = defaultdict(int)
@@ -562,3 +604,20 @@ def daily_indicators_live(request):
             "generated_at": timezone.now().isoformat(),
         }
     )
+
+
+@login_required
+def daily_indicator_day_breakdown(request, day):
+    try:
+        selected_day = datetime.strptime(day, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise Http404("Data invalida.") from exc
+
+    indicator = build_indicator_for_day(selected_day, include_users=True)
+    context = {
+        "title": f"Detalhes dos Indicadores - {selected_day.strftime('%d/%m/%Y')}",
+        "selected_day": selected_day,
+        "indicator": indicator,
+        "users": indicator.get("users", []),
+    }
+    return render(request, "dashboard/daily_indicator_day_breakdown.html", context)

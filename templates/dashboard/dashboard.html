@@ -113,6 +113,7 @@
                         <th>Reconectados</th>
                         <th>Novos</th>
                         <th>Total Descoberto DIA</th>
+                        <th>Acoes</th>
                     </tr>
                 </thead>
                 <tbody
@@ -133,11 +134,19 @@
                                 <td>{{ item.reconectados|floatformat:0 }}</td>
                                 <td>{{ item.novos|floatformat:0 }}</td>
                                 <td>{{ item.total_descoberto_dia|floatformat:0 }}</td>
+                                <td>
+                                    <a
+                                        href="{% url 'daily_indicator_day_breakdown' item.data|date:'Y-m-d' %}"
+                                        class="btn btn-sm btn-outline-primary"
+                                    >
+                                        Ver detalhes
+                                    </a>
+                                </td>
                             </tr>
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="10" class="text-center text-muted">Nenhum indicador disponivel para o dia.</td>
+                            <td colspan="11" class="text-center text-muted">Nenhum indicador disponivel para o dia.</td>
                         </tr>
                     {% endif %}
                 </tbody>

@@ -1,0 +1,98 @@
+{% extends "base/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}Detalhes dos Indicadores{% endblock %}
+
+{% block content %}
+<section class="surface-card reveal-item mb-3">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="h5 mb-1">Detalhamento do dia {{ selected_day|date:"d/m/Y" }}</h2>
+            <p class="text-muted mb-0">
+                Visao detalhada por usuario para os indicadores diarios.
+            </p>
+        </div>
+        <a href="{% url 'dashboard' %}" class="btn btn-sm btn-outline-secondary">
+            Voltar ao dashboard
+        </a>
+    </div>
+</section>
+
+<section class="surface-card reveal-item mb-3">
+    <h2 class="h6 mb-3">Resumo do dia</h2>
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Pessoas Logadas</th>
+                    <th>% sem Whats</th>
+                    <th>B2B sem Whats</th>
+                    <th>B2C sem Whats</th>
+                    <th>Numeros Disponiveis</th>
+                    <th>Numeros Entregues</th>
+                    <th>Reconectados</th>
+                    <th>Novos</th>
+                    <th>Total Descoberto DIA</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>{{ indicator.pessoas_logadas|floatformat:0 }}</td>
+                    <td>{{ indicator.perc_sem_whats|floatformat:2 }}%</td>
+                    <td>{{ indicator.b2b_sem_whats|floatformat:0 }}</td>
+                    <td>{{ indicator.b2c_sem_whats|floatformat:0 }}</td>
+                    <td>{{ indicator.numeros_disponiveis|floatformat:0 }}</td>
+                    <td>{{ indicator.numeros_entregues|floatformat:0 }}</td>
+                    <td>{{ indicator.reconectados|floatformat:0 }}</td>
+                    <td>{{ indicator.novos|floatformat:0 }}</td>
+                    <td>{{ indicator.total_descoberto_dia|floatformat:0 }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="surface-card reveal-item">
+    <h2 class="h6 mb-3">Usuarios do dia (nome, equipe e linha)</h2>
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Nome</th>
+                    <th>Equipe</th>
+                    <th>Carteira</th>
+                    <th>Segmento</th>
+                    <th>Linha</th>
+                    <th>Status Whats</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if users %}
+                    {% for user in users %}
+                        <tr>
+                            <td>{{ user.nome }}</td>
+                            <td>{{ user.equipe }}</td>
+                            <td>{{ user.carteira }}</td>
+                            <td>{{ user.segmento }}</td>
+                            <td>{{ user.linha }}</td>
+                            <td>
+                                {% if user.sem_whats %}
+                                    <span class="badge text-bg-warning">Sem linha</span>
+                                {% else %}
+                                    <span class="badge text-bg-success">Com linha</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">
+                            Nenhum usuario encontrado para este dia.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

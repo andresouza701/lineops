@@ -2,6 +2,7 @@ import re
 
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from allocations.models import LineAllocation
 from employees.models import Employee
@@ -70,6 +71,7 @@ class DashboardDailyIndicatorsTests(TestCase):
             "Reconectados",
             "Novos",
             "Total Descoberto DIA",
+            "Acoes",
         ]:
             self.assertContains(response, header)
 
@@ -89,7 +91,8 @@ class DashboardDailyIndicatorsTests(TestCase):
             r"<td>\d+</td>\s*"
             r"<td>\d+</td>\s*"
             r"<td>\d+</td>\s*"
-            r"<td>\d+</td>"
+            r"<td>\d+</td>\s*"
+            r"<td>.*?Ver detalhes.*?</td>"
         )
         self.assertRegex(html, re.compile(row_pattern, re.S))
 
@@ -123,6 +126,8 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertIn("rows", payload)
         self.assertIn("fingerprint", payload)
         self.assertTrue(payload["fingerprint"])
+        if payload["rows"]:
+            self.assertIn("detail_url", payload["rows"][0])
 
     def test_dashboard_splits_sem_whats_by_b2b_and_b2c_portfolios(self):
         response = self.client.get(reverse("dashboard"))
@@ -131,3 +136,24 @@ class DashboardDailyIndicatorsTests(TestCase):
         latest = response.context["indicadores_diarios"][-1]
         self.assertEqual(latest["b2b_sem_whats"], 0)
         self.assertEqual(latest["b2c_sem_whats"], 1)
+
+    def test_dashboard_daily_row_contains_day_detail_link(self):
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        today_iso = timezone.localdate().strftime("%Y-%m-%d")
+        expected_link = reverse(
+            "daily_indicator_day_breakdown", kwargs={"day": today_iso}
+        )
+        self.assertContains(response, expected_link)
+
+    def test_daily_indicator_day_breakdown_shows_user_details(self):
+        today_iso = timezone.localdate().strftime("%Y-%m-%d")
+        response = self.client.get(
+            reverse("daily_indicator_day_breakdown", kwargs={"day": today_iso})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "B2B User")
+        self.assertContains(response, "B2C User")
+        self.assertContains(response, "+5511999999001")
