@@ -61,6 +61,7 @@
                         <tr>
                             <th>Supervisor</th>
                             <th>Nome</th>
+                            <th>Linha</th>
                             <th>Carteira</th>
                             <th>PA</th>
                             <th>Equipe</th>
@@ -73,6 +74,7 @@
                             <tr>
                                 <td>{{ employee.corporate_email }}</td>
                                 <td>{{ employee.full_name }}</td>
+                                <td class="metric-mono">{{ employee.line_display }}</td>
                                 <td>{{ employee.employee_id }}</td>
                                 <td>{{ employee.pa|default:"-" }}</td>
                                 <td>{{ employee.teams }}</td>
@@ -102,7 +104,7 @@
                             </tr>
                         {% empty %}
                             <tr id="no-data-employees">
-                                <td colspan="7" class="text-center text-muted">Nenhum usuário encontrado.</td>
+                                <td colspan="8" class="text-center text-muted">Nenhum usuário encontrado.</td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -183,6 +185,7 @@ document.addEventListener('DOMContentLoaded', function() {
         tr.innerHTML = `
             <td>${employee.corporate_email}</td>
             <td>${employee.full_name}</td>
+            <td class=\"metric-mono\">${employee.line || '-'}</td>
             <td>${employee.employee_id}</td>
             <td>${employee.pa || '-'}</td>
             <td>${employee.teams}</td>

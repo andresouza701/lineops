@@ -38,11 +38,13 @@ class EmployeeListView(RoleRequiredMixin, ListView):
         # Formatar dados para JSON
         data = []
         for emp in employees:
+            lines = self._get_employee_lines(emp)
             data.append(
                 {
                     "id": emp.pk,
                     "corporate_email": emp.corporate_email,
                     "full_name": emp.full_name,
+                    "line": lines,
                     "employee_id": emp.employee_id,
                     "pa": emp.pa or "",
                     "teams": emp.teams,
@@ -55,6 +57,14 @@ class EmployeeListView(RoleRequiredMixin, ListView):
         return JsonResponse(
             {"data": data, "has_more": has_more, "offset": offset + len(employees)}
         )
+
+    @staticmethod
+    def _get_employee_lines(employee):
+        active_numbers = []
+        for allocation in employee.allocations.all():
+            if allocation.phone_line and allocation.phone_line.phone_number:
+                active_numbers.append(allocation.phone_line.phone_number)
+        return ", ".join(active_numbers) if active_numbers else "-"
 
     def _build_queryset(self, request):
         """Constrói o queryset baseado nos filtros"""
@@ -90,7 +100,11 @@ class EmployeeListView(RoleRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         # Carregar apenas os primeiros itens baseado em paginate_by
         queryset = self.get_queryset()
-        context["initial_employees"] = list(queryset[: self.paginate_by])
+        initial_employees = list(queryset[: self.paginate_by])
+        for employee in initial_employees:
+            employee.line_display = self._get_employee_lines(employee)
+
+        context["initial_employees"] = initial_employees
         context["has_more_employees"] = queryset.count() > self.paginate_by
         context["items_per_page"] = self.paginate_by
         return context

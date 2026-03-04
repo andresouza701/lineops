@@ -91,6 +91,13 @@ class EmployeeListViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Aline Martins")
 
+    def test_employee_list_shows_line_column_with_linked_line(self) -> None:
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("employees:employee_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<th>Linha</th>", html=False)
+        self.assertContains(response, "+5511999999999")
+
     def test_admin_can_filter_by_team(self) -> None:
         self.client.force_login(self.admin)
         response = self.client.get(
