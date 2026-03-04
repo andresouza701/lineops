@@ -38,7 +38,7 @@
                     {% endif %}
                 {% endif %}
                 {% if request.user.is_authenticated %}
-                    <a href="{% url 'daily_indicator_management' %}" class="rail-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' or current_name == 'daily_user_action_board' %}is-active{% endif %}" aria-label="Indicadores" title="Indicadores">
+                    <a href="{% url 'daily_user_action_board' %}" class="rail-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' or current_name == 'daily_user_action_board' or current_name == 'daily_indicator_day_breakdown' %}is-active{% endif %}" aria-label="Ações do Dia" title="Ações do Dia">
                         <i class="bi bi-clipboard-data" aria-hidden="true"></i>
                     </a>
                 {% endif %}
@@ -102,4 +102,7 @@
     {% block scripts %}{% endblock %}
 </body>
 </html>
+
+
+
 

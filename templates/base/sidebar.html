@@ -10,9 +10,9 @@
 
     {% if request.user.is_authenticated %}
         <li>
-            <a href="{% url 'daily_indicator_management' %}"
-               class="nav-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' %}active{% endif %}">
-                Indicadores
+            <a href="{% url 'daily_user_action_board' %}"
+               class="nav-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' or current_name == 'daily_user_action_board' or current_name == 'daily_indicator_day_breakdown' %}active{% endif %}">
+                Ações do Dia
             </a>
         </li>
         {% if request.user.role == 'admin' or request.user.role == 'super' %}
@@ -43,3 +43,6 @@
 
 </ul>
 {% endwith %}
+
+
+

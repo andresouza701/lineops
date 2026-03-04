@@ -600,6 +600,11 @@ def daily_indicator_management(request):
 
 
 @login_required
+def daily_indicator_legacy_redirect(request, *args, **kwargs):
+    return redirect("daily_user_action_board")
+
+
+@login_required
 def daily_indicator_detail(request, pk):
     """
     View para visualizar detalhes de um indicador específico.

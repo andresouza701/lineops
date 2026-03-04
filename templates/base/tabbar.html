@@ -1,4 +1,4 @@
-{% with current_ns=request.resolver_match.namespace|default:'' current_name=request.resolver_match.url_name|default:'' %}
+﻿{% with current_ns=request.resolver_match.namespace|default:'' current_name=request.resolver_match.url_name|default:'' %}
 <nav class="tab-bar shadow-sm d-lg-none">
     <div class="container-fluid">
         <ul class="nav nav-tabs flex-wrap">
@@ -9,8 +9,8 @@
             </li>
             {% if request.user.is_authenticated %}
                 <li class="nav-item">
-                    <a class="nav-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' %}active{% endif %}" href="{% url 'daily_indicator_management' %}">
-                        Indicadores
+                    <a class="nav-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' or current_name == 'daily_user_action_board' or current_name == 'daily_indicator_day_breakdown' %}active{% endif %}" href="{% url 'daily_user_action_board' %}">
+                        Ações do Dia
                     </a>
                 </li>
                 {% if request.user.role == 'admin' or request.user.role == 'super' %}
@@ -42,3 +42,6 @@
     </div>
 </nav>
 {% endwith %}
+
+
+
