@@ -23,7 +23,7 @@ from core.mixins import RoleRequiredMixin, StandardPaginationMixin
 from core.services.allocation_service import AllocationService
 from users.models import SystemUser
 
-from .forms import PhoneLineForm, PhoneLineUpdateForm
+from .forms import PhoneLineForm, PhoneLineUpdateForm, SIMcardCreateWithLineForm
 from .models import PhoneLine, PhoneLineHistory, SIMcard
 
 
@@ -113,12 +113,26 @@ class SIMcardCreateView(RoleRequiredMixin, CreateView):
     allowed_roles = [SystemUser.Role.ADMIN]
     model = SIMcard
     template_name = "telecom/simcard_form.html"
-    fields = ["iccid", "carrier"]
+    form_class = SIMcardCreateWithLineForm
     success_url = reverse_lazy("telecom:simcard_list")
 
+    @transaction.atomic
     def form_valid(self, form):
-        messages.success(self.request, "SIM card criado com sucesso.")
-        return super().form_valid(form)
+        self.object = form.save()
+        phone_number = form.cleaned_data.get("phone_number")
+        if phone_number:
+            PhoneLine.objects.create(
+                phone_number=phone_number,
+                sim_card=self.object,
+                status=PhoneLine.Status.AVAILABLE,
+            )
+            messages.success(
+                self.request,
+                "SIM card e linha criados com sucesso.",
+            )
+        else:
+            messages.success(self.request, "SIM card criado com sucesso.")
+        return redirect(self.get_success_url())
 
 
 class SIMcardUpdateView(RoleRequiredMixin, UpdateView):

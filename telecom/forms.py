@@ -16,6 +16,30 @@ class SIMcardForm(forms.ModelForm):
         self.fields["carrier"].widget.attrs.setdefault("class", "form-control")
 
 
+class SIMcardCreateWithLineForm(SIMcardForm):
+    phone_number = forms.CharField(
+        label="Linha (opcional)",
+        max_length=20,
+        required=False,
+        help_text="Se preenchido, cria a linha junto com o SIM card.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["phone_number"].widget.attrs.setdefault("class", "form-control")
+
+    def clean_phone_number(self):
+        phone_number = (self.cleaned_data.get("phone_number") or "").strip()
+        if not phone_number:
+            return ""
+        if PhoneLine.objects.filter(
+            phone_number=phone_number,
+            is_deleted=False,
+        ).exists():
+            raise forms.ValidationError("Numero de linha ja cadastrado.")
+        return phone_number
+
+
 class PhoneLineForm(forms.ModelForm):
     class Meta:
         model = PhoneLine

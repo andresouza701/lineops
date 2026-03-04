@@ -32,10 +32,23 @@
                     {{ form.carrier }}
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Status</label>
-                    {{ form.status }}
-                </div>
+                {% if form.phone_number %}
+                    <div class="mb-3">
+                        <label class="form-label">Linha (opcional)</label>
+                        {{ form.phone_number }}
+                        {{ form.phone_number.errors }}
+                        {% if form.phone_number.help_text %}
+                            <small class="text-muted d-block mt-1">{{ form.phone_number.help_text }}</small>
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                {% if object and form.status %}
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        {{ form.status }}
+                    </div>
+                {% endif %}
 
                 <button type="submit" class="btn btn-primary">
                     {% if object %}Atualizar{% else %}Salvar{% endif %}

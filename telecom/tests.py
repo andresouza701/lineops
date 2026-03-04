@@ -345,6 +345,56 @@ class SIMcardViewsTest(TestCase):
         self.assertRedirects(response, reverse("telecom:simcard_list"))
         self.assertTrue(SIMcard.objects.filter(iccid=payload["iccid"]).exists())
 
+    def test_simcard_create_view_can_create_phone_line_together(self):
+        url = reverse("telecom:simcard_create")
+        payload = {
+            "iccid": "8900000000000000304",
+            "carrier": "CarrierC2",
+            "phone_number": "+5511999990304",
+        }
+
+        response = self.client.post(url, data=payload)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse("telecom:simcard_list"))
+        created_sim = SIMcard.objects.get(iccid=payload["iccid"])
+        self.assertTrue(
+            PhoneLine.objects.filter(
+                phone_number=payload["phone_number"],
+                sim_card=created_sim,
+            ).exists()
+        )
+
+    def test_simcard_create_view_shows_error_when_phone_number_already_exists(self):
+        SIMcard.objects.create(
+            iccid="8900000000000000997",
+            carrier="CarrierZ",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        existing_sim = SIMcard.objects.create(
+            iccid="8900000000000000998",
+            carrier="CarrierY",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        PhoneLine.objects.create(
+            phone_number="+5511999990998",
+            sim_card=existing_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+        url = reverse("telecom:simcard_create")
+        payload = {
+            "iccid": "8900000000000000999",
+            "carrier": "CarrierX",
+            "phone_number": "+5511999990998",
+        }
+
+        response = self.client.post(url, data=payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Numero de linha ja cadastrado.")
+        self.assertFalse(SIMcard.objects.filter(iccid=payload["iccid"]).exists())
+
     def test_simcard_update_view(self):
         url = reverse("telecom:simcard_update", args=[self.sim_available.pk])
         payload = {
