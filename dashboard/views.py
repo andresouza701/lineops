@@ -306,60 +306,6 @@ class DashboardView(AuthenticadView, TemplateView):
         context["indicadores_diarios"] = self._build_daily_indicators(days=trend_period)
         context["trend_period"] = trend_period
         context["trend_period_options"] = ALLOWED_TREND_PERIODS
-
-        # Tabela de reconexão por segmento e unidade
-        unidades = ["Joinville", "Araquari"]
-        b2b_emps = Employee.objects.filter(teams__icontains="b2b", is_deleted=False)
-        reconexao_data = []
-        hoje = timezone.localdate()
-        fim = timezone.make_aware(datetime.combine(hoje, time.max))
-        inicio = timezone.make_aware(datetime.combine(hoje, time.min))
-        for unidade in unidades:
-            emps_unidade = b2b_emps.filter(teams__icontains=unidade)
-            negociadores_logados = emps_unidade.filter(
-                status=Employee.Status.ACTIVE
-            ).count()
-            liberados = (
-                LineAllocation.objects.filter(
-                    employee__in=emps_unidade, released_at__range=(inicio, fim)
-                )
-                .values_list("employee_id", flat=True)
-                .distinct()
-            )
-            precisa_numero_novo = emps_unidade.exclude(
-                allocations__is_active=True
-            ).count()
-            reconectar_whats = len(liberados)
-            reconexao_data.append(
-                {
-                    "unidade": unidade,
-                    "negociadores_logados": negociadores_logados,
-                    "reconectar_whats": reconectar_whats,
-                    "precisa_numero_novo": precisa_numero_novo,
-                }
-            )
-        negociadores_logados_total = b2b_emps.filter(
-            status=Employee.Status.ACTIVE
-        ).count()
-        liberados_total = (
-            LineAllocation.objects.filter(
-                employee__in=b2b_emps, released_at__range=(inicio, fim)
-            )
-            .values_list("employee_id", flat=True)
-            .distinct()
-        )
-        precisa_numero_novo_total = b2b_emps.exclude(
-            allocations__is_active=True
-        ).count()
-        reconexao_data.append(
-            {
-                "unidade": "Total B2B",
-                "negociadores_logados": negociadores_logados_total,
-                "reconectar_whats": len(liberados_total),
-                "precisa_numero_novo": precisa_numero_novo_total,
-            }
-        )
-        context["reconexao_data"] = reconexao_data
         context.update(self._build_dashboard_insights(context))
         return context
 
@@ -460,24 +406,10 @@ class DashboardView(AuthenticadView, TemplateView):
             item["data"].strftime("%d/%m") for item in daily if item.get("data")
         ]
 
-        ranking = [
-            item
-            for item in context.get("reconexao_data", [])
-            if item.get("unidade") != "Total B2B"
-        ]
-        ranking.sort(
-            key=lambda item: (
-                item.get("precisa_numero_novo", 0),
-                item.get("reconectar_whats", 0),
-            ),
-            reverse=True,
-        )
-
         return {
             "exception_cards": exception_cards,
             "trend_series": trend_series,
             "trend_points": trend_points,
-            "unit_ranking": ranking,
         }
 
     def _build_negociador_data(self):

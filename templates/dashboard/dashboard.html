@@ -4,54 +4,23 @@
 {% block page_title %}Linha de Operacoes{% endblock %}
 
 {% block content %}
-<section class="operations-grid reveal-group">
-    <div class="surface-card reveal-item">
-        <div class="section-header d-flex justify-content-between align-items-center">
-            <div>
-                <h2>Painel de Excecoes</h2>
-                <p class="text-muted mb-0">Itens prioritarios para acao imediata.</p>
-            </div>
-        </div>
-        <div class="exception-grid mt-3">
-            {% for card in exception_cards %}
-                <article class="exception-card severity-{{ card.level }}">
-                    <p class="exception-title">{{ card.title }}</p>
-                    <p class="exception-value metric-mono">{{ card.value }}</p>
-                    <p class="exception-description">{{ card.description }}</p>
-                    <a href="{{ card.action_url }}" class="btn btn-sm btn-outline-light">{{ card.action_label }}</a>
-                </article>
-            {% endfor %}
+<section class="surface-card reveal-item">
+    <div class="section-header d-flex justify-content-between align-items-center">
+        <div>
+            <h2>Painel de Excecoes</h2>
+            <p class="text-muted mb-0">Itens prioritarios para acao imediata.</p>
         </div>
     </div>
-
-    <aside class="surface-card reveal-item">
-        <h2 class="h5 mb-2">Ranking por Unidade</h2>
-        <p class="text-muted mb-3">Ordenado por maior volume sem numero novo.</p>
-        <div class="table-responsive">
-            <table class="table table-striped table-hover align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Unidade</th>
-                        <th class="text-end">Sem novo</th>
-                        <th class="text-end">Reconectar</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in unit_ranking %}
-                        <tr>
-                            <td>{{ item.unidade }}</td>
-                            <td class="text-end metric-mono">{{ item.precisa_numero_novo }}</td>
-                            <td class="text-end metric-mono">{{ item.reconectar_whats }}</td>
-                        </tr>
-                    {% empty %}
-                        <tr>
-                            <td colspan="3" class="text-center text-muted">Sem dados de ranking.</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </aside>
+    <div class="exception-grid mt-3">
+        {% for card in exception_cards %}
+            <article class="exception-card severity-{{ card.level }}">
+                <p class="exception-title">{{ card.title }}</p>
+                <p class="exception-value metric-mono">{{ card.value }}</p>
+                <p class="exception-description">{{ card.description }}</p>
+                <a href="{{ card.action_url }}" class="btn btn-sm btn-outline-light">{{ card.action_label }}</a>
+            </article>
+        {% endfor %}
+    </div>
 </section>
 
 <section class="surface-card reveal-item trend-panel">
@@ -152,38 +121,6 @@
                     {% else %}
                         <tr>
                             <td colspan="11" class="text-center text-muted">Nenhum indicador disponivel para o dia.</td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="surface-card reveal-item">
-        <h2 class="h5 mb-3">Reconexao por Segmento e Unidade (B2B)</h2>
-        <div class="table-responsive">
-            <table class="table table-striped table-hover align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Unidade</th>
-                        <th>Negociadores Logados</th>
-                        <th>Reconectar Whats</th>
-                        <th>Precisa de numero novo</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% if reconexao_data and reconexao_data|length > 0 %}
-                        {% for item in reconexao_data %}
-                            <tr>
-                                <td>{{ item.unidade }}</td>
-                                <td class="metric-mono">{{ item.negociadores_logados }}</td>
-                                <td class="metric-mono">{{ item.reconectar_whats }}</td>
-                                <td class="metric-mono">{{ item.precisa_numero_novo }}</td>
-                            </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td colspan="4" class="text-center text-muted">Nenhum dado de reconexao disponivel.</td>
                         </tr>
                     {% endif %}
                 </tbody>
