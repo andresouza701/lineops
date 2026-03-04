@@ -6,6 +6,7 @@ from core.current_user import clear_current_user, set_current_user
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 
+from .forms import EmployeeForm
 from .models import Employee, EmployeeHistory
 
 
@@ -183,3 +184,12 @@ class EmployeeHistoryAuditTest(TestCase):
         self.assertIsNotNone(updated_event)
         self.assertIn("PA:", updated_event.new_value)
         self.assertIn("PA-123", updated_event.new_value)
+
+
+class EmployeeFormPortfolioChoicesTest(TestCase):
+    def test_form_shows_b2c_portfolios_in_employee_id_choices(self) -> None:
+        form = EmployeeForm()
+        portfolio_html = str(form["employee_id"])
+
+        for portfolio in ["Ambiental", "Natura", "ViaSat", "Opera", "Valid"]:
+            self.assertIn(portfolio, portfolio_html)

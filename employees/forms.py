@@ -1,8 +1,10 @@
 from django import forms
 
-from core.constants import B2B_PORTFOLIOS
+from core.constants import B2B_PORTFOLIOS, B2C_PORTFOLIOS
 
 from .models import Employee
+
+ALL_PORTFOLIOS = list(dict.fromkeys(B2B_PORTFOLIOS + B2C_PORTFOLIOS))
 
 
 class EmployeeForm(forms.ModelForm):
@@ -68,7 +70,7 @@ class EmployeeForm(forms.ModelForm):
 
         self.fields["employee_id"] = forms.ChoiceField(
             label="Carteira",
-            choices=B2B_PORTFOLIOS,
+            choices=ALL_PORTFOLIOS,
             widget=forms.Select(attrs={"class": "form-select"}),
             initial=self.instance.employee_id if self.instance else None,
             required=False,
