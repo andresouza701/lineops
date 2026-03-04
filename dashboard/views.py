@@ -1,14 +1,21 @@
 from collections import defaultdict
 from datetime import datetime, time, timedelta
 
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.db.models import Count, F, Q
+from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.generic import TemplateView
 
 from allocations.models import LineAllocation
 from core.mixins import AuthenticadView
+from core.services.daily_indicator_service import DailyIndicatorService
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
+
+from .forms import DailyIndicatorFilterForm, DailyIndicatorForm
+from .models import DailyIndicator
 
 PERCENT_CRITICAL_THRESHOLD = 20
 PERCENT_WARNING_THRESHOLD = 10
@@ -334,3 +341,138 @@ class DashboardView(AuthenticadView, TemplateView):
                 for value, label in PhoneLine.Status.choices
             ],
         }
+
+
+@login_required
+def daily_indicator_entry(request):
+    """
+    View para supervisores inserirem indicadores diários.
+    Apenas o campo "Pessoas Logadas" é preenchido manualmente.
+    Os demais indicadores são calculados automaticamente.
+    """
+    if request.method == "POST":
+        form = DailyIndicatorForm(request.POST)
+        if form.is_valid():
+            indicator = form.save(commit=False)
+            indicator.created_by = request.user
+            indicator.updated_by = request.user
+            indicator.save()
+
+            # Disparar cálculo automático dos outros indicadores
+            DailyIndicatorService.populate_daily_indicators(indicator.date)
+
+            msg = f"Indicador para {indicator.supervisor} registrado com sucesso!"
+            messages.success(request, msg)
+            return redirect("daily_indicator_management")
+    else:
+        form = DailyIndicatorForm()
+
+    context = {
+        "form": form,
+        "title": "Registrar Indicador Diário",
+    }
+    return render(request, "dashboard/daily_indicator_form.html", context)
+
+
+@login_required
+def daily_indicator_management(request):
+    """
+    View para visualizar e gerenciar todos os indicadores diários.
+    Permite filtrar por supervisor, carteira, segmento e período.
+    """
+    filter_form = DailyIndicatorFilterForm(request.GET or None)
+    indicators = DailyIndicator.objects.all()
+
+    if filter_form.is_valid():
+        segment = filter_form.cleaned_data.get("segment")
+        supervisor = filter_form.cleaned_data.get("supervisor")
+        portfolio = filter_form.cleaned_data.get("portfolio")
+        date_from = filter_form.cleaned_data.get("date_from")
+        date_to = filter_form.cleaned_data.get("date_to")
+
+        if segment:
+            indicators = indicators.filter(segment=segment)
+        if supervisor:
+            indicators = indicators.filter(supervisor__icontains=supervisor)
+        if portfolio:
+            indicators = indicators.filter(portfolio__icontains=portfolio)
+        if date_from:
+            indicators = indicators.filter(date__gte=date_from)
+        if date_to:
+            indicators = indicators.filter(date__lte=date_to)
+
+    # Paginação
+    from django.core.paginator import Paginator
+
+    paginator = Paginator(indicators.order_by("-date"), 50)
+    page_number = request.GET.get("page", 1)
+    page_obj = paginator.get_page(page_number)
+
+    # Calcular resumo do período
+    if filter_form.is_valid():
+        date_from = filter_form.cleaned_data.get("date_from")
+        date_to = filter_form.cleaned_data.get("date_to")
+        segment = filter_form.cleaned_data.get("segment") or None
+
+        if date_from and date_to:
+            summary = DailyIndicatorService.get_summary_for_period(
+                date_from, date_to, segment
+            )
+        else:
+            summary = {}
+    else:
+        summary = {}
+
+    context = {
+        "filter_form": filter_form,
+        "page_obj": page_obj,
+        "indicators": page_obj,
+        "summary": summary,
+        "title": "Gestão de Indicadores Diários",
+    }
+    return render(request, "dashboard/daily_indicator_management.html", context)
+
+
+@login_required
+def daily_indicator_detail(request, pk):
+    """
+    View para visualizar detalhes de um indicador específico.
+    """
+    indicator = DailyIndicator.objects.get(pk=pk)
+
+    context = {
+        "indicator": indicator,
+        "title": f"Indicador - {indicator.supervisor}",
+    }
+    return render(request, "dashboard/daily_indicator_detail.html", context)
+
+
+@login_required
+def daily_indicator_edit(request, pk):
+    """
+    View para editar um indicador existente.
+    Apenas o campo "Pessoas Logadas" pode ser editado manualmente.
+    """
+    indicator = DailyIndicator.objects.get(pk=pk)
+
+    if request.method == "POST":
+        form = DailyIndicatorForm(request.POST, instance=indicator)
+        if form.is_valid():
+            indicator = form.save(commit=False)
+            indicator.updated_by = request.user
+            indicator.save()
+
+            # Recalcular indicadores automáticos
+            DailyIndicatorService.populate_daily_indicators(indicator.date)
+
+            messages.success(request, "Indicador atualizado com sucesso!")
+            return redirect("daily_indicator_management")
+    else:
+        form = DailyIndicatorForm(instance=indicator)
+
+    context = {
+        "form": form,
+        "indicator": indicator,
+        "title": f"Editar Indicador - {indicator.supervisor}",
+    }
+    return render(request, "dashboard/daily_indicator_form.html", context)

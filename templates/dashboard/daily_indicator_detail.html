@@ -1,0 +1,196 @@
+{% extends "base/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+
+{% block content %}
+<section class="surface-card reveal-item">
+    <div class="section-header mb-4">
+        <div>
+            <h2>{{ title }}</h2>
+            <p class="text-muted">Detalhes do indicador registrado</p>
+        </div>
+        <div>
+            <a href="{% url 'daily_indicator_edit' indicator.pk %}" class="btn btn-primary">
+                <i class="bi bi-pencil"></i> Editar
+            </a>
+            <a href="{% url 'daily_indicator_management' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <h5 class="mb-3">Informações Básicas</h5>
+            <table class="table table-borderless">
+                <tbody>
+                    <tr>
+                        <td><strong>Data:</strong></td>
+                        <td>{{ indicator.date|date:"d/m/Y" }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Segmento:</strong></td>
+                        <td>
+                            <span class="badge bg-{% if indicator.segment == 'B2B' %}primary{% else %}info{% endif %}">
+                                {{ indicator.segment }}
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Supervisor:</strong></td>
+                        <td>{{ indicator.supervisor }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Carteira:</strong></td>
+                        <td>{{ indicator.portfolio }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="col-md-6">
+            <h5 class="mb-3">Auditoria</h5>
+            <table class="table table-borderless">
+                <tbody>
+                    <tr>
+                        <td><strong>Criado em:</strong></td>
+                        <td>{{ indicator.created_at|date:"d/m/Y H:i" }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Criado por:</strong></td>
+                        <td>{{ indicator.created_by.username|default:"Sistema" }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Atualizado em:</strong></td>
+                        <td>{{ indicator.updated_at|date:"d/m/Y H:i" }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Atualizado por:</strong></td>
+                        <td>{{ indicator.updated_by.username|default:"Sistema" }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <hr>
+
+    <h5 class="mb-3">Indicadores</h5>
+    <div class="row">
+        <div class="col-md-3">
+            <div class="indicator-card manual">
+                <p class="indicator-label">Pessoas Logadas</p>
+                <p class="indicator-value">{{ indicator.people_logged_in }}</p>
+                <p class="indicator-note">Inserido manualmente</p>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="indicator-card automatic">
+                <p class="indicator-label">Números Disponíveis</p>
+                <p class="indicator-value">{{ indicator.numbers_available }}</p>
+                <p class="indicator-note">15+ dias sem alocação</p>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="indicator-card automatic">
+                <p class="indicator-label">Números Entregues</p>
+                <p class="indicator-value">{{ indicator.numbers_delivered }}</p>
+                <p class="indicator-note">Alocados neste dia</p>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="indicator-card automatic">
+                <p class="indicator-label">Números Reconectados</p>
+                <p class="indicator-value">{{ indicator.numbers_reconnected }}</p>
+                <p class="indicator-note">Recuperados e realocados</p>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="indicator-card automatic">
+                <p class="indicator-label">Números Novos</p>
+                <p class="indicator-value">{{ indicator.numbers_new }}</p>
+                <p class="indicator-note">Novos criados neste dia</p>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <div class="row">
+        <div class="col-12">
+            <h5 class="mb-3">Resumo</h5>
+            <div class="alert alert-info">
+                <strong>ℹ️ Informação:</strong> Os indicadores marcados como "Calculado automaticamente" 
+                são atualizados automaticamente pelo sistema com base nos dados de alocação de linhas telefônicas 
+                e dispositivos. O único indicador inserido manualmente é "Pessoas Logadas".
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .indicator-card {
+        background: white;
+        border: 2px solid #e0e0e0;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        text-align: center;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .indicator-card.manual {
+        border-left: 4px solid #ffc107;
+        background-color: #fffbf0;
+    }
+
+    .indicator-card.automatic {
+        border-left: 4px solid #17a2b8;
+        background-color: #e8f4f8;
+    }
+
+    .indicator-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+
+    .indicator-label {
+        font-size: 0.875rem;
+        color: #666;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+    }
+
+    .indicator-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #333;
+        margin: 0.5rem 0;
+        font-family: 'Courier New', monospace;
+    }
+
+    .indicator-note {
+        font-size: 0.75rem;
+        color: #999;
+        margin: 0.5rem 0 0 0;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+
+    .section-header div:last-child {
+        display: flex;
+        gap: 0.5rem;
+    }
+</style>
+{% endblock %}

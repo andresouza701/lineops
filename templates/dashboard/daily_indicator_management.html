@@ -1,0 +1,218 @@
+{% extends "base/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+
+{% block content %}
+<section class="surface-card reveal-item mb-4">
+    <div class="section-header mb-4">
+        <h2>{{ title }}</h2>
+        <p class="text-muted">Visualize, filtre e gerencie todos os indicadores diários registrados.</p>
+    </div>
+
+    <!-- Filtros -->
+    <form method="get" class="mb-4">
+        <div class="row g-3">
+            <div class="col-md-2">
+                <label for="{{ filter_form.segment.id_for_label }}" class="form-label">{{ filter_form.segment.label }}</label>
+                {{ filter_form.segment }}
+            </div>
+            <div class="col-md-2">
+                <label for="{{ filter_form.supervisor.id_for_label }}" class="form-label">{{ filter_form.supervisor.label }}</label>
+                {{ filter_form.supervisor }}
+            </div>
+            <div class="col-md-2">
+                <label for="{{ filter_form.portfolio.id_for_label }}" class="form-label">{{ filter_form.portfolio.label }}</label>
+                {{ filter_form.portfolio }}
+            </div>
+            <div class="col-md-2">
+                <label for="{{ filter_form.date_from.id_for_label }}" class="form-label">{{ filter_form.date_from.label }}</label>
+                {{ filter_form.date_from }}
+            </div>
+            <div class="col-md-2">
+                <label for="{{ filter_form.date_to.id_for_label }}" class="form-label">{{ filter_form.date_to.label }}</label>
+                {{ filter_form.date_to }}
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+            </div>
+        </div>
+    </form>
+
+    <!-- Botão de Novo -->
+    <div class="mb-3">
+        <a href="{% url 'daily_indicator_entry' %}" class="btn btn-success">
+            + Novo Indicador
+        </a>
+    </div>
+
+    <!-- Resumo do Período -->
+    {% if summary.total_records > 0 %}
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="summary-card">
+                <p class="summary-label">Total de Registros</p>
+                <p class="summary-value">{{ summary.total_records }}</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="summary-card">
+                <p class="summary-label">Média Pessoas Logadas</p>
+                <p class="summary-value">{{ summary.avg_people_logged }}</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="summary-card">
+                <p class="summary-label">Total Números Entregues</p>
+                <p class="summary-value">{{ summary.total_numbers_delivered }}</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="summary-card">
+                <p class="summary-label">Total Reconectados</p>
+                <p class="summary-value">{{ summary.total_numbers_reconnected }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tabela de Indicadores -->
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Data</th>
+                    <th>Segmento</th>
+                    <th>Supervisor</th>
+                    <th>Carteira</th>
+                    <th class="text-end">Pessoas Logadas</th>
+                    <th class="text-end">Números Disponíveis</th>
+                    <th class="text-end">Números Entregues</th>
+                    <th class="text-end">Reconectados</th>
+                    <th class="text-end">Novos</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if page_obj %}
+                    {% for indicator in page_obj %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-light text-dark">
+                                    {{ indicator.date|date:"d/m/Y" }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-{% if indicator.segment == 'B2B' %}primary{% else %}info{% endif %}">
+                                    {{ indicator.segment }}
+                                </span>
+                            </td>
+                            <td>{{ indicator.supervisor }}</td>
+                            <td>{{ indicator.portfolio }}</td>
+                            <td class="text-end metric-mono">{{ indicator.people_logged_in }}</td>
+                            <td class="text-end metric-mono">{{ indicator.numbers_available }}</td>
+                            <td class="text-end metric-mono">{{ indicator.numbers_delivered }}</td>
+                            <td class="text-end metric-mono">{{ indicator.numbers_reconnected }}</td>
+                            <td class="text-end metric-mono">{{ indicator.numbers_new }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{% url 'daily_indicator_detail' indicator.pk %}" 
+                                       class="btn btn-outline-secondary" title="Detalhes">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{% url 'daily_indicator_edit' indicator.pk %}" 
+                                       class="btn btn-outline-primary" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center text-muted py-4">
+                            Nenhum indicador encontrado. <a href="{% url 'daily_indicator_entry' %}">Criar novo</a>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Paginação -->
+    {% if page_obj.has_other_pages %}
+    <nav aria-label="Paginação" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{% if filter_form.is_bound %}&{{ filter_form.urlencode }}{% endif %}">Primeira</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if filter_form.is_bound %}&{{ filter_form.urlencode }}{% endif %}">Anterior</a>
+                </li>
+            {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}{% if filter_form.is_bound %}&{{ filter_form.urlencode }}{% endif %}">{{ num }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if filter_form.is_bound %}&{{ filter_form.urlencode }}{% endif %}">Próxima</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if filter_form.is_bound %}&{{ filter_form.urlencode }}{% endif %}">Última</a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .summary-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        text-align: center;
+    }
+
+    .summary-card:nth-child(2) {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+
+    .summary-card:nth-child(3) {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+
+    .summary-card:nth-child(4) {
+        background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    }
+
+    .summary-label {
+        font-size: 0.875rem;
+        opacity: 0.9;
+        margin-bottom: 0.5rem;
+    }
+
+    .summary-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .metric-mono {
+        font-family: 'Courier New', monospace;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
