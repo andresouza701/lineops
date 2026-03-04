@@ -27,6 +27,8 @@ class SIMcard(models.Model):
         return f"{self.iccid} - {self.status}"
 
     class Meta:
+        verbose_name = "SIMcard"
+        verbose_name_plural = "SIMcards"
         indexes = [
             models.Index(fields=["iccid"]),
             models.Index(fields=["status", "is_deleted"]),
