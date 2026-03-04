@@ -20,79 +20,218 @@
 
 <section class="surface-card reveal-item mb-3">
     <h2 class="h6 mb-3">Resumo do dia</h2>
-    <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Pessoas Logadas</th>
-                    <th>% sem Whats</th>
-                    <th>B2B sem Whats</th>
-                    <th>B2C sem Whats</th>
-                    <th>Numeros Disponiveis</th>
-                    <th>Numeros Entregues</th>
-                    <th>Reconectados</th>
-                    <th>Novos</th>
-                    <th>Total Descoberto DIA</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>{{ indicator.pessoas_logadas|floatformat:0 }}</td>
-                    <td>{{ indicator.perc_sem_whats|floatformat:2 }}%</td>
-                    <td>{{ indicator.b2b_sem_whats|floatformat:0 }}</td>
-                    <td>{{ indicator.b2c_sem_whats|floatformat:0 }}</td>
-                    <td>{{ indicator.numeros_disponiveis|floatformat:0 }}</td>
-                    <td>{{ indicator.numeros_entregues|floatformat:0 }}</td>
-                    <td>{{ indicator.reconectados|floatformat:0 }}</td>
-                    <td>{{ indicator.novos|floatformat:0 }}</td>
-                    <td>{{ indicator.total_descoberto_dia|floatformat:0 }}</td>
-                </tr>
-            </tbody>
-        </table>
+    <div class="row g-3">
+        <div class="col-6 col-md-4 col-xl-3">
+            <div class="card h-100 border-0 bg-light">
+                <div class="card-body">
+                    <p class="text-muted mb-1">Pessoas logadas</p>
+                    <strong class="h5">{{ indicator.pessoas_logadas|floatformat:0 }}</strong>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+            <div class="card h-100 border-0 bg-light">
+                <div class="card-body">
+                    <p class="text-muted mb-1">% sem Whats</p>
+                    <strong class="h5">{{ indicator.perc_sem_whats|floatformat:2 }}%</strong>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+            <div class="card h-100 border-0 bg-light">
+                <div class="card-body">
+                    <p class="text-muted mb-1">B2B sem Whats</p>
+                    <strong class="h5">{{ indicator.b2b_sem_whats|floatformat:0 }}</strong>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+            <div class="card h-100 border-0 bg-light">
+                <div class="card-body">
+                    <p class="text-muted mb-1">B2C sem Whats</p>
+                    <strong class="h5">{{ indicator.b2c_sem_whats|floatformat:0 }}</strong>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+            <div class="card h-100 border-0 bg-light">
+                <div class="card-body">
+                    <p class="text-muted mb-1">Numeros disponiveis</p>
+                    <strong class="h5">{{ indicator.numeros_disponiveis|floatformat:0 }}</strong>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+            <div class="card h-100 border-0 bg-light">
+                <div class="card-body">
+                    <p class="text-muted mb-1">Numeros entregues</p>
+                    <strong class="h5">{{ indicator.numeros_entregues|floatformat:0 }}</strong>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+            <div class="card h-100 border-0 bg-light">
+                <div class="card-body">
+                    <p class="text-muted mb-1">Reconectados</p>
+                    <strong class="h5">{{ indicator.reconectados|floatformat:0 }}</strong>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+            <div class="card h-100 border-0 bg-light">
+                <div class="card-body">
+                    <p class="text-muted mb-1">Novos</p>
+                    <strong class="h5">{{ indicator.novos|floatformat:0 }}</strong>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card h-100 border-0 bg-light">
+                <div class="card-body">
+                    <p class="text-muted mb-1">Total descoberto DIA</p>
+                    <strong class="h5">{{ indicator.total_descoberto_dia|floatformat:0 }}</strong>
+                </div>
+            </div>
+        </div>
     </div>
 </section>
 
 <section class="surface-card reveal-item">
-    <h2 class="h6 mb-3">Usuarios do dia (nome, equipe e linha)</h2>
-    <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Nome</th>
-                    <th>Equipe</th>
-                    <th>Carteira</th>
-                    <th>Segmento</th>
-                    <th>Linha</th>
-                    <th>Status Whats</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% if users %}
-                    {% for user in users %}
-                        <tr>
-                            <td>{{ user.nome }}</td>
-                            <td>{{ user.equipe }}</td>
-                            <td>{{ user.carteira }}</td>
-                            <td>{{ user.segmento }}</td>
-                            <td>{{ user.linha }}</td>
-                            <td>
-                                {% if user.sem_whats %}
-                                    <span class="badge text-bg-warning">Sem linha</span>
-                                {% else %}
-                                    <span class="badge text-bg-success">Com linha</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                {% else %}
-                    <tr>
-                        <td colspan="6" class="text-center text-muted">
-                            Nenhum usuario encontrado para este dia.
-                        </td>
-                    </tr>
-                {% endif %}
-            </tbody>
-        </table>
+    <h2 class="h6 mb-3">Listas detalhadas do dia</h2>
+    <div class="row g-3">
+        <div class="col-12 col-lg-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Quais sao os numeros disponiveis</span>
+                    <span class="badge text-bg-secondary">{{ indicator.available_numbers|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% if indicator.available_numbers %}
+                        <ul class="mb-0">
+                            {% for number in indicator.available_numbers %}
+                                <li>{{ number }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted mb-0">Nenhum numero disponivel no dia.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Quais numeros foram entregues</span>
+                    <span class="badge text-bg-secondary">{{ indicator.delivered_numbers|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% if indicator.delivered_numbers %}
+                        <ul class="mb-0">
+                            {% for item in indicator.delivered_numbers %}
+                                <li>{{ item.numero }} - {{ item.usuario }} ({{ item.carteira }})</li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted mb-0">Nenhum numero entregue no dia.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Quais foram reconectados</span>
+                    <span class="badge text-bg-secondary">{{ indicator.reconnected_numbers|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% if indicator.reconnected_numbers %}
+                        <ul class="mb-0">
+                            {% for item in indicator.reconnected_numbers %}
+                                <li>{{ item.numero }} - {{ item.usuario }} ({{ item.carteira }})</li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted mb-0">Nenhum numero reconectado no dia.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Quais foram os novos</span>
+                    <span class="badge text-bg-secondary">{{ indicator.new_numbers|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% if indicator.new_numbers %}
+                        <ul class="mb-0">
+                            {% for number in indicator.new_numbers %}
+                                <li>{{ number }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted mb-0">Nenhum numero novo no dia.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Usuarios logados</span>
+                    <span class="badge text-bg-secondary">{{ indicator.logged_users|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% if indicator.logged_users %}
+                        <ul class="mb-0">
+                            {% for name in indicator.logged_users %}
+                                <li>{{ name }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted mb-0">Nenhum usuario logado no dia.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Usuarios com linha</span>
+                    <span class="badge text-bg-secondary">{{ indicator.users_with_line|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% if indicator.users_with_line %}
+                        <ul class="mb-0">
+                            {% for user in indicator.users_with_line %}
+                                <li>{{ user.nome }} - {{ user.linha }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted mb-0">Nenhum usuario com linha no dia.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Usuarios sem linha</span>
+                    <span class="badge text-bg-secondary">{{ indicator.users_without_line|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% if indicator.users_without_line %}
+                        <ul class="mb-0">
+                            {% for user in indicator.users_without_line %}
+                                <li>{{ user.nome }} - {{ user.equipe }} - {{ user.carteira }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted mb-0">Nenhum usuario sem linha no dia.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
     </div>
 </section>
 {% endblock %}

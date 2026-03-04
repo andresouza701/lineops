@@ -47,6 +47,99 @@ def resolve_trend_period(raw_period):
     return DEFAULT_TREND_PERIOD
 
 
+def build_number_details_for_day(day, base_lines, allocated_line_ids):
+    available_numbers = list(
+        base_lines.exclude(id__in=allocated_line_ids)
+        .order_by("phone_number")
+        .values_list("phone_number", flat=True)
+    )
+
+    delivered_allocations = list(
+        LineAllocation.objects.filter(allocated_at__date=day)
+        .select_related("employee", "phone_line")
+        .order_by("allocated_at")
+    )
+    delivered_numbers = [
+        {
+            "numero": allocation.phone_line.phone_number,
+            "usuario": allocation.employee.full_name,
+            "carteira": allocation.employee.employee_id,
+        }
+        for allocation in delivered_allocations
+        if allocation.phone_line
+    ]
+
+    reconnected_allocations = list(
+        LineAllocation.objects.filter(allocated_at__date=day)
+        .filter(phone_line__allocations__released_at__lt=F("allocated_at"))
+        .select_related("employee", "phone_line")
+        .distinct()
+        .order_by("allocated_at")
+    )
+    reconnected_numbers = [
+        {
+            "numero": allocation.phone_line.phone_number,
+            "usuario": allocation.employee.full_name,
+            "carteira": allocation.employee.employee_id,
+        }
+        for allocation in reconnected_allocations
+        if allocation.phone_line
+    ]
+
+    new_numbers = list(
+        PhoneLine.objects.filter(created_at__date=day, is_deleted=False)
+        .order_by("phone_number")
+        .values_list("phone_number", flat=True)
+    )
+    return available_numbers, delivered_numbers, reconnected_numbers, new_numbers
+
+
+def build_user_details_for_day(employees, active_allocations):
+    allocations_by_employee = {}
+    allocations_for_day = active_allocations.select_related(
+        "employee", "phone_line"
+    ).order_by("employee_id", "-allocated_at")
+    for allocation in allocations_for_day:
+        if allocation.employee_id not in allocations_by_employee:
+            allocations_by_employee[allocation.employee_id] = allocation
+
+    users = []
+    for employee in employees.order_by("full_name"):
+        allocation = allocations_by_employee.get(employee.id)
+        line = "-"
+        if allocation and allocation.phone_line:
+            line = allocation.phone_line.phone_number
+
+        portfolio_name = normalize_portfolio_name(employee.employee_id)
+        if portfolio_name in B2B_PORTFOLIO_NAMES:
+            segment = "B2B"
+        elif portfolio_name in B2C_PORTFOLIO_NAMES:
+            segment = "B2C"
+        else:
+            segment = "Nao classificado"
+
+        users.append(
+            {
+                "nome": employee.full_name,
+                "equipe": employee.teams,
+                "carteira": employee.employee_id,
+                "linha": line,
+                "segmento": segment,
+                "sem_whats": allocation is None,
+            }
+        )
+
+    logged_users = [
+        employee.full_name
+        for employee in employees.filter(status=Employee.Status.ACTIVE).order_by(
+            "full_name"
+        )
+    ]
+    users_with_line = [user for user in users if not user["sem_whats"]]
+    users_without_line = [user for user in users if user["sem_whats"]]
+    return users, logged_users, users_with_line, users_without_line
+
+
 def build_indicator_for_day(day, include_users=False):
     end_of_day = timezone.make_aware(datetime.combine(day, time.max))
     employees = Employee.objects.filter(is_deleted=False, created_at__date__lte=day)
@@ -89,6 +182,10 @@ def build_indicator_for_day(day, include_users=False):
         elif normalized in B2C_PORTFOLIO_NAMES:
             b2c_sem_whats += 1
 
+    available_numbers, delivered_numbers, reconnected_numbers, new_numbers = (
+        build_number_details_for_day(day, base_lines, allocated_line_ids)
+    )
+
     indicator = {
         "data": day,
         "pessoas_logadas": employees.filter(status=Employee.Status.ACTIVE).count(),
@@ -100,46 +197,23 @@ def build_indicator_for_day(day, include_users=False):
         "reconectados": reconectados,
         "novos": novos,
         "total_descoberto_dia": sem_whats,
+        "available_numbers": available_numbers,
+        "delivered_numbers": delivered_numbers,
+        "reconnected_numbers": reconnected_numbers,
+        "new_numbers": new_numbers,
     }
 
     if not include_users:
         return indicator
 
-    allocations_by_employee = {}
-    allocations_for_day = active_allocations.select_related(
-        "employee", "phone_line"
-    ).order_by("employee_id", "-allocated_at")
-    for allocation in allocations_for_day:
-        if allocation.employee_id not in allocations_by_employee:
-            allocations_by_employee[allocation.employee_id] = allocation
-
-    users = []
-    for employee in employees.order_by("full_name"):
-        allocation = allocations_by_employee.get(employee.id)
-        line = "-"
-        if allocation and allocation.phone_line:
-            line = allocation.phone_line.phone_number
-
-        portfolio_name = normalize_portfolio_name(employee.employee_id)
-        if portfolio_name in B2B_PORTFOLIO_NAMES:
-            segment = "B2B"
-        elif portfolio_name in B2C_PORTFOLIO_NAMES:
-            segment = "B2C"
-        else:
-            segment = "Nao classificado"
-
-        users.append(
-            {
-                "nome": employee.full_name,
-                "equipe": employee.teams,
-                "carteira": employee.employee_id,
-                "linha": line,
-                "segmento": segment,
-                "sem_whats": allocation is None,
-            }
-        )
+    users, logged_users, users_with_line, users_without_line = (
+        build_user_details_for_day(employees, active_allocations)
+    )
 
     indicator["users"] = users
+    indicator["logged_users"] = logged_users
+    indicator["users_with_line"] = users_with_line
+    indicator["users_without_line"] = users_without_line
     return indicator
 
 
