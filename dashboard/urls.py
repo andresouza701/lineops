@@ -8,10 +8,16 @@ from .views import (
     daily_indicator_entry,
     daily_indicator_management,
     daily_indicators_live,
+    daily_user_action_board,
 )
 
 urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
+    path(
+        "indicadores/acoes-dia/",
+        daily_user_action_board,
+        name="daily_user_action_board",
+    ),
     path("indicadores/live/", daily_indicators_live, name="daily_indicators_live"),
     path(
         "indicadores/dia/<str:day>/",

@@ -10,6 +10,7 @@ from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 
 from .forms import DailyIndicatorForm
+from .models import DailyUserAction
 
 
 class DashboardDailyIndicatorsTests(TestCase):
@@ -165,3 +166,49 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertContains(response, "Usuarios logados")
         self.assertContains(response, "Usuarios com linha")
         self.assertContains(response, "Usuarios sem linha")
+
+    def test_daily_user_action_board_allows_marking_action(self):
+        response = self.client.post(
+            reverse("daily_user_action_board"),
+            data={
+                "day": timezone.localdate().isoformat(),
+                "employee_id": self.employee_b2c.id,
+                "action_type": DailyUserAction.ActionType.NEW_NUMBER,
+                "note": "Sem linha para iniciar contato",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+
+        action = DailyUserAction.objects.get(
+            day=timezone.localdate(),
+            employee=self.employee_b2c,
+        )
+        self.assertEqual(action.action_type, DailyUserAction.ActionType.NEW_NUMBER)
+        self.assertEqual(action.note, "Sem linha para iniciar contato")
+
+    def test_daily_user_action_board_removes_action_when_blank(self):
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2c,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+
+        response = self.client.post(
+            reverse("daily_user_action_board"),
+            data={
+                "day": timezone.localdate().isoformat(),
+                "employee_id": self.employee_b2c.id,
+                "action_type": "",
+                "note": "",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(
+            DailyUserAction.objects.filter(
+                day=timezone.localdate(),
+                employee=self.employee_b2c,
+            ).exists()
+        )

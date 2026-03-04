@@ -162,3 +162,29 @@ class DailyIndicatorFilterForm(forms.Form):
             self.add_error("date_from", "Data início não pode ser depois da data fim.")
 
         return cleaned_data
+
+
+class DailyUserActionForm(forms.Form):
+    ACTION_CHOICES = [
+        ("", "Sem acao"),
+        ("new_number", "Precisa numero novo"),
+        ("reconnect_whatsapp", "Precisa reconectar Whats"),
+    ]
+
+    day = forms.DateField(widget=forms.HiddenInput())
+    employee_id = forms.IntegerField(widget=forms.HiddenInput())
+    action_type = forms.ChoiceField(
+        choices=ACTION_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
+    )
+    note = forms.CharField(
+        max_length=255,
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control form-control-sm",
+                "placeholder": "Observacao opcional",
+            }
+        ),
+    )

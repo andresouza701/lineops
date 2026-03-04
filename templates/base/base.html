@@ -36,7 +36,7 @@
                     </a>
                 {% endif %}
                 {% if request.user.is_authenticated %}
-                    <a href="{% url 'daily_indicator_management' %}" class="rail-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' %}is-active{% endif %}" aria-label="Indicadores" title="Indicadores">
+                    <a href="{% url 'daily_indicator_management' %}" class="rail-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' or current_name == 'daily_user_action_board' %}is-active{% endif %}" aria-label="Indicadores" title="Indicadores">
                         <i class="bi bi-clipboard-data" aria-hidden="true"></i>
                     </a>
                 {% endif %}

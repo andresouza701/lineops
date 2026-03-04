@@ -92,3 +92,70 @@ class DailyIndicator(models.Model):
         return (
             f"{self.supervisor} - {self.portfolio} ({self.date.strftime('%d/%m/%Y')})"
         )
+
+
+class DailyUserAction(models.Model):
+    class ActionType(models.TextChoices):
+        NEW_NUMBER = "new_number", "Precisa numero novo"
+        RECONNECT_WHATSAPP = "reconnect_whatsapp", "Precisa reconectar Whats"
+
+    day = models.DateField(db_index=True, default=timezone.now, verbose_name="Dia")
+    employee = models.ForeignKey(
+        "employees.Employee",
+        on_delete=models.CASCADE,
+        related_name="daily_actions",
+        verbose_name="Usuario",
+    )
+    supervisor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="daily_actions_supervised",
+        verbose_name="Supervisor responsavel",
+    )
+    action_type = models.CharField(
+        max_length=30,
+        choices=ActionType.choices,
+        verbose_name="Tipo de acao",
+    )
+    note = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="Observacao",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="daily_actions_created",
+        verbose_name="Criado por",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="daily_actions_updated",
+        verbose_name="Atualizado por",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
+
+    class Meta:
+        unique_together = ("day", "employee")
+        ordering = ["-day", "employee__full_name"]
+        indexes = [
+            models.Index(fields=["day", "action_type"]),
+            models.Index(fields=["employee", "day"]),
+        ]
+        verbose_name = "Acao diaria por usuario"
+        verbose_name_plural = "Acoes diarias por usuario"
+
+    def __str__(self):
+        return (
+            f"{self.day.strftime('%d/%m/%Y')} - {self.employee.full_name} - "
+            f"{self.get_action_type_display()}"
+        )

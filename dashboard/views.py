@@ -2,6 +2,7 @@ import hashlib
 import unicodedata
 from collections import defaultdict
 from datetime import datetime, time, timedelta
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -25,8 +26,9 @@ from .forms import (
     B2C_SUPERVISORS,
     DailyIndicatorFilterForm,
     DailyIndicatorForm,
+    DailyUserActionForm,
 )
-from .models import DailyIndicator
+from .models import DailyIndicator, DailyUserAction
 
 PERCENT_CRITICAL_THRESHOLD = 20
 PERCENT_WARNING_THRESHOLD = 10
@@ -45,6 +47,25 @@ def resolve_trend_period(raw_period):
     if period in ALLOWED_TREND_PERIODS:
         return period
     return DEFAULT_TREND_PERIOD
+
+
+def resolve_day(value):
+    if not value:
+        return timezone.localdate()
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        return timezone.localdate()
+
+
+def get_supervised_employees_queryset(user, supervisor_filter=None):
+    employees = Employee.objects.filter(is_deleted=False)
+    role = (getattr(user, "role", "") or "").lower()
+    if role == "super":
+        employees = employees.filter(corporate_email__iexact=user.email)
+    elif supervisor_filter:
+        employees = employees.filter(corporate_email__icontains=supervisor_filter)
+    return employees.order_by("full_name")
 
 
 def build_number_details_for_day(day, base_lines, allocated_line_ids):
@@ -664,6 +685,123 @@ def daily_indicator_edit(request, pk):
         "b2c_portfolios": B2C_PORTFOLIOS,
     }
     return render(request, "dashboard/daily_indicator_form.html", context)
+
+
+@login_required
+def daily_user_action_board(request):
+    day = resolve_day(request.GET.get("day") or request.POST.get("day"))
+    supervisor_filter = (request.GET.get("supervisor") or "").strip()
+    employees_qs = get_supervised_employees_queryset(request.user, supervisor_filter)
+
+    if request.method == "POST":
+        form = DailyUserActionForm(request.POST)
+        if form.is_valid():
+            employee_id = form.cleaned_data["employee_id"]
+            action_type = form.cleaned_data.get("action_type") or ""
+            note = (form.cleaned_data.get("note") or "").strip()
+            employee = employees_qs.filter(pk=employee_id).first()
+
+            if not employee:
+                messages.error(
+                    request,
+                    "Usuario nao encontrado para este supervisor.",
+                )
+            elif action_type and action_type not in dict(
+                DailyUserAction.ActionType.choices
+            ):
+                messages.error(request, "Tipo de acao invalido.")
+            elif not action_type:
+                deleted, _ = DailyUserAction.objects.filter(
+                    day=day, employee=employee
+                ).delete()
+                if deleted:
+                    messages.success(
+                        request,
+                        f"Acao removida para {employee.full_name}.",
+                    )
+            else:
+                action, created = DailyUserAction.objects.update_or_create(
+                    day=day,
+                    employee=employee,
+                    defaults={
+                        "supervisor": request.user,
+                        "action_type": action_type,
+                        "note": note,
+                        "updated_by": request.user,
+                        "created_by": request.user,
+                    },
+                )
+                verb = "criada" if created else "atualizada"
+                messages.success(
+                    request,
+                    f"Acao {verb} para {action.employee.full_name}.",
+                )
+        else:
+            messages.error(request, "Nao foi possivel salvar a acao.")
+
+        query = {"day": day.isoformat()}
+        if supervisor_filter:
+            query["supervisor"] = supervisor_filter
+        return redirect(f"{reverse('daily_user_action_board')}?{urlencode(query)}")
+
+    actions_qs = DailyUserAction.objects.filter(
+        day=day, employee_id__in=employees_qs.values_list("id", flat=True)
+    ).select_related("employee")
+    actions_by_employee = {action.employee_id: action for action in actions_qs}
+
+    active_allocations = (
+        LineAllocation.objects.filter(
+            is_active=True, employee_id__in=employees_qs.values_list("id", flat=True)
+        )
+        .select_related("phone_line")
+        .order_by("employee_id", "-allocated_at")
+    )
+    line_by_employee = {}
+    for allocation in active_allocations:
+        if allocation.employee_id not in line_by_employee and allocation.phone_line:
+            line_by_employee[allocation.employee_id] = (
+                allocation.phone_line.phone_number
+            )
+
+    rows = []
+    for employee in employees_qs:
+        action = actions_by_employee.get(employee.id)
+        action_form = DailyUserActionForm(
+            initial={
+                "day": day,
+                "employee_id": employee.id,
+                "action_type": action.action_type if action else "",
+                "note": action.note if action else "",
+            }
+        )
+        rows.append(
+            {
+                "employee": employee,
+                "line_number": line_by_employee.get(employee.id),
+                "has_line": employee.id in line_by_employee,
+                "action": action,
+                "form": action_form,
+            }
+        )
+
+    action_counts = {
+        "new_number": actions_qs.filter(
+            action_type=DailyUserAction.ActionType.NEW_NUMBER
+        ).count(),
+        "reconnect_whatsapp": actions_qs.filter(
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP
+        ).count(),
+    }
+
+    context = {
+        "title": "Acoes do Dia",
+        "day": day,
+        "rows": rows,
+        "action_counts": action_counts,
+        "supervisor_filter": supervisor_filter,
+        "is_supervisor_role": (request.user.role or "").lower() == "super",
+    }
+    return render(request, "dashboard/daily_user_action_board.html", context)
 
 
 @login_required
