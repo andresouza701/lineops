@@ -113,3 +113,13 @@ class DashboardDailyIndicatorsTests(TestCase):
         portfolio_html_b2c = str(form_b2c["portfolio"])
         self.assertIn("Camila", supervisor_html_b2c)
         self.assertIn("Natura", portfolio_html_b2c)
+
+    def test_live_daily_indicators_endpoint_returns_payload(self):
+        response = self.client.get(reverse("daily_indicators_live"), {"period": 7})
+        self.assertEqual(response.status_code, 200)
+
+        payload = response.json()
+        self.assertEqual(payload["period"], 7)
+        self.assertIn("rows", payload)
+        self.assertIn("fingerprint", payload)
+        self.assertTrue(payload["fingerprint"])

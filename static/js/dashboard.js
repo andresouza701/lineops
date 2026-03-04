@@ -62,6 +62,67 @@
         drawTrend(canvas, points);
     });
 
+    const dailyBody = document.querySelector("[data-daily-indicators-body]");
+    const formatInt = (value) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 }).format(value || 0);
+    const formatPercent = (value) => new Intl.NumberFormat("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(value || 0);
+
+    const renderDailyRows = (rows) => {
+        if (!dailyBody) return;
+        if (!Array.isArray(rows) || rows.length === 0) {
+            dailyBody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Nenhum indicador disponivel para o dia.</td></tr>';
+            return;
+        }
+
+        const html = rows.map((item) => {
+            return `
+                <tr>
+                    <td>${item.data}</td>
+                    <td>${formatInt(item.pessoas_logadas)}</td>
+                    <td>${formatPercent(item.perc_sem_whats)}%</td>
+                    <td>${formatInt(item.b2b_sem_whats)}</td>
+                    <td>${formatInt(item.b2c_sem_whats)}</td>
+                    <td>${formatInt(item.numeros_disponiveis)}</td>
+                    <td>${formatInt(item.numeros_entregues)}</td>
+                    <td>${formatInt(item.reconectados)}</td>
+                    <td>${formatInt(item.novos)}</td>
+                    <td>${formatInt(item.total_descoberto_dia)}</td>
+                </tr>
+            `;
+        }).join("");
+
+        dailyBody.innerHTML = html;
+    };
+
+    if (dailyBody && dailyBody.dataset.liveUrl) {
+        let lastFingerprint = "";
+        const period = dailyBody.dataset.livePeriod || "7";
+
+        const syncDailyIndicators = () => {
+            const url = `${dailyBody.dataset.liveUrl}?period=${encodeURIComponent(period)}`;
+            fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+                .then((response) => {
+                    if (!response.ok) return null;
+                    return response.json();
+                })
+                .then((payload) => {
+                    if (!payload || !payload.fingerprint) return;
+                    if (payload.fingerprint === lastFingerprint) return;
+
+                    renderDailyRows(payload.rows || []);
+                    lastFingerprint = payload.fingerprint;
+                })
+                .catch(() => {
+                    // Keep dashboard usable even on transient network errors.
+                });
+        };
+
+        syncDailyIndicators();
+        setInterval(syncDailyIndicators, 5000);
+    }
+
     if (metricEls.length) {
         setInterval(updateMetrics, 5000);
     }

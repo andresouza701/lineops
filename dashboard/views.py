@@ -1,9 +1,11 @@
+import hashlib
 from collections import defaultdict
 from datetime import datetime, time, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, F, Q
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.generic import TemplateView
@@ -30,6 +32,42 @@ COUNT_CRITICAL_THRESHOLD = 10
 COUNT_WARNING_THRESHOLD = 5
 DEFAULT_TREND_PERIOD = 7
 ALLOWED_TREND_PERIODS = (7, 15, 30)
+
+
+def resolve_trend_period(raw_period):
+    try:
+        period = int(raw_period)
+    except (TypeError, ValueError):
+        return DEFAULT_TREND_PERIOD
+
+    if period in ALLOWED_TREND_PERIODS:
+        return period
+    return DEFAULT_TREND_PERIOD
+
+
+def serialize_daily_indicator(item):
+    return {
+        "data": item["data"].strftime("%d/%m/%Y"),
+        "pessoas_logadas": int(item.get("pessoas_logadas", 0) or 0),
+        "perc_sem_whats": float(item.get("perc_sem_whats", 0) or 0),
+        "b2b_sem_whats": int(item.get("b2b_sem_whats", 0) or 0),
+        "b2c_sem_whats": int(item.get("b2c_sem_whats", 0) or 0),
+        "numeros_disponiveis": int(item.get("numeros_disponiveis", 0) or 0),
+        "numeros_entregues": int(item.get("numeros_entregues", 0) or 0),
+        "reconectados": int(item.get("reconectados", 0) or 0),
+        "novos": int(item.get("novos", 0) or 0),
+        "total_descoberto_dia": int(item.get("total_descoberto_dia", 0) or 0),
+    }
+
+
+def get_daily_indicators_payload(days):
+    daily = DashboardView()._build_daily_indicators(days=days)
+    rows = [serialize_daily_indicator(item) for item in daily]
+    base = "|".join(
+        [",".join(str(row[key]) for key in sorted(row.keys())) for row in rows]
+    )
+    fingerprint = hashlib.md5(base.encode("utf-8")).hexdigest()
+    return rows, fingerprint
 
 
 class DashboardView(AuthenticadView, TemplateView):
@@ -111,14 +149,7 @@ class DashboardView(AuthenticadView, TemplateView):
 
     def _resolve_trend_period(self):
         raw_period = self.request.GET.get("period", str(DEFAULT_TREND_PERIOD))
-        try:
-            period = int(raw_period)
-        except (TypeError, ValueError):
-            return DEFAULT_TREND_PERIOD
-
-        if period in ALLOWED_TREND_PERIODS:
-            return period
-        return DEFAULT_TREND_PERIOD
+        return resolve_trend_period(raw_period)
 
     def _build_dashboard_insights(self, context):
         daily = context.get("indicadores_diarios", [])
@@ -491,3 +522,17 @@ def daily_indicator_edit(request, pk):
         "b2c_portfolios": B2C_PORTFOLIOS,
     }
     return render(request, "dashboard/daily_indicator_form.html", context)
+
+
+@login_required
+def daily_indicators_live(request):
+    period = resolve_trend_period(request.GET.get("period", DEFAULT_TREND_PERIOD))
+    rows, fingerprint = get_daily_indicators_payload(days=period)
+    return JsonResponse(
+        {
+            "period": period,
+            "rows": rows,
+            "fingerprint": fingerprint,
+            "generated_at": timezone.now().isoformat(),
+        }
+    )

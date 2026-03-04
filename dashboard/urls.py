@@ -6,10 +6,12 @@ from .views import (
     daily_indicator_edit,
     daily_indicator_entry,
     daily_indicator_management,
+    daily_indicators_live,
 )
 
 urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
+    path("indicadores/live/", daily_indicators_live, name="daily_indicators_live"),
     path("indicadores/novo/", daily_indicator_entry, name="daily_indicator_entry"),
     path("indicadores/", daily_indicator_management, name="daily_indicator_management"),
     path(

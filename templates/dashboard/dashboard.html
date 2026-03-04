@@ -115,7 +115,11 @@
                         <th>Total Descoberto DIA</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody
+                    data-daily-indicators-body
+                    data-live-url="{% url 'daily_indicators_live' %}"
+                    data-live-period="{{ trend_period }}"
+                >
                     {% if indicadores_diarios and indicadores_diarios|length > 0 %}
                         {% for item in indicadores_diarios %}
                             <tr>
