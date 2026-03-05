@@ -18,6 +18,7 @@ from core.mixins import AuthenticadView
 from core.services.daily_indicator_service import DailyIndicatorService
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
+from users.models import SystemUser
 
 from .forms import (
     B2B_PORTFOLIOS,
@@ -656,7 +657,7 @@ def daily_indicator_edit(request, pk):
 
 
 @login_required
-def daily_user_action_board(request):
+def daily_user_action_board(request):  # noqa: PLR0912
     day = resolve_day(request.GET.get("day") or request.POST.get("day"))
     supervisor_filter = (request.GET.get("supervisor") or "").strip()
     employees_qs = get_supervised_employees_queryset(request.user, supervisor_filter)
@@ -723,12 +724,17 @@ def daily_user_action_board(request):
             query["supervisor"] = supervisor_filter
         return redirect(f"{reverse('daily_user_action_board')}?{urlencode(query)}")
 
-    # Buscar a ação não-resolvida mais recente para cada employee (até o dia selecionado)
-    all_actions = DailyUserAction.objects.filter(
-        employee_id__in=employees_qs.values_list("id", flat=True),
-        day__lte=day,
-        is_resolved=False,
-    ).select_related("employee").order_by("employee_id", "-day")
+    # Buscar a ação não-resolvida mais recente para cada employee
+    # (até o dia selecionado)
+    all_actions = (
+        DailyUserAction.objects.filter(
+            employee_id__in=employees_qs.values_list("id", flat=True),
+            day__lte=day,
+            is_resolved=False,
+        )
+        .select_related("employee")
+        .order_by("employee_id", "-day")
+    )
 
     # Pegar apenas a mais recente por employee
     actions_by_employee = {}
@@ -770,6 +776,10 @@ def daily_user_action_board(request):
                 "form": action_form,
             }
         )
+
+    # Filtrar por role: ADMIN vê apenas usuários com ações pendentes
+    if request.user.role == SystemUser.Role.ADMIN:
+        rows = [row for row in rows if row["action"] is not None]
 
     action_counts = {
         "new_number": sum(
