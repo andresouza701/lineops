@@ -723,13 +723,18 @@ def daily_user_action_board(request):
             query["supervisor"] = supervisor_filter
         return redirect(f"{reverse('daily_user_action_board')}?{urlencode(query)}")
 
-    actions_qs = DailyUserAction.objects.filter(
-        day=day,
-        is_resolved=False,
+    # Buscar a ação não-resolvida mais recente para cada employee (até o dia selecionado)
+    all_actions = DailyUserAction.objects.filter(
         employee_id__in=employees_qs.values_list("id", flat=True),
-    ).select_related("employee")
+        day__lte=day,
+        is_resolved=False,
+    ).select_related("employee").order_by("employee_id", "-day")
 
-    actions_by_employee = {action.employee_id: action for action in actions_qs}
+    # Pegar apenas a mais recente por employee
+    actions_by_employee = {}
+    for action in all_actions:
+        if action.employee_id not in actions_by_employee:
+            actions_by_employee[action.employee_id] = action
 
     active_allocations = (
         LineAllocation.objects.filter(
@@ -767,12 +772,16 @@ def daily_user_action_board(request):
         )
 
     action_counts = {
-        "new_number": actions_qs.filter(
-            action_type=DailyUserAction.ActionType.NEW_NUMBER
-        ).count(),
-        "reconnect_whatsapp": actions_qs.filter(
-            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP
-        ).count(),
+        "new_number": sum(
+            1
+            for action in actions_by_employee.values()
+            if action.action_type == DailyUserAction.ActionType.NEW_NUMBER
+        ),
+        "reconnect_whatsapp": sum(
+            1
+            for action in actions_by_employee.values()
+            if action.action_type == DailyUserAction.ActionType.RECONNECT_WHATSAPP
+        ),
     }
 
     context = {

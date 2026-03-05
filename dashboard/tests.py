@@ -280,7 +280,7 @@ class DashboardDailyIndicatorsTests(TestCase):
             ).exists()
         )
 
-    def test_daily_user_action_board_filters_actions_by_selected_day(self):
+    def test_daily_user_action_board_shows_unresolved_action_from_previous_day(self):
         today = timezone.localdate()
         yesterday = today - timezone.timedelta(days=1)
 
@@ -293,11 +293,37 @@ class DashboardDailyIndicatorsTests(TestCase):
             updated_by=self.user,
         )
 
+        # Ao acessar o dia atual, a ação de ontem ainda deve aparecer
         response = self.client.get(
             reverse("daily_user_action_board"),
             {"day": today.isoformat()},
         )
 
         self.assertEqual(response.status_code, 200)
+        # A ação não-resolvida de ontem deve aparecer no dia atual
+        self.assertEqual(response.context["action_counts"]["new_number"], 1)
+        self.assertEqual(response.context["action_counts"]["reconnect_whatsapp"], 0)
+
+    def test_daily_user_action_board_hides_future_actions(self):
+        today = timezone.localdate()
+        tomorrow = today + timezone.timedelta(days=1)
+
+        DailyUserAction.objects.create(
+            day=tomorrow,
+            employee=self.employee_b2c,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+
+        # Ao acessar o dia atual, ações de amanhã NÃO devem aparecer
+        response = self.client.get(
+            reverse("daily_user_action_board"),
+            {"day": today.isoformat()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        # Ações futuras não devem aparecer
         self.assertEqual(response.context["action_counts"]["new_number"], 0)
         self.assertEqual(response.context["action_counts"]["reconnect_whatsapp"], 0)
