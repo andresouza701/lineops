@@ -335,14 +335,36 @@ class DashboardView(AuthenticadView, TemplateView):
             if key not in latest_pending_by_key:
                 latest_pending_by_key[key] = action
 
+        # Aplicar filtro de visibilidade similar ao de "Acoes do dia"
+        # ADMIN nao vê linhas: Status Ativo + Sem acao
+        user_role = getattr(self.request.user, "role", "") or ""
+        visible_actions = []
+        for action in latest_pending_by_key.values():
+            should_show = True
+            if user_role.lower() == "admin":
+                if action.allocation:
+                    if (
+                        action.allocation.line_status
+                        == LineAllocation.LineStatus.ACTIVE
+                        and not action.action_type
+                    ):
+                        should_show = False
+                elif (
+                    action.employee.line_status == Employee.LineStatus.ACTIVE
+                    and not action.action_type
+                ):
+                    should_show = False
+            if should_show:
+                visible_actions.append(action)
+
         pending_new_number_count = sum(
             1
-            for action in latest_pending_by_key.values()
+            for action in visible_actions
             if action.action_type == DailyUserAction.ActionType.NEW_NUMBER
         )
         pending_reconnect_whatsapp_count = sum(
             1
-            for action in latest_pending_by_key.values()
+            for action in visible_actions
             if action.action_type == DailyUserAction.ActionType.RECONNECT_WHATSAPP
         )
         action_board_url = (
