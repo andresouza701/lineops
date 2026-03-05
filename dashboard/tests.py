@@ -195,6 +195,67 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertEqual(pending_new_number["value"], 1)
         self.assertEqual(pending_reconnect["value"], 1)
 
+    def test_dashboard_exception_cards_do_not_double_count_old_open_actions(self):
+        today = timezone.localdate()
+        yesterday = today - timezone.timedelta(days=1)
+
+        DailyUserAction.objects.create(
+            day=yesterday,
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+        DailyUserAction.objects.create(
+            day=today,
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        cards = response.context["exception_cards"]
+        pending_new_number = next(
+            card for card in cards if card["title"] == "Pendêcia - Número Novo"
+        )
+        self.assertEqual(pending_new_number["value"], 1)
+
+    def test_dashboard_exception_cards_ignore_inactive_users(self):
+        inactive_employee = Employee.objects.create(
+            full_name="Inactive User",
+            corporate_email="inactive@corp.com",
+            employee_id="Unilever",
+            teams="Joinville",
+            status=Employee.Status.INACTIVE,
+        )
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=inactive_employee,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        cards = response.context["exception_cards"]
+        pending_new_number = next(
+            card for card in cards if card["title"] == "Pendêcia - Número Novo"
+        )
+        self.assertEqual(pending_new_number["value"], 0)
+
     def test_daily_indicator_day_breakdown_shows_user_details(self):
         today_iso = timezone.localdate().strftime("%Y-%m-%d")
         response = self.client.get(

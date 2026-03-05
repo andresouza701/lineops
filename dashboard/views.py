@@ -319,15 +319,32 @@ class DashboardView(AuthenticadView, TemplateView):
         daily = context.get("indicadores_diarios", [])
         latest = daily[-1] if daily else {}
         today = timezone.localdate()
-        pending_actions = DailyUserAction.objects.filter(
-            day__lte=today, is_resolved=False
+        pending_actions = (
+            DailyUserAction.objects.filter(
+                day__lte=today,
+                is_resolved=False,
+                employee__status=Employee.Status.ACTIVE,
+                employee__is_deleted=False,
+            )
+            .order_by("employee_id", "allocation_id", "-day")
+            .select_related("employee", "allocation")
         )
-        pending_new_number_count = pending_actions.filter(
-            action_type=DailyUserAction.ActionType.NEW_NUMBER
-        ).count()
-        pending_reconnect_whatsapp_count = pending_actions.filter(
-            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP
-        ).count()
+        latest_pending_by_key = {}
+        for action in pending_actions:
+            key = (action.employee_id, action.allocation_id)
+            if key not in latest_pending_by_key:
+                latest_pending_by_key[key] = action
+
+        pending_new_number_count = sum(
+            1
+            for action in latest_pending_by_key.values()
+            if action.action_type == DailyUserAction.ActionType.NEW_NUMBER
+        )
+        pending_reconnect_whatsapp_count = sum(
+            1
+            for action in latest_pending_by_key.values()
+            if action.action_type == DailyUserAction.ActionType.RECONNECT_WHATSAPP
+        )
         action_board_url = (
             f"{reverse('daily_user_action_board')}"
             f"?{urlencode({'day': today.isoformat()})}"
