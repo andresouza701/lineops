@@ -971,16 +971,20 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
             )
         ]
 
+    # Contar ações apenas das linhas visíveis (após filtro de role)
     action_counts = {
         "new_number": sum(
             1
-            for action in actions_by_allocation.values()
-            if action.action_type == DailyUserAction.ActionType.NEW_NUMBER
+            for row in rows
+            if row.get("action")
+            and row["action"].action_type == DailyUserAction.ActionType.NEW_NUMBER
         ),
         "reconnect_whatsapp": sum(
             1
-            for action in actions_by_allocation.values()
-            if action.action_type == DailyUserAction.ActionType.RECONNECT_WHATSAPP
+            for row in rows
+            if row.get("action")
+            and row["action"].action_type
+            == DailyUserAction.ActionType.RECONNECT_WHATSAPP
         ),
     }
 
