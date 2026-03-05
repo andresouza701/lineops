@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from allocations.models import LineAllocation
 from employees.models import Employee
-from telecom.models import PhoneLine, SIMcard
+from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
 
 from .forms import DailyIndicatorForm
@@ -50,7 +50,7 @@ class DashboardDailyIndicatorsTests(TestCase):
             status=PhoneLine.Status.AVAILABLE,
         )
 
-        LineAllocation.objects.create(
+        self.line_allocation = LineAllocation.objects.create(
             employee=self.employee_b2b,
             phone_line=self.line_allocated,
             allocated_by=self.user,
@@ -327,3 +327,48 @@ class DashboardDailyIndicatorsTests(TestCase):
         # Ações futuras não devem aparecer
         self.assertEqual(response.context["action_counts"]["new_number"], 0)
         self.assertEqual(response.context["action_counts"]["reconnect_whatsapp"], 0)
+
+    def test_daily_user_action_board_logs_line_status_change_in_history(self):
+        response = self.client.post(
+            reverse("daily_user_action_board"),
+            data={
+                "day": timezone.localdate().isoformat(),
+                "employee_id": self.employee_b2b.id,
+                "allocation_id": str(self.line_allocation.id),
+                "line_status": LineAllocation.LineStatus.RESTRICTED,
+                "action_type": "",
+                "note": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        history = PhoneLineHistory.objects.filter(
+            phone_line=self.line_allocated,
+            action=PhoneLineHistory.ActionType.STATUS_CHANGED,
+        ).first()
+        self.assertIsNotNone(history)
+        self.assertIn("Status da linha", history.old_value or "")
+        self.assertIn("Status da linha", history.new_value or "")
+
+    def test_daily_user_action_board_logs_daily_action_change_in_history(self):
+        response = self.client.post(
+            reverse("daily_user_action_board"),
+            data={
+                "day": timezone.localdate().isoformat(),
+                "employee_id": self.employee_b2b.id,
+                "allocation_id": str(self.line_allocation.id),
+                "line_status": self.line_allocation.line_status,
+                "action_type": DailyUserAction.ActionType.NEW_NUMBER,
+                "note": "Sem acesso ao Whats",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        history = PhoneLineHistory.objects.filter(
+            phone_line=self.line_allocated,
+            action=PhoneLineHistory.ActionType.DAILY_ACTION_CHANGED,
+        ).first()
+        self.assertIsNotNone(history)
+        self.assertIn("Atualizar acao", history.new_value or "")

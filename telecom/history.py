@@ -13,6 +13,7 @@ class PhoneLineHistory(models.Model):
         DELETED = "DELETED", "Excluída"
         ALLOCATED = "ALLOCATED", "Alocada"
         RELEASED = "RELEASED", "Liberada"
+        DAILY_ACTION_CHANGED = "DAILY_ACTION_CHANGED", "Ação diária alterada"
 
     phone_line = models.ForeignKey(
         "PhoneLine",

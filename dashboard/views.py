@@ -17,7 +17,7 @@ from allocations.models import LineAllocation
 from core.mixins import AuthenticadView
 from core.services.daily_indicator_service import DailyIndicatorService
 from employees.models import Employee
-from telecom.models import PhoneLine, SIMcard
+from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
 
 from .forms import (
@@ -691,8 +691,21 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                             pk=allocation_id, employee=employee, is_active=True
                         ).first()
                         if allocation and allocation.line_status != line_status:
+                            old_line_status = allocation.get_line_status_display()
                             allocation.line_status = line_status
                             allocation.save(update_fields=["line_status"])
+                            new_line_status = allocation.get_line_status_display()
+                            PhoneLineHistory.objects.create(
+                                phone_line=allocation.phone_line,
+                                action=PhoneLineHistory.ActionType.STATUS_CHANGED,
+                                old_value=f"Status da linha: {old_line_status}",
+                                new_value=f"Status da linha: {new_line_status}",
+                                changed_by=request.user,
+                                description=(
+                                    "Status da linha alterado em Acoes do dia de "
+                                    f"{old_line_status} para {new_line_status}"
+                                ),
+                            )
                             messages.success(
                                 request,
                                 f"Status da linha atualizado para "
@@ -715,10 +728,25 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                         .first()
                     )
                     if action:
+                        action_label = dict(DailyUserAction.ActionType.choices).get(
+                            action.action_type, action.action_type
+                        )
                         action.is_resolved = True
                         action.note = note
                         action.updated_by = request.user
                         action.save(update_fields=["is_resolved", "note", "updated_by"])
+                        if action.allocation and action.allocation.phone_line:
+                            PhoneLineHistory.objects.create(
+                                phone_line=action.allocation.phone_line,
+                                action=PhoneLineHistory.ActionType.DAILY_ACTION_CHANGED,
+                                old_value=f"Atualizar acao: {action_label}",
+                                new_value="Atualizar acao: Sem acao",
+                                changed_by=request.user,
+                                description=(
+                                    "Acao da linha marcada como resolvida em "
+                                    "Acoes do dia"
+                                ),
+                            )
                         messages.success(
                             request,
                             f"Acao marcada como resolvida para {employee.full_name}.",
@@ -756,6 +784,16 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                     if allocation_id and allocation_obj:
                         update_or_create_filter["allocation"] = allocation_obj
 
+                    existing_action = DailyUserAction.objects.filter(
+                        **update_or_create_filter
+                    ).first()
+                    previous_action_type = (
+                        existing_action.action_type if existing_action else ""
+                    )
+                    previous_note = (
+                        (existing_action.note or "") if existing_action else ""
+                    )
+
                     action, created = DailyUserAction.objects.update_or_create(
                         **update_or_create_filter,
                         defaults={
@@ -767,6 +805,31 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                             "is_resolved": False,
                         },
                     )
+                    previous_action_label = dict(
+                        DailyUserAction.ActionType.choices
+                    ).get(previous_action_type, "Sem acao")
+                    current_action_label = dict(DailyUserAction.ActionType.choices).get(
+                        action_type, action_type
+                    )
+                    if (
+                        allocation_obj
+                        and allocation_obj.phone_line
+                        and (
+                            created
+                            or previous_action_type != action_type
+                            or previous_note != note
+                        )
+                    ):
+                        PhoneLineHistory.objects.create(
+                            phone_line=allocation_obj.phone_line,
+                            action=PhoneLineHistory.ActionType.DAILY_ACTION_CHANGED,
+                            old_value=f"Atualizar acao: {previous_action_label}",
+                            new_value=f"Atualizar acao: {current_action_label}",
+                            changed_by=request.user,
+                            description=(
+                                "Acao da linha criada/atualizada em Acoes do dia"
+                            ),
+                        )
                     verb = "criada" if created else "atualizada"
                     messages.success(
                         request,
