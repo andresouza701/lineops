@@ -705,12 +705,12 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                 ):
                     messages.error(request, "Tipo de acao invalido.")
                 elif not action_type:
-                    # Busca a ação não resolvida mais recente independente do dia
+                    # Busca a ação não resolvida mais recente para esta alocação
+                    action_filter = {"employee": employee, "is_resolved": False}
+                    if allocation_id:
+                        action_filter["allocation_id"] = allocation_id
                     action = (
-                        DailyUserAction.objects.filter(
-                            employee=employee,
-                            is_resolved=False,
-                        )
+                        DailyUserAction.objects.filter(**action_filter)
                         .order_by("-day")
                         .first()
                     )
@@ -731,15 +731,33 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                         )
                 else:
                     # Marca ações antigas não resolvidas como resolvidas
-                    DailyUserAction.objects.filter(
-                        employee=employee,
-                        is_resolved=False,
-                        day__lt=day,
-                    ).update(is_resolved=True, updated_by=request.user)
+                    old_actions_filter = {
+                        "employee": employee,
+                        "is_resolved": False,
+                        "day__lt": day,
+                    }
+                    if allocation_id:
+                        old_actions_filter["allocation_id"] = allocation_id
+                    DailyUserAction.objects.filter(**old_actions_filter).update(
+                        is_resolved=True, updated_by=request.user
+                    )
+
+                    # Obter a alocação se foi fornecido allocation_id
+                    allocation_obj = None
+                    if allocation_id:
+                        allocation_obj = LineAllocation.objects.filter(
+                            pk=allocation_id, employee=employee, is_active=True
+                        ).first()
+
+                    update_or_create_filter = {
+                        "day": day,
+                        "employee": employee,
+                    }
+                    if allocation_id and allocation_obj:
+                        update_or_create_filter["allocation"] = allocation_obj
 
                     action, created = DailyUserAction.objects.update_or_create(
-                        day=day,
-                        employee=employee,
+                        **update_or_create_filter,
                         defaults={
                             "supervisor": request.user,
                             "action_type": action_type,
@@ -769,15 +787,17 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
             day__lte=day,
             is_resolved=False,
         )
-        .select_related("employee")
-        .order_by("employee_id", "-day")
+        .select_related("employee", "allocation")
+        .order_by("employee_id", "allocation_id", "-day")
     )
 
-    # Pegar apenas a mais recente por employee
-    actions_by_employee = {}
+    # Pegar apenas a mais recente por allocation (e employee)
+    actions_by_allocation = {}
     for action in all_actions:
-        if action.employee_id not in actions_by_employee:
-            actions_by_employee[action.employee_id] = action
+        allocation_id = action.allocation_id if action.allocation else None
+        key = (action.employee_id, allocation_id)
+        if key not in actions_by_allocation:
+            actions_by_allocation[key] = action
 
     # Pegar TODAS as alocações ativas por employee
     active_allocations = (
@@ -796,11 +816,14 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
 
     rows = []
     for employee in employees_qs:
-        action = actions_by_employee.get(employee.id)
         # Se tem alocações, criar uma linha para cada alocação
         allocations = allocations_by_employee.get(employee.id, [])
         if allocations:
             for allocation in allocations:
+                # Buscar a ação específica para esta alocação
+                allocation_key = (employee.id, allocation.id)
+                action = actions_by_allocation.get(allocation_key)
+
                 action_form = DailyUserActionForm(
                     initial={
                         "day": day,
@@ -823,6 +846,10 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                 )
         else:
             # Se não tem alocação, criar uma linha sem número
+            # Buscar a ação sem alocação para este employee
+            no_allocation_key = (employee.id, None)
+            action = actions_by_allocation.get(no_allocation_key)
+
             action_form = DailyUserActionForm(
                 initial={
                     "day": day,
@@ -864,12 +891,12 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
     action_counts = {
         "new_number": sum(
             1
-            for action in actions_by_employee.values()
+            for action in actions_by_allocation.values()
             if action.action_type == DailyUserAction.ActionType.NEW_NUMBER
         ),
         "reconnect_whatsapp": sum(
             1
-            for action in actions_by_employee.values()
+            for action in actions_by_allocation.values()
             if action.action_type == DailyUserAction.ActionType.RECONNECT_WHATSAPP
         ),
     }

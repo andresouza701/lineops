@@ -106,6 +106,14 @@ class DailyUserAction(models.Model):
         related_name="daily_actions",
         verbose_name="Usuario",
     )
+    allocation = models.ForeignKey(
+        "allocations.LineAllocation",
+        on_delete=models.CASCADE,
+        related_name="daily_actions",
+        verbose_name="Alocacao da linha",
+        null=True,
+        blank=True,
+    )
     supervisor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -151,11 +159,12 @@ class DailyUserAction(models.Model):
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
 
     class Meta:
-        unique_together = ("day", "employee")
+        unique_together = ("day", "employee", "allocation")
         ordering = ["-day", "employee__full_name"]
         indexes = [
             models.Index(fields=["day", "action_type"]),
             models.Index(fields=["employee", "day"]),
+            models.Index(fields=["allocation", "day"]),
         ]
         verbose_name = "Acao diaria por usuario"
         verbose_name_plural = "Acoes diarias por usuario"
