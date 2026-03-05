@@ -7,6 +7,7 @@ from core.constants import (
     B2C_PORTFOLIOS,
     B2C_SUPERVISORS,
 )
+from employees.models import Employee
 
 from .models import DailyIndicator
 
@@ -187,4 +188,9 @@ class DailyUserActionForm(forms.Form):
                 "placeholder": "Observacao opcional",
             }
         ),
+    )
+    line_status = forms.ChoiceField(
+        choices=Employee.LineStatus.choices,
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
     )

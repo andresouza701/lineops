@@ -60,6 +60,7 @@
                     <th>Unidade</th>
                     <th>Carteira</th>
                     <th>Linha ativa</th>
+                    <th>Status da linha</th>
                     <th>Atualizar acao</th>
                 </tr>
             </thead>
@@ -79,6 +80,19 @@
                                     <span class="badge text-bg-warning">Sem linha</span>
                                 {% endif %}
                             </td>
+                            <td>
+                                <form method="post" class="d-inline">
+                                    {% csrf_token %}
+                                    {{ row.form.day }}
+                                    {{ row.form.employee_id }}
+                                    {% if is_admin_role %}
+                                        {{ row.form.line_status }}
+                                        <button type="submit" class="btn btn-sm btn-outline-primary ms-1">✓</button>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ row.employee.get_line_status_display }}</span>
+                                    {% endif %}
+                                </form>
+                            </td>
                             <td style="min-width: 520px;">
                                 <form method="post" class="d-flex gap-2 align-items-center">
                                     {% csrf_token %}
@@ -93,7 +107,7 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">
+                        <td colspan="8" class="text-center text-muted py-4">
                             Nenhum usuario encontrado para este filtro.
                         </td>
                     </tr>

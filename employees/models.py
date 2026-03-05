@@ -21,6 +21,12 @@ class Employee(models.Model):
         ACTIVE = "active", "Ativo"
         INACTIVE = "inactive", "Inativo"
 
+    class LineStatus(models.TextChoices):
+        UNDER_ANALYSIS = "under_analysis", "Em analise"
+        RESTRICTED = "restricted", "Restrito"
+        PERMANENTLY_BANNED = "permanently_banned", "Banido permanentemente"
+        ACTIVE = "active", "Ativo"
+
     full_name = models.CharField(max_length=40)
     corporate_email = models.CharField(max_length=40, verbose_name="Supervisor")
     employee_id = models.CharField(max_length=40, verbose_name="Carteira")
@@ -35,6 +41,14 @@ class Employee(models.Model):
 
     status = models.CharField(
         max_length=10, choices=Status.choices, default=Status.INACTIVE, db_index=True
+    )
+    line_status = models.CharField(
+        max_length=30,
+        choices=LineStatus.choices,
+        default=LineStatus.ACTIVE,
+        db_index=True,
+        verbose_name="Status da linha",
+        help_text="Status da linha do negociador",
     )
     pa = models.CharField(
         max_length=100,

@@ -657,7 +657,7 @@ def daily_indicator_edit(request, pk):
 
 
 @login_required
-def daily_user_action_board(request):  # noqa: PLR0912
+def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
     day = resolve_day(request.GET.get("day") or request.POST.get("day"))
     supervisor_filter = (request.GET.get("supervisor") or "").strip()
     employees_qs = get_supervised_employees_queryset(request.user, supervisor_filter)
@@ -675,59 +675,78 @@ def daily_user_action_board(request):  # noqa: PLR0912
                     request,
                     "Usuario nao encontrado para este supervisor.",
                 )
-            elif action_type and action_type not in dict(
-                DailyUserAction.ActionType.choices
-            ):
-                messages.error(request, "Tipo de acao invalido.")
-            elif not action_type:
-                # Busca a ação não resolvida mais recente independente do dia
-                action = (
+            else:
+                # Processar line_status (somente ADMIN pode alterar)
+                if request.user.role == SystemUser.Role.ADMIN:
+                    line_status = form.cleaned_data.get("line_status")
+                    if (
+                        line_status
+                        and line_status in dict(Employee.LineStatus.choices)
+                        and employee.line_status != line_status
+                    ):
+                        employee.line_status = line_status
+                        employee.save(update_fields=["line_status"])
+                        messages.success(
+                            request,
+                            f"Status da linha atualizado para "
+                            f"{employee.full_name}.",
+                        )
+
+                # Processar ações
+                if action_type and action_type not in dict(
+                    DailyUserAction.ActionType.choices
+                ):
+                    messages.error(request, "Tipo de acao invalido.")
+                elif not action_type:
+                    # Busca a ação não resolvida mais recente independente do dia
+                    action = (
+                        DailyUserAction.objects.filter(
+                            employee=employee,
+                            is_resolved=False,
+                        )
+                        .order_by("-day")
+                        .first()
+                    )
+                    if action:
+                        action.is_resolved = True
+                        action.note = note
+                        action.updated_by = request.user
+                        action.save(update_fields=["is_resolved", "note", "updated_by"])
+                        messages.success(
+                            request,
+                            f"Acao marcada como resolvida para {employee.full_name}.",
+                        )
+                    else:
+                        messages.info(
+                            request,
+                            f"Nenhuma acao aberta para resolver para "
+                            f"{employee.full_name}.",
+                        )
+                else:
+                    # Marca ações antigas não resolvidas como resolvidas
                     DailyUserAction.objects.filter(
                         employee=employee,
                         is_resolved=False,
+                        day__lt=day,
+                    ).update(is_resolved=True, updated_by=request.user)
+
+                    action, created = DailyUserAction.objects.update_or_create(
+                        day=day,
+                        employee=employee,
+                        defaults={
+                            "supervisor": request.user,
+                            "action_type": action_type,
+                            "note": note,
+                            "updated_by": request.user,
+                            "created_by": request.user,
+                            "is_resolved": False,
+                        },
                     )
-                    .order_by("-day")
-                    .first()
-                )
-                if action:
-                    action.is_resolved = True
-                    action.note = note
-                    action.updated_by = request.user
-                    action.save(update_fields=["is_resolved", "note", "updated_by"])
+                    verb = "criada" if created else "atualizada"
                     messages.success(
                         request,
-                        f"Acao marcada como resolvida para {employee.full_name}.",
+                        f"Acao {verb} para {action.employee.full_name}.",
                     )
-                else:
-                    messages.info(
-                        request,
-                        f"Nenhuma acao aberta para resolver para {employee.full_name}.",
-                    )
-            else:
-                # Marca ações antigas não resolvidas como resolvidas
-                DailyUserAction.objects.filter(
-                    employee=employee,
-                    is_resolved=False,
-                    day__lt=day,
-                ).update(is_resolved=True, updated_by=request.user)
-
-                action, created = DailyUserAction.objects.update_or_create(
-                    day=day,
-                    employee=employee,
-                    defaults={
-                        "supervisor": request.user,
-                        "action_type": action_type,
-                        "note": note,
-                        "updated_by": request.user,
-                        "created_by": request.user,
-                        "is_resolved": False,
-                    },
-                )
-                verb = "criada" if created else "atualizada"
-                messages.success(
-                    request,
-                    f"Acao {verb} para {action.employee.full_name}.",
-                )
         else:
             messages.error(request, "Nao foi possivel salvar a acao.")
 
@@ -777,6 +796,7 @@ def daily_user_action_board(request):  # noqa: PLR0912
                 "employee_id": employee.id,
                 "action_type": action.action_type if action else "",
                 "note": action.note if action else "",
+                "line_status": employee.line_status,
             }
         )
         rows.append(
@@ -813,6 +833,7 @@ def daily_user_action_board(request):  # noqa: PLR0912
         "action_counts": action_counts,
         "supervisor_filter": supervisor_filter,
         "is_supervisor_role": (request.user.role or "").lower() == "super",
+        "is_admin_role": (request.user.role or "").lower() == "admin",
     }
     return render(request, "dashboard/daily_user_action_board.html", context)
 
