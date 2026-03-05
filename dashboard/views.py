@@ -755,8 +755,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
             query["supervisor"] = supervisor_filter
         return redirect(f"{reverse('daily_user_action_board')}?{urlencode(query)}")
 
-    # Buscar a ação não-resolvida mais recente para cada employee
-    # (até o dia selecionado)
+    # Pegar ações não-resolvidas
     all_actions = (
         DailyUserAction.objects.filter(
             employee_id__in=employees_qs.values_list("id", flat=True),
@@ -773,6 +772,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         if action.employee_id not in actions_by_employee:
             actions_by_employee[action.employee_id] = action
 
+    # Pegar TODAS as alocações ativas por employee
     active_allocations = (
         LineAllocation.objects.filter(
             is_active=True, employee_id__in=employees_qs.values_list("id", flat=True)
@@ -780,34 +780,58 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         .select_related("phone_line")
         .order_by("employee_id", "-allocated_at")
     )
-    line_by_employee = {}
+    allocations_by_employee = {}
     for allocation in active_allocations:
-        if allocation.employee_id not in line_by_employee and allocation.phone_line:
-            line_by_employee[allocation.employee_id] = (
-                allocation.phone_line.phone_number
-            )
+        if allocation.employee_id not in allocations_by_employee:
+            allocations_by_employee[allocation.employee_id] = []
+        if allocation.phone_line:
+            allocations_by_employee[allocation.employee_id].append(allocation)
 
     rows = []
     for employee in employees_qs:
         action = actions_by_employee.get(employee.id)
-        action_form = DailyUserActionForm(
-            initial={
-                "day": day,
-                "employee_id": employee.id,
-                "action_type": action.action_type if action else "",
-                "note": action.note if action else "",
-                "line_status": employee.line_status,
-            }
-        )
-        rows.append(
-            {
-                "employee": employee,
-                "line_number": line_by_employee.get(employee.id),
-                "has_line": employee.id in line_by_employee,
-                "action": action,
-                "form": action_form,
-            }
-        )
+        # Se tem alocações, criar uma linha para cada alocação
+        allocations = allocations_by_employee.get(employee.id, [])
+        if allocations:
+            for allocation in allocations:
+                action_form = DailyUserActionForm(
+                    initial={
+                        "day": day,
+                        "employee_id": employee.id,
+                        "action_type": action.action_type if action else "",
+                        "note": action.note if action else "",
+                        "line_status": employee.line_status,
+                    }
+                )
+                rows.append(
+                    {
+                        "employee": employee,
+                        "line_number": allocation.phone_line.phone_number,
+                        "has_line": True,
+                        "action": action,
+                        "form": action_form,
+                    }
+                )
+        else:
+            # Se não tem alocação, criar uma linha sem número
+            action_form = DailyUserActionForm(
+                initial={
+                    "day": day,
+                    "employee_id": employee.id,
+                    "action_type": action.action_type if action else "",
+                    "note": action.note if action else "",
+                    "line_status": employee.line_status,
+                }
+            )
+            rows.append(
+                {
+                    "employee": employee,
+                    "line_number": None,
+                    "has_line": False,
+                    "action": action,
+                    "form": action_form,
+                }
+            )
 
     # Filtrar por role: ADMIN vê apenas usuários com ações pendentes
     # OU com status da linha diferente de 'Ativo'
