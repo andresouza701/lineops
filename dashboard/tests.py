@@ -67,12 +67,12 @@ class DashboardDailyIndicatorsTests(TestCase):
             "% sem Whats",
             "B2B sem Whats",
             "B2C sem Whats",
-            "N\u00fameros Dispon\u00edveis",
-            "N\u00fameros Entregues",
+            "Números Disponíveis",
+            "Números Entregues",
             "Reconectados",
             "Novos",
             "Total Descoberto DIA",
-            "Acoes",
+            "Ações",
         ]:
             self.assertContains(response, header)
 
@@ -272,9 +272,9 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertContains(response, "Números entregues")
         self.assertContains(response, "Números reconectados")
         self.assertContains(response, "Números novos")
-        self.assertContains(response, "Usuarios logados")
-        self.assertContains(response, "Usuarios com linha")
-        self.assertContains(response, "Usuarios sem linha")
+        self.assertContains(response, "Usuários logados")
+        self.assertContains(response, "Usuários com linha")
+        self.assertContains(response, "Usuários sem linha")
 
     def test_daily_user_action_board_allows_marking_action(self):
         response = self.client.post(

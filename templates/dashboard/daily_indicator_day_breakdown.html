@@ -9,7 +9,7 @@
         <div>
             <h2 class="h5 mb-1">Detalhamento do dia {{ selected_day|date:"d/m/Y" }}</h2>
             <p class="text-muted mb-0">
-                Visao detalhada por usuario para os indicadores diarios.
+                Visão detalhada por usuário para os indicadores diários.
             </p>
         </div>
         <a href="{% url 'dashboard' %}" class="btn btn-sm btn-outline-secondary">
@@ -56,7 +56,7 @@
         <div class="col-6 col-md-4 col-xl-3">
             <div class="card h-100 detail-stat-card detail-stat-card-success">
                 <div class="card-body">
-                    <p class="text-muted mb-1">Numeros disponiveis</p>
+                    <p class="text-muted mb-1">Números disponíveis</p>
                     <strong class="h5">{{ indicator.numeros_disponiveis|floatformat:0 }}</strong>
                 </div>
             </div>
@@ -64,7 +64,7 @@
         <div class="col-6 col-md-4 col-xl-3">
             <div class="card h-100 detail-stat-card detail-stat-card-primary">
                 <div class="card-body">
-                    <p class="text-muted mb-1">Numeros entregues</p>
+                    <p class="text-muted mb-1">Números entregues</p>
                     <strong class="h5">{{ indicator.numeros_entregues|floatformat:0 }}</strong>
                 </div>
             </div>
@@ -114,7 +114,7 @@
                         {% endfor %}
                     </ul>
                 {% else %}
-                    <p class="detail-list-empty">Nenhum numero disponivel no dia.</p>
+                    <p class="detail-list-empty">Nenhum número disponível no dia.</p>
                 {% endif %}
             </div>
         </article>
@@ -135,7 +135,7 @@
                         {% endfor %}
                     </ul>
                 {% else %}
-                    <p class="detail-list-empty">Nenhum numero entregue no dia.</p>
+                    <p class="detail-list-empty">Nenhum número entregue no dia.</p>
                 {% endif %}
             </div>
         </article>
@@ -156,7 +156,7 @@
                         {% endfor %}
                     </ul>
                 {% else %}
-                    <p class="detail-list-empty">Nenhum numero reconectado no dia.</p>
+                    <p class="detail-list-empty">Nenhum número reconectado no dia.</p>
                 {% endif %}
             </div>
         </article>
@@ -176,14 +176,14 @@
                         {% endfor %}
                     </ul>
                 {% else %}
-                    <p class="detail-list-empty">Nenhum numero novo no dia.</p>
+                    <p class="detail-list-empty">Nenhum número novo no dia.</p>
                 {% endif %}
             </div>
         </article>
 
         <article class="card h-100 detail-list-card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <span class="detail-list-title">Usuarios logados</span>
+                <span class="detail-list-title">Usuários logados</span>
                 <span class="badge detail-count-badge">{{ indicator.logged_users|length }}</span>
             </div>
             <div class="card-body detail-list-body">
@@ -196,14 +196,14 @@
                         {% endfor %}
                     </ul>
                 {% else %}
-                    <p class="detail-list-empty">Nenhum usuario logado no dia.</p>
+                    <p class="detail-list-empty">Nenhum usuário logado no dia.</p>
                 {% endif %}
             </div>
         </article>
 
         <article class="card h-100 detail-list-card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <span class="detail-list-title">Usuarios com linha</span>
+                <span class="detail-list-title">Usuários com linha</span>
                 <span class="badge detail-count-badge">{{ indicator.users_with_line|length }}</span>
             </div>
             <div class="card-body detail-list-body">
@@ -217,14 +217,14 @@
                         {% endfor %}
                     </ul>
                 {% else %}
-                    <p class="detail-list-empty">Nenhum usuario com linha no dia.</p>
+                    <p class="detail-list-empty">Nenhum usuário com linha no dia.</p>
                 {% endif %}
             </div>
         </article>
 
         <article class="card h-100 detail-list-card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <span class="detail-list-title">Usuarios sem linha</span>
+                <span class="detail-list-title">Usuários sem linha</span>
                 <span class="badge detail-count-badge">{{ indicator.users_without_line|length }}</span>
             </div>
             <div class="card-body detail-list-body">
@@ -238,7 +238,7 @@
                         {% endfor %}
                     </ul>
                 {% else %}
-                    <p class="detail-list-empty">Nenhum usuario sem linha no dia.</p>
+                    <p class="detail-list-empty">Nenhum usuário sem linha no dia.</p>
                 {% endif %}
             </div>
         </article>

@@ -461,13 +461,13 @@ class DashboardView(AuthenticadView, TemplateView):
                 "value": f"{latest_sem_whats:.1f}%",
                 "description": "Percentual da equipe sem linha ativa.",
                 "level": level_for_percentage(latest_sem_whats),
-                "action_label": "Ver usuarios",
+                "action_label": "Ver usuários",
                 "action_url": "/employees/",
             },
             {
                 "title": "Linhas bloqueadas",
                 "value": blocked_lines,
-                "description": "Linhas suspensas ou canceladas no inventario.",
+                "description": "Linhas suspensas ou canceladas no inventário.",
                 "level": level_for_count(blocked_lines),
                 "action_label": "Ver telecom",
                 "action_url": "/telecom/",
@@ -475,23 +475,23 @@ class DashboardView(AuthenticadView, TemplateView):
             {
                 "title": "Pendêcia - Número Novo",
                 "value": pending_new_number_count,
-                "description": "Pendencias marcadas como precisa numero novo.",
+                "description": "Pendências marcadas como precisa número novo.",
                 "level": level_for_count(pending_new_number_count),
-                "action_label": "Ver pendencias",
+                "action_label": "Ver pendências",
                 "action_url": action_board_url,
             },
             {
                 "title": "Pendêcia - Reconexão Whats",
                 "value": pending_reconnect_whatsapp_count,
-                "description": "Pendencias marcadas como precisa reconectar Whats.",
+                "description": "Pendências marcadas como precisa reconectar WhatsApp.",
                 "level": level_for_count(pending_reconnect_whatsapp_count),
-                "action_label": "Ver pendencias",
+                "action_label": "Ver pendências",
                 "action_url": action_board_url,
             },
             {
                 "title": "Descobertos hoje",
                 "value": latest_descoberto,
-                "description": "Usuarios sem linha no fechamento do dia.",
+                "description": "Usuários sem linha no fechamento do dia.",
                 "level": level_for_count(latest_descoberto),
                 "action_label": "Ir para cadastro",
                 "action_url": "/allocations/",
@@ -499,7 +499,7 @@ class DashboardView(AuthenticadView, TemplateView):
             {
                 "title": "Reconectados hoje",
                 "value": latest_reconectados,
-                "description": "Recuperacoes efetivas no dia atual.",
+                "description": "Recuperações efetivas no dia atual.",
                 "level": "ok" if latest_reconectados > 0 else "warning",
                 "action_label": "Detalhar telecom",
                 "action_url": "/telecom/",
@@ -509,7 +509,7 @@ class DashboardView(AuthenticadView, TemplateView):
         trend_defs = [
             ("pessoas_logadas", "Pessoas logadas", ""),
             ("perc_sem_whats", "% sem Whats", "%"),
-            ("numeros_entregues", "Numeros entregues", ""),
+            ("numeros_entregues", "Números entregues", ""),
             ("reconectados", "Reconectados", ""),
         ]
         trend_series = []
