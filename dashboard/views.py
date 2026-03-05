@@ -679,28 +679,23 @@ def daily_user_action_board(request):
             ):
                 messages.error(request, "Tipo de acao invalido.")
             elif not action_type:
-                # Marcar ação como resolvida em vez de deletar
-                action, updated = DailyUserAction.objects.get_or_create(
+                action = DailyUserAction.objects.filter(
                     day=day,
                     employee=employee,
-                    defaults={
-                        "supervisor": request.user,
-                        "action_type": "",
-                        "note": note,
-                        "updated_by": request.user,
-                        "created_by": request.user,
-                    },
-                )
-                if not updated:
-                    # Já existe, apenas marcar como resolvida
+                ).first()
+                if action:
                     action.is_resolved = True
+                    action.note = note
                     action.updated_by = request.user
-                    action.save()
-
-                if updated or action.is_resolved:
+                    action.save(update_fields=["is_resolved", "note", "updated_by"])
                     messages.success(
                         request,
                         f"Acao marcada como resolvida para {employee.full_name}.",
+                    )
+                else:
+                    messages.info(
+                        request,
+                        f"Nenhuma acao aberta para resolver para {employee.full_name}.",
                     )
             else:
                 action, created = DailyUserAction.objects.update_or_create(
@@ -729,21 +724,10 @@ def daily_user_action_board(request):
         return redirect(f"{reverse('daily_user_action_board')}?{urlencode(query)}")
 
     actions_qs = DailyUserAction.objects.filter(
-        is_resolved=False, employee_id__in=employees_qs.values_list("id", flat=True)
+        day=day,
+        is_resolved=False,
+        employee_id__in=employees_qs.values_list("id", flat=True),
     ).select_related("employee")
-
-    # Se não há ações abertas para o dia selecionado,
-    # buscar do dia anterior para manter contexto
-    if not actions_qs.filter(day=day).exists() and day == timezone.localdate():
-        yesterday = day - timedelta(days=1)
-        actions_qs_yesterday = DailyUserAction.objects.filter(
-            is_resolved=False,
-            day=yesterday,
-            employee_id__in=employees_qs.values_list("id", flat=True),
-        ).select_related("employee")
-        if actions_qs_yesterday.exists():
-            actions_qs = actions_qs_yesterday
-            day = yesterday  # Atualizar o dia para ontem
 
     actions_by_employee = {action.employee_id: action for action in actions_qs}
 

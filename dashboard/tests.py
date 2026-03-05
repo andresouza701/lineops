@@ -260,3 +260,44 @@ class DashboardDailyIndicatorsTests(TestCase):
         ).first()
         self.assertIsNotNone(action)
         self.assertTrue(action.is_resolved)
+
+    def test_daily_user_action_board_blank_action_does_not_create_new_row(self):
+        response = self.client.post(
+            reverse("daily_user_action_board"),
+            data={
+                "day": timezone.localdate().isoformat(),
+                "employee_id": self.employee_b2c.id,
+                "action_type": "",
+                "note": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(
+            DailyUserAction.objects.filter(
+                day=timezone.localdate(),
+                employee=self.employee_b2c,
+            ).exists()
+        )
+
+    def test_daily_user_action_board_filters_actions_by_selected_day(self):
+        today = timezone.localdate()
+        yesterday = today - timezone.timedelta(days=1)
+
+        DailyUserAction.objects.create(
+            day=yesterday,
+            employee=self.employee_b2c,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+        )
+
+        response = self.client.get(
+            reverse("daily_user_action_board"),
+            {"day": today.isoformat()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["action_counts"]["new_number"], 0)
+        self.assertEqual(response.context["action_counts"]["reconnect_whatsapp"], 0)
