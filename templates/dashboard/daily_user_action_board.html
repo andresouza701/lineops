@@ -80,24 +80,25 @@
                                     <span class="badge text-bg-warning">Sem linha</span>
                                 {% endif %}
                             </td>
-                            <td>
-                                {% if not is_admin_role %}
-                                    <span class="badge bg-secondary">{{ row.employee.get_line_status_display }}</span>
-                                {% endif %}
-                            </td>
-                            <td style="min-width: 650px;">
-                                <form method="post" class="d-flex gap-2 align-items-center">
-                                    {% csrf_token %}
-                                    {{ row.form.day }}
-                                    {{ row.form.employee_id }}
+                            <form method="post" class="contents">
+                                {% csrf_token %}
+                                {{ row.form.day }}
+                                {{ row.form.employee_id }}
+                                <td>
                                     {% if is_admin_role %}
-                                        <div style="min-width: 180px;">{{ row.form.line_status }}</div>
+                                        {{ row.form.line_status }}
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ row.employee.get_line_status_display }}</span>
                                     {% endif %}
-                                    <div style="min-width: 220px;">{{ row.form.action_type }}</div>
-                                    <div class="flex-fill">{{ row.form.note }}</div>
-                                    <button type="submit" class="btn btn-sm btn-primary">Salvar</button>
-                                </form>
-                            </td>
+                                </td>
+                                <td style="min-width: 650px;">
+                                    <div class="d-flex gap-2 align-items-center">
+                                        <div style="min-width: 220px;">{{ row.form.action_type }}</div>
+                                        <div class="flex-fill">{{ row.form.note }}</div>
+                                        <button type="submit" class="btn btn-sm btn-primary">Salvar</button>
+                                    </div>
+                                </td>
+                            </form>
                         </tr>
                     {% endfor %}
                 {% else %}
