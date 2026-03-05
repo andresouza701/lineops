@@ -365,7 +365,7 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertEqual(response.context["action_counts"]["new_number"], 1)
         self.assertEqual(response.context["action_counts"]["reconnect_whatsapp"], 0)
 
-    def test_daily_user_action_board_hides_future_actions(self):
+    def test_daily_user_action_board_shows_all_pending_actions(self):
         today = timezone.localdate()
         tomorrow = today + timezone.timedelta(days=1)
 
@@ -378,15 +378,15 @@ class DashboardDailyIndicatorsTests(TestCase):
             updated_by=self.user,
         )
 
-        # Ao acessar o dia atual, ações de amanhã NÃO devem aparecer
+        # "Ações do dia" agora mostra TODAS as ações não-resolvidas,
+        # inclusive as de amanhã (não há calendário)
         response = self.client.get(
             reverse("daily_user_action_board"),
-            {"day": today.isoformat()},
         )
 
         self.assertEqual(response.status_code, 200)
-        # Ações futuras não devem aparecer
-        self.assertEqual(response.context["action_counts"]["new_number"], 0)
+        # Ações futuras DEVEM aparecer agora
+        self.assertEqual(response.context["action_counts"]["new_number"], 1)
         self.assertEqual(response.context["action_counts"]["reconnect_whatsapp"], 0)
 
     def test_daily_user_action_board_logs_line_status_change_in_history(self):

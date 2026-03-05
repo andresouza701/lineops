@@ -323,9 +323,9 @@ class DashboardView(AuthenticadView, TemplateView):
         # Filtrar por supervisão (Super vê apenas seus supervisados)
         employees_qs = get_supervised_employees_queryset(self.request.user)
 
+        # Filtrar TODAS as ações não-resolvidas (sem limite de dia)
         pending_actions = (
             DailyUserAction.objects.filter(
-                day__lte=today,
                 is_resolved=False,
                 employee__status=Employee.Status.ACTIVE,
                 employee__is_deleted=False,
@@ -702,7 +702,6 @@ def daily_indicator_edit(request, pk):
 
 @login_required
 def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
-    day = resolve_day(request.GET.get("day") or request.POST.get("day"))
     supervisor_filter = (request.GET.get("supervisor") or "").strip()
     employees_qs = get_supervised_employees_queryset(request.user, supervisor_filter)
 
@@ -802,18 +801,6 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                             f"{employee.full_name}.",
                         )
                 else:
-                    # Marca ações antigas não resolvidas como resolvidas
-                    old_actions_filter = {
-                        "employee": employee,
-                        "is_resolved": False,
-                        "day__lt": day,
-                    }
-                    if allocation_id:
-                        old_actions_filter["allocation_id"] = allocation_id
-                    DailyUserAction.objects.filter(**old_actions_filter).update(
-                        is_resolved=True, updated_by=request.user
-                    )
-
                     # Obter a alocação se foi fornecido allocation_id
                     allocation_obj = None
                     if allocation_id:
@@ -824,7 +811,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                     # Sempre incluir allocation na chave (mesmo que None)
                     # porque unique_together é ("day", "employee", "allocation")
                     update_or_create_filter = {
-                        "day": day,
+                        "day": timezone.localdate(),
                         "employee": employee,
                         "allocation": allocation_obj,
                     }
@@ -883,16 +870,15 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         else:
             messages.error(request, "Nao foi possivel salvar a acao.")
 
-        query = {"day": day.isoformat()}
+        query = {}
         if supervisor_filter:
             query["supervisor"] = supervisor_filter
         return redirect(f"{reverse('daily_user_action_board')}?{urlencode(query)}")
 
-    # Pegar ações não-resolvidas
+    # Pegar ações não-resolvidas (sem limite de dia)
     all_actions = (
         DailyUserAction.objects.filter(
             employee_id__in=employees_qs.values_list("id", flat=True),
-            day__lte=day,
             is_resolved=False,
         )
         .select_related("employee", "allocation")
@@ -934,7 +920,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
 
                 action_form = DailyUserActionForm(
                     initial={
-                        "day": day,
+                        "day": timezone.localdate(),
                         "employee_id": employee.id,
                         "allocation_id": allocation.id,
                         "action_type": action.action_type if action else "",
@@ -960,7 +946,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
 
             action_form = DailyUserActionForm(
                 initial={
-                    "day": day,
+                    "day": timezone.localdate(),
                     "employee_id": employee.id,
                     "allocation_id": None,
                     "action_type": action.action_type if action else "",
@@ -1017,7 +1003,6 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
 
     context = {
         "title": "Acoes do Dia",
-        "day": day,
         "rows": rows,
         "action_counts": action_counts,
         "supervisor_filter": supervisor_filter,
