@@ -810,8 +810,14 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         )
 
     # Filtrar por role: ADMIN vê apenas usuários com ações pendentes
+    # OU com status da linha diferente de 'Ativo'
     if request.user.role == SystemUser.Role.ADMIN:
-        rows = [row for row in rows if row["action"] is not None]
+        rows = [
+            row
+            for row in rows
+            if row["action"] is not None
+            or row["employee"].line_status != Employee.LineStatus.ACTIVE
+        ]
 
     action_counts = {
         "new_number": sum(
