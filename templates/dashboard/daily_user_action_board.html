@@ -81,23 +81,20 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <form method="post" class="d-inline">
-                                    {% csrf_token %}
-                                    {{ row.form.day }}
-                                    {{ row.form.employee_id }}
-                                    {% if is_admin_role %}
-                                        {{ row.form.line_status }}
-                                        <button type="submit" class="btn btn-sm btn-outline-primary ms-1">✓</button>
-                                    {% else %}
-                                        <span class="badge bg-secondary">{{ row.employee.get_line_status_display }}</span>
-                                    {% endif %}
-                                </form>
+                                {% if is_admin_role %}
+                                    <span class="text-muted small">Use o botão Salvar →</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ row.employee.get_line_status_display }}</span>
+                                {% endif %}
                             </td>
-                            <td style="min-width: 520px;">
+                            <td style="min-width: 650px;">
                                 <form method="post" class="d-flex gap-2 align-items-center">
                                     {% csrf_token %}
                                     {{ row.form.day }}
                                     {{ row.form.employee_id }}
+                                    {% if is_admin_role %}
+                                        <div style="min-width: 180px;">{{ row.form.line_status }}</div>
+                                    {% endif %}
                                     <div style="min-width: 220px;">{{ row.form.action_type }}</div>
                                     <div class="flex-fill">{{ row.form.note }}</div>
                                     <button type="submit" class="btn btn-sm btn-primary">Salvar</button>
