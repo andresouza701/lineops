@@ -81,9 +81,7 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% if is_admin_role %}
-                                    <span class="text-muted small">Use o botão Salvar →</span>
-                                {% else %}
+                                {% if not is_admin_role %}
                                     <span class="badge bg-secondary">{{ row.employee.get_line_status_display }}</span>
                                 {% endif %}
                             </td>
