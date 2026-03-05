@@ -253,9 +253,10 @@ class DashboardDailyIndicatorsTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        self.assertFalse(
-            DailyUserAction.objects.filter(
-                day=timezone.localdate(),
-                employee=self.employee_b2c,
-            ).exists()
-        )
+        # Verificar que a ação foi marcada como resolvida em vez de deletada
+        action = DailyUserAction.objects.filter(
+            day=timezone.localdate(),
+            employee=self.employee_b2c,
+        ).first()
+        self.assertIsNotNone(action)
+        self.assertTrue(action.is_resolved)

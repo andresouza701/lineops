@@ -125,6 +125,12 @@ class DailyUserAction(models.Model):
         default="",
         verbose_name="Observacao",
     )
+    is_resolved = models.BooleanField(
+        default=False,
+        db_index=True,
+        verbose_name="Acao resolvida",
+        help_text="Marcar quando a acao foi concluida",
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

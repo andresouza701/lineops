@@ -318,7 +318,9 @@ class DashboardView(AuthenticadView, TemplateView):
         daily = context.get("indicadores_diarios", [])
         latest = daily[-1] if daily else {}
         today = timezone.localdate()
-        pending_actions = DailyUserAction.objects.filter(day=today)
+        pending_actions = DailyUserAction.objects.filter(
+            day__lte=today, is_resolved=False
+        )
         pending_new_number_count = pending_actions.filter(
             action_type=DailyUserAction.ActionType.NEW_NUMBER
         ).count()
@@ -677,13 +679,28 @@ def daily_user_action_board(request):
             ):
                 messages.error(request, "Tipo de acao invalido.")
             elif not action_type:
-                deleted, _ = DailyUserAction.objects.filter(
-                    day=day, employee=employee
-                ).delete()
-                if deleted:
+                # Marcar ação como resolvida em vez de deletar
+                action, updated = DailyUserAction.objects.get_or_create(
+                    day=day,
+                    employee=employee,
+                    defaults={
+                        "supervisor": request.user,
+                        "action_type": "",
+                        "note": note,
+                        "updated_by": request.user,
+                        "created_by": request.user,
+                    },
+                )
+                if not updated:
+                    # Já existe, apenas marcar como resolvida
+                    action.is_resolved = True
+                    action.updated_by = request.user
+                    action.save()
+
+                if updated or action.is_resolved:
                     messages.success(
                         request,
-                        f"Acao removida para {employee.full_name}.",
+                        f"Acao marcada como resolvida para {employee.full_name}.",
                     )
             else:
                 action, created = DailyUserAction.objects.update_or_create(
@@ -695,6 +712,7 @@ def daily_user_action_board(request):
                         "note": note,
                         "updated_by": request.user,
                         "created_by": request.user,
+                        "is_resolved": False,
                     },
                 )
                 verb = "criada" if created else "atualizada"
@@ -711,8 +729,22 @@ def daily_user_action_board(request):
         return redirect(f"{reverse('daily_user_action_board')}?{urlencode(query)}")
 
     actions_qs = DailyUserAction.objects.filter(
-        day=day, employee_id__in=employees_qs.values_list("id", flat=True)
+        is_resolved=False, employee_id__in=employees_qs.values_list("id", flat=True)
     ).select_related("employee")
+
+    # Se não há ações abertas para o dia selecionado,
+    # buscar do dia anterior para manter contexto
+    if not actions_qs.filter(day=day).exists() and day == timezone.localdate():
+        yesterday = day - timedelta(days=1)
+        actions_qs_yesterday = DailyUserAction.objects.filter(
+            is_resolved=False,
+            day=yesterday,
+            employee_id__in=employees_qs.values_list("id", flat=True),
+        ).select_related("employee")
+        if actions_qs_yesterday.exists():
+            actions_qs = actions_qs_yesterday
+            day = yesterday  # Atualizar o dia para ontem
+
     actions_by_employee = {action.employee_id: action for action in actions_qs}
 
     active_allocations = (
