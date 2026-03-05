@@ -794,12 +794,13 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                             pk=allocation_id, employee=employee, is_active=True
                         ).first()
 
+                    # Sempre incluir allocation na chave (mesmo que None)
+                    # porque unique_together é ("day", "employee", "allocation")
                     update_or_create_filter = {
                         "day": day,
                         "employee": employee,
+                        "allocation": allocation_obj,
                     }
-                    if allocation_id and allocation_obj:
-                        update_or_create_filter["allocation"] = allocation_obj
 
                     existing_action = DailyUserAction.objects.filter(
                         **update_or_create_filter
