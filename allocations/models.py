@@ -8,6 +8,12 @@ from telecom.models import PhoneLine
 
 
 class LineAllocation(models.Model):
+    class LineStatus(models.TextChoices):
+        UNDER_ANALYSIS = "under_analysis", "Em analise"
+        RESTRICTED = "restricted", "Restrito"
+        PERMANENTLY_BANNED = "permanently_banned", "Banido permanentemente"
+        ACTIVE = "active", "Ativo"
+
     employee = models.ForeignKey(
         Employee, on_delete=PROTECT, related_name="allocations"
     )
@@ -35,6 +41,14 @@ class LineAllocation(models.Model):
     )
 
     is_active = models.BooleanField(default=True)
+    line_status = models.CharField(
+        max_length=30,
+        choices=LineStatus.choices,
+        default=LineStatus.ACTIVE,
+        db_index=True,
+        verbose_name="Status da linha",
+        help_text="Status individual da linha",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

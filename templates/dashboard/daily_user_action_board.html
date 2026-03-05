@@ -84,11 +84,18 @@
                                 {% csrf_token %}
                                 {{ row.form.day }}
                                 {{ row.form.employee_id }}
+                                {{ row.form.allocation_id }}
                                 <td>
                                     {% if is_admin_role %}
                                         {{ row.form.line_status }}
                                     {% else %}
-                                        <span class="badge bg-secondary">{{ row.employee.get_line_status_display }}</span>
+                                        <span class="badge bg-secondary">
+                                            {% if row.allocation %}
+                                                {{ row.allocation.get_line_status_display }}
+                                            {% else %}
+                                                {{ row.employee.get_line_status_display }}
+                                            {% endif %}
+                                        </span>
                                     {% endif %}
                                 </td>
                                 <td style="min-width: 650px;">

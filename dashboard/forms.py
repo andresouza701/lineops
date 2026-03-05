@@ -174,6 +174,7 @@ class DailyUserActionForm(forms.Form):
 
     day = forms.DateField(widget=forms.HiddenInput())
     employee_id = forms.IntegerField(widget=forms.HiddenInput())
+    allocation_id = forms.IntegerField(widget=forms.HiddenInput(), required=False)
     action_type = forms.ChoiceField(
         choices=ACTION_CHOICES,
         required=False,

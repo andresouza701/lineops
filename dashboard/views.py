@@ -666,6 +666,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         form = DailyUserActionForm(request.POST)
         if form.is_valid():
             employee_id = form.cleaned_data["employee_id"]
+            allocation_id = form.cleaned_data.get("allocation_id")
             action_type = form.cleaned_data.get("action_type") or ""
             note = (form.cleaned_data.get("note") or "").strip()
             employee = employees_qs.filter(pk=employee_id).first()
@@ -679,18 +680,30 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                 # Processar line_status (somente ADMIN pode alterar)
                 if request.user.role == SystemUser.Role.ADMIN:
                     line_status = form.cleaned_data.get("line_status")
-                    if (
-                        line_status
-                        and line_status in dict(Employee.LineStatus.choices)
-                        and employee.line_status != line_status
+                    if line_status and line_status in dict(
+                        LineAllocation.LineStatus.choices
                     ):
-                        employee.line_status = line_status
-                        employee.save(update_fields=["line_status"])
-                        messages.success(
-                            request,
-                            f"Status da linha atualizado para "
-                            f"{employee.full_name}.",
-                        )
+                        if allocation_id:
+                            # Atualizar status da alocação específica
+                            allocation = LineAllocation.objects.filter(
+                                pk=allocation_id, employee=employee
+                            ).first()
+                            if allocation and allocation.line_status != line_status:
+                                allocation.line_status = line_status
+                                allocation.save(update_fields=["line_status"])
+                                messages.success(
+                                    request,
+                                    f"Status da linha atualizado para "
+                                    f"{employee.full_name}.",
+                                )
+                        elif employee.line_status != line_status:
+                            employee.line_status = line_status
+                            employee.save(update_fields=["line_status"])
+                            messages.success(
+                                request,
+                                f"Status da linha atualizado para "
+                                f"{employee.full_name}.",
+                            )
 
                 # Processar ações
                 if action_type and action_type not in dict(
@@ -798,14 +811,16 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                     initial={
                         "day": day,
                         "employee_id": employee.id,
+                        "allocation_id": allocation.id,
                         "action_type": action.action_type if action else "",
                         "note": action.note if action else "",
-                        "line_status": employee.line_status,
+                        "line_status": allocation.line_status,
                     }
                 )
                 rows.append(
                     {
                         "employee": employee,
+                        "allocation": allocation,
                         "line_number": allocation.phone_line.phone_number,
                         "has_line": True,
                         "action": action,
@@ -818,6 +833,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                 initial={
                     "day": day,
                     "employee_id": employee.id,
+                    "allocation_id": None,
                     "action_type": action.action_type if action else "",
                     "note": action.note if action else "",
                     "line_status": employee.line_status,
@@ -826,6 +842,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
             rows.append(
                 {
                     "employee": employee,
+                    "allocation": None,
                     "line_number": None,
                     "has_line": False,
                     "action": action,
@@ -840,7 +857,14 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
             row
             for row in rows
             if row["action"] is not None
-            or row["employee"].line_status != Employee.LineStatus.ACTIVE
+            or (
+                row.get("allocation")
+                and row["allocation"].line_status != LineAllocation.LineStatus.ACTIVE
+            )
+            or (
+                not row.get("allocation")
+                and row["employee"].line_status != Employee.LineStatus.ACTIVE
+            )
         ]
 
     action_counts = {
