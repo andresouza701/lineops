@@ -70,6 +70,10 @@ class EmployeeListView(RoleRequiredMixin, ListView):
         """Constrói o queryset baseado nos filtros"""
         queryset = Employee.objects.all().order_by("full_name")
 
+        # Filtrar por role: SUPER vê apenas seus próprios usuários
+        if request.user.role == SystemUser.Role.SUPER:
+            queryset = queryset.filter(corporate_email=request.user.email)
+
         name = request.GET.get("name", "").strip()
         team = request.GET.get("team", "").strip()
         teams = request.GET.get("teams", "").strip()
@@ -132,6 +136,14 @@ class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
 
     form_class = EmployeeForm
     success_url = reverse_lazy("employees:employee_list")
+
+    def get_queryset(self):
+        """Filtra employees baseado na role do usuário"""
+        queryset = Employee.objects.all()
+        # SUPER users can only access their own employees
+        if self.request.user.role == SystemUser.Role.SUPER:
+            queryset = queryset.filter(corporate_email=self.request.user.email)
+        return queryset
 
     def form_valid(self, form):
         messages.success(self.request, "Funcionário atualizado com sucesso.")
