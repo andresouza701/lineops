@@ -319,12 +319,17 @@ class DashboardView(AuthenticadView, TemplateView):
         daily = context.get("indicadores_diarios", [])
         latest = daily[-1] if daily else {}
         today = timezone.localdate()
+
+        # Filtrar por supervisão (Super vê apenas seus supervisados)
+        employees_qs = get_supervised_employees_queryset(self.request.user)
+
         pending_actions = (
             DailyUserAction.objects.filter(
                 day__lte=today,
                 is_resolved=False,
                 employee__status=Employee.Status.ACTIVE,
                 employee__is_deleted=False,
+                employee_id__in=employees_qs.values_list("id", flat=True),
             )
             .order_by("employee_id", "allocation_id", "-day")
             .select_related("employee", "allocation")
