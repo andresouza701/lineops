@@ -433,3 +433,68 @@ class DashboardDailyIndicatorsTests(TestCase):
         ).first()
         self.assertIsNotNone(history)
         self.assertIn("Atualizar acao", history.new_value or "")
+
+    def test_admin_does_not_see_active_line_without_action(self):
+        admin_user = SystemUser.objects.create_user(
+            email="admin.test@test.com",
+            password="AdminPass123",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.client.force_login(admin_user)
+
+        DailyUserAction.objects.filter(
+            employee=self.employee_b2b, allocation=self.line_allocation
+        ).update(is_resolved=True)
+
+        response = self.client.get(
+            reverse("daily_user_action_board"),
+            {"day": timezone.localdate().isoformat()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+
+        b2b_rows = [
+            row
+            for row in rows
+            if row["employee"].id == self.employee_b2b.id
+            and row["allocation"].id == self.line_allocation.id
+        ]
+        self.assertEqual(
+            len(b2b_rows), 0, "Admin should not see Active line without action"
+        )
+
+    def test_admin_sees_active_line_with_action(self):
+        admin_user = SystemUser.objects.create_user(
+            email="admin.test2@test.com",
+            password="AdminPass123",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.client.force_login(admin_user)
+
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=admin_user,
+            created_by=admin_user,
+            updated_by=admin_user,
+            is_resolved=False,
+        )
+
+        response = self.client.get(
+            reverse("daily_user_action_board"),
+            {"day": timezone.localdate().isoformat()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+
+        b2b_rows = [
+            row
+            for row in rows
+            if row["employee"].id == self.employee_b2b.id
+            and row["allocation"].id == self.line_allocation.id
+        ]
+        self.assertGreater(len(b2b_rows), 0, "Admin should see Active line with action")

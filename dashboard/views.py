@@ -954,18 +954,20 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
 
     # Filtrar por role: ADMIN vê apenas usuários com ações pendentes
     # OU com status da linha diferente de 'Ativo'
+    # Regra: Não mostrar se Status da linha = Ativo E Atualizar acao = Sem acao
     if request.user.role == SystemUser.Role.ADMIN:
         rows = [
             row
             for row in rows
-            if row["action"] is not None
-            or (
+            if not (
                 row.get("allocation")
-                and row["allocation"].line_status != LineAllocation.LineStatus.ACTIVE
+                and row["allocation"].line_status == LineAllocation.LineStatus.ACTIVE
+                and (not row.get("action") or not row["action"].action_type)
             )
-            or (
+            and not (
                 not row.get("allocation")
-                and row["employee"].line_status != Employee.LineStatus.ACTIVE
+                and row["employee"].line_status == Employee.LineStatus.ACTIVE
+                and (not row.get("action") or not row["action"].action_type)
             )
         ]
 
