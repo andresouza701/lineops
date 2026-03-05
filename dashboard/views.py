@@ -318,7 +318,6 @@ class DashboardView(AuthenticadView, TemplateView):
     def _build_dashboard_insights(self, context):
         daily = context.get("indicadores_diarios", [])
         latest = daily[-1] if daily else {}
-        today = timezone.localdate()
 
         # Filtrar por supervisão (Super vê apenas seus supervisados)
         employees_qs = get_supervised_employees_queryset(self.request.user)
@@ -372,10 +371,7 @@ class DashboardView(AuthenticadView, TemplateView):
             for action in visible_actions
             if action.action_type == DailyUserAction.ActionType.RECONNECT_WHATSAPP
         )
-        action_board_url = (
-            f"{reverse('daily_user_action_board')}"
-            f"?{urlencode({'day': today.isoformat()})}"
-        )
+        action_board_url = reverse("daily_user_action_board")
 
         latest_sem_whats = float(latest.get("perc_sem_whats", 0) or 0)
         latest_descoberto = int(latest.get("total_descoberto_dia", 0) or 0)
