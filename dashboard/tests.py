@@ -168,6 +168,7 @@ class DashboardDailyIndicatorsTests(TestCase):
         DailyUserAction.objects.create(
             day=timezone.localdate(),
             employee=self.employee_b2b,
+            allocation=self.line_allocation,
             action_type=DailyUserAction.ActionType.NEW_NUMBER,
             supervisor=self.user,
             created_by=self.user,
