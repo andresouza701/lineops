@@ -680,10 +680,15 @@ def daily_user_action_board(request):  # noqa: PLR0912
             ):
                 messages.error(request, "Tipo de acao invalido.")
             elif not action_type:
-                action = DailyUserAction.objects.filter(
-                    day=day,
-                    employee=employee,
-                ).first()
+                # Busca a ação não resolvida mais recente independente do dia
+                action = (
+                    DailyUserAction.objects.filter(
+                        employee=employee,
+                        is_resolved=False,
+                    )
+                    .order_by("-day")
+                    .first()
+                )
                 if action:
                     action.is_resolved = True
                     action.note = note
@@ -699,6 +704,13 @@ def daily_user_action_board(request):  # noqa: PLR0912
                         f"Nenhuma acao aberta para resolver para {employee.full_name}.",
                     )
             else:
+                # Marca ações antigas não resolvidas como resolvidas
+                DailyUserAction.objects.filter(
+                    employee=employee,
+                    is_resolved=False,
+                    day__lt=day,
+                ).update(is_resolved=True, updated_by=request.user)
+
                 action, created = DailyUserAction.objects.update_or_create(
                     day=day,
                     employee=employee,
