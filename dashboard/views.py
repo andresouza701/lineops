@@ -666,7 +666,8 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         form = DailyUserActionForm(request.POST)
         if form.is_valid():
             employee_id = form.cleaned_data["employee_id"]
-            allocation_id = form.cleaned_data.get("allocation_id")
+            allocation_id_str = form.cleaned_data.get("allocation_id", "").strip()
+            allocation_id = int(allocation_id_str) if allocation_id_str else None
             action_type = form.cleaned_data.get("action_type") or ""
             note = (form.cleaned_data.get("note") or "").strip()
             employee = employees_qs.filter(pk=employee_id).first()
@@ -680,25 +681,18 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                 # Processar line_status (somente ADMIN pode alterar)
                 if request.user.role == SystemUser.Role.ADMIN:
                     line_status = form.cleaned_data.get("line_status")
-                    if line_status and line_status in dict(
-                        LineAllocation.LineStatus.choices
-                    ):
-                        if allocation_id:
-                            # Atualizar status da alocação específica
-                            allocation = LineAllocation.objects.filter(
-                                pk=allocation_id, employee=employee
-                            ).first()
-                            if allocation and allocation.line_status != line_status:
-                                allocation.line_status = line_status
-                                allocation.save(update_fields=["line_status"])
-                                messages.success(
-                                    request,
-                                    f"Status da linha atualizado para "
-                                    f"{employee.full_name}.",
-                                )
-                        elif employee.line_status != line_status:
-                            employee.line_status = line_status
-                            employee.save(update_fields=["line_status"])
+                    if (
+                        line_status
+                        and line_status in dict(LineAllocation.LineStatus.choices)
+                        and allocation_id
+                    ):  # noqa: SIM102
+                        # Atualizar status da alocação específica
+                        allocation = LineAllocation.objects.filter(
+                            pk=allocation_id, employee=employee, is_active=True
+                        ).first()
+                        if allocation and allocation.line_status != line_status:
+                            allocation.line_status = line_status
+                            allocation.save(update_fields=["line_status"])
                             messages.success(
                                 request,
                                 f"Status da linha atualizado para "
