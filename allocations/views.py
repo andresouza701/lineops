@@ -1,6 +1,5 @@
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -9,6 +8,7 @@ from django.views.generic import TemplateView, View
 from core.exceptions.domain_exceptions import BusinessRuleException
 from core.mixins import RoleRequiredMixin
 from core.services.allocation_service import AllocationService
+from core.services.telephony_use_case import TelephonyUseCase
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
@@ -75,50 +75,32 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
         line_action = form.cleaned_data["line_action"]
 
         try:
-            with transaction.atomic():
-                if line_action == "change_status":
-                    phone_line = PhoneLine.objects.select_for_update().get(
-                        pk=form.cleaned_data["phone_line_status"].pk
-                    )
-                    phone_line.status = form.cleaned_data["status_line"]
-                    phone_line.save(update_fields=["status"])
-                    messages.success(request, "Status da linha alterado com sucesso.")
-                    return redirect("allocations:allocation_list")
+            if line_action == "change_status":
+                result = TelephonyUseCase.change_line_status(
+                    phone_line_id=form.cleaned_data["phone_line_status"].pk,
+                    new_status=form.cleaned_data["status_line"],
+                    actor=request.user,
+                )
+            elif line_action == "existing":
+                result = TelephonyUseCase.allocate_existing_line(
+                    phone_line=form.cleaned_data["phone_line"],
+                    employee=form.cleaned_data["employee"],
+                    actor=request.user,
+                )
+            else:  # new line
+                result = TelephonyUseCase.create_new_line_with_allocation(
+                    phone_number=form.cleaned_data["phone_number"],
+                    iccid=form.cleaned_data["iccid"],
+                    carrier=form.cleaned_data["carrier"],
+                    employee=form.cleaned_data.get("employee"),
+                    actor=request.user,
+                )
 
-                if line_action == "existing":
-                    phone_line = form.cleaned_data["phone_line"]
-                    employee = form.cleaned_data["employee"]
-                else:
-                    sim = SIMcard.objects.create(
-                        iccid=form.cleaned_data["iccid"],
-                        carrier=form.cleaned_data["carrier"],
-                        status=SIMcard.Status.AVAILABLE,
-                    )
-                    phone_line = PhoneLine.objects.create(
-                        phone_number=form.cleaned_data["phone_number"],
-                        sim_card=sim,
-                        status=PhoneLine.Status.AVAILABLE,
-                    )
-                    employee = form.cleaned_data.get("employee")
-
-                if employee:
-                    AllocationService.allocate_line(
-                        employee=employee,
-                        phone_line=phone_line,
-                        allocated_by=request.user,
-                    )
+            messages.success(request, result.message)
         except BusinessRuleException as exc:
             messages.error(request, str(exc))
             return self._render_with_forms(telephony_form=form)
 
-        if line_action == "existing" or form.cleaned_data.get("employee"):
-            messages.success(
-                request, "Dados de telefonia salvos e linha alocada com sucesso."
-            )
-        else:
-            messages.success(
-                request, "Dados de telefonia salvos; linha criada sem alocacao."
-            )
         return redirect("allocations:allocation_list")
 
     def _render_with_forms(self, **forms):
