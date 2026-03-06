@@ -3,7 +3,6 @@ Context processors para disponibilizar dados globalmente nos templates.
 """
 
 from allocations.models import LineAllocation
-from dashboard.models import DailyUserAction
 from employees.models import Employee
 from users.models import SystemUser
 
@@ -12,9 +11,8 @@ def pending_actions_count(request):
     """
     Disponibiliza o contador de pendências de 'Ações do Dia' para ADMINs.
 
-    Conta usuários na fila com pendências:
+    Conta todos os usuários na fila de ações:
     - Status da linha DIFERENTE de 'Ativo'
-    - E que ainda NÃO têm ação definida (Atualizar ação = Sem ação)
 
     Retorna:
         dict: Dicionário com pending_actions_count (int)
@@ -28,7 +26,6 @@ def pending_actions_count(request):
         pending_count = 0
 
         for employee in active_employees:
-            # Verificar status da linha
             has_non_active_line = False
 
             # Case 1: Employee com alocações ativas
@@ -42,19 +39,9 @@ def pending_actions_count(request):
             elif employee.line_status != Employee.LineStatus.ACTIVE:
                 has_non_active_line = True
 
-            # Se tem linha não-ativa, verificar se tem ação definida
+            # Se tem linha não-ativa, contar como pendência
             if has_non_active_line:
-                # Verificar se tem ação não resolvida com tipo definido
-                has_action = (
-                    DailyUserAction.objects.filter(employee=employee, is_resolved=False)
-                    .exclude(action_type="")
-                    .filter(action_type__isnull=False)
-                    .exists()
-                )
-
-                # Se não tem ação, é uma pendência
-                if not has_action:
-                    pending_count += 1
+                pending_count += 1
 
         count = pending_count
 
