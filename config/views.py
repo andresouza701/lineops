@@ -10,24 +10,24 @@ from django.utils import timezone
 from django.views.generic import FormView, TemplateView
 
 from config.forms import UploadForm
-from core.mixins import RoleRequiredMixin
+from core.mixins import AuthenticadView, RoleRequiredMixin
 from core.services.upload_service import process_upload_file
 from users.models import SystemUser
 
 
-class DashboardView(TemplateView):
+class DashboardView(AuthenticadView, TemplateView):
     template_name = "dashboard.html"
 
 
-class ProfileView(TemplateView):
+class ProfileView(AuthenticadView, TemplateView):
     template_name = "profile.html"
 
 
-class OperationsView(TemplateView):
+class OperationsView(AuthenticadView, TemplateView):
     template_name = "operations.html"
 
 
-class DocumentationView(TemplateView):
+class DocumentationView(AuthenticadView, TemplateView):
     template_name = "documentation.html"
 
 

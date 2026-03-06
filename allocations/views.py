@@ -3,6 +3,7 @@ from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import TemplateView, View
 
 from core.exceptions.domain_exceptions import BusinessRuleException
@@ -165,7 +166,11 @@ class LineAllocationReleaseView(RoleRequiredMixin, View):
         AllocationService.release_line(allocation, released_by=request.user)
         messages.success(request, "Linha liberada com sucesso.")
         next_url = request.POST.get("next")
-        if next_url:
+        if next_url and url_has_allowed_host_and_scheme(
+            url=next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
             return redirect(next_url)
         return redirect("allocations:allocation_list")
 
@@ -212,7 +217,13 @@ class AllocationEditView(RoleRequiredMixin, View):
                 allocation.phone_line.save(update_fields=["status"])
                 updated = True
             if employee_pk:
-                employee = Employee.objects.get(pk=employee_pk)
+                employee = get_object_or_404(
+                    Employee.objects.filter(
+                        is_deleted=False,
+                        status=Employee.Status.ACTIVE,
+                    ),
+                    pk=employee_pk,
+                )
                 if allocation.employee != employee:
                     allocation.employee = employee
                     allocation.save(update_fields=["employee"])

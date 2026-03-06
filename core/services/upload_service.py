@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import csv
+import logging
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils.text import slugify
 
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -128,10 +131,14 @@ def _ingest_rows(rows: Iterable[dict[str, str]]) -> UploadSummary:
                 else:
                     raise ValueError("Coluna 'type' deve ser 'employee' ou 'simcard'.")
             summary.rows_processed += 1
-        except (
-            Exception
-        ) as exc:  # keep processing to collect as many errors as possible
+        except (ValueError, IntegrityError) as exc:
             summary.errors.append(f"Linha {index}: {exc}")
+        except Exception:
+            logger.exception(
+                "Unexpected failure while processing upload row",
+                extra={"row_index": index},
+            )
+            raise
 
     return summary
 

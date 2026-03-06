@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, F, Q
 from django.http import Http404, JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.generic import TemplateView
@@ -71,6 +71,16 @@ def get_supervised_employees_queryset(user, supervisor_filter=None):
     elif supervisor_filter:
         employees = employees.filter(corporate_email__icontains=supervisor_filter)
     return employees.order_by("full_name")
+
+
+def get_daily_indicators_queryset(user):
+    indicators = DailyIndicator.objects.all()
+    role = (getattr(user, "role", "") or "").lower()
+    if role == SystemUser.Role.SUPER:
+        indicators = indicators.filter(
+            Q(supervisor__iexact=user.email) | Q(created_by=user) | Q(updated_by=user)
+        )
+    return indicators
 
 
 def build_number_details_for_day(day, base_lines, allocated_line_ids):
@@ -643,7 +653,7 @@ def daily_indicator_management(request):
     Permite filtrar por supervisor, carteira, segmento e período.
     """
     filter_form = DailyIndicatorFilterForm(request.GET or None)
-    indicators = DailyIndicator.objects.all()
+    indicators = get_daily_indicators_queryset(request.user)
 
     if filter_form.is_valid():
         segment = filter_form.cleaned_data.get("segment")
@@ -705,7 +715,7 @@ def daily_indicator_detail(request, pk):
     """
     View para visualizar detalhes de um indicador específico.
     """
-    indicator = DailyIndicator.objects.get(pk=pk)
+    indicator = get_object_or_404(get_daily_indicators_queryset(request.user), pk=pk)
 
     context = {
         "indicator": indicator,
@@ -720,7 +730,7 @@ def daily_indicator_edit(request, pk):
     View para editar um indicador existente.
     Apenas o campo "Pessoas Logadas" pode ser editado manualmente.
     """
-    indicator = DailyIndicator.objects.get(pk=pk)
+    indicator = get_object_or_404(get_daily_indicators_queryset(request.user), pk=pk)
 
     if request.method == "POST":
         form = DailyIndicatorForm(request.POST, instance=indicator)
