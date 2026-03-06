@@ -1,9 +1,14 @@
+from django.core.exceptions import ImproperlyConfigured
+
 from .settings import *  # noqa
 from .settings import env
 
 # Overrides para produção
+APP_ENV = "prod"
 DEBUG = False
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default="localhost")
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
+if not ALLOWED_HOSTS:
+    raise ImproperlyConfigured("ALLOWED_HOSTS deve ser definido em produção.")
 
 # Exemplos de flags seguras adicionais (ajuste conforme infraestrutura):
 CSRF_COOKIE_SECURE = True

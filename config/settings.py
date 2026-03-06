@@ -16,6 +16,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,13 +24,22 @@ env = environ.Env(
     # set casting, default value
     DEBUG=(bool, False)
 )
-environ.Env.read_env(BASE_DIR / ".env")
+ENV_FILE = BASE_DIR / ".env"
+if ENV_FILE.exists():
+    environ.Env.read_env(ENV_FILE)
+
+APP_ENV = env("APP_ENV", default="dev")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env("SECRET_KEY", default="dev-secret-key-change-me")
+if APP_ENV == "prod":
+    SECRET_KEY = env("SECRET_KEY", default=None)
+    if not SECRET_KEY:
+        raise ImproperlyConfigured("SECRET_KEY deve ser definido em produção.")
+else:
+    SECRET_KEY = env("SECRET_KEY", default="dev-secret-key-change-me")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env("DEBUG")
@@ -100,12 +110,18 @@ DATABASES = {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": env("DB_NAME", default="lineops"),
         "USER": env("DB_USER", default="lineops"),
-        "PASSWORD": env("DB_PASSWORD", default="lineops"),
+        "PASSWORD": env(
+            "DB_PASSWORD",
+            default=None if APP_ENV == "prod" else "lineops",
+        ),
         "HOST": env("DB_HOST", default="db"),
         "PORT": env("DB_PORT", default="5432"),
         "CONN_MAX_AGE": 60,
     }
 }
+
+if APP_ENV == "prod" and not DATABASES["default"]["PASSWORD"]:
+    raise ImproperlyConfigured("DB_PASSWORD deve ser definido em produção.")
 
 if len(sys.argv) > 1 and sys.argv[1] == "test":
     DATABASES["default"] = {
@@ -204,8 +220,8 @@ CSRF_TRUSTED_ORIGINS = [
     "http://SRVQA-01",
 ]
 
-CSRF_COOKIE_SECURE = False  # se não for https
-SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
 
 LOGGING = {
     "version": 1,
@@ -231,3 +247,6 @@ LOGGING = {
         "level": "INFO",
     },
 }
+
+# Ensure log directory exists when using file-based logging.
+os.makedirs(BASE_DIR / "logs", exist_ok=True)

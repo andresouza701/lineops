@@ -1,16 +1,18 @@
 services:
   db:
-    image: postgres:latest
+    image: postgres:15.8
     container_name: lineops-db
     restart: always
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: lineops
-      POSTGRES_PASSWORD: lineops
-      POSTGRES_DB: lineops
+      POSTGRES_USER: ${DB_USER:-lineops}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD not set}
+      POSTGRES_DB: ${DB_NAME:-lineops}
     ports:
       - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql
+      - postgres_data:/var/lib/postgresql/data
 
   web:
     build: .
@@ -25,6 +27,6 @@ services:
     env_file:
       - .env
     environment:
-      DJANGO_SETTINGS_MODULE: config.settings_dev
+      DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-config.settings_dev}
 volumes:
   postgres_data:
