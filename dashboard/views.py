@@ -1,7 +1,7 @@
 import hashlib
 import unicodedata
 from collections import defaultdict
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from urllib.parse import urlencode
 
 from django.contrib import messages
@@ -83,7 +83,10 @@ def get_daily_indicators_queryset(user):
     return indicators
 
 
-def build_number_details_for_day(day, base_lines, allocated_line_ids):
+def build_number_details_for_day(
+    day: date, base_lines, allocated_line_ids
+) -> tuple[list[str], list[dict], list[dict], list[str]]:
+    """Build detailed number allocations for a specific day."""
     available_numbers = list(
         base_lines.exclude(id__in=allocated_line_ids)
         .order_by("phone_number")
@@ -130,7 +133,10 @@ def build_number_details_for_day(day, base_lines, allocated_line_ids):
     return available_numbers, delivered_numbers, reconnected_numbers, new_numbers
 
 
-def build_user_details_for_day(employees, active_allocations):
+def build_user_details_for_day(
+    employees, active_allocations
+) -> tuple[list[dict], list[str], list[dict], list[dict]]:
+    """Build user details and allocation status for a specific day."""
     allocations_by_employee = {}
     allocations_for_day = active_allocations.select_related(
         "employee", "phone_line"
@@ -176,7 +182,8 @@ def build_user_details_for_day(employees, active_allocations):
     return users, logged_users, users_with_line, users_without_line
 
 
-def build_indicator_for_day(day, include_users=False):
+def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
+    """Calculate all indicators for a specific day from database state."""
     end_of_day = timezone.make_aware(datetime.combine(day, time.max))
     employees = Employee.objects.filter(is_deleted=False, created_at__date__lte=day)
     active_employees = employees.filter(status=Employee.Status.ACTIVE)

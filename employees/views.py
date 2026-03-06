@@ -60,10 +60,14 @@ class EmployeeListView(RoleRequiredMixin, ListView):
 
     @staticmethod
     def _get_employee_lines(employee):
-        active_numbers = []
-        for allocation in employee.allocations.all():
-            if allocation.phone_line and allocation.phone_line.phone_number:
-                active_numbers.append(allocation.phone_line.phone_number)
+        """Extract phone numbers from prefetched allocations to avoid N+1."""
+        # Use prefetched allocations (already loaded via prefetch_related)
+        allocations = employee.allocations.all()
+        active_numbers = [
+            allocation.phone_line.phone_number
+            for allocation in allocations
+            if allocation.phone_line and allocation.phone_line.phone_number
+        ]
         return ", ".join(active_numbers) if active_numbers else "-"
 
     def _build_queryset(self, request):
