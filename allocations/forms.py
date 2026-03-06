@@ -1,9 +1,11 @@
 from django import forms
 
 from allocations.models import LineAllocation
-from core.constants import B2B_PORTFOLIOS
+from core.constants import B2B_PORTFOLIOS, B2C_PORTFOLIOS
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
+
+ALL_PORTFOLIOS = list(dict.fromkeys(B2B_PORTFOLIOS + B2C_PORTFOLIOS))
 
 
 class AllocationForm(forms.Form):
@@ -25,7 +27,7 @@ class CombinedRegistrationForm(forms.Form):
     )
     employee_id = forms.ChoiceField(
         label="Carteira",
-        choices=B2B_PORTFOLIOS,
+        choices=ALL_PORTFOLIOS,
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     teams = forms.ChoiceField(
