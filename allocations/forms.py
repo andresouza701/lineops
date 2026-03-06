@@ -2,6 +2,12 @@ from django import forms
 
 from allocations.models import LineAllocation
 from core.constants import B2B_PORTFOLIOS, B2C_PORTFOLIOS
+from core.validation import (
+    normalize_iccid,
+    normalize_phone_number,
+    validate_iccid_format,
+    validate_phone_number_format,
+)
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 
@@ -20,10 +26,10 @@ class AllocationForm(forms.Form):
 
 class CombinedRegistrationForm(forms.Form):
     full_name = forms.CharField(label="Nome", max_length=255)
-    corporate_email = forms.ChoiceField(
+    corporate_email = forms.CharField(
         label="Supervisor",
-        choices=[],
-        widget=forms.Select(attrs={"class": "form-select"}),
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     employee_id = forms.ChoiceField(
         label="Carteira",
@@ -86,14 +92,13 @@ class CombinedRegistrationForm(forms.Form):
         from users.models import SystemUser
 
         super_users = SystemUser.objects.filter(role=SystemUser.Role.SUPER)
-        supervisor_choices = [(user.email, user.email) for user in super_users]
+        self.supervisor_emails = [user.email for user in super_users]
+        supervisor_choices = [(email, email) for email in self.supervisor_emails]
         if supervisor_choices:
-            self.fields["corporate_email"].choices = supervisor_choices
-        else:
-            self.fields["corporate_email"] = forms.CharField(
-                label="Supervisor",
-                max_length=255,
-                widget=forms.TextInput(attrs={"class": "form-control"}),
+            self.fields["corporate_email"].required = True
+            self.fields["corporate_email"].widget = forms.Select(
+                attrs={"class": "form-select"},
+                choices=supervisor_choices,
             )
 
         for name in ["full_name", "phone_number", "iccid", "carrier"]:
@@ -102,28 +107,34 @@ class CombinedRegistrationForm(forms.Form):
         self.fields["line_action"].widget.attrs.setdefault("class", "form-check-input")
 
     def clean_iccid(self):
-        iccid = self.cleaned_data["iccid"]
-        if (
-            self.cleaned_data.get("line_action") == "new"
-            and iccid
-            and SIMcard.objects.filter(iccid=iccid, is_deleted=False).exists()
-        ):
-            raise forms.ValidationError("ICCID ja cadastrado.")
+        iccid = normalize_iccid(self.cleaned_data["iccid"])
+        if self.cleaned_data.get("line_action") == "new" and iccid:
+            validate_iccid_format(iccid)
+            if SIMcard.objects.filter(iccid=iccid, is_deleted=False).exists():
+                raise forms.ValidationError("ICCID ja cadastrado.")
         return iccid
 
     def clean_phone_number(self):
-        phone = self.cleaned_data["phone_number"]
-        if (
-            self.cleaned_data.get("line_action") == "new"
-            and phone
-            and PhoneLine.objects.filter(phone_number=phone, is_deleted=False).exists()
-        ):
-            raise forms.ValidationError("Linha ja cadastrada.")
+        phone = normalize_phone_number(self.cleaned_data["phone_number"])
+        if self.cleaned_data.get("line_action") == "new" and phone:
+            validate_phone_number_format(phone)
+            if PhoneLine.objects.filter(phone_number=phone, is_deleted=False).exists():
+                raise forms.ValidationError("Linha ja cadastrada.")
         return phone
+
+    def clean_corporate_email(self):
+        corporate_email = (self.cleaned_data.get("corporate_email") or "").strip()
+        if self.supervisor_emails and corporate_email not in self.supervisor_emails:
+            raise forms.ValidationError("Selecione um supervisor valido.")
+        return corporate_email
 
     def clean(self):  # noqa: PLR0912
         cleaned = super().clean()
         action = cleaned.get("line_action")
+
+        # Semantic aliases used by services without breaking current field names.
+        cleaned["supervisor_email"] = cleaned.get("corporate_email")
+        cleaned["portfolio"] = cleaned.get("employee_id")
 
         if not action:
             return cleaned
@@ -202,23 +213,19 @@ class TelephonyAssignmentForm(forms.Form):
         ).order_by("phone_number")
 
     def clean_iccid(self):
-        iccid = self.cleaned_data["iccid"]
-        if (
-            self.cleaned_data.get("line_action") == "new"
-            and iccid
-            and SIMcard.objects.filter(iccid=iccid, is_deleted=False).exists()
-        ):
-            raise forms.ValidationError("ICCID ja cadastrado.")
+        iccid = normalize_iccid(self.cleaned_data["iccid"])
+        if self.cleaned_data.get("line_action") == "new" and iccid:
+            validate_iccid_format(iccid)
+            if SIMcard.objects.filter(iccid=iccid, is_deleted=False).exists():
+                raise forms.ValidationError("ICCID ja cadastrado.")
         return iccid
 
     def clean_phone_number(self):
-        phone = self.cleaned_data["phone_number"]
-        if (
-            self.cleaned_data.get("line_action") == "new"
-            and phone
-            and PhoneLine.objects.filter(phone_number=phone, is_deleted=False).exists()
-        ):
-            raise forms.ValidationError("Linha ja cadastrada.")
+        phone = normalize_phone_number(self.cleaned_data["phone_number"])
+        if self.cleaned_data.get("line_action") == "new" and phone:
+            validate_phone_number_format(phone)
+            if PhoneLine.objects.filter(phone_number=phone, is_deleted=False).exists():
+                raise forms.ValidationError("Linha ja cadastrada.")
         return phone
 
     def clean(self):  # noqa: PLR0912

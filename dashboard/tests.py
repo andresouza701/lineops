@@ -138,6 +138,23 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertEqual(latest["b2b_sem_whats"], 0)
         self.assertEqual(latest["b2c_sem_whats"], 1)
 
+    def test_daily_indicator_form_rejects_people_logged_in_above_limit(self):
+        form = DailyIndicatorForm(
+            data={
+                "segment": "B2C",
+                "supervisor": "Camila",
+                "portfolio": "Natura",
+                "people_logged_in": 5001,
+                "date": timezone.localdate().isoformat(),
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn(
+            "Valor deve estar entre 0 e 5000.",
+            form.errors["people_logged_in"],
+        )
+
     def test_dashboard_ignores_inactive_users_in_sem_linha_and_descoberto(self):
         Employee.objects.create(
             full_name="Inactive User",

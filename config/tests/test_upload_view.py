@@ -6,6 +6,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from config.forms import UploadForm
 from employees.models import Employee
 from telecom.models import SIMcard
 from users.models import SystemUser
@@ -63,3 +64,27 @@ class UploadViewTests(TestCase):
         self.client.logout()
         response = self.client.get(reverse("upload"))
         self.assertEqual(response.status_code, 403)
+
+    def test_upload_form_rejects_binary_csv_payload(self):
+        uploaded_file = SimpleUploadedFile(
+            "bulk.csv",
+            b"\x00\x01\x02\x03",
+            content_type="text/csv",
+        )
+        form = UploadForm(files={"file": uploaded_file})
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("Arquivo CSV invalido.", form.errors["file"])
+
+    def test_upload_form_rejects_invalid_xlsx_signature(self):
+        uploaded_file = SimpleUploadedFile(
+            "bulk.xlsx",
+            b"not-a-zip-file",
+            content_type=(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+        )
+        form = UploadForm(files={"file": uploaded_file})
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("Arquivo XLSX invalido ou corrompido.", form.errors["file"])

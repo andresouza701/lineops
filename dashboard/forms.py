@@ -11,6 +11,8 @@ from employees.models import Employee
 
 from .models import DailyIndicator
 
+MAX_PEOPLE_LOGGED_IN = 5000
+
 
 class DailyIndicatorForm(forms.ModelForm):
     segment = forms.ChoiceField(
@@ -89,8 +91,15 @@ class DailyIndicatorForm(forms.ModelForm):
             self.add_error("supervisor", "Selecione um supervisor.")
         if not portfolio:
             self.add_error("portfolio", "Selecione uma carteira.")
-        if people_logged_in is None or people_logged_in < 0:
-            self.add_error("people_logged_in", "Insira um valor válido (>= 0).")
+        if people_logged_in is None:
+            self.add_error("people_logged_in", "Campo obrigatorio.")
+        elif people_logged_in < 0:
+            self.add_error("people_logged_in", "Insira um valor valido (>= 0).")
+        elif people_logged_in > MAX_PEOPLE_LOGGED_IN:
+            self.add_error(
+                "people_logged_in",
+                f"Valor deve estar entre 0 e {MAX_PEOPLE_LOGGED_IN}.",
+            )
 
         return cleaned_data
 

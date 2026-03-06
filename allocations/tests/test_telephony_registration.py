@@ -124,3 +124,22 @@ class TelephonyRegistrationFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.line.refresh_from_db()
         self.assertEqual(self.line.status, PhoneLine.Status.ALLOCATED)
+
+    def test_new_line_rejects_invalid_iccid_and_phone_number_format(self):
+        response = self.client.post(
+            reverse("allocations:allocation_list"),
+            {
+                "action": "telephony",
+                "line_action": "new",
+                "phone_number": "invalid-phone",
+                "iccid": "12345",
+                "carrier": "CarrierNew",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Corrija os erros de telefonia.")
+        self.assertFalse(
+            PhoneLine.objects.filter(phone_number="invalid-phone").exists()
+        )

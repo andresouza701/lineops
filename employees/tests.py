@@ -242,3 +242,19 @@ class EmployeeFormPortfolioChoicesTest(TestCase):
 
         for portfolio in ["Ambiental", "Natura", "ViaSat", "Opera", "Valid"]:
             self.assertIn(portfolio, portfolio_html)
+
+    def test_form_requires_portfolio_and_team(self) -> None:
+        form = EmployeeForm(
+            data={
+                "full_name": "New User",
+                "corporate_email": "supervisor@test.com",
+                "employee_id": "",
+                "teams": "",
+                "status": Employee.Status.ACTIVE,
+                "pa": "",
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("employee_id", form.errors)
+        self.assertIn("teams", form.errors)

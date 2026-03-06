@@ -1,8 +1,17 @@
 from django import forms
+from django.apps import apps
 
+from core.validation import (
+    normalize_iccid,
+    normalize_phone_number,
+    validate_iccid_format,
+    validate_phone_number_format,
+)
 from employees.models import Employee
 
 from .models import PhoneLine, SIMcard
+
+MAX_ACTIVE_LINES_PER_EMPLOYEE = 2
 
 
 class SIMcardForm(forms.ModelForm):
@@ -29,7 +38,8 @@ class SIMcardCreateWithLineForm(SIMcardForm):
         self.fields["phone_number"].widget.attrs.setdefault("class", "form-control")
 
     def clean_phone_number(self):
-        phone_number = (self.cleaned_data.get("phone_number") or "").strip()
+        phone_number = normalize_phone_number(self.cleaned_data.get("phone_number"))
+        validate_phone_number_format(phone_number)
         if PhoneLine.objects.filter(
             phone_number=phone_number,
             is_deleted=False,
@@ -117,6 +127,25 @@ class PhoneLineUpdateForm(PhoneLineForm):
                 "Selecione um usuário para manter a linha como Alocada.",
             )
 
+        if employee and self.instance and self.instance.pk:
+            line_allocation_model = apps.get_model("allocations", "LineAllocation")
+            employee_active_lines_count = (
+                line_allocation_model.objects.filter(
+                    employee=employee,
+                    is_active=True,
+                )
+                .exclude(phone_line=self.instance)
+                .count()
+            )
+            if employee_active_lines_count >= MAX_ACTIVE_LINES_PER_EMPLOYEE:
+                self.add_error(
+                    "employee",
+                    (
+                        f"O funcionario {employee.full_name} "
+                        "ja possui 2 linhas alocadas ativas."
+                    ),
+                )
+
         return cleaned_data
 
 
@@ -131,13 +160,15 @@ class CombinedSimLineForm(forms.Form):
             field.widget.attrs.setdefault("class", "form-control")
 
     def clean_iccid(self):
-        iccid = self.cleaned_data["iccid"]
+        iccid = normalize_iccid(self.cleaned_data["iccid"])
+        validate_iccid_format(iccid)
         if SIMcard.objects.filter(iccid=iccid, is_deleted=False).exists():
             raise forms.ValidationError("ICCID já cadastrado.")
         return iccid
 
     def clean_phone_number(self):
-        phone = self.cleaned_data["phone_number"]
+        phone = normalize_phone_number(self.cleaned_data["phone_number"])
+        validate_phone_number_format(phone)
         if PhoneLine.objects.filter(phone_number=phone, is_deleted=False).exists():
             raise forms.ValidationError("Número já cadastrado.")
         return phone

@@ -1,4 +1,5 @@
 from django import forms
+from django.apps import apps
 
 from core.constants import B2B_PORTFOLIOS, B2C_PORTFOLIOS
 
@@ -30,11 +31,9 @@ class EmployeeForm(forms.ModelForm):
         instance = self.instance
         # Só valida se já existe (edição)
         if instance and instance.pk and status == Employee.Status.INACTIVE:
-            # Importa aqui para evitar import circular
-            from allocations.models import LineAllocation
-
             # Verifica se há linha ativa vinculada
-            has_active_line = LineAllocation.objects.filter(
+            line_allocation_model = apps.get_model("allocations", "LineAllocation")
+            has_active_line = line_allocation_model.objects.filter(
                 employee=instance, is_active=True
             ).exists()
             if has_active_line:
@@ -42,7 +41,17 @@ class EmployeeForm(forms.ModelForm):
                     "Não é permitido inativar um usuário que possui "
                     "linha vinculada ativa."
                 )
+
+        cleaned_data["supervisor_email"] = cleaned_data.get("corporate_email")
+        cleaned_data["portfolio"] = cleaned_data.get("employee_id")
         return cleaned_data
+
+    def clean_corporate_email(self):
+        corporate_email = (self.cleaned_data.get("corporate_email") or "").strip()
+        allowed_emails = getattr(self, "_allowed_supervisor_emails", [])
+        if allowed_emails and corporate_email not in allowed_emails:
+            raise forms.ValidationError("Selecione um supervisor valido.")
+        return corporate_email
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -54,14 +63,15 @@ class EmployeeForm(forms.ModelForm):
         from users.models import SystemUser
 
         super_users = SystemUser.objects.filter(role=SystemUser.Role.SUPER)
-        supervisor_choices = [(user.email, user.email) for user in super_users]
+        self._allowed_supervisor_emails = [user.email for user in super_users]
+        supervisor_choices = [
+            (email, email) for email in self._allowed_supervisor_emails
+        ]
         if supervisor_choices:
-            self.fields["corporate_email"] = forms.ChoiceField(
-                label="Supervisor",
+            self.fields["corporate_email"].required = True
+            self.fields["corporate_email"].widget = forms.Select(
+                attrs={"class": "form-select"},
                 choices=supervisor_choices,
-                widget=forms.Select(attrs={"class": "form-select"}),
-                initial=self.instance.corporate_email if self.instance else None,
-                required=False,
             )
         else:
             self.fields["corporate_email"].widget = forms.TextInput(
@@ -73,7 +83,7 @@ class EmployeeForm(forms.ModelForm):
             choices=ALL_PORTFOLIOS,
             widget=forms.Select(attrs={"class": "form-select"}),
             initial=self.instance.employee_id if self.instance else None,
-            required=False,
+            required=True,
         )
 
         # Unidade dropdown (garante ChoiceField com opções do model)
@@ -86,7 +96,7 @@ class EmployeeForm(forms.ModelForm):
             choices=unidade_choices,
             widget=forms.Select(attrs={"class": "form-select"}),
             initial=self.instance.teams if self.instance else None,
-            required=False,
+            required=True,
         )
 
         self.fields["full_name"].widget.attrs.setdefault("class", "form-control")
