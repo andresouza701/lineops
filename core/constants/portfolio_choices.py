@@ -1,3 +1,17 @@
+import unicodedata
+
+
+def normalize_portfolio_name(value):
+    """Normalize portfolio name by removing diacritics and converting to lowercase."""
+    if not value:
+        return ""
+    normalized = unicodedata.normalize("NFKD", str(value))
+    without_diacritics = "".join(
+        char for char in normalized if not unicodedata.combining(char)
+    )
+    return " ".join(without_diacritics.strip().lower().split())
+
+
 B2B_SUPERVISORS = [
     ("Alex", "Alex"),
     ("Barbara", "Barbara"),
@@ -52,3 +66,10 @@ B2C_PORTFOLIOS = [
     ("Opera", "Opera"),
     ("Valid", "Valid"),
 ]
+
+B2B_PORTFOLIO_NAMES = {
+    normalize_portfolio_name(portfolio) for portfolio, _ in B2B_PORTFOLIOS
+}
+B2C_PORTFOLIO_NAMES = {
+    normalize_portfolio_name(portfolio) for portfolio, _ in B2C_PORTFOLIOS
+}

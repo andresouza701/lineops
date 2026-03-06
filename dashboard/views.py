@@ -14,6 +14,12 @@ from django.utils import timezone
 from django.views.generic import TemplateView
 
 from allocations.models import LineAllocation
+from core.constants import (
+    B2B_PORTFOLIO_NAMES,
+    B2B_PORTFOLIOS,
+    B2C_PORTFOLIO_NAMES,
+    B2C_PORTFOLIOS,
+)
 from core.mixins import AuthenticadView
 from core.services.daily_indicator_service import DailyIndicatorService
 from employees.models import Employee
@@ -21,9 +27,7 @@ from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
 
 from .forms import (
-    B2B_PORTFOLIOS,
     B2B_SUPERVISORS,
-    B2C_PORTFOLIOS,
     B2C_SUPERVISORS,
     DailyIndicatorFilterForm,
     DailyIndicatorForm,
@@ -271,6 +275,7 @@ def get_daily_indicators_payload(days):
 
 
 def normalize_portfolio_name(value):
+    """Normalize portfolio name by removing diacritics and converting to lowercase."""
     if not value:
         return ""
     normalized = unicodedata.normalize("NFKD", str(value))
@@ -278,14 +283,6 @@ def normalize_portfolio_name(value):
         char for char in normalized if not unicodedata.combining(char)
     )
     return " ".join(without_diacritics.strip().lower().split())
-
-
-B2B_PORTFOLIO_NAMES = {
-    normalize_portfolio_name(portfolio) for portfolio, _ in B2B_PORTFOLIOS
-}
-B2C_PORTFOLIO_NAMES = {
-    normalize_portfolio_name(portfolio) for portfolio, _ in B2C_PORTFOLIOS
-}
 
 
 class DashboardView(AuthenticadView, TemplateView):
