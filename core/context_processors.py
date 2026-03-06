@@ -2,6 +2,7 @@
 Context processors para disponibilizar dados globalmente nos templates.
 """
 
+from allocations.models import LineAllocation
 from dashboard.models import DailyUserAction
 from employees.models import Employee
 from users.models import SystemUser
@@ -11,39 +12,50 @@ def pending_actions_count(request):
     """
     Disponibiliza o contador de pendências de 'Ações do Dia' para ADMINs.
 
-    Conta apenas ações não resolvidas com tipo definido, de funcionários ativos.
+    Conta usuários na fila com pendências:
+    - Status da linha DIFERENTE de 'Ativo'
+    - E que ainda NÃO têm ação definida (Atualizar ação = Sem ação)
 
     Retorna:
         dict: Dicionário com pending_actions_count (int)
-              - Para ADMINs: total de ações pendentes visíveis
-              - Para outros usuários: 0
     """
     count = 0
 
     if request.user.is_authenticated and request.user.role == SystemUser.Role.ADMIN:
-        # Buscar ações não resolvidas de funcionários ativos (não deletados)
-        active_employees = Employee.objects.filter(is_deleted=False).values_list(
-            "id", flat=True
-        )
+        # Buscar employees não deletados
+        active_employees = Employee.objects.filter(is_deleted=False)
 
-        # Contar ações onde:
-        # - is_resolved=False (não resolvida)
-        # - action_type definido (não vazio)
-        # - employee ativo (não deletado)
-        # - SE tiver allocation, deve estar ativa (is_active=True)
-        from django.db.models import Q
+        pending_count = 0
 
-        count = (
-            DailyUserAction.objects.filter(
-                is_resolved=False,
-                action_type__isnull=False,
-                employee_id__in=active_employees,
-            )
-            .exclude(action_type="")
-            .filter(
-                Q(allocation__isnull=True) | Q(allocation__is_active=True)
-            )  # allocation é null OU está ativa
-            .count()
-        )
+        for employee in active_employees:
+            # Verificar status da linha
+            has_non_active_line = False
+
+            # Case 1: Employee com alocações ativas
+            active_allocations = employee.allocations.filter(is_active=True)
+            if active_allocations.exists():
+                # Verificar se alguma alocação tem status ≠ ACTIVE
+                for alloc in active_allocations:
+                    if alloc.line_status != LineAllocation.LineStatus.ACTIVE:
+                        has_non_active_line = True
+                        break
+            elif employee.line_status != Employee.LineStatus.ACTIVE:
+                has_non_active_line = True
+
+            # Se tem linha não-ativa, verificar se tem ação definida
+            if has_non_active_line:
+                # Verificar se tem ação não resolvida com tipo definido
+                has_action = (
+                    DailyUserAction.objects.filter(employee=employee, is_resolved=False)
+                    .exclude(action_type="")
+                    .filter(action_type__isnull=False)
+                    .exists()
+                )
+
+                # Se não tem ação, é uma pendência
+                if not has_action:
+                    pending_count += 1
+
+        count = pending_count
 
     return {"pending_actions_count": count}
