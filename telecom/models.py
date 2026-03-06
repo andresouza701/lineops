@@ -1,8 +1,25 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
+
+
+class SoftDeleteQuerySet(models.QuerySet):
+    def active(self):
+        return self.filter(is_deleted=False)
+
+    def delete(self):
+        return self.update(is_deleted=True, updated_at=timezone.now())
+
+
+class SoftDeleteManager(models.Manager):
+    def get_queryset(self):
+        return SoftDeleteQuerySet(self.model, using=self._db).active()
 
 
 class SIMcard(models.Model):
+    objects = SoftDeleteManager()
+    all_objects = models.Manager()
+
     class Status(models.TextChoices):
         AVAILABLE = "AVAILABLE", "Available"
         ACTIVE = "ACTIVE", "Active"
@@ -23,6 +40,11 @@ class SIMcard(models.Model):
 
     is_deleted = models.BooleanField(default=False, db_index=True)
 
+    def delete(self, using=None, keep_parents=False):
+        self.is_deleted = True
+        self.updated_at = timezone.now()
+        self.save(update_fields=["is_deleted", "updated_at"])
+
     def __str__(self):
         return f"{self.iccid} - {self.status}"
 
@@ -30,12 +52,14 @@ class SIMcard(models.Model):
         verbose_name = "SIMcard"
         verbose_name_plural = "SIMcards"
         indexes = [
-            models.Index(fields=["iccid"]),
             models.Index(fields=["status", "is_deleted"]),
         ]
 
 
 class PhoneLine(models.Model):
+    objects = SoftDeleteManager()
+    all_objects = models.Manager()
+
     class Status(models.TextChoices):
         AVAILABLE = "AVAILABLE", "Available"
         ALLOCATED = "ALLOCATED", "Allocated"
@@ -59,12 +83,16 @@ class PhoneLine(models.Model):
 
     is_deleted = models.BooleanField(default=False, db_index=True)
 
+    def delete(self, using=None, keep_parents=False):
+        self.is_deleted = True
+        self.updated_at = timezone.now()
+        self.save(update_fields=["is_deleted", "updated_at"])
+
     def __str__(self):
         return f"{self.phone_number} - {self.status}"
 
     class Meta:
         indexes = [
-            models.Index(fields=["phone_number"]),
             models.Index(fields=["status", "is_deleted"]),
         ]
 

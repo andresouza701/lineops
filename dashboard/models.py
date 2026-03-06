@@ -1,5 +1,7 @@
 from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 
@@ -28,6 +30,7 @@ class DailyIndicator(models.Model):
     # Indicadores inseridos manualmente pelos supervisores
     people_logged_in = models.IntegerField(
         default=0,
+        validators=[MinValueValidator(0)],
         verbose_name="Pessoas Logadas",
         help_text="Quantidade de pessoas logadas no dia",
     )
@@ -35,21 +38,25 @@ class DailyIndicator(models.Model):
     # Indicadores calculados automaticamente pelo sistema
     numbers_available = models.IntegerField(
         default=0,
+        validators=[MinValueValidator(0)],
         verbose_name="Números Disponíveis",
         help_text="Números em aquecimento (15+ dias sem alocação)",
     )
     numbers_delivered = models.IntegerField(
         default=0,
+        validators=[MinValueValidator(0)],
         verbose_name="Números Entregues",
         help_text="Números alocados aos negociadores no dia",
     )
     numbers_reconnected = models.IntegerField(
         default=0,
+        validators=[MinValueValidator(0)],
         verbose_name="Números Reconectados",
         help_text="Números recuperados e realocados ao mesmo negociador",
     )
     numbers_new = models.IntegerField(
         default=0,
+        validators=[MinValueValidator(0)],
         verbose_name="Números Novos",
         help_text="Números novos atribuídos no dia",
     )
@@ -159,12 +166,23 @@ class DailyUserAction(models.Model):
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
 
     class Meta:
-        unique_together = ("day", "employee", "allocation")
         ordering = ["-day", "employee__full_name"]
         indexes = [
             models.Index(fields=["day", "action_type"]),
             models.Index(fields=["employee", "day"]),
             models.Index(fields=["allocation", "day"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["day", "employee", "allocation"],
+                condition=Q(allocation__isnull=False),
+                name="uq_daily_action_with_allocation",
+            ),
+            models.UniqueConstraint(
+                fields=["day", "employee", "action_type"],
+                condition=Q(allocation__isnull=True),
+                name="uq_daily_action_without_allocation",
+            ),
         ]
         verbose_name = "Acao diaria por usuario"
         verbose_name_plural = "Acoes diarias por usuario"

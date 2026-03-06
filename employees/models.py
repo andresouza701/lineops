@@ -28,7 +28,7 @@ class Employee(models.Model):
         ACTIVE = "active", "Ativo"
 
     full_name = models.CharField(max_length=40)
-    corporate_email = models.CharField(max_length=40, verbose_name="Supervisor")
+    corporate_email = models.EmailField(max_length=254, verbose_name="Supervisor")
     employee_id = models.CharField(max_length=40, verbose_name="Carteira")
 
     class UnitChoices(models.TextChoices):

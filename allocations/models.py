@@ -1,13 +1,22 @@
 from django.conf import settings
 from django.db import models
-from django.db.models import PROTECT
+from django.db.models import PROTECT, F, Q
 
 from core.exceptions.domain_exceptions import BusinessRuleException
 from employees.models import Employee
 from telecom.models import PhoneLine
 
 
+class LineAllocationQuerySet(models.QuerySet):
+    def with_related(self):
+        return self.select_related(
+            "employee", "phone_line", "allocated_by", "released_by"
+        )
+
+
 class LineAllocation(models.Model):
+    objects = LineAllocationQuerySet.as_manager()
+
     class LineStatus(models.TextChoices):
         UNDER_ANALYSIS = "under_analysis", "Em analise"
         RESTRICTED = "restricted", "Restrito"
@@ -56,6 +65,20 @@ class LineAllocation(models.Model):
         indexes = [
             models.Index(fields=["employee", "is_active", "allocated_at"]),
             models.Index(fields=["phone_line", "is_active", "allocated_at"]),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                check=Q(released_at__isnull=True)
+                | Q(released_at__gte=F("allocated_at")),
+                name="ck_allocation_release_after_allocate",
+            ),
+            models.CheckConstraint(
+                check=(
+                    Q(is_active=True, released_at__isnull=True)
+                    | Q(is_active=False, released_at__isnull=False)
+                ),
+                name="ck_allocation_active_release_consistency",
+            ),
         ]
 
     def __str__(self):
