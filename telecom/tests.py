@@ -70,6 +70,7 @@ class PhoneLineHistoryAuditTest(TestCase):
             "DELETED",
             "ALLOCATED",
             "RELEASED",
+            "DAILY_ACTION_CHANGED",
         }
         current = {choice[0] for choice in PhoneLineHistory.ActionType.choices}
         self.assertEqual(current, expected)

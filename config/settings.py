@@ -214,6 +214,7 @@ AUTH_USER_MODEL = "users.SystemUser"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
 LOGIN_URL = "/accounts/login/"
+HEALTHCHECK_REQUIRE_AUTH = env.bool("HEALTHCHECK_REQUIRE_AUTH", default=False)
 
 CSRF_TRUSTED_ORIGINS = [
     "http://10.81.234.24",

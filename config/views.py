@@ -7,7 +7,7 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.urls import reverse_lazy
 from django.utils import timezone
-from django.views.generic import FormView, TemplateView
+from django.views.generic import FormView, TemplateView, View
 
 from config.forms import UploadForm
 from core.mixins import AuthenticadView, RoleRequiredMixin
@@ -92,10 +92,18 @@ class LogoutGetView(LogoutView):
         return self.post(request, *args, **kwargs)
 
 
-class HealthCheckView(TemplateView):
-    # Usa TemplateView apenas para evitar boilerplate; sobrepõe get
+class HealthCheckView(View):
+    http_method_names = ["get", "head", "options"]
+
     def get(self, request, *args, **kwargs):
-        return JsonResponse({"status": "ok"})
+        if settings.HEALTHCHECK_REQUIRE_AUTH and not request.user.is_authenticated:
+            response = JsonResponse({"status": "forbidden"}, status=403)
+            response["Cache-Control"] = "no-store"
+            return response
+
+        response = JsonResponse({"status": "ok"})
+        response["Cache-Control"] = "no-store"
+        return response
 
 
 def custom_permission_denied_view(request, exception=None):
