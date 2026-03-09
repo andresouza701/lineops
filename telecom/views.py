@@ -260,7 +260,7 @@ class PhoneLineCreateView(RoleRequiredMixin, CreateView):
     success_url = reverse_lazy("telecom:overview")
 
     def form_valid(self, form):
-        messages.success(self.request, "Linha telefÃ´nica criada com sucesso.")
+        messages.success(self.request, "Linha telefônica criada com sucesso.")
         return super().form_valid(form)
 
 
@@ -329,7 +329,7 @@ class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
             form.add_error(None, str(exc))
             return self.form_invalid(form)
 
-        messages.success(self.request, "Linha telefÃ´nica atualizada com sucesso.")
+        messages.success(self.request, "Linha telefônica atualizada com sucesso.")
         return response
 
     def get_queryset(self):
@@ -363,7 +363,7 @@ class PhoneLineDeleteView(RoleRequiredMixin, View):
         phone_line = get_object_or_404(PhoneLine, pk=pk, is_deleted=False)
         phone_line.is_deleted = True
         phone_line.save(update_fields=["is_deleted"])
-        messages.success(request, "Linha telefÃ´nica excluÃ­da com sucesso.")
+        messages.success(request, "Linha telefônica excluída com sucesso.")
         return redirect("telecom:overview")
 
 
@@ -380,7 +380,7 @@ class PhoneLineHistoryView(RoleRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        # Consulta o histÃ³rico completo da linha
+        # Consulta o histórico completo da linha
         history = (
             PhoneLineHistory.objects.filter(phone_line=context["phone_line"])
             .select_related("changed_by")
