@@ -5,7 +5,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-        <h2 class="fw-semibold">Historico da Linha</h2>
+        <h2 class="fw-semibold">Histórico da Linha</h2>
         <p class="text-muted mb-0">{{ phone_line.phone_number }} - {{ phone_line.get_status_display }}</p>
     </div>
     <a href="{% url 'telecom:overview' %}" class="btn btn-outline-secondary">Voltar</a>
@@ -13,7 +13,7 @@
 
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
-        <h6 class="text-uppercase text-muted small mb-2">Informacoes da Linha</h6>
+        <h6 class="text-uppercase text-muted small mb-2">Informações da Linha</h6>
         <div class="row">
             <div class="col-md-4">
                 <strong>Linha:</strong> {{ phone_line.phone_number }}
@@ -30,7 +30,7 @@
 
 <div class="card shadow-sm border-0">
     <div class="card-header bg-transparent">
-        <h5 class="mb-0">Historico de Alteracoes</h5>
+        <h5 class="mb-0">Histórico de Alterações</h5>
     </div>
     <div class="card-body p-0">
         {% if history %}
@@ -39,11 +39,11 @@
                     <thead class="table-light">
                         <tr>
                             <th>Data/Hora</th>
-                            <th>Acao</th>
+                            <th>Ação</th>
                             <th>Valor Anterior</th>
                             <th>Novo Valor</th>
                             <th>Alterado Por</th>
-                            <th>Descricao</th>
+                            <th>Descrição</th>
                         </tr>
                     </thead>
                     <tbody>

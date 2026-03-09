@@ -339,7 +339,7 @@ class DashboardView(AuthenticadView, TemplateView):
             status=Employee.Status.ACTIVE, is_deleted=False
         )
 
-        # Pegar ações não-resolvidas (mesma lógica de "Acoes do dia")
+        # Pegar ações não-resolvidas (mesma lógica de "Ações do Dia")
         all_actions = (
             DailyUserAction.objects.filter(
                 employee_id__in=employees_qs.values_list("id", flat=True),
@@ -373,7 +373,7 @@ class DashboardView(AuthenticadView, TemplateView):
             if allocation.phone_line:
                 allocations_by_employee[allocation.employee_id].append(allocation)
 
-        # Construir rows (mesmo de "Acoes do dia")
+        # Construir rows (mesmo de "Ações do Dia")
         rows = []
         for employee in employees_qs:
             # Se tem alocações, criar uma linha para cada alocação
@@ -394,7 +394,7 @@ class DashboardView(AuthenticadView, TemplateView):
                     )
             else:
                 # Se não tem alocação ativa, busca ação sem alocação
-                # (mesmo de "Acoes do dia")
+                # (mesmo de "Ações do Dia")
                 no_allocation_key = (employee.id, None)
                 action = actions_by_allocation.get(no_allocation_key)
 
@@ -409,7 +409,7 @@ class DashboardView(AuthenticadView, TemplateView):
 
         # Filtrar por role: ADMIN vê apenas usuários com ações pendentes
         # OU com status da linha diferente de 'Ativo'
-        # Regra: Não mostrar se Status da linha = Ativo E Atualizar acao = Sem acao
+        # Regra: Não mostrar se Status da linha = Ativo E Atualizar ação = Sem ação
         if self.request.user.role == SystemUser.Role.ADMIN:
             rows = [
                 row
@@ -811,7 +811,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                                 new_value=f"Status da linha: {new_line_status}",
                                 changed_by=request.user,
                                 description=(
-                                    "Status da linha alterado em Acoes do dia de "
+                                    "Status da linha alterado em Ações do Dia de "
                                     f"{old_line_status} para {new_line_status}"
                                 ),
                             )
@@ -1068,7 +1068,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
     }
 
     context = {
-        "title": "Acoes do Dia",
+        "title": "Ações do Dia",
         "rows": rows,
         "action_counts": action_counts,
         "supervisor_filter": supervisor_filter,
