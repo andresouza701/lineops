@@ -289,7 +289,7 @@ class ExportPhoneLineHistoryTest(TestCase):
         self.assertIn("attachment; filename=", response["Content-Disposition"])
 
         content = response.content.decode("utf-8")
-        self.assertIn("Linha,ICCID,Status,Colaborador", content)
+        self.assertIn("Linha,ICCID,Status,Usuário", content)
         self.assertIn(self.phone_line.phone_number, content)
         self.assertIn(self.employee.full_name, content)
 

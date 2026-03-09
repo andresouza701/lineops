@@ -71,7 +71,7 @@ class UploadView(RoleRequiredMixin, FormView):
             (
                 f"Arquivo {filename} recebido. "
                 f"Linhas processadas: {summary.rows_processed}. "
-                f"Colaboradores criados/atualizados: "
+                f"Usuários criados/atualizados: "
                 f"{summary.employees_created}/{summary.employees_updated}. "
                 f"SIM cards criados/atualizados: "
                 f"{summary.simcards_created}/{summary.simcards_updated}."

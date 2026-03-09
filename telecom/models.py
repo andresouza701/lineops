@@ -103,7 +103,7 @@ class PhoneLineHistory(models.Model):
     class ActionType(models.TextChoices):
         CREATED = "CREATED", "Criada"
         STATUS_CHANGED = "STATUS_CHANGED", "Status alterado"
-        SIMCARD_CHANGED = "SIMCARD_CHANGED", "SIM card alterado"
+        SIMCARD_CHANGED = "SIMCARD_CHANGED", "SIMcard alterado"
         EMPLOYEE_CHANGED = "EMPLOYEE_CHANGED", "Usuário alterado"
         DELETED = "DELETED", "Excluída"
         ALLOCATED = "ALLOCATED", "Alocada"

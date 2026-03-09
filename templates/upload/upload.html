@@ -16,7 +16,7 @@
             <h6 class="text-uppercase text-muted small mb-3">Como funciona</h6>
             <ul class="text-muted mb-4">
                 <li>Baixe o modelo de planilha com as colunas exigidas.</li>
-                <li>Preencha os dados dos colaboradores e/ou SIM cards.</li>
+                <li>Preencha os dados dos usuários e/ou SIMcards.</li>
                 <li>Envie o arquivo para processar em lote.</li>
             </ul>
 
@@ -39,8 +39,8 @@
             <div class="alert alert-info mt-4" role="alert">
                 <div class="fw-semibold">Resumo da carga{% if last_uploaded %} - {{ last_uploaded }}{% endif %}</div>
                 <div class="small text-muted">Linhas processadas: {{ summary.rows_processed }}</div>
-                <div class="small text-muted">Colaboradores criados/atualizados: {{ summary.employees_created }}/{{ summary.employees_updated }}</div>
-                <div class="small text-muted">SIM cards criados/atualizados: {{ summary.simcards_created }}/{{ summary.simcards_updated }}</div>
+                <div class="small text-muted">Usuários criados/atualizados: {{ summary.employees_created }}/{{ summary.employees_updated }}</div>
+                <div class="small text-muted">SIMcards criados/atualizados: {{ summary.simcards_created }}/{{ summary.simcards_updated }}</div>
             </div>
             {% if summary.errors %}
             <div class="alert alert-warning" role="alert">

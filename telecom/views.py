@@ -598,7 +598,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
             {
                 "value": PhoneLine.Status.AVAILABLE,
                 "label": "Disponíveis",
-                "description": "Prontas para novos colaboradores",
+                "description": "Prontas para novos usuários",
                 "variant": "success",
             },
             {
@@ -678,11 +678,11 @@ class ExportPhoneLinesCSVView(RoleRequiredMixin, View):
                 "Linha",
                 "ICCID",
                 "Status",
-                "Colaborador",
-                "MatrÃ­cula",
+                "Usuário",
+                "Matrícula",
                 "Alocado por",
-                "Data alocaÃ§Ã£o",
-                "Data liberaÃ§Ã£o",
+                "Data alocação",
+                "Data liberação",
                 "Ativa",
             ]
         )
@@ -698,7 +698,7 @@ class ExportPhoneLinesCSVView(RoleRequiredMixin, View):
                     allocation.allocated_by.email if allocation.allocated_by else "N/A",
                     allocation.allocated_at,
                     allocation.released_at or "",
-                    "Sim" if allocation.is_active else "NÃ£o",
+                    "Sim" if allocation.is_active else "Não",
                 ]
             )
 

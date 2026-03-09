@@ -19,7 +19,7 @@ class AllocationForm(forms.Form):
         queryset=Employee.objects.filter(
             is_deleted=False, status=Employee.Status.ACTIVE
         ),
-        label="Funcionario",
+        label="Usuário",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
 
@@ -81,7 +81,7 @@ class CombinedRegistrationForm(forms.Form):
         queryset=PhoneLine.objects.filter(
             is_deleted=False, status=PhoneLine.Status.AVAILABLE
         ),
-        label="Linha disponivel",
+        label="Linha disponível",
         widget=forms.Select(attrs={"class": "form-select"}),
         required=False,
         empty_label="Selecione",
@@ -111,7 +111,7 @@ class CombinedRegistrationForm(forms.Form):
         if self.cleaned_data.get("line_action") == "new" and iccid:
             validate_iccid_format(iccid)
             if SIMcard.objects.filter(iccid=iccid, is_deleted=False).exists():
-                raise forms.ValidationError("ICCID ja cadastrado.")
+                raise forms.ValidationError("ICCID já cadastrado.")
         return iccid
 
     def clean_phone_number(self):
@@ -119,13 +119,13 @@ class CombinedRegistrationForm(forms.Form):
         if self.cleaned_data.get("line_action") == "new" and phone:
             validate_phone_number_format(phone)
             if PhoneLine.objects.filter(phone_number=phone, is_deleted=False).exists():
-                raise forms.ValidationError("Linha ja cadastrada.")
+                raise forms.ValidationError("Linha já cadastrada.")
         return phone
 
     def clean_corporate_email(self):
         corporate_email = (self.cleaned_data.get("corporate_email") or "").strip()
         if self.supervisor_emails and corporate_email not in self.supervisor_emails:
-            raise forms.ValidationError("Selecione um supervisor valido.")
+            raise forms.ValidationError("Selecione um supervisor válido!")
         return corporate_email
 
     def clean(self):  # noqa: PLR0912
@@ -142,10 +142,10 @@ class CombinedRegistrationForm(forms.Form):
         if action == "new":
             for field in ["phone_number", "iccid", "carrier"]:
                 if not cleaned.get(field):
-                    self.add_error(field, "Campo obrigatorio.")
+                    self.add_error(field, "Campo obrigatório.")
         elif action == "existing":
             if not cleaned.get("phone_line"):
-                self.add_error("phone_line", "Selecione uma linha disponivel.")
+                self.add_error("phone_line", "Selecione uma linha disponível.")
         elif action == "change_status":
             if not cleaned.get("phone_line_status"):
                 self.add_error("phone_line_status", "Selecione a linha.")
@@ -160,7 +160,7 @@ class TelephonyAssignmentForm(forms.Form):
         queryset=Employee.objects.filter(
             is_deleted=False, status=Employee.Status.ACTIVE
         ),
-        label="Funcionario",
+        label="Usuário",
         widget=forms.Select(attrs={"class": "form-select"}),
         required=False,
         empty_label="Selecione",
@@ -169,7 +169,7 @@ class TelephonyAssignmentForm(forms.Form):
         label="O que deseja fazer?",
         choices=(
             ("new", "Cadastrar nova linha"),
-            ("existing", "Vincular linha disponivel"),
+            ("existing", "Vincular linha disponível"),
             ("change_status", "Trocar status linha"),
         ),
         initial="new",
@@ -182,7 +182,7 @@ class TelephonyAssignmentForm(forms.Form):
         queryset=PhoneLine.objects.filter(
             is_deleted=False, status=PhoneLine.Status.AVAILABLE
         ),
-        label="Linha disponivel",
+        label="Linha disponível",
         widget=forms.Select(attrs={"class": "form-select"}),
         required=False,
         empty_label="Selecione",
@@ -217,7 +217,7 @@ class TelephonyAssignmentForm(forms.Form):
         if self.cleaned_data.get("line_action") == "new" and iccid:
             validate_iccid_format(iccid)
             if SIMcard.objects.filter(iccid=iccid, is_deleted=False).exists():
-                raise forms.ValidationError("ICCID ja cadastrado.")
+                raise forms.ValidationError("ICCID já cadastrado!")
         return iccid
 
     def clean_phone_number(self):
@@ -225,7 +225,7 @@ class TelephonyAssignmentForm(forms.Form):
         if self.cleaned_data.get("line_action") == "new" and phone:
             validate_phone_number_format(phone)
             if PhoneLine.objects.filter(phone_number=phone, is_deleted=False).exists():
-                raise forms.ValidationError("Linha ja cadastrada.")
+                raise forms.ValidationError("Linha já cadastrada!")
         return phone
 
     def clean(self):  # noqa: PLR0912
@@ -235,7 +235,7 @@ class TelephonyAssignmentForm(forms.Form):
         if action == "new":
             for field in ["phone_number", "iccid", "carrier"]:
                 if not cleaned.get(field):
-                    self.add_error(field, "Campo obrigatorio.")
+                    self.add_error(field, "Campo obrigatório!")
             cleaned["phone_line"] = None
             cleaned["status_line"] = ""
             cleaned["phone_line_status"] = None
@@ -243,9 +243,9 @@ class TelephonyAssignmentForm(forms.Form):
             if not cleaned.get("employee"):
                 self.add_error("employee", "Selecione o usuário.")
             if not cleaned.get("phone_line"):
-                self.add_error("phone_line", "Selecione uma linha disponivel.")
+                self.add_error("phone_line", "Selecione uma linha disponível.")
             elif cleaned["phone_line"].status != PhoneLine.Status.AVAILABLE:
-                self.add_error("phone_line", "A linha selecionada nao esta disponivel.")
+                self.add_error("phone_line", "A linha selecionada não está disponível.")
 
             cleaned["phone_number"] = cleaned.get("phone_number") or ""
             cleaned["iccid"] = cleaned.get("iccid") or ""
@@ -272,7 +272,7 @@ class TelephonyAssignmentForm(forms.Form):
                     employee_name = (
                         active_allocation.employee.full_name
                         if active_allocation.employee_id
-                        else "usuário desconhecido"
+                        else "Usuário desconhecido!"
                     )
                     self.add_error(
                         "status_line",

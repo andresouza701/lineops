@@ -52,7 +52,7 @@ class TelephonyUseCase:
 
         return TelephonyResult(
             success=True,
-            message="Status da linha alterado com sucesso.",
+            message="Status da linha alterado com sucesso!",
             phone_line=phone_line,
         )
 
@@ -101,9 +101,12 @@ class TelephonyUseCase:
             allocated = True
 
         message = (
-            "Dados de telefonia salvos e linha alocada com sucesso."
+            "Dados de telefonia salvos e linha alocada com sucesso!"
             if allocated
-            else "Dados de telefonia salvos; linha criada sem alocacao."
+            else (
+                "Cadastro de telefonia realizado com sucesso. "
+                "Linha disponível para alocação."
+            )
         )
 
         return TelephonyResult(
@@ -138,7 +141,7 @@ class TelephonyUseCase:
 
         return TelephonyResult(
             success=True,
-            message="Dados de telefonia salvos e linha alocada com sucesso.",
+            message="Dados de telefonia salvos e linha alocada com sucesso!",
             phone_line=phone_line,
             allocated=True,
         )

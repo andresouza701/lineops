@@ -11,7 +11,7 @@ from employees.models import Employee
 
 from .models import PhoneLine, SIMcard
 
-MAX_ACTIVE_LINES_PER_EMPLOYEE = 2
+MAX_ACTIVE_LINES_PER_EMPLOYEE = 4
 
 
 class SIMcardForm(forms.ModelForm):
@@ -142,7 +142,8 @@ class PhoneLineUpdateForm(PhoneLineForm):
                     "employee",
                     (
                         f"O funcionario {employee.full_name} "
-                        "ja possui 2 linhas alocadas ativas."
+                        f"ja possui {MAX_ACTIVE_LINES_PER_EMPLOYEE} "
+                        f"linhas alocadas ativas."
                     ),
                 )
 

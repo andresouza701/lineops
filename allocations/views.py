@@ -58,10 +58,10 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
                 teams=form.cleaned_data["teams"],
                 status=form.cleaned_data["status"],
             )
-            messages.success(request, "Colaborador cadastrado com sucesso.")
+            messages.success(request, "Usuário cadastrado com sucesso!")
             return redirect("allocations:allocation_list")
 
-        messages.error(request, "Corrija os erros do colaborador.")
+        messages.error(request, "Corrija os erros do usuário.")
         return self._render_with_forms(employee_form=form)
 
     def _handle_telephony(self, request):
@@ -111,7 +111,7 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
         current_role = (request.user.role or "").lower()
         allowed = {role.lower() for role in allowed_roles}
         if current_role not in allowed:
-            raise PermissionDenied("Acesso negado: funcao insuficiente.")
+            raise PermissionDenied("Acesso negado: Permissão insuficiente!")
 
     def _allocations_qs(self):
         # Atualiza para buscar phone_line com sim_card e status atualizado
@@ -146,7 +146,7 @@ class LineAllocationReleaseView(RoleRequiredMixin, View):
             LineAllocation.objects.select_related("phone_line"), pk=pk, is_active=True
         )
         AllocationService.release_line(allocation, released_by=request.user)
-        messages.success(request, "Linha liberada com sucesso.")
+        messages.success(request, "Linha liberada com sucesso!")
         next_url = request.POST.get("next")
         if next_url and url_has_allowed_host_and_scheme(
             url=next_url,
@@ -188,7 +188,7 @@ class AllocationEditView(RoleRequiredMixin, View):
         action = request.POST.get("action")
         if action == "release":
             AllocationService.release_line(allocation, released_by=request.user)
-            messages.success(request, "Linha liberada com sucesso.")
+            messages.success(request, "Linha liberada com sucesso!")
             return redirect(reverse("telecom:overview"))
         elif action == "save":
             new_status = request.POST.get("status")
@@ -211,7 +211,7 @@ class AllocationEditView(RoleRequiredMixin, View):
                     allocation.save(update_fields=["employee"])
                     updated = True
             if updated:
-                messages.success(request, "Dados atualizados com sucesso.")
+                messages.success(request, "Dados atualizados com sucesso!")
             else:
                 messages.info(request, "Nenhuma alteração realizada.")
             return redirect(

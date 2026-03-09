@@ -217,7 +217,7 @@ def _normalize_employee_status(raw_status: str | None) -> str:
     status = ALLOWED_EMPLOYEE_STATUSES.get(normalized)
     if not status:
         raise ValueError(
-            "Status de colaborador inválido. "
+            "Status de usuário inválido. "
             "Use 'active'/'inactive' ou 'ativo'/'inativo'."
         )
     return status
@@ -234,7 +234,7 @@ def _normalize_sim_status(raw_status: str | None) -> str:
     status = ALLOWED_SIM_STATUSES.get(normalized)
     if not status:
         raise ValueError(
-            "Status de SIM card inválido. "
+            "Status de SIMcard inválido. "
             "Use AVAILABLE/ACTIVE/BLOCKED/CANCELLED ou equivalentes em português."
         )
     return status

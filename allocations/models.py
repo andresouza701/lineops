@@ -18,9 +18,9 @@ class LineAllocation(models.Model):
     objects = LineAllocationQuerySet.as_manager()
 
     class LineStatus(models.TextChoices):
-        UNDER_ANALYSIS = "under_analysis", "Em analise"
+        UNDER_ANALYSIS = "under_analysis", "Em análise"
         RESTRICTED = "restricted", "Restrito"
-        PERMANENTLY_BANNED = "permanently_banned", "Banido permanentemente"
+        PERMANENTLY_BANNED = "permanently_banned", "Banido Permanentemente"
         ACTIVE = "active", "Ativo"
 
     employee = models.ForeignKey(
