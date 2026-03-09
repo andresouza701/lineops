@@ -61,10 +61,12 @@ class PhoneLine(models.Model):
     all_objects = models.Manager()
 
     class Status(models.TextChoices):
-        AVAILABLE = "AVAILABLE", "Available"
-        ALLOCATED = "ALLOCATED", "Allocated"
-        SUSPENDED = "SUSPENDED", "Suspended"
-        CANCELLED = "CANCELLED", "Cancelled"
+        AVAILABLE = "AVAILABLE", "Disponível"
+        ALLOCATED = "ALLOCATED", "Alocado"
+        SUSPENDED = "SUSPENDED", "Quarentena"
+        CANCELLED = "CANCELLED", "Cancelado"
+        AQUECENDO = "AQUECENDO", "Aquecendo"
+        NOVO = "NOVO", "Novo"
 
     phone_number = models.CharField(max_length=20, unique=True)
 
