@@ -6,7 +6,7 @@ services:
     env_file:
       - .env
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - lineops_postgres_data:/var/lib/postgresql/data
     networks:
       - lineops_network
 
@@ -29,7 +29,8 @@ environment:
   GUNICORN_CMD_ARGS: --timeout 60 --graceful-timeout 60 --keep-alive 2
 
 volumes:
-  postgres_data:
+  lineops_postgres_data:
+    name: lineops_postgres_data
 
 networks:
   lineops_network:
