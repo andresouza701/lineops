@@ -48,7 +48,7 @@ def track_phoneline_changes(sender, instance, **kwargs):
                 f"SIM: {old_instance.sim_card.iccid}"
             ),
             changed_by=changed_by,
-            description=f"Linha {old_instance.phone_number} excluida",
+            description=f"Linha {old_instance.phone_number} excluída",
         )
 
     origin_action = getattr(instance, "_history_origin_action", None)
@@ -78,7 +78,7 @@ def track_phoneline_changes(sender, instance, **kwargs):
             new_value=instance.sim_card.iccid,
             changed_by=changed_by,
             description=(
-                f"SIM card alterado de {old_instance.sim_card.iccid} "
+                f"SIMcard alterado de {old_instance.sim_card.iccid} "
                 f"para {instance.sim_card.iccid}"
             ),
         )
@@ -86,24 +86,24 @@ def track_phoneline_changes(sender, instance, **kwargs):
 
 @receiver(pre_delete, sender=PhoneLine)
 def track_phoneline_deletion(sender, instance, **kwargs):
-    """Registra exclusao fisica de linha (fallback)."""
+    """Registra exclusão física de linha (fallback)."""
     PhoneLineHistory.objects.create(
         phone_line=instance,
         action=PhoneLineHistory.ActionType.DELETED,
         old_value=f"Status: {instance.status}, SIM: {instance.sim_card.iccid}",
         changed_by=_safe_current_user(),
-        description=f"Linha {instance.phone_number} excluida",
+        description=f"Linha {instance.phone_number} excluída",
     )
 
 
 @receiver(post_save, sender=LineAllocation)
 def track_line_allocation(sender, instance, created, **kwargs):
-    """Registra quando uma linha e alocada."""
+    """Registra quando uma linha é alocada."""
     if created and instance.is_active:
         PhoneLineHistory.objects.create(
             phone_line=instance.phone_line,
             action=PhoneLineHistory.ActionType.ALLOCATED,
-            new_value=f"Usuario: {instance.employee.full_name}",
+            new_value=f"Usuário: {instance.employee.full_name}",
             changed_by=instance.allocated_by or _safe_current_user(),
             description=f"Linha alocada para {instance.employee.full_name}",
         )
@@ -111,7 +111,7 @@ def track_line_allocation(sender, instance, created, **kwargs):
 
 @receiver(pre_save, sender=LineAllocation)
 def track_line_release(sender, instance, **kwargs):
-    """Registra liberacao e troca de usuario na alocacao."""
+    """Registra liberação e troca de usuário na alocação."""
     if not instance.pk:
         return
 
@@ -126,7 +126,7 @@ def track_line_release(sender, instance, **kwargs):
         PhoneLineHistory.objects.create(
             phone_line=instance.phone_line,
             action=PhoneLineHistory.ActionType.RELEASED,
-            old_value=f"Usuario: {instance.employee.full_name}",
+            old_value=f"Usuário: {instance.employee.full_name}",
             changed_by=instance.released_by or changed_by,
             description=f"Linha liberada de {instance.employee.full_name}",
         )
@@ -138,7 +138,7 @@ def track_line_release(sender, instance, **kwargs):
             new_value=instance.employee.full_name,
             changed_by=changed_by,
             description=(
-                f"Usuario alterado de {old_instance.employee.full_name} "
+                f"Usuário alterado de {old_instance.employee.full_name} "
                 f"para {instance.employee.full_name}"
             ),
         )

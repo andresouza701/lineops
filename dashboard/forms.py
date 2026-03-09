@@ -39,7 +39,7 @@ class DailyIndicatorForm(forms.ModelForm):
             "segment": "Segmento",
             "supervisor": "Supervisor",
             "portfolio": "Carteira",
-            "people_logged_in": "Pessoas Logadas",
+            "people_logged_in": "Usuários Logados",
             "date": "Data do Indicador",
         }
         widgets = {
@@ -176,9 +176,9 @@ class DailyIndicatorFilterForm(forms.Form):
 
 class DailyUserActionForm(forms.Form):
     ACTION_CHOICES = [
-        ("", "Sem acao"),
-        ("new_number", "Precisa numero novo"),
-        ("reconnect_whatsapp", "Precisa reconectar Whats"),
+        ("", "Sem ação"),
+        ("new_number", "Número novo"),
+        ("reconnect_whatsapp", "Reconectar WhatsApp"),
     ]
 
     day = forms.DateField(widget=forms.HiddenInput())
@@ -195,7 +195,7 @@ class DailyUserActionForm(forms.Form):
         widget=forms.TextInput(
             attrs={
                 "class": "form-control form-control-sm",
-                "placeholder": "Observacao opcional",
+                "placeholder": "Observação opcional",
             }
         ),
     )

@@ -16,8 +16,8 @@ class Migration(migrations.Migration):
             field=models.BooleanField(
                 db_index=True,
                 default=False,
-                help_text="Marcar quando a acao foi concluida",
-                verbose_name="Acao resolvida",
+                help_text="Marcar quando a ação foi concluída",
+                verbose_name="Ação resolvida",
             ),
         ),
     ]

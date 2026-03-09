@@ -43,7 +43,7 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
         if action == "telephony":
             return self._handle_telephony(request)
 
-        messages.error(request, "Acao invalida.")
+        messages.error(request, "Ação inválida.")
         return redirect("allocations:allocation_list")
 
     def _handle_employee(self, request):

@@ -825,7 +825,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                 if action_type and action_type not in dict(
                     DailyUserAction.ActionType.choices
                 ):
-                    messages.error(request, "Tipo de acao invalido.")
+                    messages.error(request, "Tipo de ação inválido.")
                 elif not action_type:
                     # Busca a ação não resolvida mais recente para esta alocação
                     action_filter = {"employee": employee, "is_resolved": False}
@@ -848,22 +848,22 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                             PhoneLineHistory.objects.create(
                                 phone_line=action.allocation.phone_line,
                                 action=PhoneLineHistory.ActionType.DAILY_ACTION_CHANGED,
-                                old_value=f"Atualizar acao: {action_label}",
-                                new_value="Atualizar acao: Sem acao",
+                                old_value=f"Atualizar ação: {action_label}",
+                                new_value="Atualizar ação: Sem ação",
                                 changed_by=request.user,
                                 description=(
-                                    "Acao da linha marcada como resolvida em "
-                                    "Acoes do dia"
+                                    "Ação da linha marcada como resolvida em "
+                                    "Ações do dia"
                                 ),
                             )
                         messages.success(
                             request,
-                            f"Acao marcada como resolvida para {employee.full_name}.",
+                            f"Ação marcada como resolvida para {employee.full_name}.",
                         )
                     else:
                         messages.info(
                             request,
-                            f"Nenhuma acao aberta para resolver para "
+                            f"Nenhuma ação aberta para resolver para "
                             f"{employee.full_name}.",
                         )
                 else:
@@ -905,7 +905,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                     )
                     previous_action_label = dict(
                         DailyUserAction.ActionType.choices
-                    ).get(previous_action_type, "Sem acao")
+                    ).get(previous_action_type, "Sem ação")
                     current_action_label = dict(DailyUserAction.ActionType.choices).get(
                         action_type, action_type
                     )
@@ -925,16 +925,16 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                             new_value=f"Atualizar acao: {current_action_label}",
                             changed_by=request.user,
                             description=(
-                                "Acao da linha criada/atualizada em Acoes do dia"
+                                "Ação da linha criada/atualizada em Ações do dia"
                             ),
                         )
                     verb = "criada" if created else "atualizada"
                     messages.success(
                         request,
-                        f"Acao {verb} para {action.employee.full_name}.",
+                        f"Ação {verb} para {action.employee.full_name}.",
                     )
         else:
-            messages.error(request, "Nao foi possivel salvar a acao.")
+            messages.error(request, "Não foi possível salvar a ação.")
 
         query = {}
         if supervisor_filter:
@@ -1033,7 +1033,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
 
     # Filtrar por role: ADMIN vê apenas usuários com ações pendentes
     # OU com status da linha diferente de 'Ativo'
-    # Regra: Não mostrar se Status da linha = Ativo E Atualizar acao = Sem acao
+    # Regra: Não mostrar se Status da linha = Ativo E Atualizar ação = Sem ação
     if request.user.role == SystemUser.Role.ADMIN:
         rows = [
             row

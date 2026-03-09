@@ -103,21 +103,21 @@ class DailyIndicator(models.Model):
 
 class DailyUserAction(models.Model):
     class ActionType(models.TextChoices):
-        NEW_NUMBER = "new_number", "Precisa numero novo"
-        RECONNECT_WHATSAPP = "reconnect_whatsapp", "Precisa reconectar Whats"
+        NEW_NUMBER = "new_number", "Número novo"
+        RECONNECT_WHATSAPP = "reconnect_whatsapp", "Reconectar WhatsApp"
 
     day = models.DateField(db_index=True, default=timezone.now, verbose_name="Dia")
     employee = models.ForeignKey(
         "employees.Employee",
         on_delete=models.CASCADE,
         related_name="daily_actions",
-        verbose_name="Usuario",
+        verbose_name="Usuário",
     )
     allocation = models.ForeignKey(
         "allocations.LineAllocation",
         on_delete=models.CASCADE,
         related_name="daily_actions",
-        verbose_name="Alocacao da linha",
+        verbose_name="Alocação da linha",
         null=True,
         blank=True,
     )
@@ -127,24 +127,24 @@ class DailyUserAction(models.Model):
         null=True,
         blank=True,
         related_name="daily_actions_supervised",
-        verbose_name="Supervisor responsavel",
+        verbose_name="Supervisor responsável",
     )
     action_type = models.CharField(
         max_length=30,
         choices=ActionType.choices,
-        verbose_name="Tipo de acao",
+        verbose_name="Tipo de ação",
     )
     note = models.CharField(
         max_length=255,
         blank=True,
         default="",
-        verbose_name="Observacao",
+        verbose_name="Observação",
     )
     is_resolved = models.BooleanField(
         default=False,
         db_index=True,
-        verbose_name="Acao resolvida",
-        help_text="Marcar quando a acao foi concluida",
+        verbose_name="Ação resolvida",
+        help_text="Marcar quando a ação foi concluída",
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -184,8 +184,8 @@ class DailyUserAction(models.Model):
                 name="uq_daily_action_without_allocation",
             ),
         ]
-        verbose_name = "Acao diaria por usuario"
-        verbose_name_plural = "Acoes diarias por usuario"
+        verbose_name = "Ação diária por usuário"
+        verbose_name_plural = "Ações diárias por usuário"
 
     def __str__(self):
         return (

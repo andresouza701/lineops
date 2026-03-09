@@ -42,11 +42,11 @@ class Migration(migrations.Migration):
                     "action_type",
                     models.CharField(
                         choices=[
-                            ("new_number", "Precisa numero novo"),
-                            ("reconnect_whatsapp", "Precisa reconectar Whats"),
+                            ("new_number", "Número novo"),
+                            ("reconnect_whatsapp", "Reconectar WhatsApp"),
                         ],
                         max_length=30,
-                        verbose_name="Tipo de acao",
+                        verbose_name="Tipo de ação",
                     ),
                 ),
                 (
@@ -55,7 +55,7 @@ class Migration(migrations.Migration):
                         blank=True,
                         default="",
                         max_length=255,
-                        verbose_name="Observacao",
+                        verbose_name="Observação",
                     ),
                 ),
                 (
@@ -83,7 +83,7 @@ class Migration(migrations.Migration):
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="daily_actions",
                         to="employees.employee",
-                        verbose_name="Usuario",
+                        verbose_name="Usuário",
                     ),
                 ),
                 (
@@ -94,7 +94,7 @@ class Migration(migrations.Migration):
                         on_delete=django.db.models.deletion.SET_NULL,
                         related_name="daily_actions_supervised",
                         to=settings.AUTH_USER_MODEL,
-                        verbose_name="Supervisor responsavel",
+                        verbose_name="Supervisor responsável",
                     ),
                 ),
                 (
@@ -110,8 +110,8 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                "verbose_name": "Acao diaria por usuario",
-                "verbose_name_plural": "Acoes diarias por usuario",
+                "verbose_name": "Ação diária por usuário",
+                "verbose_name_plural": "Ações diárias por usuário",
                 "ordering": ["-day", "employee__full_name"],
                 "indexes": [
                     models.Index(

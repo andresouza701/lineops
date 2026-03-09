@@ -28,7 +28,7 @@ class Migration(migrations.Migration):
                 on_delete=django.db.models.deletion.CASCADE,
                 related_name="daily_actions",
                 to="allocations.lineallocation",
-                verbose_name="Alocacao da linha",
+                verbose_name="Alocação da linha",
             ),
         ),
         migrations.AlterUniqueTogether(
