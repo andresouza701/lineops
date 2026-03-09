@@ -103,10 +103,7 @@ class TelephonyUseCase:
         message = (
             "Dados de telefonia salvos e linha alocada com sucesso!"
             if allocated
-            else (
-                "Cadastro de telefonia realizado com sucesso. "
-                "Linha disponível para alocação."
-            )
+            else ("Número cadastrado com sucesso! " "Linha disponível para alocação.")
         )
 
         return TelephonyResult(
