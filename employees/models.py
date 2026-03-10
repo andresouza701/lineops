@@ -1,5 +1,7 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 
@@ -73,6 +75,13 @@ class Employee(models.Model):
     class Meta:
         verbose_name = "NEGOCIADOR"
         verbose_name_plural = "NEGOCIADOR"
+        constraints = [
+            models.UniqueConstraint(
+                Lower("full_name"),
+                condition=Q(is_deleted=False),
+                name="employees_employee_unique_active_full_name_ci",
+            )
+        ]
         indexes = [
             models.Index(fields=["employee_id"]),
             models.Index(fields=["corporate_email"]),

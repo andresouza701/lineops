@@ -46,6 +46,22 @@ class EmployeeForm(forms.ModelForm):
         cleaned_data["portfolio"] = cleaned_data.get("employee_id")
         return cleaned_data
 
+    def clean_full_name(self):
+        full_name = (self.cleaned_data.get("full_name") or "").strip()
+        if not full_name:
+            return full_name
+
+        duplicate_qs = Employee.objects.filter(full_name__iexact=full_name)
+        if self.instance and self.instance.pk:
+            duplicate_qs = duplicate_qs.exclude(pk=self.instance.pk)
+
+        if duplicate_qs.exists():
+            raise forms.ValidationError(
+                "Ja existe um usuario cadastrado com este nome."
+            )
+
+        return full_name
+
     def clean_corporate_email(self):
         corporate_email = (self.cleaned_data.get("corporate_email") or "").strip()
         allowed_emails = getattr(self, "_allowed_supervisor_emails", [])

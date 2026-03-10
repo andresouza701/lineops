@@ -1,3 +1,4 @@
+from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
 
@@ -32,6 +33,18 @@ class EmployeeModelTest(TestCase):
         reloaded = Employee.all_objects.get(pk=employee.pk)
         self.assertTrue(reloaded.is_deleted)
         self.assertEqual(Employee.objects.filter(pk=employee.pk).count(), 0)
+
+    def test_active_employees_cannot_repeat_full_name_case_insensitive(self) -> None:
+        Employee.objects.create(**self.base_data)
+
+        with self.assertRaises(IntegrityError):
+            Employee.objects.create(
+                full_name="aline martins",
+                corporate_email="aline.dup@lineops.tech",
+                employee_id="EMP-1002",
+                teams=Employee.UnitChoices.ARAQUARI,
+                status=Employee.Status.ACTIVE,
+            )
 
 
 class EmployeeListViewTest(TestCase):
@@ -258,3 +271,49 @@ class EmployeeFormPortfolioChoicesTest(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn("employee_id", form.errors)
         self.assertIn("teams", form.errors)
+
+    def test_form_blocks_duplicate_full_name(self) -> None:
+        Employee.objects.create(
+            full_name="Maria Silva",
+            corporate_email="maria@lineops.tech",
+            employee_id="Carteira A",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+
+        form = EmployeeForm(
+            data={
+                "full_name": "  maria silva  ",
+                "corporate_email": "supervisor@test.com",
+                "employee_id": "Ambiental",
+                "teams": Employee.UnitChoices.JOINVILLE,
+                "status": Employee.Status.ACTIVE,
+                "pa": "",
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("full_name", form.errors)
+
+    def test_form_allows_updating_same_employee_name(self) -> None:
+        employee = Employee.objects.create(
+            full_name="Carlos Dias",
+            corporate_email="carlos@lineops.tech",
+            employee_id="Carteira B",
+            teams=Employee.UnitChoices.ARAQUARI,
+            status=Employee.Status.ACTIVE,
+        )
+
+        form = EmployeeForm(
+            data={
+                "full_name": " carlos dias ",
+                "corporate_email": "supervisor@test.com",
+                "employee_id": "Ambiental",
+                "teams": Employee.UnitChoices.ARAQUARI,
+                "status": Employee.Status.ACTIVE,
+                "pa": "",
+            },
+            instance=employee,
+        )
+
+        self.assertTrue(form.is_valid())
