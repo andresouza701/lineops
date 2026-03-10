@@ -128,6 +128,20 @@ class CombinedRegistrationForm(forms.Form):
             raise forms.ValidationError("Selecione um supervisor válido!")
         return corporate_email
 
+    def clean_full_name(self):
+        full_name = (self.cleaned_data.get("full_name") or "").strip()
+        if not full_name:
+            return full_name
+
+        if Employee.objects.filter(
+            full_name__iexact=full_name, is_deleted=False
+        ).exists():
+            raise forms.ValidationError(
+                "Ja existe um usuario cadastrado com este nome."
+            )
+
+        return full_name
+
     def clean(self):  # noqa: PLR0912
         cleaned = super().clean()
         action = cleaned.get("line_action")

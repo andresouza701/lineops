@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.db import IntegrityError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -51,13 +52,22 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
         form = CombinedRegistrationForm(request.POST)
 
         if form.is_valid():
-            Employee.objects.create(
-                full_name=form.cleaned_data["full_name"],
-                corporate_email=form.cleaned_data["corporate_email"],
-                employee_id=form.cleaned_data["employee_id"],
-                teams=form.cleaned_data["teams"],
-                status=form.cleaned_data["status"],
-            )
+            try:
+                Employee.objects.create(
+                    full_name=form.cleaned_data["full_name"],
+                    corporate_email=form.cleaned_data["corporate_email"],
+                    employee_id=form.cleaned_data["employee_id"],
+                    teams=form.cleaned_data["teams"],
+                    status=form.cleaned_data["status"],
+                )
+            except IntegrityError:
+                form.add_error(
+                    "full_name",
+                    "Ja existe um usuario cadastrado com este nome.",
+                )
+                messages.error(request, "Corrija os erros do usuário.")
+                return self._render_with_forms(employee_form=form)
+
             messages.success(request, "Usuário cadastrado com sucesso!")
             return redirect("allocations:allocation_list")
 

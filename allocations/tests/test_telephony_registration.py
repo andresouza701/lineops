@@ -143,3 +143,25 @@ class TelephonyRegistrationFlowTests(TestCase):
         self.assertFalse(
             PhoneLine.objects.filter(phone_number="invalid-phone").exists()
         )
+
+    def test_employee_registration_rejects_duplicate_full_name(self):
+        response = self.client.post(
+            reverse("allocations:allocation_list"),
+            {
+                "action": "employee",
+                "full_name": " telephony user ",
+                "corporate_email": "supervisor@test.com",
+                "employee_id": "Ambiental",
+                "teams": Employee.UnitChoices.JOINVILLE,
+                "status": Employee.Status.ACTIVE,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Corrija os erros do usuário.")
+        self.assertContains(response, "Ja existe um usuario cadastrado com este nome.")
+        self.assertEqual(
+            Employee.objects.filter(full_name__iexact="telephony user").count(),
+            1,
+        )
