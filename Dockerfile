@@ -1,41 +1,31 @@
-# Imagem base enxuta
 FROM python:3.11-slim
 
-# Evita arquivos .pyc e bufferização
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Diretório de trabalho
 WORKDIR /app
 
-# Instalar dependências do sistema
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    libpq-dev \
     gcc \
-    && apt-get clean
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Criar usuário não-root
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
-# Copiar requirements primeiro (melhora cache)
 COPY requirements.txt /app/
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
 
-# Instalar dependências Python
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
-
-# Copiar restante do código
 COPY . /app/
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 
-# Ajustar permissões
-RUN chown -R appuser:appgroup /app
+RUN chmod +x /app/docker-entrypoint.sh \
+    && chown -R appuser:appgroup /app
 
-# Trocar para usuário não-root
 USER appuser
 
-# Expor porta interna
 EXPOSE 8000
 
-# Comando padrão
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--timeout", "120", "--workers", "4", "--threads", "2", "--keep-alive", "5"]

@@ -31,6 +31,45 @@ docker compose down
 docker compose up -d --build
 ```
 
+## Produção com Docker Compose
+
+1. Crie o arquivo de ambiente de produção:
+
+```bash
+cp .env.prod.example .env.prod
+```
+
+2. Preencha obrigatoriamente no `.env.prod`:
+
+- `SECRET_KEY`
+- `ALLOWED_HOSTS`
+- `CSRF_TRUSTED_ORIGINS`
+- `DB_PASSWORD`
+- `TLS_CERT_PATH`
+- `TLS_KEY_PATH`
+
+3. Suba os serviços de produção:
+
+```bash
+docker compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+4. Valide a saúde da aplicação:
+
+```bash
+curl -I http://localhost
+curl -k https://localhost/health/
+```
+
+### Observações de produção
+
+- O container web executa automaticamente `migrate` e `collectstatic` no startup.
+- O compose de produção sobe Nginx com TLS em `80/443` e redireciona HTTP para HTTPS.
+- Configure `TLS_CERT_PATH` e `TLS_KEY_PATH` para apontar para os certificados válidos no host.
+- Mantenha `USE_X_FORWARDED_PROTO=True` para o Django reconhecer requisições HTTPS via proxy.
+- O banco em produção usa volume nomeado `lineops_postgres_data_prod`.
+
 ## Migrações
 
 ```bash
