@@ -192,6 +192,12 @@ class TelephonyAssignmentForm(forms.Form):
     phone_number = forms.CharField(label="Linha", max_length=20, required=False)
     iccid = forms.CharField(label="ICCID", max_length=22, required=False)
     carrier = forms.CharField(label="Operadora", max_length=100, required=False)
+    origem = forms.ChoiceField(
+        label="Origem",
+        choices=PhoneLine.Origem.choices,
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
     phone_line = forms.ModelChoiceField(
         queryset=PhoneLine.objects.filter(
             is_deleted=False, status=PhoneLine.Status.AVAILABLE
@@ -219,6 +225,7 @@ class TelephonyAssignmentForm(forms.Form):
         super().__init__(*args, **kwargs)
         for name in ["phone_number", "iccid", "carrier"]:
             self.fields[name].widget.attrs.setdefault("class", "form-control")
+        self.fields["origem"].widget.attrs.setdefault("class", "form-select")
         self.fields["employee"].widget.attrs.setdefault("class", "form-select")
         self.fields["phone_line"].widget.attrs.setdefault("class", "form-select")
         self.fields["line_action"].widget.attrs.setdefault("class", "form-check-input")
@@ -247,7 +254,7 @@ class TelephonyAssignmentForm(forms.Form):
         action = cleaned.get("line_action")
 
         if action == "new":
-            for field in ["phone_number", "iccid", "carrier"]:
+            for field in ["phone_number", "iccid", "carrier", "origem"]:
                 if not cleaned.get(field):
                     self.add_error(field, "Campo obrigatório!")
             cleaned["phone_line"] = None
@@ -264,6 +271,7 @@ class TelephonyAssignmentForm(forms.Form):
             cleaned["phone_number"] = cleaned.get("phone_number") or ""
             cleaned["iccid"] = cleaned.get("iccid") or ""
             cleaned["carrier"] = cleaned.get("carrier") or ""
+            cleaned["origem"] = cleaned.get("origem") or ""
             cleaned["status_line"] = ""
             cleaned["phone_line_status"] = None
         elif action == "change_status":
@@ -308,6 +316,7 @@ class TelephonyAssignmentForm(forms.Form):
             cleaned["phone_number"] = cleaned.get("phone_number") or ""
             cleaned["iccid"] = cleaned.get("iccid") or ""
             cleaned["carrier"] = cleaned.get("carrier") or ""
+            cleaned["origem"] = cleaned.get("origem") or ""
             cleaned["phone_line"] = None
             cleaned["employee"] = None
 

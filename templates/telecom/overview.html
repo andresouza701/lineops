@@ -54,6 +54,7 @@
                         <tr>
                             <th scope="col">Linha</th>
                             <th scope="col">ICCID</th>
+                            <th scope="col">Origem</th>
                             <th scope="col">Usuário vinculado</th>
                             <th scope="col">Status</th>
                             <th scope="col">Ativada em</th>
@@ -65,6 +66,7 @@
                             <tr>
                                 <td>{{ line.phone_number }}</td>
                                 <td>{{ line.sim_card.iccid }}</td>
+                                <td>{{ line.get_origem_display|default:"-" }}</td>
                                 <td>{% if line.active_allocations %}{{ line.active_allocations.0.employee.full_name }}{% else %}<span class="text-muted">Sem vínculo</span>{% endif %}</td>
                                 <td>
                                     {% if line.status == 'AVAILABLE' %}
@@ -92,7 +94,7 @@
                                 </td>
                             </tr>
                         {% empty %}
-                            <tr id="no-data-main"><td colspan="6" class="text-center">Nenhuma linha cadastrada.</td></tr>
+                            <tr id="no-data-main"><td colspan="7" class="text-center">Nenhuma linha cadastrada.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -141,6 +143,7 @@
                         <tr>
                             <th scope="col">Número</th>
                             <th scope="col">SIM Card</th>
+                            <th scope="col">Origem</th>
                             <th scope="col">Usuário vinculado</th>
                             <th scope="col">Status</th>
                             <th scope="col">Ativado em</th>
@@ -151,6 +154,7 @@
                             <tr>
                                 <td>{{ line.phone_number }}</td>
                                 <td>{{ line.sim_card.iccid }}</td>
+                                <td>{{ line.get_origem_display|default:"-" }}</td>
                                 <td>{% if line.active_allocations %}{{ line.active_allocations.0.employee.full_name }}{% else %}<span class="text-muted">Sem vínculo</span>{% endif %}</td>
                                 <td>
                                     {% if line.status == 'AVAILABLE' %}
@@ -168,7 +172,7 @@
                                 <td>{{ line.activated_at|date:"d/m/Y"|default:"—" }}</td>
                             </tr>
                         {% empty %}
-                            <tr id="no-data-recent"><td colspan="5" class="text-center">Nenhuma linha cadastrada.</td></tr>
+                            <tr id="no-data-recent"><td colspan="6" class="text-center">Nenhuma linha cadastrada.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -270,16 +274,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 <a href="${line.history_url}" class="btn btn-outline-secondary btn-sm ms-1" aria-label="Historico" title="Historico"><i class="bi bi-clock-history"></i></a>
             `;
         }
-        tr.innerHTML = `<td>${line.phone_number}</td><td>${line.iccid}</td><td>${employeeText}</td><td></td><td>${line.activated_at}</td><td class="text-end">${actionsHtml}</td>`;
-        tr.querySelector('td:nth-child(4)').appendChild(createStatusBadge(line.status, line.status_display));
+        tr.innerHTML = `<td>${line.phone_number}</td><td>${line.iccid}</td><td>${line.origem_display || '-'}</td><td>${employeeText}</td><td></td><td>${line.activated_at}</td><td class="text-end">${actionsHtml}</td>`;
+        tr.querySelector('td:nth-child(5)').appendChild(createStatusBadge(line.status, line.status_display));
         return tr;
     }
 
     function createRecentTableRow(line) {
         const tr = document.createElement('tr');
         const employeeText = line.employee || '<span class="text-muted">Sem vínculo</span>';
-        tr.innerHTML = `<td>${line.phone_number}</td><td>${line.iccid}</td><td>${employeeText}</td><td></td><td>${line.activated_at || '—'}</td>`;
-        tr.querySelector('td:nth-child(4)').appendChild(createStatusBadge(line.status, line.status_display));
+        tr.innerHTML = `<td>${line.phone_number}</td><td>${line.iccid}</td><td>${line.origem_display || '-'}</td><td>${employeeText}</td><td></td><td>${line.activated_at || '—'}</td>`;
+        tr.querySelector('td:nth-child(5)').appendChild(createStatusBadge(line.status, line.status_display));
         return tr;
     }
 

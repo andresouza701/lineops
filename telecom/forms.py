@@ -1,3 +1,5 @@
+from typing import cast
+
 from django import forms
 from django.apps import apps
 
@@ -30,12 +32,18 @@ class SIMcardCreateWithLineForm(SIMcardForm):
         label="Linha",
         max_length=20,
         required=True,
-        help_text="Numero da linha vinculado ao SIM card.",
+        help_text="Número da linha vinculado ao SIM card.",
+    )
+    origem = forms.ChoiceField(
+        label="Origem",
+        choices=PhoneLine.Origem.choices,
+        required=False,
     )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["phone_number"].widget.attrs.setdefault("class", "form-control")
+        self.fields["origem"].widget.attrs.setdefault("class", "form-select")
 
     def clean_phone_number(self):
         phone_number = normalize_phone_number(self.cleaned_data.get("phone_number"))
@@ -44,14 +52,14 @@ class SIMcardCreateWithLineForm(SIMcardForm):
             phone_number=phone_number,
             is_deleted=False,
         ).exists():
-            raise forms.ValidationError("Numero de linha ja cadastrado.")
+            raise forms.ValidationError("Número de linha já cadastrado.")
         return phone_number
 
 
 class PhoneLineForm(forms.ModelForm):
     class Meta:
         model = PhoneLine
-        fields = ["phone_number", "sim_card"]
+        fields = ["phone_number", "sim_card", "origem"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -68,9 +76,11 @@ class PhoneLineForm(forms.ModelForm):
                 | SIMcard.objects.filter(pk=self.instance.sim_card_id, is_deleted=False)
             ).distinct()
 
-        self.fields["sim_card"].queryset = available_simcards
+        sim_card_field = cast(forms.ModelChoiceField, self.fields["sim_card"])
+        sim_card_field.queryset = available_simcards
         self.fields["phone_number"].widget.attrs.setdefault("class", "form-control")
         self.fields["sim_card"].widget.attrs.setdefault("class", "form-select")
+        self.fields["origem"].widget.attrs.setdefault("class", "form-select")
 
 
 class PhoneLineUpdateForm(PhoneLineForm):
@@ -83,7 +93,7 @@ class PhoneLineUpdateForm(PhoneLineForm):
     )
 
     class Meta(PhoneLineForm.Meta):
-        fields = ["phone_number", "sim_card", "status"]
+        fields = ["phone_number", "sim_card", "status", "origem"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -95,8 +105,10 @@ class PhoneLineUpdateForm(PhoneLineForm):
             # Regra da tela de edição: linha e SIM não podem ser alterados.
             self.fields["phone_number"].disabled = True
             self.fields["sim_card"].disabled = True
+            self.fields["origem"].disabled = True
 
-        self.fields["employee"].queryset = Employee.objects.filter(
+        employee_field = cast(forms.ModelChoiceField, self.fields["employee"])
+        employee_field.queryset = Employee.objects.filter(
             is_deleted=False,
             status=Employee.Status.ACTIVE,
         ).order_by("full_name")
@@ -118,13 +130,13 @@ class PhoneLineUpdateForm(PhoneLineForm):
         if employee and status != PhoneLine.Status.ALLOCATED:
             self.add_error(
                 "status",
-                "Quando houver usuário vinculado, o status deve ser Alocada.",
+                "Quando houver usuário vinculado, o status deve ser Alocado.",
             )
 
         if not employee and status == PhoneLine.Status.ALLOCATED:
             self.add_error(
                 "employee",
-                "Selecione um usuário para manter a linha como Alocada.",
+                "Selecione um usuário para manter a linha como Alocado.",
             )
 
         if employee and self.instance and self.instance.pk:
@@ -141,8 +153,8 @@ class PhoneLineUpdateForm(PhoneLineForm):
                 self.add_error(
                     "employee",
                     (
-                        f"O funcionario {employee.full_name} "
-                        f"ja possui {MAX_ACTIVE_LINES_PER_EMPLOYEE} "
+                        f"O usuário {employee.full_name} "
+                        f"já possui {MAX_ACTIVE_LINES_PER_EMPLOYEE} "
                         f"linhas alocadas ativas."
                     ),
                 )
@@ -164,12 +176,12 @@ class CombinedSimLineForm(forms.Form):
         iccid = normalize_iccid(self.cleaned_data["iccid"])
         validate_iccid_format(iccid)
         if SIMcard.objects.filter(iccid=iccid, is_deleted=False).exists():
-            raise forms.ValidationError("ICCID já cadastrado.")
+            raise forms.ValidationError("ICCID já cadastrado!")
         return iccid
 
     def clean_phone_number(self):
         phone = normalize_phone_number(self.cleaned_data["phone_number"])
         validate_phone_number_format(phone)
         if PhoneLine.objects.filter(phone_number=phone, is_deleted=False).exists():
-            raise forms.ValidationError("Número já cadastrado.")
+            raise forms.ValidationError("Número já cadastrado!")
         return phone

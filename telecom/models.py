@@ -68,6 +68,16 @@ class PhoneLine(models.Model):
         AQUECENDO = "AQUECENDO", "Aquecendo"
         NOVO = "NOVO", "Novo"
 
+    class Origem(models.TextChoices):
+        SRVMEMU_01 = "SRVMEMU-01", "SRVMEMU-01"
+        SRVMEMU_02 = "SRVMEMU-02", "SRVMEMU-02"
+        SRVMEMU_03 = "SRVMEMU-03", "SRVMEMU-03"
+        SRVMEMU_04 = "SRVMEMU-04", "SRVMEMU-04"
+        SRVMEMU_05 = "SRVMEMU-05", "SRVMEMU-05"
+        SRVMEMU_06 = "SRVMEMU-06", "SRVMEMU-06"
+        APARELHO = "APARELHO", "APARELHO"
+        PESSOAL = "PESSOAL", "PESSOAL"
+
     phone_number = models.CharField(max_length=20, unique=True)
 
     sim_card = models.OneToOneField(
@@ -76,6 +86,10 @@ class PhoneLine(models.Model):
 
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.AVAILABLE, db_index=True
+    )
+
+    origem = models.CharField(
+        max_length=20, choices=Origem.choices, null=True, blank=True
     )
 
     activated_at = models.DateTimeField(null=True, blank=True)

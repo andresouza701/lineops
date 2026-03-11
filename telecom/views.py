@@ -120,10 +120,12 @@ class SIMcardCreateView(RoleRequiredMixin, CreateView):
     def form_valid(self, form):
         self.object = form.save()
         phone_number = form.cleaned_data["phone_number"]
+        origem = form.cleaned_data.get("origem")
         PhoneLine.objects.create(
             phone_number=phone_number,
             sim_card=self.object,
             status=PhoneLine.Status.AVAILABLE,
+            origem=origem,
         )
         messages.success(
             self.request,
@@ -208,6 +210,8 @@ class PhoneLineListView(StandardPaginationMixin, RoleRequiredMixin, ListView):
                 {
                     "phone_number": line.phone_number,
                     "iccid": line.sim_card.iccid,
+                    "origem": line.origem,
+                    "origem_display": line.get_origem_display() if line.origem else "",
                     "employee": employee_name,
                     "status": line.status,
                     "status_display": line.get_status_display(),
@@ -480,6 +484,8 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
                 "id": line.pk,
                 "phone_number": line.phone_number,
                 "iccid": line.sim_card.iccid if line.sim_card else "",
+                "origem": line.origem,
+                "origem_display": line.get_origem_display() if line.origem else "",
                 "employee": employee_name,
                 "status": line.status,
                 "status_display": line.get_status_display(),

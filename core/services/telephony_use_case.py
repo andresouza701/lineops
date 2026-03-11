@@ -43,7 +43,7 @@ class TelephonyUseCase:
         logger.info(
             "Line status changed",
             extra={
-                "phone_line_id": phone_line.id,
+                "phone_line_id": phone_line.pk,
                 "phone_number": phone_line.phone_number,
                 "new_status": new_status,
                 "actor_id": getattr(actor, "id", None),
@@ -59,9 +59,7 @@ class TelephonyUseCase:
     @staticmethod
     @transaction.atomic
     def create_new_line_with_allocation(
-        phone_number: str,
-        iccid: str,
-        carrier: str,
+        line_data: dict[str, str],
         employee: Employee | None,
         actor,
     ) -> TelephonyResult:
@@ -70,23 +68,24 @@ class TelephonyUseCase:
         to an employee.
         """
         sim = SIMcard.objects.create(
-            iccid=iccid,
-            carrier=carrier,
+            iccid=line_data["iccid"],
+            carrier=line_data["carrier"],
             status=SIMcard.Status.AVAILABLE,
         )
 
         phone_line = PhoneLine.objects.create(
-            phone_number=phone_number,
+            phone_number=line_data["phone_number"],
             sim_card=sim,
             status=PhoneLine.Status.AVAILABLE,
+            origem=line_data["origem"],
         )
 
         logger.info(
             "New line created",
             extra={
-                "phone_line_id": phone_line.id,
-                "phone_number": phone_number,
-                "sim_iccid": iccid,
+                "phone_line_id": phone_line.pk,
+                "phone_number": line_data["phone_number"],
+                "sim_iccid": line_data["iccid"],
                 "actor_id": getattr(actor, "id", None),
             },
         )
@@ -129,9 +128,9 @@ class TelephonyUseCase:
         logger.info(
             "Existing line allocated",
             extra={
-                "phone_line_id": phone_line.id,
+                "phone_line_id": phone_line.pk,
                 "phone_number": phone_line.phone_number,
-                "employee_id": employee.id,
+                "employee_id": employee.pk,
                 "actor_id": getattr(actor, "id", None),
             },
         )

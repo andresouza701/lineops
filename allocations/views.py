@@ -99,9 +99,12 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
                 )
             else:  # new line
                 result = TelephonyUseCase.create_new_line_with_allocation(
-                    phone_number=form.cleaned_data["phone_number"],
-                    iccid=form.cleaned_data["iccid"],
-                    carrier=form.cleaned_data["carrier"],
+                    line_data={
+                        "phone_number": form.cleaned_data["phone_number"],
+                        "iccid": form.cleaned_data["iccid"],
+                        "carrier": form.cleaned_data["carrier"],
+                        "origem": form.cleaned_data["origem"],
+                    },
                     employee=form.cleaned_data.get("employee"),
                     actor=request.user,
                 )
