@@ -585,3 +585,23 @@ class DashboardDailyIndicatorsTests(TestCase):
         response = self.client.get(reverse("dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["pending_actions_count"], 1)
+
+    def test_pending_badge_ignores_no_allocation_action_when_employee_has_line(self):
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=None,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+
+        board_response = self.client.get(reverse("daily_user_action_board"))
+        self.assertEqual(board_response.status_code, 200)
+        self.assertEqual(board_response.context["action_counts"]["new_number"], 0)
+
+        dashboard_response = self.client.get(reverse("dashboard"))
+        self.assertEqual(dashboard_response.status_code, 200)
+        self.assertEqual(dashboard_response.context["pending_actions_count"], 0)

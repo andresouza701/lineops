@@ -2,8 +2,9 @@
 Context processors para disponibilizar dados globalmente nos templates.
 """
 
-from django.db.models import F, Q
+from django.db.models import Exists, F, OuterRef, Q
 
+from allocations.models import LineAllocation
 from dashboard.models import DailyUserAction
 from users.models import SystemUser
 
@@ -27,13 +28,19 @@ def pending_actions_count(request):
         # - ação com alocação ativa vinculada ao mesmo employee da ação.
         # Também deduplicamos por (employee, allocation), mantendo só a ação
         # mais recente por chave (mesma regra da tela).
+        active_allocations_for_employee = LineAllocation.objects.filter(
+            employee_id=OuterRef("employee_id"),
+            is_active=True,
+        )
+
         pending_actions = (
             DailyUserAction.objects.filter(
                 is_resolved=False,
                 employee__is_deleted=False,
             )
+            .annotate(has_active_allocation=Exists(active_allocations_for_employee))
             .filter(
-                Q(allocation__isnull=True)
+                Q(allocation__isnull=True, has_active_allocation=False)
                 | Q(
                     allocation__is_active=True,
                     allocation__employee_id=F("employee_id"),
