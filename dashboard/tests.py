@@ -516,3 +516,72 @@ class DashboardDailyIndicatorsTests(TestCase):
             and row["allocation"].id == self.line_allocation.id
         ]
         self.assertGreater(len(b2b_rows), 0, "Admin should see Active line with action")
+
+    def test_pending_badge_ignores_action_with_mismatched_allocation_employee(self):
+        other_employee = Employee.objects.create(
+            full_name="Other User",
+            corporate_email="other@corp.com",
+            employee_id="Outras",
+            teams="B2B Squad",
+            status=Employee.Status.ACTIVE,
+        )
+        other_sim = SIMcard.objects.create(
+            iccid="8900000000000002001", carrier="CarrierX"
+        )
+        other_line = PhoneLine.objects.create(
+            phone_number="+5511999999010",
+            sim_card=other_sim,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        other_allocation = LineAllocation.objects.create(
+            employee=other_employee,
+            phone_line=other_line,
+            allocated_by=self.user,
+            is_active=True,
+        )
+
+        # Estado inconsistente possível após remanejamento de linha:
+        # ação ainda aponta para alocação que não pertence ao employee da ação.
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=other_allocation,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["pending_actions_count"], 0)
+
+    def test_pending_badge_deduplicates_multiple_days_same_action_key(self):
+        today = timezone.localdate()
+        yesterday = today - timezone.timedelta(days=1)
+
+        DailyUserAction.objects.create(
+            day=yesterday,
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+        DailyUserAction.objects.create(
+            day=today,
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["pending_actions_count"], 1)
