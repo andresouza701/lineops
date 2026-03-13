@@ -21,7 +21,19 @@ DUPLICATE_EMPLOYEE_NAME_CONSTRAINT = "employees_employee_unique_active_full_name
 
 
 def _is_duplicate_full_name_error(exc: IntegrityError) -> bool:
-    return DUPLICATE_EMPLOYEE_NAME_CONSTRAINT in str(exc)
+    if DUPLICATE_EMPLOYEE_NAME_CONSTRAINT in str(exc):
+        return True
+
+    cause = getattr(exc, "__cause__", None)
+    if not cause:
+        return False
+
+    if DUPLICATE_EMPLOYEE_NAME_CONSTRAINT in str(cause):
+        return True
+
+    diag = getattr(cause, "diag", None)
+    constraint_name = getattr(diag, "constraint_name", None)
+    return constraint_name == DUPLICATE_EMPLOYEE_NAME_CONSTRAINT
 
 
 class RegistrationHubView(RoleRequiredMixin, TemplateView):
