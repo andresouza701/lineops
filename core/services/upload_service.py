@@ -219,9 +219,10 @@ def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
         existing_line = PhoneLine.all_objects.filter(phone_number=phone_number).first()
         if existing_line:
             simcard = existing_line.sim_card
+            simcard.iccid = iccid
             for field_name, value in sim_defaults.items():
                 setattr(simcard, field_name, value)
-            simcard.save(update_fields=[*sim_defaults.keys(), "updated_at"])
+            simcard.save(update_fields=["iccid", *sim_defaults.keys(), "updated_at"])
             summary.simcards_updated += 1
         else:
             # No existing line for this number → always create a fresh SIMcard

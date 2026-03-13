@@ -129,7 +129,7 @@ class UploadServiceTests(TestCase):
         self.assertIn("Origem inválida", summary.errors[0])
 
     def test_same_phone_number_reuses_existing_line_and_updates_simcard(self):
-        sim = SIMcard.objects.create(iccid="8900000000000000001", carrier="Carrier X")
+        sim = SIMcard.objects.create(iccid="VIRTUAL-4730260539", carrier="Carrier X")
         line = PhoneLine.objects.create(
             phone_number="+5511999991000",
             sim_card=sim,
@@ -139,7 +139,7 @@ class UploadServiceTests(TestCase):
         csv_content = (
             "type;full_name;corporate_email;employee_id;"
             "teams;pa;status;iccid;carrier;phone_number;origem\n"
-            "simcard;;;;;;AVAILABLE;8900000000000000001;"
+            "simcard;;;;;;AVAILABLE;VIRTUAL;"
             "Carrier Y;+5511999991000;SRVMEMU-02\n"
         )
         path = self._write("same_phone_update.csv", csv_content)
@@ -148,9 +148,10 @@ class UploadServiceTests(TestCase):
 
         self.assertEqual(summary.rows_processed, 1)
         self.assertFalse(summary.errors)
-        # Same simcard re-used, carrier updated
+        # Same simcard re-used, iccid and carrier updated from CSV
         self.assertEqual(SIMcard.objects.count(), 1)
         sim.refresh_from_db()
+        self.assertEqual(sim.iccid, "VIRTUAL")
         self.assertEqual(sim.carrier, "Carrier Y")
         # Same phone line kept, origem updated
         line.refresh_from_db()
