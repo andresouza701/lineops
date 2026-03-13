@@ -60,3 +60,10 @@ class SIMcardAdmin(admin.ModelAdmin):
             sim_card=obj,
             status=PhoneLine.Status.AVAILABLE,
         )
+
+
+@admin.register(PhoneLine)
+class PhoneLineAdmin(admin.ModelAdmin):
+    list_display = ("phone_number", "sim_card", "status", "origem", "activated_at")
+    search_fields = ("phone_number", "sim_card__iccid")
+    list_filter = ("status", "origem")

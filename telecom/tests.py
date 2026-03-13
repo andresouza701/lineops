@@ -1,3 +1,4 @@
+from django.contrib import admin
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -7,6 +8,11 @@ from core.services.allocation_service import AllocationService
 from employees.models import Employee
 from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
+
+
+class TelecomAdminRegistrationTest(TestCase):
+    def test_phone_line_is_registered_in_admin(self):
+        self.assertIn(PhoneLine, admin.site._registry)
 
 
 class PhoneLineHistoryAuditTest(TestCase):
