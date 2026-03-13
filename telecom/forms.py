@@ -175,8 +175,6 @@ class CombinedSimLineForm(forms.Form):
     def clean_iccid(self):
         iccid = normalize_iccid(self.cleaned_data["iccid"])
         validate_iccid_format(iccid)
-        if SIMcard.objects.filter(iccid=iccid, is_deleted=False).exists():
-            raise forms.ValidationError("ICCID já cadastrado!")
         return iccid
 
     def clean_phone_number(self):

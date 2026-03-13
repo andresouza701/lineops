@@ -196,12 +196,14 @@ def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
         "is_deleted": False,
     }
 
-    simcard, created = SIMcard.objects.update_or_create(
-        iccid=row["iccid"], defaults=defaults
-    )
-    if created:
+    simcard = SIMcard.all_objects.filter(iccid=row["iccid"]).order_by("-id").first()
+    if simcard is None:
+        simcard = SIMcard.objects.create(iccid=row["iccid"], **defaults)
         summary.simcards_created += 1
     else:
+        for field_name, value in defaults.items():
+            setattr(simcard, field_name, value)
+        simcard.save(update_fields=[*defaults.keys(), "updated_at"])
         summary.simcards_updated += 1
 
     phone_number = row.get("phone_number") or ""

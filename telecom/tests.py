@@ -373,6 +373,20 @@ class SIMcardViewsTest(TestCase):
             ).exists()
         )
 
+    def test_simcard_create_view_allows_duplicate_iccid(self):
+        url = reverse("telecom:simcard_create")
+        payload = {
+            "iccid": self.sim_available.iccid,
+            "carrier": "CarrierDup",
+            "phone_number": "+5511999990311",
+        }
+
+        response = self.client.post(url, data=payload)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse("telecom:simcard_list"))
+        self.assertEqual(SIMcard.objects.filter(iccid=payload["iccid"]).count(), 2)
+
     def test_simcard_create_requires_phone_number(self):
         url = reverse("telecom:simcard_create")
         payload = {
@@ -414,7 +428,7 @@ class SIMcardViewsTest(TestCase):
         response = self.client.post(url, data=payload)
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Numero de linha ja cadastrado.")
+        self.assertContains(response, "Número de linha já cadastrado.")
         self.assertFalse(SIMcard.objects.filter(iccid=payload["iccid"]).exists())
 
     def test_simcard_update_view(self):

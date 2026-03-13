@@ -26,7 +26,7 @@ class SIMcard(models.Model):
         BLOCKED = "BLOCKED", "Blocked"
         CANCELLED = "CANCELLED", "Cancelled"
 
-    iccid = models.CharField(max_length=22, unique=True)
+    iccid = models.CharField(max_length=22, db_index=True)
     carrier = models.CharField(max_length=100)
 
     status = models.CharField(
