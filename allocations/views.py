@@ -17,6 +17,12 @@ from users.models import SystemUser
 from .forms import CombinedRegistrationForm, TelephonyAssignmentForm
 from .models import LineAllocation
 
+DUPLICATE_EMPLOYEE_NAME_CONSTRAINT = "employees_employee_unique_active_full_name_ci"
+
+
+def _is_duplicate_full_name_error(exc: IntegrityError) -> bool:
+    return DUPLICATE_EMPLOYEE_NAME_CONSTRAINT in str(exc)
+
 
 class RegistrationHubView(RoleRequiredMixin, TemplateView):
     allowed_roles = [SystemUser.Role.ADMIN, SystemUser.Role.OPERATOR]
@@ -60,7 +66,9 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
                     teams=form.cleaned_data["teams"],
                     status=form.cleaned_data["status"],
                 )
-            except IntegrityError:
+            except IntegrityError as exc:
+                if not _is_duplicate_full_name_error(exc):
+                    raise
                 form.add_error(
                     "full_name",
                     "Ja existe um usuario cadastrado com este nome.",

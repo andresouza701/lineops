@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
@@ -317,3 +319,70 @@ class EmployeeFormPortfolioChoicesTest(TestCase):
         )
 
         self.assertTrue(form.is_valid())
+
+
+class EmployeeCreateUpdateIntegrityHandlingTest(TestCase):
+    def setUp(self) -> None:
+        self.admin = SystemUser.objects.create_user(
+            email="admin.integrity@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.employee = Employee.objects.create(
+            full_name="Usuario Original",
+            corporate_email="supervisor@test.com",
+            employee_id="EMP-I-01",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+        self.client.force_login(self.admin)
+
+    def test_create_view_handles_duplicate_full_name_integrity_error(self) -> None:
+        with patch(
+            "employees.views.CreateView.form_valid",
+            side_effect=IntegrityError(
+                "duplicate key value violates unique constraint "
+                "employees_employee_unique_active_full_name_ci"
+            ),
+        ):
+            response = self.client.post(
+                reverse("employees:employee_create"),
+                {
+                    "full_name": "Usuario Novo",
+                    "corporate_email": "supervisor@test.com",
+                    "employee_id": "Ambiental",
+                    "teams": Employee.UnitChoices.JOINVILLE,
+                    "status": Employee.Status.ACTIVE,
+                    "pa": "",
+                },
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Corrija os erros do funcionario.")
+        self.assertContains(response, "Ja existe um usuario cadastrado com este nome.")
+
+    def test_update_view_handles_duplicate_full_name_integrity_error(self) -> None:
+        with patch(
+            "employees.views.UpdateView.form_valid",
+            side_effect=IntegrityError(
+                "duplicate key value violates unique constraint "
+                "employees_employee_unique_active_full_name_ci"
+            ),
+        ):
+            response = self.client.post(
+                reverse("employees:employee_update", args=[self.employee.pk]),
+                {
+                    "full_name": "Usuario Original",
+                    "corporate_email": "supervisor@test.com",
+                    "employee_id": "Ambiental",
+                    "teams": Employee.UnitChoices.JOINVILLE,
+                    "status": Employee.Status.ACTIVE,
+                    "pa": "",
+                },
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Corrija os erros do funcionario.")
+        self.assertContains(response, "Ja existe um usuario cadastrado com este nome.")

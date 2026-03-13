@@ -1,3 +1,6 @@
+from unittest.mock import patch
+
+from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
 
@@ -67,6 +70,7 @@ class TelephonyRegistrationFlowTests(TestCase):
                 "phone_number": "+5511999990999",
                 "iccid": "8900000000000000999",
                 "carrier": "CarrierNew",
+                "origem": PhoneLine.Origem.APARELHO,
             },
             follow=False,
         )
@@ -165,3 +169,49 @@ class TelephonyRegistrationFlowTests(TestCase):
             Employee.objects.filter(full_name__iexact="telephony user").count(),
             1,
         )
+
+    def test_employee_registration_handles_duplicate_integrity_error_constraint(self):
+        with patch(
+            "allocations.views.Employee.objects.create",
+            side_effect=IntegrityError(
+                "duplicate key value violates unique constraint "
+                "employees_employee_unique_active_full_name_ci"
+            ),
+        ):
+            response = self.client.post(
+                reverse("allocations:allocation_list"),
+                {
+                    "action": "employee",
+                    "full_name": "Novo Usuario",
+                    "corporate_email": "supervisor@test.com",
+                    "employee_id": "Ambiental",
+                    "teams": Employee.UnitChoices.JOINVILLE,
+                    "status": Employee.Status.ACTIVE,
+                },
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Corrija os erros do usuário.")
+        self.assertContains(response, "Ja existe um usuario cadastrado com este nome.")
+
+    def test_employee_registration_re_raises_non_duplicate_integrity_error(self):
+        with (
+            patch(
+                "allocations.views.Employee.objects.create",
+                side_effect=IntegrityError("some other integrity error"),
+            ),
+            self.assertRaises(IntegrityError),
+        ):
+            self.client.post(
+                reverse("allocations:allocation_list"),
+                {
+                    "action": "employee",
+                    "full_name": "Novo Usuario",
+                    "corporate_email": "supervisor@test.com",
+                    "employee_id": "Ambiental",
+                    "teams": Employee.UnitChoices.JOINVILLE,
+                    "status": Employee.Status.ACTIVE,
+                },
+                follow=True,
+            )

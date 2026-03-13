@@ -14,6 +14,8 @@ from telecom.models import PhoneLine, SIMcard
 
 logger = logging.getLogger(__name__)
 
+DUPLICATE_EMPLOYEE_NAME_MESSAGE = "Ja existe um usuario cadastrado com este nome."
+
 
 @dataclass
 class UploadSummary:
@@ -151,8 +153,22 @@ def _upsert_employee(row: dict[str, str], summary: UploadSummary) -> None:
         raise ValueError("Coluna obrigatÃ³ria ausente ou vazia: teams.")
 
     status = _normalize_employee_status(row.get("status"))
+    full_name = row["full_name"]
+    employee_id = row["employee_id"]
+
+    duplicate_name_exists = (
+        Employee.all_objects.filter(
+            full_name__iexact=full_name,
+            is_deleted=False,
+        )
+        .exclude(employee_id=employee_id)
+        .exists()
+    )
+    if duplicate_name_exists:
+        raise ValueError(DUPLICATE_EMPLOYEE_NAME_MESSAGE)
+
     defaults = {
-        "full_name": row["full_name"],
+        "full_name": full_name,
         "corporate_email": row["corporate_email"],
         "teams": teams,
         "status": status,
@@ -160,7 +176,8 @@ def _upsert_employee(row: dict[str, str], summary: UploadSummary) -> None:
     }
 
     employee, created = Employee.all_objects.update_or_create(
-        employee_id=row["employee_id"], defaults=defaults
+        employee_id=employee_id,
+        defaults=defaults,
     )
     if created:
         summary.employees_created += 1

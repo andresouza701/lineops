@@ -67,3 +67,28 @@ class UploadServiceTests(TestCase):
         self.assertEqual(len(summary.errors), 2)
         self.assertEqual(Employee.objects.count(), 0)
         self.assertEqual(SIMcard.objects.count(), 0)
+
+    def test_process_reports_duplicate_employee_name_with_different_employee_id(self):
+        Employee.objects.create(
+            full_name="Teste Super 01",
+            corporate_email="supervisor1@test.com",
+            employee_id="EMP-DUP-1",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+
+        csv_content = (
+            "type,full_name,corporate_email,employee_id,department,status,iccid,carrier\n"
+            "employee,teste super 01,supervisor2@test.com,"
+            "EMP-DUP-2,Operacoes,active,,\n"
+        )
+        path = self._write("duplicate_name.csv", csv_content)
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(summary.rows_processed, 0)
+        self.assertEqual(len(summary.errors), 1)
+        self.assertIn(
+            "Ja existe um usuario cadastrado com este nome.", summary.errors[0]
+        )
+        self.assertEqual(Employee.objects.filter(is_deleted=False).count(), 1)

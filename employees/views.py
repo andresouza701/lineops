@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.db import IntegrityError
 from django.db.models import Prefetch
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -11,6 +12,13 @@ from core.mixins import RoleRequiredMixin
 from users.models import SystemUser
 
 from .models import Employee, EmployeeHistory
+
+DUPLICATE_EMPLOYEE_NAME_CONSTRAINT = "employees_employee_unique_active_full_name_ci"
+DUPLICATE_EMPLOYEE_NAME_MESSAGE = "Ja existe um usuario cadastrado com este nome."
+
+
+def _is_duplicate_full_name_error(exc: IntegrityError) -> bool:
+    return DUPLICATE_EMPLOYEE_NAME_CONSTRAINT in str(exc)
 
 
 class EmployeeListView(RoleRequiredMixin, ListView):
@@ -128,8 +136,17 @@ class EmployeeCreateView(RoleRequiredMixin, CreateView):
     success_url = reverse_lazy("employees:employee_list")
 
     def form_valid(self, form):
+        try:
+            response = super().form_valid(form)
+        except IntegrityError as exc:
+            if not _is_duplicate_full_name_error(exc):
+                raise
+            form.add_error("full_name", DUPLICATE_EMPLOYEE_NAME_MESSAGE)
+            messages.error(self.request, "Corrija os erros do funcionario.")
+            return self.form_invalid(form)
+
         messages.success(self.request, "Funcionário criado com sucesso.")
-        return super().form_valid(form)
+        return response
 
 
 class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
@@ -150,8 +167,17 @@ class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
         return queryset
 
     def form_valid(self, form):
+        try:
+            response = super().form_valid(form)
+        except IntegrityError as exc:
+            if not _is_duplicate_full_name_error(exc):
+                raise
+            form.add_error("full_name", DUPLICATE_EMPLOYEE_NAME_MESSAGE)
+            messages.error(self.request, "Corrija os erros do funcionario.")
+            return self.form_invalid(form)
+
         messages.success(self.request, "Funcionário atualizado com sucesso.")
-        return super().form_valid(form)
+        return response
 
 
 class EmployeeDeactivateView(RoleRequiredMixin, View):
