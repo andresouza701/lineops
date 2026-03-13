@@ -227,18 +227,49 @@ def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
 
     phone_number = row.get("phone_number") or ""
     if phone_number:
-        line_defaults: dict[str, object] = {
-            "sim_card": simcard,
-            "status": PhoneLine.Status.AVAILABLE,
-            "is_deleted": False,
-        }
         origem = _normalize_origem(row.get("origem"))
-        if origem:
-            line_defaults["origem"] = origem
-        PhoneLine.objects.update_or_create(
+        _upsert_phone_line_for_simcard(
+            simcard=simcard,
             phone_number=phone_number,
-            defaults=line_defaults,
+            origem=origem,
         )
+
+
+def _upsert_phone_line_for_simcard(
+    *,
+    simcard: SIMcard,
+    phone_number: str,
+    origem: str,
+) -> None:
+    existing_for_sim = PhoneLine.all_objects.filter(sim_card=simcard).first()
+    existing_for_number = PhoneLine.all_objects.filter(
+        phone_number=phone_number
+    ).first()
+
+    if (
+        existing_for_sim
+        and existing_for_number
+        and existing_for_sim.pk != existing_for_number.pk
+    ):
+        raise ValueError(
+            "Conflito de vínculo: o SIM informado já está associado a outra linha "
+            "e o número informado já pertence a outro registro."
+        )
+
+    if existing_for_sim:
+        phone_line = existing_for_sim
+    elif existing_for_number:
+        phone_line = existing_for_number
+    else:
+        phone_line = PhoneLine(phone_number=phone_number, sim_card=simcard)
+
+    phone_line.phone_number = phone_number
+    phone_line.sim_card = simcard
+    phone_line.status = PhoneLine.Status.AVAILABLE
+    phone_line.is_deleted = False
+    if origem:
+        phone_line.origem = origem
+    phone_line.save()
 
 
 def _ensure_required(row: dict[str, str], required_fields: list[str]) -> None:

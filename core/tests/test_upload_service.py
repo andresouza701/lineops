@@ -134,3 +134,55 @@ class UploadServiceTests(TestCase):
         self.assertEqual(summary.rows_processed, 0)
         self.assertEqual(len(summary.errors), 1)
         self.assertIn("Origem inválida", summary.errors[0])
+
+    def test_reuses_existing_line_linked_to_same_sim(self):
+        sim = SIMcard.objects.create(iccid="8900000000000000001", carrier="Carrier X")
+        line = PhoneLine.objects.create(
+            phone_number="+5511999991000",
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+        csv_content = (
+            "type;full_name;corporate_email;employee_id;"
+            "teams;pa;status;iccid;carrier;phone_number;origem\n"
+            "simcard;;;;;;AVAILABLE;8900000000000000001;"
+            "Carrier X;+5511999992000;SRVMEMU-01\n"
+        )
+        path = self._write("same_sim_new_number.csv", csv_content)
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(summary.rows_processed, 1)
+        self.assertFalse(summary.errors)
+        line.refresh_from_db()
+        self.assertEqual(line.phone_number, "+5511999992000")
+        self.assertEqual(line.origem, "SRVMEMU-01")
+
+    def test_reports_conflict_when_sim_and_number_belong_to_different_lines(self):
+        sim_a = SIMcard.objects.create(iccid="8900000000000000010", carrier="Carrier A")
+        sim_b = SIMcard.objects.create(iccid="8900000000000000020", carrier="Carrier B")
+        PhoneLine.objects.create(
+            phone_number="+5511999993000",
+            sim_card=sim_a,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        PhoneLine.objects.create(
+            phone_number="+5511999994000",
+            sim_card=sim_b,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+        csv_content = (
+            "type;full_name;corporate_email;employee_id;"
+            "teams;pa;status;iccid;carrier;phone_number;origem\n"
+            "simcard;;;;;;AVAILABLE;8900000000000000010;"
+            "Carrier A;+5511999994000;SRVMEMU-01\n"
+        )
+        path = self._write("sim_number_conflict.csv", csv_content)
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(summary.rows_processed, 0)
+        self.assertEqual(len(summary.errors), 1)
+        self.assertIn("Conflito de vínculo", summary.errors[0])
