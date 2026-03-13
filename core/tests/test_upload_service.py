@@ -187,32 +187,34 @@ class UploadServiceTests(TestCase):
         self.assertEqual(len(summary.errors), 1)
         self.assertIn("Conflito de vínculo", summary.errors[0])
 
-    def test_virtual_iccid_creates_distinct_lines_per_phone(self):
+    def test_iccid_accepts_alphanumeric_value(self):
         csv_content = (
             "type;full_name;corporate_email;employee_id;"
             "teams;pa;status;iccid;carrier;phone_number;origem\n"
-            "simcard;;;;;;AVAILABLE;VIRTUAL;ALGAR;4730260539;SRVMEMU-01\n"
-            "simcard;;;;;;AVAILABLE;VIRTUAL;ALGAR;4735113591;SRVMEMU-01\n"
+            "simcard;;;;;;AVAILABLE;VIRTUALABC123;ALGAR;4730260539;SRVMEMU-01\n"
         )
-        path = self._write("virtual_iccid.csv", csv_content)
+        path = self._write("alphanumeric_iccid.csv", csv_content)
 
         summary = process_upload_file(path)
 
-        self.assertEqual(summary.rows_processed, 2)
+        self.assertEqual(summary.rows_processed, 1)
         self.assertFalse(summary.errors)
-        self.assertEqual(SIMcard.objects.count(), 2)
-        self.assertEqual(PhoneLine.objects.count(), 2)
+        self.assertEqual(SIMcard.objects.count(), 1)
+        self.assertEqual(SIMcard.objects.get().iccid, "VIRTUALABC123")
+        self.assertEqual(PhoneLine.objects.count(), 1)
 
-    def test_virtual_iccid_without_phone_number_returns_error(self):
+    def test_iccid_is_required(self):
         csv_content = (
             "type;full_name;corporate_email;employee_id;"
             "teams;pa;status;iccid;carrier;phone_number;origem\n"
-            "simcard;;;;;;AVAILABLE;VIRTUAL;ALGAR;;SRVMEMU-01\n"
+            "simcard;;;;;;AVAILABLE;;ALGAR;4730260539;SRVMEMU-01\n"
         )
-        path = self._write("virtual_without_phone.csv", csv_content)
+        path = self._write("missing_iccid.csv", csv_content)
 
         summary = process_upload_file(path)
 
         self.assertEqual(summary.rows_processed, 0)
         self.assertEqual(len(summary.errors), 1)
-        self.assertIn("Quando ICCID for 'VIRTUAL'", summary.errors[0])
+        self.assertIn(
+            "Colunas obrigatórias ausentes ou vazias: iccid.", summary.errors[0]
+        )

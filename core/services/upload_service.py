@@ -209,7 +209,7 @@ def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
     _ensure_required(row, required)
 
     phone_number = row.get("phone_number") or ""
-    iccid = _resolve_iccid(row.get("iccid"), phone_number)
+    iccid = row["iccid"]
     status = _normalize_sim_status(row.get("status"))
     defaults = {
         "carrier": row["carrier"],
@@ -278,22 +278,6 @@ def _ensure_required(row: dict[str, str], required_fields: list[str]) -> None:
     if missing:
         joined = ", ".join(missing)
         raise ValueError(f"Colunas obrigatórias ausentes ou vazias: {joined}.")
-
-
-def _resolve_iccid(raw_iccid: str | None, phone_number: str) -> str:
-    iccid = (raw_iccid or "").strip()
-    if iccid.upper() != "VIRTUAL":
-        return iccid
-
-    if not phone_number:
-        raise ValueError("Quando ICCID for 'VIRTUAL', informe também o phone_number.")
-
-    digits = "".join(ch for ch in phone_number if ch.isdigit())
-    if not digits:
-        raise ValueError("phone_number inválido para gerar ICCID virtual.")
-
-    # ICCID do modelo aceita até 22 chars.
-    return f"VIRTUAL-{digits}"[:22]
 
 
 def _normalize_employee_status(raw_status: str | None) -> str:
