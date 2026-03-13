@@ -157,11 +157,11 @@ def _ingest_rows(rows: Iterable[dict[str, str]]) -> UploadSummary:
 
 
 def _upsert_employee(row: dict[str, str], summary: UploadSummary) -> None:
-    required = ["full_name", "corporate_email", "employee_id"]
+    required = ["full_name", "employee_id"]
     _ensure_required(row, required)
     teams = row.get("teams") or row.get("team") or row.get("department")
     if not teams:
-        raise ValueError("Coluna obrigatÃ³ria ausente ou vazia: teams.")
+        raise ValueError("Coluna obrigatória ausente ou vazia: teams.")
 
     status = _normalize_employee_status(row.get("status"))
     full_name = row["full_name"]
@@ -180,11 +180,13 @@ def _upsert_employee(row: dict[str, str], summary: UploadSummary) -> None:
 
     defaults = {
         "full_name": full_name,
-        "corporate_email": row["corporate_email"],
         "teams": teams,
         "status": status,
         "is_deleted": False,
     }
+    supervisor_email = row.get("corporate_email") or ""
+    if supervisor_email:
+        defaults["corporate_email"] = supervisor_email
 
     employee, created = Employee.all_objects.update_or_create(
         employee_id=employee_id,
@@ -238,7 +240,7 @@ def _ensure_required(row: dict[str, str], required_fields: list[str]) -> None:
 
 def _normalize_employee_status(raw_status: str | None) -> str:
     if not raw_status:
-        return Employee.Status.INACTIVE
+        return Employee.Status.ACTIVE
 
     normalized = slugify(raw_status).replace("-", "").lower()
     if normalized in EMPLOYEE_STATUS_ALIASES:
@@ -246,10 +248,7 @@ def _normalize_employee_status(raw_status: str | None) -> str:
 
     status = ALLOWED_EMPLOYEE_STATUSES.get(normalized)
     if not status:
-        raise ValueError(
-            "Status de usuário inválido. "
-            "Use 'active'/'inactive' ou 'ativo'/'inativo'."
-        )
+        raise ValueError("Status de usuário inválido. Use 'ativo' ou 'inativo'.")
     return status
 
 

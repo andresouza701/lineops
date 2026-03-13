@@ -22,8 +22,8 @@ class UploadServiceTests(TestCase):
     def test_process_creates_and_updates_entities(self):
         initial_csv = (
             "type,full_name,corporate_email,employee_id,department,status,iccid,carrier\n"
-            "employee,Alice Smith,alice@example.com,EMP-1,Tech,active,,\n"
-            "simcard,,,,,available,8999999999999999999,Carrier A\n"
+            "employee,Alice Smith,,EMP-1,Joinville,ativo,,\n"
+            "simcard,,,,,AVAILABLE,8999999999999999999,Carrier A\n"
         )
         path = self._write("initial.csv", initial_csv)
         summary = process_upload_file(path)
@@ -39,8 +39,8 @@ class UploadServiceTests(TestCase):
 
         update_csv = (
             "type,full_name,corporate_email,employee_id,department,status,iccid,carrier\n"
-            "employee,Alice Updated,alice@example.com,EMP-1,Operacoes,inactive,,\n"
-            "simcard,,,,,blocked,8999999999999999999,Carrier B\n"
+            "employee,Alice Updated,,EMP-1,Araquari,inativo,,\n"
+            "simcard,,,,,BLOCKED,8999999999999999999,Carrier B\n"
         )
         update_path = self._write("update.csv", update_csv)
         update_summary = process_upload_file(update_path)
@@ -57,7 +57,7 @@ class UploadServiceTests(TestCase):
     def test_process_collects_errors(self):
         broken_csv = (
             "type,full_name,corporate_email,employee_id,department,status,iccid,carrier\n"
-            "employee,,,,inactive,,\n"
+            "employee,,,,,,\n"
             "simcard,,,,,invalid,123,\n"
         )
         path = self._write("broken.csv", broken_csv)
@@ -79,8 +79,8 @@ class UploadServiceTests(TestCase):
 
         csv_content = (
             "type,full_name,corporate_email,employee_id,department,status,iccid,carrier\n"
-            "employee,teste super 01,supervisor2@test.com,"
-            "EMP-DUP-2,Operacoes,active,,\n"
+            "employee,teste super 01,,"
+            "EMP-DUP-2,Joinville,ativo,,\n"
         )
         path = self._write("duplicate_name.csv", csv_content)
 
@@ -96,8 +96,8 @@ class UploadServiceTests(TestCase):
     def test_process_accepts_semicolon_delimited_csv(self):
         csv_content = (
             "type;full_name;corporate_email;employee_id;department;status;iccid;carrier;phone_number\n"
-            "employee;Ana Paula;ana.paula@example.com;EMP-9;Financeiro;active;;;\n"
-            "simcard;;;;;available;8999999999999999999;Carrier QA;+5511999990001\n"
+            "employee;Ana Paula;;EMP-9;Joinville;ativo;;;\n"
+            "simcard;;;;;AVAILABLE;8999999999999999999;Carrier QA;+5511999990001\n"
         )
         path = self._write("semicolon.csv", csv_content)
 
