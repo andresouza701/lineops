@@ -238,8 +238,10 @@ LOGGING = {
     "handlers": {
         "file": {
             "level": "INFO",
-            "class": "logging.FileHandler",
+            "class": "logging.handlers.RotatingFileHandler",
             "filename": os.path.join(BASE_DIR, "logs/app.log"),
+            "maxBytes": 10 * 1024 * 1024,
+            "backupCount": 5,
             "formatter": "structured",
         },
     },
