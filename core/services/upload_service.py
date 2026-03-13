@@ -208,6 +208,8 @@ def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
     required = ["iccid", "carrier"]
     _ensure_required(row, required)
 
+    phone_number = row.get("phone_number") or ""
+    iccid = _resolve_iccid(row.get("iccid"), phone_number)
     status = _normalize_sim_status(row.get("status"))
     defaults = {
         "carrier": row["carrier"],
@@ -215,9 +217,9 @@ def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
         "is_deleted": False,
     }
 
-    simcard = SIMcard.all_objects.filter(iccid=row["iccid"]).order_by("-id").first()
+    simcard = SIMcard.all_objects.filter(iccid=iccid).order_by("-id").first()
     if simcard is None:
-        simcard = SIMcard.objects.create(iccid=row["iccid"], **defaults)
+        simcard = SIMcard.objects.create(iccid=iccid, **defaults)
         summary.simcards_created += 1
     else:
         for field_name, value in defaults.items():
@@ -225,7 +227,6 @@ def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
         simcard.save(update_fields=[*defaults.keys(), "updated_at"])
         summary.simcards_updated += 1
 
-    phone_number = row.get("phone_number") or ""
     if phone_number:
         origem = _normalize_origem(row.get("origem"))
         _upsert_phone_line_for_simcard(
@@ -277,6 +278,22 @@ def _ensure_required(row: dict[str, str], required_fields: list[str]) -> None:
     if missing:
         joined = ", ".join(missing)
         raise ValueError(f"Colunas obrigatórias ausentes ou vazias: {joined}.")
+
+
+def _resolve_iccid(raw_iccid: str | None, phone_number: str) -> str:
+    iccid = (raw_iccid or "").strip()
+    if iccid.upper() != "VIRTUAL":
+        return iccid
+
+    if not phone_number:
+        raise ValueError("Quando ICCID for 'VIRTUAL', informe também o phone_number.")
+
+    digits = "".join(ch for ch in phone_number if ch.isdigit())
+    if not digits:
+        raise ValueError("phone_number inválido para gerar ICCID virtual.")
+
+    # ICCID do modelo aceita até 22 chars.
+    return f"VIRTUAL-{digits}"[:22]
 
 
 def _normalize_employee_status(raw_status: str | None) -> str:
