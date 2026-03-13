@@ -88,3 +88,19 @@ class UploadViewTests(TestCase):
 
         self.assertFalse(form.is_valid())
         self.assertIn("Arquivo XLSX invalido ou corrompido.", form.errors["file"])
+
+    def test_upload_accepts_semicolon_delimited_csv(self):
+        csv_content = (
+            "type;full_name;corporate_email;employee_id;department;status;iccid;carrier;phone_number\n"
+            "employee;Ana Paula;ana.paula@example.com;EMP-9;Financeiro;active;;;\n"
+            "simcard;;;;;available;8999999999999999999;Carrier QA;+5511999990001\n"
+        )
+        uploaded_file = SimpleUploadedFile(
+            "bulk.csv", csv_content.encode("utf-8"), content_type="text/csv"
+        )
+
+        response = self.client.post(reverse("upload"), {"file": uploaded_file})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Employee.objects.count(), 1)
+        self.assertEqual(SIMcard.objects.count(), 1)

@@ -92,3 +92,18 @@ class UploadServiceTests(TestCase):
             "Ja existe um usuario cadastrado com este nome.", summary.errors[0]
         )
         self.assertEqual(Employee.objects.filter(is_deleted=False).count(), 1)
+
+    def test_process_accepts_semicolon_delimited_csv(self):
+        csv_content = (
+            "type;full_name;corporate_email;employee_id;department;status;iccid;carrier;phone_number\n"
+            "employee;Ana Paula;ana.paula@example.com;EMP-9;Financeiro;active;;;\n"
+            "simcard;;;;;available;8999999999999999999;Carrier QA;+5511999990001\n"
+        )
+        path = self._write("semicolon.csv", csv_content)
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(summary.rows_processed, 2)
+        self.assertFalse(summary.errors)
+        self.assertEqual(Employee.objects.count(), 1)
+        self.assertEqual(SIMcard.objects.count(), 1)

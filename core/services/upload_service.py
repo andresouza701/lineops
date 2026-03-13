@@ -70,8 +70,19 @@ def process_upload_file(file_path: Path) -> UploadSummary:
 
 
 def _parse_csv(file_path: Path) -> list[dict[str, str]]:
-    with file_path.open("r", encoding="utf-8") as csv_file:
-        reader = csv.DictReader(csv_file)
+    with file_path.open("r", encoding="utf-8-sig", newline="") as csv_file:
+        sample = csv_file.read(2048)
+        csv_file.seek(0)
+
+        delimiter = ","
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=",;")
+            delimiter = dialect.delimiter
+        except csv.Error:
+            if sample.count(";") > sample.count(","):
+                delimiter = ";"
+
+        reader = csv.DictReader(csv_file, delimiter=delimiter)
         return [_normalize_row(row) for row in reader]
 
 
