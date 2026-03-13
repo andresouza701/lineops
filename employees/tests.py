@@ -1,7 +1,8 @@
 from unittest.mock import patch
 
+from django.contrib import admin
 from django.db import IntegrityError
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
 from allocations.models import LineAllocation
@@ -9,7 +10,7 @@ from core.current_user import clear_current_user, set_current_user
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 
-from .admin import EmployeeAdminForm
+from .admin import EmployeeAdmin, EmployeeAdminForm
 from .forms import EmployeeForm
 from .models import Employee, EmployeeHistory
 
@@ -439,3 +440,44 @@ class EmployeeAdminFormValidationTest(TestCase):
         )
 
         self.assertTrue(form.is_valid())
+
+
+class EmployeeAdminDeleteBehaviorTest(TestCase):
+    def setUp(self) -> None:
+        self.request = RequestFactory().get("/admin/employees/employee/")
+        self.employee_admin = EmployeeAdmin(Employee, admin.site)
+
+        self.employee = Employee.objects.create(
+            full_name="Negociador Admin",
+            corporate_email="supervisor@test.com",
+            employee_id="Pepsico",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+        self.sim = SIMcard.objects.create(
+            iccid="8900000000000099999",
+            carrier="Carrier Admin",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.line = PhoneLine.objects.create(
+            phone_number="+5511999997788",
+            sim_card=self.sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=self.line,
+            is_active=True,
+        )
+
+    def test_get_deleted_objects_does_not_report_protected_relations(self) -> None:
+        _, _, _, protected = self.employee_admin.get_deleted_objects(
+            [self.employee],
+            self.request,
+        )
+        self.assertEqual(protected, [])
+
+    def test_delete_model_soft_deletes_even_with_allocation(self) -> None:
+        self.employee_admin.delete_model(self.request, self.employee)
+        self.employee.refresh_from_db()
+        self.assertTrue(self.employee.is_deleted)

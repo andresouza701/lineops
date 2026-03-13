@@ -54,3 +54,19 @@ class EmployeeAdmin(admin.ModelAdmin):
         if request.user.role == "super":
             queryset = queryset.filter(corporate_email=request.user.email)
         return queryset
+
+    # Admin delete must respect soft-delete semantics from Employee model/queryset.
+    # The default admin collector checks protected relations as if it were a hard
+    # delete, which blocks valid soft deletions.
+    def get_deleted_objects(self, objs, request):
+        deleted_objects = [str(obj) for obj in objs]
+        model_count = {self.model._meta.verbose_name: len(deleted_objects)}
+        perms_needed = set()
+        protected = []
+        return deleted_objects, model_count, perms_needed, protected
+
+    def delete_model(self, request, obj):
+        obj.delete()
+
+    def delete_queryset(self, request, queryset):
+        queryset.delete()
