@@ -35,7 +35,7 @@ class UploadViewTests(TestCase):
 
     def test_upload_creates_records_and_renders_summary(self):
         csv_content = (
-            "type,full_name,corporate_email,employee_id,department,status,iccid,carrier\n"
+            "type,full_name,corporate_email,employee_id,teams,status,iccid,carrier\n"
             "employee,Ana Paula,,EMP-9,Joinville,ativo,,\n"
             "simcard,,,,,AVAILABLE,8999999999999999999,Carrier QA\n"
         )
@@ -91,9 +91,9 @@ class UploadViewTests(TestCase):
 
     def test_upload_accepts_semicolon_delimited_csv(self):
         csv_content = (
-            "type;full_name;corporate_email;employee_id;department;status;iccid;carrier;phone_number\n"
-            "employee;Ana Paula;;EMP-9;Joinville;ativo;;;\n"
-            "simcard;;;;;AVAILABLE;8999999999999999999;Carrier QA;+5511999990001\n"
+            "type;full_name;corporate_email;employee_id;teams;pa;status;iccid;carrier;phone_number;origem\n"
+            "employee;Ana Paula;;EMP-9;Joinville;;ativo;;;;\n"
+            "simcard;;;;;;AVAILABLE;8999999999999999999;Carrier QA;+5511999990001;\n"
         )
         uploaded_file = SimpleUploadedFile(
             "bulk.csv", csv_content.encode("utf-8"), content_type="text/csv"

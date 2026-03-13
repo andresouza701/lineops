@@ -12,6 +12,8 @@ from django.utils.text import slugify
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 
+ALLOWED_ORIGEM_VALUES = {v.lower(): v for v in PhoneLine.Origem.values}
+
 logger = logging.getLogger(__name__)
 
 DUPLICATE_EMPLOYEE_NAME_MESSAGE = "Ja existe um usuario cadastrado com este nome."
@@ -188,6 +190,10 @@ def _upsert_employee(row: dict[str, str], summary: UploadSummary) -> None:
     if supervisor_email:
         defaults["corporate_email"] = supervisor_email
 
+    pa = row.get("pa") or ""
+    if pa:
+        defaults["pa"] = pa
+
     employee, created = Employee.all_objects.update_or_create(
         employee_id=employee_id,
         defaults=defaults,
@@ -221,13 +227,17 @@ def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
 
     phone_number = row.get("phone_number") or ""
     if phone_number:
+        line_defaults: dict[str, object] = {
+            "sim_card": simcard,
+            "status": PhoneLine.Status.AVAILABLE,
+            "is_deleted": False,
+        }
+        origem = _normalize_origem(row.get("origem"))
+        if origem:
+            line_defaults["origem"] = origem
         PhoneLine.objects.update_or_create(
             phone_number=phone_number,
-            defaults={
-                "sim_card": simcard,
-                "status": PhoneLine.Status.AVAILABLE,
-                "is_deleted": False,
-            },
+            defaults=line_defaults,
         )
 
 
@@ -250,6 +260,18 @@ def _normalize_employee_status(raw_status: str | None) -> str:
     if not status:
         raise ValueError("Status de usuário inválido. Use 'ativo' ou 'inativo'.")
     return status
+
+
+def _normalize_origem(raw_origem: str | None) -> str:
+    if not raw_origem:
+        return ""
+    normalized = raw_origem.strip().upper()
+    if normalized in PhoneLine.Origem.values:
+        return normalized
+    raise ValueError(
+        f"Origem inválida: '{raw_origem}'. "
+        f"Valores aceitos: {', '.join(PhoneLine.Origem.values)}."
+    )
 
 
 def _normalize_sim_status(raw_status: str | None) -> str:

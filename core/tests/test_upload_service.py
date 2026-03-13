@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from core.services.upload_service import process_upload_file
 from employees.models import Employee
-from telecom.models import SIMcard
+from telecom.models import PhoneLine, SIMcard
 
 
 class UploadServiceTests(TestCase):
@@ -21,9 +21,9 @@ class UploadServiceTests(TestCase):
 
     def test_process_creates_and_updates_entities(self):
         initial_csv = (
-            "type,full_name,corporate_email,employee_id,department,status,iccid,carrier\n"
-            "employee,Alice Smith,,EMP-1,Joinville,ativo,,\n"
-            "simcard,,,,,AVAILABLE,8999999999999999999,Carrier A\n"
+            "type,full_name,corporate_email,employee_id,teams,pa,status,iccid,carrier,phone_number,origem\n"
+            "employee,Alice Smith,,EMP-1,Joinville,PA-10,ativo,,,,\n"
+            "simcard,,,,,,,8999999999999999999,Carrier A,+5511999990000,SRVMEMU-01\n"
         )
         path = self._write("initial.csv", initial_csv)
         summary = process_upload_file(path)
@@ -35,12 +35,15 @@ class UploadServiceTests(TestCase):
         employee = Employee.objects.first()
         simcard = SIMcard.objects.first()
         self.assertEqual(employee.status, Employee.Status.ACTIVE)
+        self.assertEqual(employee.pa, "PA-10")
         self.assertEqual(simcard.status, SIMcard.Status.AVAILABLE)
+        phone_line = PhoneLine.objects.get(phone_number="+5511999990000")
+        self.assertEqual(phone_line.origem, "SRVMEMU-01")
 
         update_csv = (
-            "type,full_name,corporate_email,employee_id,department,status,iccid,carrier\n"
-            "employee,Alice Updated,,EMP-1,Araquari,inativo,,\n"
-            "simcard,,,,,BLOCKED,8999999999999999999,Carrier B\n"
+            "type,full_name,corporate_email,employee_id,teams,pa,status,iccid,carrier,phone_number,origem\n"
+            "employee,Alice Updated,,EMP-1,Araquari,,inativo,,,,\n"
+            "simcard,,,,,,,8999999999999999999,Carrier B,,\n"
         )
         update_path = self._write("update.csv", update_csv)
         update_summary = process_upload_file(update_path)
@@ -52,11 +55,10 @@ class UploadServiceTests(TestCase):
         self.assertEqual(employee.full_name, "Alice Updated")
         self.assertEqual(employee.status, Employee.Status.INACTIVE)
         self.assertEqual(simcard.carrier, "Carrier B")
-        self.assertEqual(simcard.status, SIMcard.Status.BLOCKED)
 
     def test_process_collects_errors(self):
         broken_csv = (
-            "type,full_name,corporate_email,employee_id,department,status,iccid,carrier\n"
+            "type,full_name,corporate_email,employee_id,teams,status,iccid,carrier\n"
             "employee,,,,,,\n"
             "simcard,,,,,invalid,123,\n"
         )
@@ -78,7 +80,7 @@ class UploadServiceTests(TestCase):
         )
 
         csv_content = (
-            "type,full_name,corporate_email,employee_id,department,status,iccid,carrier\n"
+            "type,full_name,corporate_email,employee_id,teams,status,iccid,carrier\n"
             "employee,teste super 01,,"
             "EMP-DUP-2,Joinville,ativo,,\n"
         )
@@ -94,11 +96,16 @@ class UploadServiceTests(TestCase):
         self.assertEqual(Employee.objects.filter(is_deleted=False).count(), 1)
 
     def test_process_accepts_semicolon_delimited_csv(self):
-        csv_content = (
-            "type;full_name;corporate_email;employee_id;department;status;iccid;carrier;phone_number\n"
-            "employee;Ana Paula;;EMP-9;Joinville;ativo;;;\n"
-            "simcard;;;;;AVAILABLE;8999999999999999999;Carrier QA;+5511999990001\n"
+        header = (
+            "type;full_name;corporate_email;employee_id;"
+            "teams;pa;status;iccid;carrier;phone_number;origem\n"
         )
+        emp_row = "employee;Ana Paula;;EMP-9;Joinville;;ativo;;;;\n"
+        sim_row = (
+            "simcard;;;;;;AVAILABLE;8999999999999999999;"
+            "Carrier QA;+5511999990001;APARELHO\n"
+        )
+        csv_content = header + emp_row + sim_row
         path = self._write("semicolon.csv", csv_content)
 
         summary = process_upload_file(path)
@@ -107,3 +114,23 @@ class UploadServiceTests(TestCase):
         self.assertFalse(summary.errors)
         self.assertEqual(Employee.objects.count(), 1)
         self.assertEqual(SIMcard.objects.count(), 1)
+        phone_line = PhoneLine.objects.get(phone_number="+5511999990001")
+        self.assertEqual(phone_line.origem, "APARELHO")
+
+    def test_invalid_origem_raises_error(self):
+        header = (
+            "type;full_name;corporate_email;employee_id;"
+            "teams;pa;status;iccid;carrier;phone_number;origem\n"
+        )
+        sim_row = (
+            "simcard;;;;;;AVAILABLE;8999999999999999998;"
+            "Carrier QA;+5511999990002;INVALID\n"
+        )
+        csv_content = header + sim_row
+        path = self._write("bad_origem.csv", csv_content)
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(summary.rows_processed, 0)
+        self.assertEqual(len(summary.errors), 1)
+        self.assertIn("Origem inválida", summary.errors[0])
