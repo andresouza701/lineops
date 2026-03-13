@@ -16,8 +16,6 @@ ALLOWED_ORIGEM_VALUES = {v.lower(): v for v in PhoneLine.Origem.values}
 
 logger = logging.getLogger(__name__)
 
-DUPLICATE_EMPLOYEE_NAME_MESSAGE = "Ja existe um usuario cadastrado com este nome."
-
 
 @dataclass
 class UploadSummary:
@@ -169,39 +167,36 @@ def _upsert_employee(row: dict[str, str], summary: UploadSummary) -> None:
     full_name = row["full_name"]
     employee_id = row["employee_id"]
 
-    duplicate_name_exists = (
-        Employee.all_objects.filter(
-            full_name__iexact=full_name,
-            is_deleted=False,
-        )
-        .exclude(employee_id=employee_id)
-        .exists()
-    )
-    if duplicate_name_exists:
-        raise ValueError(DUPLICATE_EMPLOYEE_NAME_MESSAGE)
+    # full_name is the unique key (unique constraint on the model, case-insensitive).
+    # employee_id (Carteira) is NOT unique — multiple employees can share the same
+    # portfolio, so it must NOT be used as the lookup key.
+    existing = Employee.all_objects.filter(
+        full_name__iexact=full_name, is_deleted=False
+    ).first()
 
-    defaults = {
+    fields: dict[str, object] = {
         "full_name": full_name,
+        "employee_id": employee_id,
         "teams": teams,
         "status": status,
         "is_deleted": False,
     }
     supervisor_email = row.get("corporate_email") or ""
     if supervisor_email:
-        defaults["corporate_email"] = supervisor_email
+        fields["corporate_email"] = supervisor_email
 
     pa = row.get("pa") or ""
     if pa:
-        defaults["pa"] = pa
+        fields["pa"] = pa
 
-    employee, created = Employee.all_objects.update_or_create(
-        employee_id=employee_id,
-        defaults=defaults,
-    )
-    if created:
-        summary.employees_created += 1
-    else:
+    if existing:
+        for field_name, value in fields.items():
+            setattr(existing, field_name, value)
+        existing.save()
         summary.employees_updated += 1
+    else:
+        Employee.objects.create(**fields)
+        summary.employees_created += 1
 
 
 def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:

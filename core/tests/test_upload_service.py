@@ -22,7 +22,7 @@ class UploadServiceTests(TestCase):
     def test_process_creates_and_updates_entities(self):
         initial_csv = (
             "type,full_name,corporate_email,employee_id,teams,pa,status,iccid,carrier,phone_number,origem\n"
-            "employee,Alice Smith,,EMP-1,Joinville,PA-10,ativo,,,,\n"
+            "employee,Alice Smith,,Pepsico,Joinville,PA-10,ativo,,,,\n"
             "simcard,,,,,,,8999999999999999999,Carrier A,+5511999990000,SRVMEMU-01\n"
         )
         path = self._write("initial.csv", initial_csv)
@@ -40,9 +40,10 @@ class UploadServiceTests(TestCase):
         phone_line = PhoneLine.objects.get(phone_number="+5511999990000")
         self.assertEqual(phone_line.origem, "SRVMEMU-01")
 
+        # Update by same full_name — changes carteira and status
         update_csv = (
             "type,full_name,corporate_email,employee_id,teams,pa,status,iccid,carrier,phone_number,origem\n"
-            "employee,Alice Updated,,EMP-1,Araquari,,inativo,,,,\n"
+            "employee,Alice Smith,,Natura,Araquari,,inativo,,,,\n"
             "simcard,,,,,,,8999999999999999999,Carrier B,,\n"
         )
         update_path = self._write("update.csv", update_csv)
@@ -52,7 +53,7 @@ class UploadServiceTests(TestCase):
         self.assertEqual(update_summary.simcards_updated, 1)
         employee.refresh_from_db()
         simcard.refresh_from_db()
-        self.assertEqual(employee.full_name, "Alice Updated")
+        self.assertEqual(employee.employee_id, "Natura")
         self.assertEqual(employee.status, Employee.Status.INACTIVE)
         self.assertEqual(simcard.carrier, "Carrier B")
 
@@ -70,30 +71,22 @@ class UploadServiceTests(TestCase):
         self.assertEqual(Employee.objects.count(), 0)
         self.assertEqual(SIMcard.objects.count(), 0)
 
-    def test_process_reports_duplicate_employee_name_with_different_employee_id(self):
-        Employee.objects.create(
-            full_name="Teste Super 01",
-            corporate_email="supervisor1@test.com",
-            employee_id="EMP-DUP-1",
-            teams=Employee.UnitChoices.JOINVILLE,
-            status=Employee.Status.ACTIVE,
-        )
-
+    def test_multiple_employees_same_carteira_each_created(self):
+        """Two employees sharing the same portfolio (employee_id) must each
+        get their own record since the unique key is full_name, not employee_id."""
         csv_content = (
             "type,full_name,corporate_email,employee_id,teams,status,iccid,carrier\n"
-            "employee,teste super 01,,"
-            "EMP-DUP-2,Joinville,ativo,,\n"
+            "employee,Joana Silva,,Pepsico,Joinville,ativo,,\n"
+            "employee,Carlos Souza,,Pepsico,Joinville,ativo,,\n"
         )
-        path = self._write("duplicate_name.csv", csv_content)
+        path = self._write("same_carteira.csv", csv_content)
 
         summary = process_upload_file(path)
 
-        self.assertEqual(summary.rows_processed, 0)
-        self.assertEqual(len(summary.errors), 1)
-        self.assertIn(
-            "Ja existe um usuario cadastrado com este nome.", summary.errors[0]
-        )
-        self.assertEqual(Employee.objects.filter(is_deleted=False).count(), 1)
+        self.assertEqual(summary.rows_processed, 2)
+        self.assertFalse(summary.errors)
+        self.assertEqual(summary.employees_created, 2)
+        self.assertEqual(Employee.objects.count(), 2)
 
     def test_process_accepts_semicolon_delimited_csv(self):
         header = (
