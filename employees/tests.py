@@ -9,6 +9,7 @@ from core.current_user import clear_current_user, set_current_user
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 
+from .admin import EmployeeAdminForm
 from .forms import EmployeeForm
 from .models import Employee, EmployeeHistory
 
@@ -386,3 +387,55 @@ class EmployeeCreateUpdateIntegrityHandlingTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Corrija os erros do funcionario.")
         self.assertContains(response, "Ja existe um usuario cadastrado com este nome.")
+
+
+class EmployeeAdminFormValidationTest(TestCase):
+    def test_admin_form_rejects_duplicate_full_name_case_insensitive(self) -> None:
+        Employee.objects.create(
+            full_name="Teste Super 01",
+            corporate_email="supervisor1@test.com",
+            employee_id="EMP-ADM-1",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+
+        form = EmployeeAdminForm(
+            data={
+                "full_name": " teste super 01 ",
+                "corporate_email": "supervisor2@test.com",
+                "employee_id": "EMP-ADM-2",
+                "teams": Employee.UnitChoices.JOINVILLE,
+                "status": Employee.Status.ACTIVE,
+                "line_status": Employee.LineStatus.ACTIVE,
+                "pa": "",
+                "is_deleted": False,
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("full_name", form.errors)
+
+    def test_admin_form_allows_same_name_for_same_instance(self) -> None:
+        employee = Employee.objects.create(
+            full_name="Teste Super 02",
+            corporate_email="supervisor1@test.com",
+            employee_id="EMP-ADM-3",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+
+        form = EmployeeAdminForm(
+            data={
+                "full_name": " teste super 02 ",
+                "corporate_email": "supervisor1@test.com",
+                "employee_id": "EMP-ADM-3",
+                "teams": Employee.UnitChoices.JOINVILLE,
+                "status": Employee.Status.ACTIVE,
+                "line_status": Employee.LineStatus.ACTIVE,
+                "pa": "",
+                "is_deleted": False,
+            },
+            instance=employee,
+        )
+
+        self.assertTrue(form.is_valid())
