@@ -211,66 +211,49 @@ def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
     phone_number = row.get("phone_number") or ""
     iccid = row["iccid"]
     status = _normalize_sim_status(row.get("status"))
-    defaults = {
+    sim_defaults = {
         "carrier": row["carrier"],
         "status": status,
         "is_deleted": False,
     }
 
-    simcard = SIMcard.all_objects.filter(iccid=iccid).order_by("-id").first()
-    if simcard is None:
-        simcard = SIMcard.objects.create(iccid=iccid, **defaults)
-        summary.simcards_created += 1
-    else:
-        for field_name, value in defaults.items():
-            setattr(simcard, field_name, value)
-        simcard.save(update_fields=[*defaults.keys(), "updated_at"])
-        summary.simcards_updated += 1
-
     if phone_number:
+        # Primary key is the phone number: find the SIMcard through its line.
+        # This allows multiple rows with the same ICCID (e.g. VIRTUAL) to each
+        # produce a distinct SIM + line pair.
+        existing_line = PhoneLine.all_objects.filter(phone_number=phone_number).first()
+        if existing_line:
+            simcard = existing_line.sim_card
+            for field_name, value in sim_defaults.items():
+                setattr(simcard, field_name, value)
+            simcard.save(update_fields=[*sim_defaults.keys(), "updated_at"])
+            summary.simcards_updated += 1
+        else:
+            # No existing line for this number → always create a fresh SIMcard
+            # so it can own its own 1-to-1 PhoneLine.
+            simcard = SIMcard.objects.create(iccid=iccid, **sim_defaults)
+            summary.simcards_created += 1
+
         origem = _normalize_origem(row.get("origem"))
-        _upsert_phone_line_for_simcard(
-            simcard=simcard,
-            phone_number=phone_number,
-            origem=origem,
-        )
-
-
-def _upsert_phone_line_for_simcard(
-    *,
-    simcard: SIMcard,
-    phone_number: str,
-    origem: str,
-) -> None:
-    existing_for_sim = PhoneLine.all_objects.filter(sim_card=simcard).first()
-    existing_for_number = PhoneLine.all_objects.filter(
-        phone_number=phone_number
-    ).first()
-
-    if (
-        existing_for_sim
-        and existing_for_number
-        and existing_for_sim.pk != existing_for_number.pk
-    ):
-        raise ValueError(
-            "Conflito de vínculo: o SIM informado já está associado a outra linha "
-            "e o número informado já pertence a outro registro."
-        )
-
-    if existing_for_sim:
-        phone_line = existing_for_sim
-    elif existing_for_number:
-        phone_line = existing_for_number
+        phone_line = existing_line or PhoneLine(phone_number=phone_number)
+        phone_line.phone_number = phone_number
+        phone_line.sim_card = simcard
+        phone_line.status = PhoneLine.Status.AVAILABLE
+        phone_line.is_deleted = False
+        if origem:
+            phone_line.origem = origem
+        phone_line.save()
     else:
-        phone_line = PhoneLine(phone_number=phone_number, sim_card=simcard)
-
-    phone_line.phone_number = phone_number
-    phone_line.sim_card = simcard
-    phone_line.status = PhoneLine.Status.AVAILABLE
-    phone_line.is_deleted = False
-    if origem:
-        phone_line.origem = origem
-    phone_line.save()
+        # No phone number: ICCID is the primary key.
+        simcard = SIMcard.all_objects.filter(iccid=iccid).order_by("-id").first()
+        if simcard is None:
+            simcard = SIMcard.objects.create(iccid=iccid, **sim_defaults)
+            summary.simcards_created += 1
+        else:
+            for field_name, value in sim_defaults.items():
+                setattr(simcard, field_name, value)
+            simcard.save(update_fields=[*sim_defaults.keys(), "updated_at"])
+            summary.simcards_updated += 1
 
 
 def _ensure_required(row: dict[str, str], required_fields: list[str]) -> None:
