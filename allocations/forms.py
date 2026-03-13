@@ -5,7 +5,6 @@ from core.constants import B2B_PORTFOLIOS, B2C_PORTFOLIOS
 from core.validation import (
     normalize_iccid,
     normalize_phone_number,
-    validate_iccid_format,
     validate_phone_number_format,
 )
 from employees.models import Employee
@@ -108,10 +107,12 @@ class CombinedRegistrationForm(forms.Form):
 
     def clean_iccid(self):
         iccid = normalize_iccid(self.cleaned_data["iccid"])
-        if self.cleaned_data.get("line_action") == "new" and iccid:
-            validate_iccid_format(iccid)
-            if SIMcard.objects.filter(iccid=iccid, is_deleted=False).exists():
-                raise forms.ValidationError("ICCID já cadastrado.")
+        if (
+            self.cleaned_data.get("line_action") == "new"
+            and iccid
+            and SIMcard.objects.filter(iccid=iccid, is_deleted=False).exists()
+        ):
+            raise forms.ValidationError("ICCID já cadastrado.")
         return iccid
 
     def clean_phone_number(self):
@@ -235,10 +236,12 @@ class TelephonyAssignmentForm(forms.Form):
 
     def clean_iccid(self):
         iccid = normalize_iccid(self.cleaned_data["iccid"])
-        if self.cleaned_data.get("line_action") == "new" and iccid:
-            validate_iccid_format(iccid)
-            if SIMcard.objects.filter(iccid=iccid, is_deleted=False).exists():
-                raise forms.ValidationError("ICCID já cadastrado!")
+        if (
+            self.cleaned_data.get("line_action") == "new"
+            and iccid
+            and SIMcard.objects.filter(iccid=iccid, is_deleted=False).exists()
+        ):
+            raise forms.ValidationError("ICCID já cadastrado!")
         return iccid
 
     def clean_phone_number(self):

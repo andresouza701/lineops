@@ -129,15 +129,16 @@ class TelephonyRegistrationFlowTests(TestCase):
         self.line.refresh_from_db()
         self.assertEqual(self.line.status, PhoneLine.Status.ALLOCATED)
 
-    def test_new_line_rejects_invalid_iccid_and_phone_number_format(self):
+    def test_new_line_rejects_invalid_phone_number_format(self):
         response = self.client.post(
             reverse("allocations:allocation_list"),
             {
                 "action": "telephony",
                 "line_action": "new",
                 "phone_number": "invalid-phone",
-                "iccid": "12345",
+                "iccid": "ICCID-TEXTO-01",
                 "carrier": "CarrierNew",
+                "origem": PhoneLine.Origem.APARELHO,
             },
             follow=True,
         )
@@ -147,6 +148,24 @@ class TelephonyRegistrationFlowTests(TestCase):
         self.assertFalse(
             PhoneLine.objects.filter(phone_number="invalid-phone").exists()
         )
+
+    def test_new_line_accepts_textual_iccid(self):
+        response = self.client.post(
+            reverse("allocations:allocation_list"),
+            {
+                "action": "telephony",
+                "line_action": "new",
+                "phone_number": "+5511999990888",
+                "iccid": "ICCID-TEXTO-01",
+                "carrier": "CarrierText",
+                "origem": PhoneLine.Origem.APARELHO,
+            },
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        line = PhoneLine.objects.get(phone_number="+5511999990888")
+        self.assertEqual(line.sim_card.iccid, "ICCID-TEXTO-01")
 
     def test_employee_registration_rejects_duplicate_full_name(self):
         response = self.client.post(
