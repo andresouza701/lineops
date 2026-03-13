@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Backup diário do PostgreSQL — mantém os últimos 7 dias
+# Limpa sessões Django expiradas semanalmente (quando WEEKDAY=0, domingo)
 # Agendar no crontab do servidor:
 #   0 2 * * * /opt/app/src/lineops/scripts/backup_db.sh >> /var/log/lineops_backup.log 2>&1
 
@@ -32,3 +33,10 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backup concluído: $(du -sh "$DEST" | cut -
 # Remove backups mais antigos que RETENTION_DAYS
 find "$BACKUP_DIR" -name "lineops_*.sql.gz" -mtime +"$RETENTION_DAYS" -delete
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Limpeza: backups com mais de ${RETENTION_DAYS} dias removidos"
+
+# Remove sessões Django expiradas todo domingo
+if [ "$(date +%u)" = "7" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Removendo sessões Django expiradas..."
+    docker exec lineops-app-prod python manage.py clearsessions
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Sessões limpas"
+fi

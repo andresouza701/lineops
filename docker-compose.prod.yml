@@ -3,6 +3,13 @@ services:
     image: postgres:15.8
     container_name: lineops-db-prod
     restart: unless-stopped
+    command: >
+      postgres
+      -c shared_buffers=512MB
+      -c work_mem=16MB
+      -c maintenance_work_mem=128MB
+      -c effective_cache_size=2GB
+      -c max_connections=100
     env_file:
       - .env.prod
     environment:
