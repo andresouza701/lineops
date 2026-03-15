@@ -659,6 +659,9 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
             supervisor_email: {
                 "supervisor": supervisor_email,
                 "rows": {},
+                "total_logged": 0,
+                "total_with_line": 0,
+                "total_without_line": 0,
                 "total_reconnect": 0,
                 "total_new_number": 0,
             }
@@ -668,6 +671,12 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
         employees = get_supervised_employees_queryset(self.request.user).filter(
             is_deleted=False,
         )
+        active_allocated_employee_ids = set(
+            LineAllocation.objects.filter(
+                is_active=True,
+                employee_id__in=employees.values_list("id", flat=True),
+            ).values_list("employee_id", flat=True)
+        )
         for employee in employees:
             supervisor = employee.corporate_email or "Sem supervisor"
             portfolio = employee.employee_id or "Sem carteira"
@@ -676,19 +685,36 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
                 {
                     "supervisor": supervisor,
                     "rows": {},
+                    "total_logged": 0,
+                    "total_with_line": 0,
+                    "total_without_line": 0,
                     "total_reconnect": 0,
                     "total_new_number": 0,
                 },
             )
-            supervisor_group["rows"].setdefault(
+            row = supervisor_group["rows"].setdefault(
                 portfolio,
                 {
                     "portfolio": portfolio,
+                    "logged_count": 0,
+                    "with_line_count": 0,
+                    "without_line_count": 0,
                     "reconnect_count": 0,
                     "new_number_count": 0,
-                    "total": 0,
                 },
             )
+            is_logged = employee.status == Employee.Status.ACTIVE
+            has_line = employee.id in active_allocated_employee_ids
+
+            if is_logged:
+                row["logged_count"] += 1
+                supervisor_group["total_logged"] += 1
+            if has_line:
+                row["with_line_count"] += 1
+                supervisor_group["total_with_line"] += 1
+            else:
+                row["without_line_count"] += 1
+                supervisor_group["total_without_line"] += 1
 
         for action in get_latest_unresolved_actions_queryset(self.request.user):
             employee = action.employee
@@ -700,6 +726,9 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
                 {
                     "supervisor": supervisor,
                     "rows": {},
+                    "total_logged": 0,
+                    "total_with_line": 0,
+                    "total_without_line": 0,
                     "total_reconnect": 0,
                     "total_new_number": 0,
                 },
@@ -708,9 +737,11 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
                 portfolio,
                 {
                     "portfolio": portfolio,
+                    "logged_count": 0,
+                    "with_line_count": 0,
+                    "without_line_count": 0,
                     "reconnect_count": 0,
                     "new_number_count": 0,
-                    "total": 0,
                 },
             )
 
@@ -721,8 +752,6 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
                 row["new_number_count"] += 1
                 supervisor_group["total_new_number"] += 1
 
-            row["total"] = row["reconnect_count"] + row["new_number_count"]
-
         supervisor_dashboards = []
         for supervisor_name in sorted(grouped.keys()):
             supervisor_group = grouped[supervisor_name]
@@ -731,10 +760,6 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
                 key=lambda item: item["portfolio"].lower(),
             )
             supervisor_group["rows"] = rows
-            supervisor_group["grand_total"] = (
-                supervisor_group["total_reconnect"]
-                + supervisor_group["total_new_number"]
-            )
             supervisor_dashboards.append(supervisor_group)
 
         context["supervisor_dashboards"] = supervisor_dashboards

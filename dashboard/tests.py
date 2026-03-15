@@ -700,6 +700,22 @@ class ManagerScopeTests(TestCase):
         )
 
     def test_manager_dashboard_groups_pending_actions_by_supervisor_and_portfolio(self):
+        sim = SIMcard.objects.create(
+            iccid="8900000000000003001",
+            carrier="CarrierZ",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        line = PhoneLine.objects.create(
+            phone_number="+5511999993001",
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        LineAllocation.objects.create(
+            employee=self.managed_employee,
+            phone_line=line,
+            allocated_by=self.supervisor,
+            is_active=True,
+        )
         DailyUserAction.objects.create(
             day=timezone.localdate(),
             employee=self.managed_employee,
@@ -734,9 +750,49 @@ class ManagerScopeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Supervisor super.scope@test.com")
         self.assertContains(response, "Ambiental")
-        self.assertContains(response, ">1<", html=False)
+        self.assertContains(response, "Operador logado")
+        self.assertContains(response, "Operador com linha")
+        self.assertContains(response, "Operador sem linha")
         self.assertNotContains(response, "Supervisor super.outro@test.com")
         self.assertNotContains(response, "Usuario Nao Vinculado")
+
+    def test_manager_dashboard_shows_operator_counts_by_portfolio(self):
+        other_employee_same_portfolio = Employee.objects.create(
+            full_name="Usuario Vinculado 2",
+            corporate_email=self.supervisor.email,
+            employee_id="Ambiental",
+            teams="Joinville",
+            status=Employee.Status.INACTIVE,
+        )
+        sim = SIMcard.objects.create(
+            iccid="8900000000000003002",
+            carrier="CarrierZ",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        line = PhoneLine.objects.create(
+            phone_number="+5511999993002",
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        LineAllocation.objects.create(
+            employee=self.managed_employee,
+            phone_line=line,
+            allocated_by=self.supervisor,
+            is_active=True,
+        )
+
+        response = self.client.get(reverse("manager_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ambiental")
+        row = next(
+            item
+            for item in response.context["supervisor_dashboards"][0]["rows"]
+            if item["portfolio"] == "Ambiental"
+        )
+        self.assertEqual(row["logged_count"], 1)
+        self.assertEqual(row["with_line_count"], 1)
+        self.assertEqual(row["without_line_count"], 1)
 
     def test_manager_dashboard_shows_supervisor_even_without_employees(self):
         Employee.objects.filter(pk=self.managed_employee.pk).delete()
