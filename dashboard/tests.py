@@ -738,6 +738,18 @@ class ManagerScopeTests(TestCase):
         self.assertNotContains(response, "Supervisor super.outro@test.com")
         self.assertNotContains(response, "Usuario Nao Vinculado")
 
+    def test_manager_dashboard_shows_supervisor_even_without_employees(self):
+        Employee.objects.filter(pk=self.managed_employee.pk).delete()
+
+        response = self.client.get(reverse("manager_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Supervisor super.scope@test.com")
+        self.assertContains(
+            response,
+            "Nenhuma carteira vinculada para este supervisor.",
+        )
+
     def test_manager_action_board_only_shows_employees_from_managed_supervisors(self):
         response = self.client.get(reverse("daily_user_action_board"))
 

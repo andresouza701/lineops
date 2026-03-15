@@ -42,6 +42,10 @@
                         <td>{{ row.new_number_count }}</td>
                         <td>{{ row.total }}</td>
                     </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">Nenhuma carteira vinculada para este supervisor.</td>
+                    </tr>
                     {% endfor %}
                 </tbody>
                 <tfoot>

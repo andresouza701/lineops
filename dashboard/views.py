@@ -655,7 +655,15 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        grouped = {}
+        grouped = {
+            supervisor_email: {
+                "supervisor": supervisor_email,
+                "rows": {},
+                "total_reconnect": 0,
+                "total_new_number": 0,
+            }
+            for supervisor_email in sorted(self.request.user.get_managed_supervisor_emails())
+        }
 
         employees = get_supervised_employees_queryset(self.request.user).filter(
             status=Employee.Status.ACTIVE,
