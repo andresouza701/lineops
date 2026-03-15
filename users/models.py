@@ -34,7 +34,11 @@ class SystemUser(AbstractUser):
     class Role(models.TextChoices):
         ADMIN = "admin", "Admin"
         SUPER = "super", "Super"
+        GERENTE = "gerente", "Gerente"
         OPERATOR = "operator", "Operator"
+
+    SUPERVISOR_ROLES = (Role.SUPER, Role.GERENTE)
+    EMPLOYEE_ACCESS_ROLES = (Role.ADMIN, Role.SUPER, Role.GERENTE)
 
     username = None
     email = models.EmailField(unique=True)
@@ -48,6 +52,14 @@ class SystemUser(AbstractUser):
 
     def __str__(self):
         return f"{self.email} - {self.role}"
+
+    @property
+    def is_supervisor_role(self):
+        return self.role in self.SUPERVISOR_ROLES
+
+    @property
+    def can_access_employee_area(self):
+        return self.role in self.EMPLOYEE_ACCESS_ROLES
 
 
 # Create your models here.

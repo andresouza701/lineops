@@ -51,7 +51,7 @@ class EmployeeAdmin(admin.ModelAdmin):
         """Filtra employees baseado na role do usuário"""
         queryset = super().get_queryset(request)
         # SUPER users can only see their own employees
-        if request.user.role == "super":
+        if request.user.is_supervisor_role:
             queryset = queryset.filter(corporate_email=request.user.email)
         return queryset
 

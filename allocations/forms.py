@@ -90,7 +90,7 @@ class CombinedRegistrationForm(forms.Form):
         super().__init__(*args, **kwargs)
         from users.models import SystemUser
 
-        super_users = SystemUser.objects.filter(role=SystemUser.Role.SUPER)
+        super_users = SystemUser.objects.filter(role__in=SystemUser.SUPERVISOR_ROLES)
         self.supervisor_emails = [user.email for user in super_users]
         supervisor_choices = [(email, email) for email in self.supervisor_emails]
         if supervisor_choices:

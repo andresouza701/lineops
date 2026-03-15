@@ -78,7 +78,7 @@ class EmployeeForm(forms.ModelForm):
         # Supervisor dropdown
         from users.models import SystemUser
 
-        super_users = SystemUser.objects.filter(role=SystemUser.Role.SUPER)
+        super_users = SystemUser.objects.filter(role__in=SystemUser.SUPERVISOR_ROLES)
         self._allowed_supervisor_emails = [user.email for user in super_users]
         supervisor_choices = [
             (email, email) for email in self._allowed_supervisor_emails

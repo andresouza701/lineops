@@ -68,11 +68,30 @@ class EmployeeListViewTest(TestCase):
             password="StrongPass123",
             role=SystemUser.Role.SUPER,
         )
+        self.manager = SystemUser.objects.create_user(
+            email="gerente@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.GERENTE,
+        )
         self.employee = Employee.objects.create(
             full_name="Aline Martins",
             corporate_email="aline.martins@lineops.tech",
             employee_id="EMP-1001",
             teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+        self.supervisor_employee = Employee.objects.create(
+            full_name="Usuario do Super",
+            corporate_email=self.supervisor.email,
+            employee_id="EMP-1002",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+        self.manager_employee = Employee.objects.create(
+            full_name="Usuario do Gerente",
+            corporate_email=self.manager.email,
+            employee_id="EMP-1003",
+            teams=Employee.UnitChoices.ARAQUARI,
             status=Employee.Status.ACTIVE,
         )
 
@@ -136,9 +155,34 @@ class EmployeeListViewTest(TestCase):
     def test_super_can_access_employee_update(self) -> None:
         self.client.force_login(self.supervisor)
         response = self.client.get(
-            reverse("employees:employee_update", args=[self.employee.pk])
+            reverse("employees:employee_update", args=[self.supervisor_employee.pk])
         )
         self.assertEqual(response.status_code, 200)
+
+    def test_manager_can_access_employee_list(self) -> None:
+        self.client.force_login(self.manager)
+        response = self.client.get(reverse("employees:employee_list"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_manager_can_access_employee_update(self) -> None:
+        self.client.force_login(self.manager)
+        response = self.client.get(
+            reverse("employees:employee_update", args=[self.manager_employee.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_manager_does_not_see_history_button(self) -> None:
+        self.client.force_login(self.manager)
+        response = self.client.get(reverse("employees:employee_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            reverse("employees:employee_update", args=[self.manager_employee.pk]),
+        )
+        self.assertNotContains(
+            response,
+            reverse("employees:employee_history", args=[self.manager_employee.pk]),
+        )
 
     def test_super_does_not_see_history_button(self) -> None:
         self.client.force_login(self.supervisor)
@@ -146,11 +190,11 @@ class EmployeeListViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
-            reverse("employees:employee_update", args=[self.employee.pk]),
+            reverse("employees:employee_update", args=[self.supervisor_employee.pk]),
         )
         self.assertNotContains(
             response,
-            reverse("employees:employee_history", args=[self.employee.pk]),
+            reverse("employees:employee_history", args=[self.supervisor_employee.pk]),
         )
 
     def test_anonymous_cannot_access_employee_list(self) -> None:
@@ -229,6 +273,18 @@ class EmployeeHistoryAuditTest(TestCase):
                 email="super.history@test.com",
                 password="StrongPass123",
                 role=SystemUser.Role.SUPER,
+            )
+        )
+        denied = self.client.get(url)
+        self.assertEqual(denied.status_code, 403)
+
+    def test_history_view_denies_manager_user(self) -> None:
+        url = reverse("employees:employee_history", args=[self.employee.pk])
+        self.client.force_login(
+            SystemUser.objects.create_user(
+                email="gerente.history@test.com",
+                password="StrongPass123",
+                role=SystemUser.Role.GERENTE,
             )
         )
         denied = self.client.get(url)

@@ -13,7 +13,7 @@
                         Ações do Dia
                     </a>
                 </li>
-                {% if request.user.role == 'admin' or request.user.role == 'super' %}
+                {% if request.user.can_access_employee_area %}
                     <li class="nav-item">
                         <a class="nav-link {% if current_ns == 'employees' %}active{% endif %}" href="{% url 'employees:employee_list' %}">
                             Usuarios

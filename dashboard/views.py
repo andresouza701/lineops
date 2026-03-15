@@ -65,8 +65,7 @@ def resolve_day(value):
 
 def get_supervised_employees_queryset(user, supervisor_filter=None):
     employees = Employee.objects.filter(is_deleted=False)
-    role = (getattr(user, "role", "") or "").lower()
-    if role == "super":
+    if getattr(user, "is_supervisor_role", False):
         employees = employees.filter(corporate_email__iexact=user.email)
     elif supervisor_filter:
         employees = employees.filter(corporate_email__icontains=supervisor_filter)
@@ -75,8 +74,7 @@ def get_supervised_employees_queryset(user, supervisor_filter=None):
 
 def get_daily_indicators_queryset(user):
     indicators = DailyIndicator.objects.all()
-    role = (getattr(user, "role", "") or "").lower()
-    if role == SystemUser.Role.SUPER:
+    if getattr(user, "is_supervisor_role", False):
         indicators = indicators.filter(
             Q(supervisor__iexact=user.email) | Q(created_by=user) | Q(updated_by=user)
         )
@@ -1087,7 +1085,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         "rows": rows,
         "action_counts": action_counts,
         "supervisor_filter": supervisor_filter,
-        "is_supervisor_role": (request.user.role or "").lower() == "super",
+        "is_supervisor_role": request.user.is_supervisor_role,
         "is_admin_role": (request.user.role or "").lower() == "admin",
     }
     return render(request, "dashboard/daily_user_action_board.html", context)

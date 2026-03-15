@@ -88,7 +88,7 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-end">
-                                    {% if request.user.role == 'admin' or request.user.role == 'super' %}
+                                    {% if request.user.can_access_employee_area %}
                                         <a href="{% url 'employees:employee_update' employee.pk %}" class="btn btn-outline-primary btn-sm" aria-label="Editar" title="Editar">
                                             <i class="bi bi-pencil"></i>
                                         </a>
@@ -171,7 +171,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function createEmployeeRow(employee) {
         const tr = document.createElement('tr');
-        const canEdit = {% if request.user.role == 'admin' or request.user.role == 'super' %}true{% else %}false{% endif %};
+        const canEdit = {% if request.user.can_access_employee_area %}true{% else %}false{% endif %};
         const canViewHistory = {% if request.user.role == 'admin' %}true{% else %}false{% endif %};
 
         let actionsHtml = '<span class=\"text-muted\">-</span>';

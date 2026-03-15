@@ -34,7 +34,7 @@ def _is_duplicate_full_name_error(exc: IntegrityError) -> bool:
 
 
 class EmployeeListView(RoleRequiredMixin, ListView):
-    allowed_roles = [SystemUser.Role.ADMIN, SystemUser.Role.SUPER]
+    allowed_roles = list(SystemUser.EMPLOYEE_ACCESS_ROLES)
     model = Employee
     template_name = "employees/employee_list.html"
     context_object_name = "employees"
@@ -95,7 +95,7 @@ class EmployeeListView(RoleRequiredMixin, ListView):
         queryset = Employee.objects.all().order_by("full_name")
 
         # Filtrar por role: SUPER vê apenas seus próprios usuários
-        if request.user.role == SystemUser.Role.SUPER:
+        if request.user.is_supervisor_role:
             queryset = queryset.filter(corporate_email=request.user.email)
 
         name = request.GET.get("name", "").strip()
@@ -162,7 +162,7 @@ class EmployeeCreateView(RoleRequiredMixin, CreateView):
 
 
 class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
-    allowed_roles = [SystemUser.Role.ADMIN, SystemUser.Role.SUPER]
+    allowed_roles = list(SystemUser.EMPLOYEE_ACCESS_ROLES)
     model = Employee
     template_name = "employees/employee_form.html"
     from .forms import EmployeeForm
@@ -174,7 +174,7 @@ class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
         """Filtra employees baseado na role do usuário"""
         queryset = Employee.objects.all()
         # SUPER users can only access their own employees
-        if self.request.user.role == SystemUser.Role.SUPER:
+        if self.request.user.is_supervisor_role:
             queryset = queryset.filter(corporate_email=self.request.user.email)
         return queryset
 
