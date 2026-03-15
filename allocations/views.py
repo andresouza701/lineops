@@ -74,6 +74,7 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
                 Employee.objects.create(
                     full_name=form.cleaned_data["full_name"],
                     corporate_email=form.cleaned_data["corporate_email"],
+                    manager_email=form.cleaned_data["manager_email"] or None,
                     employee_id=form.cleaned_data["employee_id"],
                     teams=form.cleaned_data["teams"],
                     status=form.cleaned_data["status"],

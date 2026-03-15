@@ -31,6 +31,12 @@ class Employee(models.Model):
 
     full_name = models.CharField(max_length=40)
     corporate_email = models.EmailField(max_length=254, verbose_name="Supervisor")
+    manager_email = models.EmailField(
+        max_length=254,
+        blank=True,
+        null=True,
+        verbose_name="Gerente",
+    )
     employee_id = models.CharField(max_length=40, verbose_name="Carteira")
 
     class UnitChoices(models.TextChoices):
@@ -85,6 +91,7 @@ class Employee(models.Model):
         indexes = [
             models.Index(fields=["employee_id"]),
             models.Index(fields=["corporate_email"]),
+            models.Index(fields=["manager_email"]),
             models.Index(fields=["status", "is_deleted"]),
         ]
 

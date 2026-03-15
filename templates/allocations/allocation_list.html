@@ -34,6 +34,14 @@
                         {% endif %}
                     </div>
 
+                    <div class="col-md-6">
+                        <label class="form-label">Gerente</label>
+                        {{ employee_form.manager_email }}
+                        {% if employee_form.manager_email.errors %}
+                            <div class="invalid-feedback d-block">{{ employee_form.manager_email.errors|striptags }}</div>
+                        {% endif %}
+                    </div>
+
                     <div class="col-md-3">
                         <label class="form-label">Carteira</label>
                         {{ employee_form.employee_id }}

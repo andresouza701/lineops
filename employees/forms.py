@@ -14,6 +14,7 @@ class EmployeeForm(forms.ModelForm):
         fields = [
             "full_name",
             "corporate_email",
+            "manager_email",
             "employee_id",
             "teams",
             "status",
@@ -69,6 +70,13 @@ class EmployeeForm(forms.ModelForm):
             raise forms.ValidationError("Selecione um supervisor valido.")
         return corporate_email
 
+    def clean_manager_email(self):
+        manager_email = (self.cleaned_data.get("manager_email") or "").strip()
+        allowed_emails = getattr(self, "_allowed_manager_emails", [])
+        if allowed_emails and manager_email not in allowed_emails:
+            raise forms.ValidationError("Selecione um gerente valido.")
+        return manager_email
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -79,10 +87,13 @@ class EmployeeForm(forms.ModelForm):
         from users.models import SystemUser
 
         super_users = SystemUser.objects.filter(role__in=SystemUser.SUPERVISOR_ROLES)
+        manager_users = SystemUser.objects.filter(role=SystemUser.Role.GERENTE)
         self._allowed_supervisor_emails = [user.email for user in super_users]
+        self._allowed_manager_emails = [user.email for user in manager_users]
         supervisor_choices = [
             (email, email) for email in self._allowed_supervisor_emails
         ]
+        manager_choices = [(email, email) for email in self._allowed_manager_emails]
         if supervisor_choices:
             self.fields["corporate_email"].required = True
             self.fields["corporate_email"].widget = forms.Select(
@@ -91,6 +102,16 @@ class EmployeeForm(forms.ModelForm):
             )
         else:
             self.fields["corporate_email"].widget = forms.TextInput(
+                attrs={"class": "form-control"}
+            )
+        if manager_choices:
+            self.fields["manager_email"].required = True
+            self.fields["manager_email"].widget = forms.Select(
+                attrs={"class": "form-select"},
+                choices=manager_choices,
+            )
+        else:
+            self.fields["manager_email"].widget = forms.TextInput(
                 attrs={"class": "form-control"}
             )
 

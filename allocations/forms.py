@@ -30,6 +30,11 @@ class CombinedRegistrationForm(forms.Form):
         required=False,
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
+    manager_email = forms.CharField(
+        label="Gerente",
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
     employee_id = forms.ChoiceField(
         label="Carteira",
         choices=ALL_PORTFOLIOS,
@@ -91,13 +96,22 @@ class CombinedRegistrationForm(forms.Form):
         from users.models import SystemUser
 
         super_users = SystemUser.objects.filter(role__in=SystemUser.SUPERVISOR_ROLES)
+        manager_users = SystemUser.objects.filter(role=SystemUser.Role.GERENTE)
         self.supervisor_emails = [user.email for user in super_users]
+        self.manager_emails = [user.email for user in manager_users]
         supervisor_choices = [(email, email) for email in self.supervisor_emails]
+        manager_choices = [(email, email) for email in self.manager_emails]
         if supervisor_choices:
             self.fields["corporate_email"].required = True
             self.fields["corporate_email"].widget = forms.Select(
                 attrs={"class": "form-select"},
                 choices=supervisor_choices,
+            )
+        if manager_choices:
+            self.fields["manager_email"].required = True
+            self.fields["manager_email"].widget = forms.Select(
+                attrs={"class": "form-select"},
+                choices=manager_choices,
             )
 
         for name in ["full_name", "phone_number", "iccid", "carrier"]:
@@ -122,6 +136,12 @@ class CombinedRegistrationForm(forms.Form):
         if self.supervisor_emails and corporate_email not in self.supervisor_emails:
             raise forms.ValidationError("Selecione um supervisor válido!")
         return corporate_email
+
+    def clean_manager_email(self):
+        manager_email = (self.cleaned_data.get("manager_email") or "").strip()
+        if self.manager_emails and manager_email not in self.manager_emails:
+            raise forms.ValidationError("Selecione um gerente válido!")
+        return manager_email
 
     def clean_full_name(self):
         full_name = (self.cleaned_data.get("full_name") or "").strip()

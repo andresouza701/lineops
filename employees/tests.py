@@ -309,6 +309,17 @@ class EmployeeHistoryAuditTest(TestCase):
 
 
 class EmployeeFormPortfolioChoicesTest(TestCase):
+    def test_form_shows_manager_choices_when_manager_users_exist(self) -> None:
+        SystemUser.objects.create_user(
+            email="gerente.form@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.GERENTE,
+        )
+
+        form = EmployeeForm()
+
+        self.assertIn("gerente.form@test.com", str(form["manager_email"]))
+
     def test_form_shows_b2c_portfolios_in_employee_id_choices(self) -> None:
         form = EmployeeForm()
         portfolio_html = str(form["employee_id"])

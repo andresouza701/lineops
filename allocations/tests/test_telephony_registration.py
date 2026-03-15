@@ -17,6 +17,16 @@ class TelephonyRegistrationFlowTests(TestCase):
             password="StrongPass123",
             role=SystemUser.Role.ADMIN,
         )
+        self.supervisor = SystemUser.objects.create_user(
+            email="supervisor@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.SUPER,
+        )
+        self.manager = SystemUser.objects.create_user(
+            email="gerente@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.GERENTE,
+        )
         self.client.force_login(self.admin)
 
         self.employee = Employee.objects.create(
@@ -174,6 +184,7 @@ class TelephonyRegistrationFlowTests(TestCase):
                 "action": "employee",
                 "full_name": " telephony user ",
                 "corporate_email": "supervisor@test.com",
+                "manager_email": "gerente@test.com",
                 "employee_id": "Ambiental",
                 "teams": Employee.UnitChoices.JOINVILLE,
                 "status": Employee.Status.ACTIVE,
@@ -203,6 +214,7 @@ class TelephonyRegistrationFlowTests(TestCase):
                     "action": "employee",
                     "full_name": "Novo Usuario",
                     "corporate_email": "supervisor@test.com",
+                    "manager_email": "gerente@test.com",
                     "employee_id": "Ambiental",
                     "teams": Employee.UnitChoices.JOINVILLE,
                     "status": Employee.Status.ACTIVE,
@@ -228,9 +240,29 @@ class TelephonyRegistrationFlowTests(TestCase):
                     "action": "employee",
                     "full_name": "Novo Usuario",
                     "corporate_email": "supervisor@test.com",
+                    "manager_email": "gerente@test.com",
                     "employee_id": "Ambiental",
                     "teams": Employee.UnitChoices.JOINVILLE,
                     "status": Employee.Status.ACTIVE,
                 },
                 follow=True,
             )
+
+    def test_employee_registration_saves_manager_email(self):
+        response = self.client.post(
+            reverse("allocations:allocation_list"),
+            {
+                "action": "employee",
+                "full_name": "Novo Usuario Manager",
+                "corporate_email": self.supervisor.email,
+                "manager_email": self.manager.email,
+                "employee_id": "Ambiental",
+                "teams": Employee.UnitChoices.JOINVILLE,
+                "status": Employee.Status.ACTIVE,
+            },
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        employee = Employee.objects.get(full_name="Novo Usuario Manager")
+        self.assertEqual(employee.manager_email, self.manager.email)
