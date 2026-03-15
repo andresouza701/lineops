@@ -77,11 +77,7 @@ def get_daily_indicators_queryset(user):
             Q(supervisor__iexact=user.email) | Q(created_by=user) | Q(updated_by=user)
         )
     elif user.role == SystemUser.Role.GERENTE:
-        supervisor_emails = (
-            user.scope_employee_queryset(Employee.objects.filter(is_deleted=False))
-            .values_list("corporate_email", flat=True)
-            .distinct()
-        )
+        supervisor_emails = user.get_managed_supervisor_emails()
         indicators = indicators.filter(
             Q(supervisor__in=supervisor_emails) | Q(created_by=user) | Q(updated_by=user)
         )

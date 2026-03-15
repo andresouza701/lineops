@@ -674,6 +674,7 @@ class ManagerScopeTests(TestCase):
             email="super.scope@test.com",
             password="StrongPass123",
             role=SystemUser.Role.SUPER,
+            manager_email="gerente.scope@test.com",
         )
         self.other_supervisor = SystemUser.objects.create_user(
             email="super.outro@test.com",
@@ -685,7 +686,6 @@ class ManagerScopeTests(TestCase):
         self.managed_employee = Employee.objects.create(
             full_name="Usuario Vinculado",
             corporate_email=self.supervisor.email,
-            manager_email=self.manager.email,
             employee_id="Ambiental",
             teams="Joinville",
             status=Employee.Status.ACTIVE,

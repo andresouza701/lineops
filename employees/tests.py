@@ -67,6 +67,7 @@ class EmployeeListViewTest(TestCase):
             email="super@test.com",
             password="StrongPass123",
             role=SystemUser.Role.SUPER,
+            manager_email="gerente@test.com",
         )
         self.manager = SystemUser.objects.create_user(
             email="gerente@test.com",
@@ -98,7 +99,6 @@ class EmployeeListViewTest(TestCase):
             employee_id="EMP-1003",
             teams=Employee.UnitChoices.ARAQUARI,
             status=Employee.Status.ACTIVE,
-            manager_email=self.manager.email,
         )
         self.unrelated_manager_employee = Employee.objects.create(
             full_name="Usuario de Outro Super",
@@ -178,8 +178,8 @@ class EmployeeListViewTest(TestCase):
         response = self.client.get(reverse("employees:employee_list"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Usuario do Gerente")
+        self.assertContains(response, "Usuario do Super")
         self.assertNotContains(response, "Usuario de Outro Super")
-        self.assertNotContains(response, "Usuario do Super")
 
     def test_manager_can_access_employee_update(self) -> None:
         self.client.force_login(self.manager)
