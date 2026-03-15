@@ -750,6 +750,16 @@ class ManagerScopeTests(TestCase):
             "Nenhuma carteira vinculada para este supervisor.",
         )
 
+    def test_manager_dashboard_lists_inactive_employee_portfolios(self):
+        self.managed_employee.status = Employee.Status.INACTIVE
+        self.managed_employee.save(update_fields=["status"])
+
+        response = self.client.get(reverse("manager_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Supervisor super.scope@test.com")
+        self.assertContains(response, "Ambiental")
+
     def test_manager_action_board_only_shows_employees_from_managed_supervisors(self):
         response = self.client.get(reverse("daily_user_action_board"))
 

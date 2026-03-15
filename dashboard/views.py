@@ -666,7 +666,6 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
         }
 
         employees = get_supervised_employees_queryset(self.request.user).filter(
-            status=Employee.Status.ACTIVE,
             is_deleted=False,
         )
         for employee in employees:
