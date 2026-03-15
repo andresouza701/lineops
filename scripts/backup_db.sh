@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Backup diário do PostgreSQL — mantém os últimos 7 dias
+# Backup diário do PostgreSQL — mantém os últimos 365 dias
 # Limpa sessões Django expiradas semanalmente (quando WEEKDAY=0, domingo)
 # Agendar no crontab do servidor:
 #   0 2 * * * /opt/app/src/lineops/scripts/backup_db.sh >> /var/log/lineops_backup.log 2>&1
@@ -10,7 +10,7 @@ BACKUP_DIR="/opt/backups/lineops"
 COMPOSE_FILE="/opt/app/src/lineops/docker-compose.prod.yml"
 ENV_FILE="/opt/app/src/lineops/.env.prod"
 CONTAINER="lineops-db-prod"
-RETENTION_DAYS=7
+RETENTION_DAYS=365
 
 mkdir -p "$BACKUP_DIR"
 
