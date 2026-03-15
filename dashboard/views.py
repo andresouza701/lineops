@@ -329,7 +329,7 @@ class DashboardView(AuthenticadView, TemplateView):
         raw_period = self.request.GET.get("period", str(DEFAULT_TREND_PERIOD))
         return resolve_trend_period(raw_period)
 
-    def _build_dashboard_insights(self, context):  # noqa: PLR0915
+    def _build_dashboard_insights(self, context):  # noqa: PLR0912, PLR0915
         daily = context.get("indicadores_diarios", [])
         latest = daily[-1] if daily else {}
 
@@ -346,16 +346,19 @@ class DashboardView(AuthenticadView, TemplateView):
                 is_resolved=False,
             )
             .select_related("employee", "allocation")
-            .order_by("employee_id", "allocation_id", "-day")
+            .order_by("employee_id", "-day", "-id", "allocation_id")
         )
 
-        # Pegar apenas a mais recente por allocation (e employee)
+        # Pegar a mais recente por allocation e também por employee (fallback)
         actions_by_allocation = {}
+        latest_action_by_employee = {}
         for action in all_actions:
             allocation_id = action.allocation_id if action.allocation else None
             key = (action.employee_id, allocation_id)
             if key not in actions_by_allocation:
                 actions_by_allocation[key] = action
+            if action.employee_id not in latest_action_by_employee:
+                latest_action_by_employee[action.employee_id] = action
 
         # Pegar TODAS as alocações ativas por employee
         active_allocations = (
@@ -397,6 +400,8 @@ class DashboardView(AuthenticadView, TemplateView):
                 # (mesmo de "Ações do Dia")
                 no_allocation_key = (employee.id, None)
                 action = actions_by_allocation.get(no_allocation_key)
+                if not action:
+                    action = latest_action_by_employee.get(employee.id)
 
                 rows.append(
                     {
@@ -953,16 +958,19 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
             is_resolved=False,
         )
         .select_related("employee", "allocation")
-        .order_by("employee_id", "allocation_id", "-day")
+        .order_by("employee_id", "-day", "-id", "allocation_id")
     )
 
-    # Pegar apenas a mais recente por allocation (e employee)
+    # Pegar a mais recente por allocation e também por employee (fallback)
     actions_by_allocation = {}
+    latest_action_by_employee = {}
     for action in all_actions:
         allocation_id = action.allocation_id if action.allocation else None
         key = (action.employee_id, allocation_id)
         if key not in actions_by_allocation:
             actions_by_allocation[key] = action
+        if action.employee_id not in latest_action_by_employee:
+            latest_action_by_employee[action.employee_id] = action
 
     # Pegar TODAS as alocações ativas por employee
     active_allocations = (
@@ -1014,6 +1022,8 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
             # Buscar a ação sem alocação para este employee
             no_allocation_key = (employee.id, None)
             action = actions_by_allocation.get(no_allocation_key)
+            if not action:
+                action = latest_action_by_employee.get(employee.id)
 
             action_form = DailyUserActionForm(
                 initial={

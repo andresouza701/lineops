@@ -1,4 +1,5 @@
 import re
+from datetime import timedelta
 
 from django.test import TestCase
 from django.urls import reverse
@@ -625,3 +626,38 @@ class DashboardDailyIndicatorsTests(TestCase):
         dashboard_response = self.client.get(reverse("dashboard"))
         self.assertEqual(dashboard_response.status_code, 200)
         self.assertEqual(dashboard_response.context["pending_actions_count"], 0)
+
+    def test_admin_keeps_employee_visible_when_allocation_removed_with_pending_action(
+        self,
+    ):
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+
+        self.line_allocation.is_active = False
+        self.line_allocation.released_at = timezone.now() + timedelta(seconds=1)
+        self.line_allocation.released_by = self.user
+        self.line_allocation.save(
+            update_fields=["is_active", "released_at", "released_by"]
+        )
+
+        response = self.client.get(reverse("daily_user_action_board"))
+        self.assertEqual(response.status_code, 200)
+
+        rows = response.context["rows"]
+        b2b_rows = [row for row in rows if row["employee"].id == self.employee_b2b.id]
+
+        self.assertEqual(len(b2b_rows), 1)
+        self.assertFalse(b2b_rows[0]["has_line"])
+        self.assertIsNotNone(b2b_rows[0]["action"])
+        self.assertEqual(
+            b2b_rows[0]["action"].action_type,
+            DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+        )
