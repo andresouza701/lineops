@@ -20,7 +20,7 @@ from core.constants import (
     B2C_PORTFOLIO_NAMES,
     B2C_PORTFOLIOS,
 )
-from core.mixins import AuthenticadView
+from core.mixins import AuthenticadView, RoleRequiredMixin
 from core.services.daily_indicator_service import DailyIndicatorService
 from employees.models import Employee
 from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
@@ -86,6 +86,31 @@ def get_daily_indicators_queryset(user):
             Q(supervisor__in=supervisor_emails) | Q(created_by=user) | Q(updated_by=user)
         )
     return indicators
+
+
+def get_latest_unresolved_actions_queryset(user):
+    employees_qs = get_supervised_employees_queryset(user).filter(
+        status=Employee.Status.ACTIVE,
+        is_deleted=False,
+    )
+    employee_ids = employees_qs.values_list("id", flat=True)
+    actions = (
+        DailyUserAction.objects.filter(
+            employee_id__in=employee_ids,
+            is_resolved=False,
+        )
+        .select_related("employee", "allocation")
+        .order_by("employee_id", "-day", "-id", "allocation_id")
+    )
+
+    latest_by_key = {}
+    for action in actions:
+        allocation_id = action.allocation_id if action.allocation else None
+        key = (action.employee_id, allocation_id)
+        if key not in latest_by_key:
+            latest_by_key[key] = action
+
+    return list(latest_by_key.values())
 
 
 def build_number_details_for_day(
@@ -626,6 +651,91 @@ class DashboardView(AuthenticadView, TemplateView):
                 for value, label in PhoneLine.Status.choices
             ],
         }
+
+
+class ManagerDashboardView(RoleRequiredMixin, TemplateView):
+    allowed_roles = [SystemUser.Role.GERENTE]
+    template_name = "dashboard/manager_dashboard.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        grouped = {}
+
+        employees = get_supervised_employees_queryset(self.request.user).filter(
+            status=Employee.Status.ACTIVE,
+            is_deleted=False,
+        )
+        for employee in employees:
+            supervisor = employee.corporate_email or "Sem supervisor"
+            portfolio = employee.employee_id or "Sem carteira"
+            supervisor_group = grouped.setdefault(
+                supervisor,
+                {
+                    "supervisor": supervisor,
+                    "rows": {},
+                    "total_reconnect": 0,
+                    "total_new_number": 0,
+                },
+            )
+            supervisor_group["rows"].setdefault(
+                portfolio,
+                {
+                    "portfolio": portfolio,
+                    "reconnect_count": 0,
+                    "new_number_count": 0,
+                    "total": 0,
+                },
+            )
+
+        for action in get_latest_unresolved_actions_queryset(self.request.user):
+            employee = action.employee
+            supervisor = employee.corporate_email or "Sem supervisor"
+            portfolio = employee.employee_id or "Sem carteira"
+
+            supervisor_group = grouped.setdefault(
+                supervisor,
+                {
+                    "supervisor": supervisor,
+                    "rows": {},
+                    "total_reconnect": 0,
+                    "total_new_number": 0,
+                },
+            )
+            row = supervisor_group["rows"].setdefault(
+                portfolio,
+                {
+                    "portfolio": portfolio,
+                    "reconnect_count": 0,
+                    "new_number_count": 0,
+                    "total": 0,
+                },
+            )
+
+            if action.action_type == DailyUserAction.ActionType.RECONNECT_WHATSAPP:
+                row["reconnect_count"] += 1
+                supervisor_group["total_reconnect"] += 1
+            elif action.action_type == DailyUserAction.ActionType.NEW_NUMBER:
+                row["new_number_count"] += 1
+                supervisor_group["total_new_number"] += 1
+
+            row["total"] = row["reconnect_count"] + row["new_number_count"]
+
+        supervisor_dashboards = []
+        for supervisor_name in sorted(grouped.keys()):
+            supervisor_group = grouped[supervisor_name]
+            rows = sorted(
+                supervisor_group["rows"].values(),
+                key=lambda item: item["portfolio"].lower(),
+            )
+            supervisor_group["rows"] = rows
+            supervisor_group["grand_total"] = (
+                supervisor_group["total_reconnect"]
+                + supervisor_group["total_new_number"]
+            )
+            supervisor_dashboards.append(supervisor_group)
+
+        context["supervisor_dashboards"] = supervisor_dashboards
+        return context
 
 
 @login_required

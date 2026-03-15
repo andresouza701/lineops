@@ -9,6 +9,14 @@
     </li>
 
     {% if request.user.is_authenticated %}
+        {% if request.user.role == 'gerente' %}
+        <li>
+            <a href="{% url 'manager_dashboard' %}"
+               class="nav-link {% if current_name == 'manager_dashboard' %}active{% endif %}">
+                Dash Gerencial
+            </a>
+        </li>
+        {% endif %}
         <li>
             <a href="{% url 'daily_user_action_board' %}"
                class="nav-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' or current_name == 'daily_user_action_board' or current_name == 'daily_indicator_day_breakdown' %}active{% endif %}">

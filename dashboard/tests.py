@@ -699,6 +699,45 @@ class ManagerScopeTests(TestCase):
             status=Employee.Status.ACTIVE,
         )
 
+    def test_manager_dashboard_groups_pending_actions_by_supervisor_and_portfolio(self):
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.managed_employee,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            supervisor=self.supervisor,
+            created_by=self.supervisor,
+            updated_by=self.supervisor,
+            is_resolved=False,
+        )
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.managed_employee,
+            allocation=None,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.supervisor,
+            created_by=self.supervisor,
+            updated_by=self.supervisor,
+            is_resolved=False,
+        )
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.unmanaged_employee,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.other_supervisor,
+            created_by=self.other_supervisor,
+            updated_by=self.other_supervisor,
+            is_resolved=False,
+        )
+
+        response = self.client.get(reverse("manager_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Supervisor super.scope@test.com")
+        self.assertContains(response, "Ambiental")
+        self.assertContains(response, ">1<", html=False)
+        self.assertNotContains(response, "Supervisor super.outro@test.com")
+        self.assertNotContains(response, "Usuario Nao Vinculado")
+
     def test_manager_action_board_only_shows_employees_from_managed_supervisors(self):
         response = self.client.get(reverse("daily_user_action_board"))
 

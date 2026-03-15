@@ -31,6 +31,13 @@
                     <i class="bi bi-speedometer2" aria-hidden="true"></i>
                 </a>
                 {% if request.user.is_authenticated %}
+                    {% if request.user.role == 'gerente' %}
+                    <a href="{% url 'manager_dashboard' %}" class="rail-link {% if current_name == 'manager_dashboard' %}is-active{% endif %}" aria-label="Dash Gerencial" title="Dash Gerencial">
+                        <i class="bi bi-kanban" aria-hidden="true"></i>
+                    </a>
+                    {% endif %}
+                {% endif %}
+                {% if request.user.is_authenticated %}
                     {% if request.user.can_access_employee_area %}
                     <a href="{% url 'employees:employee_list' %}" class="rail-link {% if current_ns == 'employees' %}is-active{% endif %}" aria-label="Usuários" title="Usuários">
                         <i class="bi bi-people" aria-hidden="true"></i>
@@ -105,6 +112,5 @@
     {% block scripts %}{% endblock %}
 </body>
 </html>
-
 
 

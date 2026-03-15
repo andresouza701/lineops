@@ -8,6 +8,13 @@
                 </a>
             </li>
             {% if request.user.is_authenticated %}
+                {% if request.user.role == 'gerente' %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_name == 'manager_dashboard' %}active{% endif %}" href="{% url 'manager_dashboard' %}">
+                            Dash Gerencial
+                        </a>
+                    </li>
+                {% endif %}
                 <li class="nav-item">
                     <a class="nav-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' or current_name == 'daily_user_action_board' or current_name == 'daily_indicator_day_breakdown' %}active{% endif %}" href="{% url 'daily_user_action_board' %}">
                         Ações do Dia
