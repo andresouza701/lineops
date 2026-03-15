@@ -21,8 +21,8 @@ class UploadServiceTests(TestCase):
 
     def test_process_creates_and_updates_entities(self):
         initial_csv = (
-            "type,full_name,corporate_email,employee_id,teams,pa,status,iccid,carrier,phone_number,origem\n"
-            "employee,Alice Smith,,Pepsico,Joinville,PA-10,ativo,,,,\n"
+            "type,full_name,corporate_email,manager_email,employee_id,teams,pa,status,iccid,carrier,phone_number,origem\n"
+            "employee,Alice Smith,,gerente@test.com,Pepsico,Joinville,PA-10,ativo,,,,\n"
             "simcard,,,,,,,8999999999999999999,Carrier A,+5511999990000,SRVMEMU-01\n"
         )
         path = self._write("initial.csv", initial_csv)
@@ -36,14 +36,15 @@ class UploadServiceTests(TestCase):
         simcard = SIMcard.objects.first()
         self.assertEqual(employee.status, Employee.Status.ACTIVE)
         self.assertEqual(employee.pa, "PA-10")
+        self.assertEqual(employee.manager_email, "gerente@test.com")
         self.assertEqual(simcard.status, SIMcard.Status.AVAILABLE)
         phone_line = PhoneLine.objects.get(phone_number="+5511999990000")
         self.assertEqual(phone_line.origem, "SRVMEMU-01")
 
         # Update by same full_name — changes carteira and status
         update_csv = (
-            "type,full_name,corporate_email,employee_id,teams,pa,status,iccid,carrier,phone_number,origem\n"
-            "employee,Alice Smith,,Natura,Araquari,,inativo,,,,\n"
+            "type,full_name,corporate_email,manager_email,employee_id,teams,pa,status,iccid,carrier,phone_number,origem\n"
+            "employee,Alice Smith,,gerente-2@test.com,Natura,Araquari,,inativo,,,,\n"
             "simcard,,,,,,,8999999999999999999,Carrier B,,\n"
         )
         update_path = self._write("update.csv", update_csv)
@@ -55,11 +56,12 @@ class UploadServiceTests(TestCase):
         simcard.refresh_from_db()
         self.assertEqual(employee.employee_id, "Natura")
         self.assertEqual(employee.status, Employee.Status.INACTIVE)
+        self.assertEqual(employee.manager_email, "gerente-2@test.com")
         self.assertEqual(simcard.carrier, "Carrier B")
 
     def test_process_collects_errors(self):
         broken_csv = (
-            "type,full_name,corporate_email,employee_id,teams,status,iccid,carrier\n"
+            "type,full_name,corporate_email,manager_email,employee_id,teams,status,iccid,carrier\n"
             "employee,,,,,,\n"
             "simcard,,,,,invalid,123,\n"
         )
@@ -75,7 +77,7 @@ class UploadServiceTests(TestCase):
         """Two employees sharing the same portfolio (employee_id) must each
         get their own record since the unique key is full_name, not employee_id."""
         csv_content = (
-            "type,full_name,corporate_email,employee_id,teams,status,iccid,carrier\n"
+            "type,full_name,corporate_email,manager_email,employee_id,teams,status,iccid,carrier\n"
             "employee,Joana Silva,,Pepsico,Joinville,ativo,,\n"
             "employee,Carlos Souza,,Pepsico,Joinville,ativo,,\n"
         )
@@ -90,10 +92,10 @@ class UploadServiceTests(TestCase):
 
     def test_process_accepts_semicolon_delimited_csv(self):
         header = (
-            "type;full_name;corporate_email;employee_id;"
+            "type;full_name;corporate_email;manager_email;employee_id;"
             "teams;pa;status;iccid;carrier;phone_number;origem\n"
         )
-        emp_row = "employee;Ana Paula;;EMP-9;Joinville;;ativo;;;;\n"
+        emp_row = "employee;Ana Paula;;gerente@corp.com;EMP-9;Joinville;;ativo;;;;\n"
         sim_row = (
             "simcard;;;;;;AVAILABLE;8999999999999999999;"
             "Carrier QA;+5511999990001;APARELHO\n"
@@ -106,13 +108,14 @@ class UploadServiceTests(TestCase):
         self.assertEqual(summary.rows_processed, 2)
         self.assertFalse(summary.errors)
         self.assertEqual(Employee.objects.count(), 1)
+        self.assertEqual(Employee.objects.get().manager_email, "gerente@corp.com")
         self.assertEqual(SIMcard.objects.count(), 1)
         phone_line = PhoneLine.objects.get(phone_number="+5511999990001")
         self.assertEqual(phone_line.origem, "APARELHO")
 
     def test_invalid_origem_raises_error(self):
         header = (
-            "type;full_name;corporate_email;employee_id;"
+            "type;full_name;corporate_email;manager_email;employee_id;"
             "teams;pa;status;iccid;carrier;phone_number;origem\n"
         )
         sim_row = (
@@ -137,7 +140,7 @@ class UploadServiceTests(TestCase):
         )
 
         csv_content = (
-            "type;full_name;corporate_email;employee_id;"
+            "type;full_name;corporate_email;manager_email;employee_id;"
             "teams;pa;status;iccid;carrier;phone_number;origem\n"
             "simcard;;;;;;AVAILABLE;VIRTUAL;"
             "Carrier Y;+5511999991000;SRVMEMU-02\n"
@@ -159,7 +162,7 @@ class UploadServiceTests(TestCase):
 
     def test_different_phone_numbers_same_iccid_each_create_own_sim_and_line(self):
         csv_content = (
-            "type;full_name;corporate_email;employee_id;"
+            "type;full_name;corporate_email;manager_email;employee_id;"
             "teams;pa;status;iccid;carrier;phone_number;origem\n"
             "simcard;;;;;;AVAILABLE;VIRTUAL;ALGAR;4730260539;SRVMEMU-01\n"
             "simcard;;;;;;AVAILABLE;VIRTUAL;ALGAR;4735113591;SRVMEMU-01\n"
@@ -176,7 +179,7 @@ class UploadServiceTests(TestCase):
 
     def test_iccid_accepts_alphanumeric_value(self):
         csv_content = (
-            "type;full_name;corporate_email;employee_id;"
+            "type;full_name;corporate_email;manager_email;employee_id;"
             "teams;pa;status;iccid;carrier;phone_number;origem\n"
             "simcard;;;;;;AVAILABLE;VIRTUALABC123;ALGAR;4730260539;SRVMEMU-01\n"
         )
@@ -192,7 +195,7 @@ class UploadServiceTests(TestCase):
 
     def test_iccid_is_required(self):
         csv_content = (
-            "type;full_name;corporate_email;employee_id;"
+            "type;full_name;corporate_email;manager_email;employee_id;"
             "teams;pa;status;iccid;carrier;phone_number;origem\n"
             "simcard;;;;;;AVAILABLE;;ALGAR;4730260539;SRVMEMU-01\n"
         )

@@ -35,8 +35,8 @@ class UploadViewTests(TestCase):
 
     def test_upload_creates_records_and_renders_summary(self):
         csv_content = (
-            "type,full_name,corporate_email,employee_id,teams,status,iccid,carrier\n"
-            "employee,Ana Paula,,EMP-9,Joinville,ativo,,\n"
+            "type,full_name,corporate_email,manager_email,employee_id,teams,status,iccid,carrier\n"
+            "employee,Ana Paula,,gerente@corp.com,EMP-9,Joinville,ativo,,\n"
             "simcard,,,,,AVAILABLE,8999999999999999999,Carrier QA\n"
         )
         uploaded_file = SimpleUploadedFile(
@@ -48,6 +48,7 @@ class UploadViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Employee.objects.count(), 1)
         self.assertEqual(SIMcard.objects.count(), 1)
+        self.assertEqual(Employee.objects.get().manager_email, "gerente@corp.com")
 
         summary = response.context.get("summary")
         self.assertIsNotNone(summary)
@@ -91,8 +92,8 @@ class UploadViewTests(TestCase):
 
     def test_upload_accepts_semicolon_delimited_csv(self):
         csv_content = (
-            "type;full_name;corporate_email;employee_id;teams;pa;status;iccid;carrier;phone_number;origem\n"
-            "employee;Ana Paula;;EMP-9;Joinville;;ativo;;;;\n"
+            "type;full_name;corporate_email;manager_email;employee_id;teams;pa;status;iccid;carrier;phone_number;origem\n"
+            "employee;Ana Paula;;gerente@corp.com;EMP-9;Joinville;;ativo;;;;\n"
             "simcard;;;;;;AVAILABLE;8999999999999999999;Carrier QA;+5511999990001;\n"
         )
         uploaded_file = SimpleUploadedFile(
@@ -104,3 +105,4 @@ class UploadViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Employee.objects.count(), 1)
         self.assertEqual(SIMcard.objects.count(), 1)
+        self.assertEqual(Employee.objects.get().manager_email, "gerente@corp.com")

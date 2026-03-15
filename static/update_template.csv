@@ -1,5 +1,5 @@
-type;full_name;corporate_email;employee_id;teams;pa;status;iccid;carrier;phone_number;origem
-employee;Ana Souza;;Pepsico;Joinville;;ativo;;;;
-employee;Bruno Lima;;Natura;Araquari;;inativo;;;;
+type;full_name;corporate_email;manager_email;employee_id;teams;pa;status;iccid;carrier;phone_number;origem
+employee;Ana Souza;;gerente@empresa.com;Pepsico;Joinville;;ativo;;;;
+employee;Bruno Lima;;gerente@empresa.com;Natura;Araquari;;inativo;;;;
 simcard;;;;;;AVAILABLE;VIRTUAL;Carrier A;+5511999990001;SRVMEMU-01
 simcard;;;;;;BLOCKED;8999999999999990002;Carrier B;+5511999990002;APARELHO

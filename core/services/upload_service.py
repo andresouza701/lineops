@@ -185,6 +185,10 @@ def _upsert_employee(row: dict[str, str], summary: UploadSummary) -> None:
     if supervisor_email:
         fields["corporate_email"] = supervisor_email
 
+    manager_email = row.get("manager_email") or ""
+    if manager_email:
+        fields["manager_email"] = manager_email
+
     pa = row.get("pa") or ""
     if pa:
         fields["pa"] = pa

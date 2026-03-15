@@ -1,3 +1,3 @@
-type;full_name;corporate_email;employee_id;teams;pa;status;iccid;carrier;phone_number;origem
-employee;Joana Silva;;Pepsico;Joinville;;ativo;;;;
+type;full_name;corporate_email;manager_email;employee_id;teams;pa;status;iccid;carrier;phone_number;origem
+employee;Joana Silva;;gerente@empresa.com;Pepsico;Joinville;;ativo;;;;
 simcard;;;;;;AVAILABLE;VIRTUAL;Carrier X;+5511999990000;SRVMEMU-01
