@@ -51,9 +51,7 @@ class EmployeeAdmin(admin.ModelAdmin):
         """Filtra employees baseado na role do usuário"""
         queryset = super().get_queryset(request)
         # SUPER users can only see their own employees
-        if request.user.is_supervisor_role:
-            queryset = queryset.filter(corporate_email=request.user.email)
-        return queryset
+        return request.user.scope_employee_queryset(queryset)
 
     # Admin delete must respect soft-delete semantics from Employee model/queryset.
     # The default admin collector checks protected relations as if it were a hard

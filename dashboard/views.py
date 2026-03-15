@@ -64,19 +64,26 @@ def resolve_day(value):
 
 
 def get_supervised_employees_queryset(user, supervisor_filter=None):
-    employees = Employee.objects.filter(is_deleted=False)
-    if getattr(user, "is_supervisor_role", False):
-        employees = employees.filter(corporate_email__iexact=user.email)
-    elif supervisor_filter:
+    employees = user.scope_employee_queryset(Employee.objects.filter(is_deleted=False))
+    if user.role == SystemUser.Role.ADMIN and supervisor_filter:
         employees = employees.filter(corporate_email__icontains=supervisor_filter)
     return employees.order_by("full_name")
 
 
 def get_daily_indicators_queryset(user):
     indicators = DailyIndicator.objects.all()
-    if getattr(user, "is_supervisor_role", False):
+    if user.role == SystemUser.Role.SUPER:
         indicators = indicators.filter(
             Q(supervisor__iexact=user.email) | Q(created_by=user) | Q(updated_by=user)
+        )
+    elif user.role == SystemUser.Role.GERENTE:
+        supervisor_emails = (
+            user.scope_employee_queryset(Employee.objects.filter(is_deleted=False))
+            .values_list("corporate_email", flat=True)
+            .distinct()
+        )
+        indicators = indicators.filter(
+            Q(supervisor__in=supervisor_emails) | Q(created_by=user) | Q(updated_by=user)
         )
     return indicators
 

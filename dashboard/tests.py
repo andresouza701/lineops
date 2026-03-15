@@ -661,3 +661,47 @@ class DashboardDailyIndicatorsTests(TestCase):
             b2b_rows[0]["action"].action_type,
             DailyUserAction.ActionType.RECONNECT_WHATSAPP,
         )
+
+
+class ManagerScopeTests(TestCase):
+    def setUp(self):
+        self.manager = SystemUser.objects.create_user(
+            email="gerente.scope@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.GERENTE,
+        )
+        self.supervisor = SystemUser.objects.create_user(
+            email="super.scope@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.SUPER,
+        )
+        self.other_supervisor = SystemUser.objects.create_user(
+            email="super.outro@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.SUPER,
+        )
+        self.client.force_login(self.manager)
+
+        self.managed_employee = Employee.objects.create(
+            full_name="Usuario Vinculado",
+            corporate_email=self.supervisor.email,
+            manager_email=self.manager.email,
+            employee_id="Ambiental",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        self.unmanaged_employee = Employee.objects.create(
+            full_name="Usuario Nao Vinculado",
+            corporate_email=self.other_supervisor.email,
+            manager_email="outro.gerente@test.com",
+            employee_id="Natura",
+            teams="Araquari",
+            status=Employee.Status.ACTIVE,
+        )
+
+    def test_manager_action_board_only_shows_employees_from_managed_supervisors(self):
+        response = self.client.get(reverse("daily_user_action_board"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Usuario Vinculado")
+        self.assertNotContains(response, "Usuario Nao Vinculado")

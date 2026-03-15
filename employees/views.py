@@ -95,8 +95,7 @@ class EmployeeListView(RoleRequiredMixin, ListView):
         queryset = Employee.objects.all().order_by("full_name")
 
         # Filtrar por role: SUPER vê apenas seus próprios usuários
-        if request.user.is_supervisor_role:
-            queryset = queryset.filter(corporate_email=request.user.email)
+        queryset = request.user.scope_employee_queryset(queryset)
 
         name = request.GET.get("name", "").strip()
         team = request.GET.get("team", "").strip()
@@ -174,9 +173,7 @@ class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
         """Filtra employees baseado na role do usuário"""
         queryset = Employee.objects.all()
         # SUPER users can only access their own employees
-        if self.request.user.is_supervisor_role:
-            queryset = queryset.filter(corporate_email=self.request.user.email)
-        return queryset
+        return self.request.user.scope_employee_queryset(queryset)
 
     def form_valid(self, form):
         try:

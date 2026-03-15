@@ -1,4 +1,5 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.apps import apps
 from django.db import models
 
 
@@ -37,7 +38,7 @@ class SystemUser(AbstractUser):
         GERENTE = "gerente", "Gerente"
         OPERATOR = "operator", "Operator"
 
-    SUPERVISOR_ROLES = (Role.SUPER, Role.GERENTE)
+    SUPERVISOR_ROLES = (Role.SUPER,)
     EMPLOYEE_ACCESS_ROLES = (Role.ADMIN, Role.SUPER, Role.GERENTE)
 
     username = None
@@ -58,8 +59,22 @@ class SystemUser(AbstractUser):
         return self.role in self.SUPERVISOR_ROLES
 
     @property
+    def is_manager_role(self):
+        return self.role == self.Role.GERENTE
+
+    @property
     def can_access_employee_area(self):
         return self.role in self.EMPLOYEE_ACCESS_ROLES
+
+    def scope_employee_queryset(self, queryset=None):
+        employee_model = apps.get_model("employees", "Employee")
+        queryset = queryset if queryset is not None else employee_model.objects.all()
+
+        if self.role == self.Role.SUPER:
+            return queryset.filter(corporate_email__iexact=self.email)
+        if self.role == self.Role.GERENTE:
+            return queryset.filter(manager_email__iexact=self.email)
+        return queryset
 
 
 # Create your models here.

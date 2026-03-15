@@ -73,6 +73,11 @@ class EmployeeListViewTest(TestCase):
             password="StrongPass123",
             role=SystemUser.Role.GERENTE,
         )
+        self.other_supervisor = SystemUser.objects.create_user(
+            email="outro.super@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.SUPER,
+        )
         self.employee = Employee.objects.create(
             full_name="Aline Martins",
             corporate_email="aline.martins@lineops.tech",
@@ -89,10 +94,19 @@ class EmployeeListViewTest(TestCase):
         )
         self.manager_employee = Employee.objects.create(
             full_name="Usuario do Gerente",
-            corporate_email=self.manager.email,
+            corporate_email=self.supervisor.email,
             employee_id="EMP-1003",
             teams=Employee.UnitChoices.ARAQUARI,
             status=Employee.Status.ACTIVE,
+            manager_email=self.manager.email,
+        )
+        self.unrelated_manager_employee = Employee.objects.create(
+            full_name="Usuario de Outro Super",
+            corporate_email=self.other_supervisor.email,
+            employee_id="EMP-1004",
+            teams=Employee.UnitChoices.ARAQUARI,
+            status=Employee.Status.ACTIVE,
+            manager_email="outro.gerente@test.com",
         )
 
         sim = SIMcard.objects.create(
@@ -163,6 +177,9 @@ class EmployeeListViewTest(TestCase):
         self.client.force_login(self.manager)
         response = self.client.get(reverse("employees:employee_list"))
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Usuario do Gerente")
+        self.assertNotContains(response, "Usuario de Outro Super")
+        self.assertNotContains(response, "Usuario do Super")
 
     def test_manager_can_access_employee_update(self) -> None:
         self.client.force_login(self.manager)
@@ -170,6 +187,15 @@ class EmployeeListViewTest(TestCase):
             reverse("employees:employee_update", args=[self.manager_employee.pk])
         )
         self.assertEqual(response.status_code, 200)
+
+    def test_manager_cannot_access_unrelated_employee_update(self) -> None:
+        self.client.force_login(self.manager)
+        response = self.client.get(
+            reverse(
+                "employees:employee_update", args=[self.unrelated_manager_employee.pk]
+            )
+        )
+        self.assertEqual(response.status_code, 404)
 
     def test_manager_does_not_see_history_button(self) -> None:
         self.client.force_login(self.manager)
