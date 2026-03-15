@@ -210,16 +210,12 @@ class PhoneLineListView(StandardPaginationMixin, RoleRequiredMixin, ListView):
                 {
                     "phone_number": line.phone_number,
                     "iccid": line.sim_card.iccid,
+                    "carrier": line.sim_card.carrier if line.sim_card else "",
                     "origem": line.origem,
                     "origem_display": line.get_origem_display() if line.origem else "",
                     "employee": employee_name,
                     "status": line.status,
                     "status_display": line.get_status_display(),
-                    "activated_at": (
-                        line.activated_at.strftime("%d/%m/%Y")
-                        if line.activated_at
-                        else ""
-                    ),
                 }
             )
 
@@ -484,14 +480,12 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
                 "id": line.pk,
                 "phone_number": line.phone_number,
                 "iccid": line.sim_card.iccid if line.sim_card else "",
+                "carrier": line.sim_card.carrier if line.sim_card else "",
                 "origem": line.origem,
                 "origem_display": line.get_origem_display() if line.origem else "",
                 "employee": employee_name,
                 "status": line.status,
                 "status_display": line.get_status_display(),
-                "activated_at": (
-                    line.activated_at.strftime("%d/%m/%Y") if line.activated_at else ""
-                ),
             }
 
             if table_type == "main" and is_admin:

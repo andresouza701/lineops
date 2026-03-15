@@ -57,7 +57,7 @@
                             <th scope="col">Origem</th>
                             <th scope="col">Usuário vinculado</th>
                             <th scope="col">Status</th>
-                            <th scope="col">Ativada em</th>
+                            <th scope="col">Operadora</th>
                             <th scope="col" class="text-end">Ações</th>
                         </tr>
                     </thead>
@@ -81,7 +81,7 @@
                                         <span class="badge bg-info">{{ line.get_status_display }}</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ line.activated_at|date:"d/m/Y"|default:"" }}</td>
+                                <td>{{ line.sim_card.carrier|default:"-" }}</td>
                                 <td class="text-end">
                                     {% if request.user.role == 'admin' %}
                                         <a href="{% url 'telecom:phoneline_update' line.pk %}" class="btn btn-outline-primary btn-sm" aria-label="Editar" title="Editar">
@@ -146,7 +146,7 @@
                             <th scope="col">Origem</th>
                             <th scope="col">Usuário vinculado</th>
                             <th scope="col">Status</th>
-                            <th scope="col">Ativado em</th>
+                            <th scope="col">Operadora</th>
                         </tr>
                     </thead>
                     <tbody id="recent-table-body">
@@ -169,7 +169,7 @@
                                         <span class="badge bg-info">{{ line.get_status_display }}</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ line.activated_at|date:"d/m/Y"|default:"—" }}</td>
+                                <td>{{ line.sim_card.carrier|default:"-" }}</td>
                             </tr>
                         {% empty %}
                             <tr id="no-data-recent"><td colspan="6" class="text-center">Nenhuma linha cadastrada.</td></tr>
@@ -274,7 +274,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <a href="${line.history_url}" class="btn btn-outline-secondary btn-sm ms-1" aria-label="Historico" title="Historico"><i class="bi bi-clock-history"></i></a>
             `;
         }
-        tr.innerHTML = `<td>${line.phone_number}</td><td>${line.iccid}</td><td>${line.origem_display || '-'}</td><td>${employeeText}</td><td></td><td>${line.activated_at}</td><td class="text-end">${actionsHtml}</td>`;
+        tr.innerHTML = `<td>${line.phone_number}</td><td>${line.iccid}</td><td>${line.origem_display || '-'}</td><td>${employeeText}</td><td></td><td>${line.carrier || '-'}</td><td class="text-end">${actionsHtml}</td>`;
         tr.querySelector('td:nth-child(5)').appendChild(createStatusBadge(line.status, line.status_display));
         return tr;
     }
@@ -282,7 +282,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function createRecentTableRow(line) {
         const tr = document.createElement('tr');
         const employeeText = line.employee || '<span class="text-muted">Sem vínculo</span>';
-        tr.innerHTML = `<td>${line.phone_number}</td><td>${line.iccid}</td><td>${line.origem_display || '-'}</td><td>${employeeText}</td><td></td><td>${line.activated_at || '—'}</td>`;
+        tr.innerHTML = `<td>${line.phone_number}</td><td>${line.iccid}</td><td>${line.origem_display || '-'}</td><td>${employeeText}</td><td></td><td>${line.carrier || '-'}</td>`;
         tr.querySelector('td:nth-child(5)').appendChild(createStatusBadge(line.status, line.status_display));
         return tr;
     }
