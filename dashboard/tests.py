@@ -430,6 +430,26 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertIn("Status da linha", history.old_value or "")
         self.assertIn("Status da linha", history.new_value or "")
 
+    def test_daily_user_action_board_updates_employee_line_status_without_allocation(
+        self,
+    ):
+        response = self.client.post(
+            reverse("daily_user_action_board"),
+            data={
+                "day": timezone.localdate().isoformat(),
+                "employee_id": self.employee_b2c.id,
+                "allocation_id": "",
+                "line_status": Employee.LineStatus.RESTRICTED,
+                "action_type": "",
+                "note": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        self.employee_b2c.refresh_from_db()
+        self.assertEqual(self.employee_b2c.line_status, Employee.LineStatus.RESTRICTED)
+
     def test_daily_user_action_board_logs_daily_action_change_in_history(self):
         response = self.client.post(
             reverse("daily_user_action_board"),

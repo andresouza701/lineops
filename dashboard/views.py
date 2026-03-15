@@ -790,31 +790,36 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                 # Processar line_status (somente ADMIN pode alterar)
                 if request.user.role == SystemUser.Role.ADMIN:
                     line_status = form.cleaned_data.get("line_status")
-                    if (
-                        line_status
-                        and line_status in dict(LineAllocation.LineStatus.choices)
-                        and allocation_id
-                    ):  # noqa: SIM102
-                        # Atualizar status da alocação específica
-                        allocation = LineAllocation.objects.filter(
-                            pk=allocation_id, employee=employee, is_active=True
-                        ).first()
-                        if allocation and allocation.line_status != line_status:
-                            old_line_status = allocation.get_line_status_display()
-                            allocation.line_status = line_status
-                            allocation.save(update_fields=["line_status"])
-                            new_line_status = allocation.get_line_status_display()
-                            PhoneLineHistory.objects.create(
-                                phone_line=allocation.phone_line,
-                                action=PhoneLineHistory.ActionType.STATUS_CHANGED,
-                                old_value=f"Status da linha: {old_line_status}",
-                                new_value=f"Status da linha: {new_line_status}",
-                                changed_by=request.user,
-                                description=(
-                                    "Status da linha alterado em Ações do Dia de "
-                                    f"{old_line_status} para {new_line_status}"
-                                ),
-                            )
+                    if line_status and line_status in dict(Employee.LineStatus.choices):
+                        if allocation_id:
+                            # Atualizar status da alocação específica
+                            allocation = LineAllocation.objects.filter(
+                                pk=allocation_id, employee=employee, is_active=True
+                            ).first()
+                            if allocation and allocation.line_status != line_status:
+                                old_line_status = allocation.get_line_status_display()
+                                allocation.line_status = line_status
+                                allocation.save(update_fields=["line_status"])
+                                new_line_status = allocation.get_line_status_display()
+                                PhoneLineHistory.objects.create(
+                                    phone_line=allocation.phone_line,
+                                    action=PhoneLineHistory.ActionType.STATUS_CHANGED,
+                                    old_value=f"Status da linha: {old_line_status}",
+                                    new_value=f"Status da linha: {new_line_status}",
+                                    changed_by=request.user,
+                                    description=(
+                                        "Status da linha alterado em Ações do Dia de "
+                                        f"{old_line_status} para {new_line_status}"
+                                    ),
+                                )
+                                messages.success(
+                                    request,
+                                    f"Status da linha atualizado para "
+                                    f"{employee.full_name}.",
+                                )
+                        elif employee.line_status != line_status:
+                            employee.line_status = line_status
+                            employee.save(update_fields=["line_status"])
                             messages.success(
                                 request,
                                 f"Status da linha atualizado para "
