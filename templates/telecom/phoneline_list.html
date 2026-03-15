@@ -36,10 +36,10 @@
                 <tr>
                     <th scope="col">Número</th>
                     <th scope="col">SIM Card</th>
+                    <th scope="col">Operadora</th>
                     <th scope="col">Origem</th>
                     <th scope="col">Usuário vinculado</th>
                     <th scope="col">Status</th>
-                    <th scope="col">Operadora</th>
                 </tr>
             </thead>
             <tbody id="phoneline-table-body">
@@ -47,10 +47,10 @@
                     <tr>
                         <td>{{ line.phone_number }}</td>
                         <td>{{ line.sim_card.iccid }}</td>
+                        <td>{{ line.sim_card.carrier|default:"-" }}</td>
                         <td>{{ line.get_origem_display|default:"-" }}</td>
                         <td>{% if line.active_allocations %}{{ line.active_allocations.0.employee.full_name }}{% else %}<span class="text-muted">Sem vínculo</span>{% endif %}</td>
                         <td>{{ line.get_status_display }}</td>
-                        <td>{{ line.sim_card.carrier|default:"-" }}</td>
                     </tr>
                 {% empty %}
                     <tr id="phoneline-no-data"><td colspan="6" class="text-center">Nenhuma linha cadastrada.</td></tr>
