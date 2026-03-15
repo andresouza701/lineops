@@ -454,8 +454,8 @@ class EmployeeCreateUpdateIntegrityHandlingTest(TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Corrija os erros do funcionario.")
-        self.assertContains(response, "Ja existe um usuario cadastrado com este nome.")
+        self.assertContains(response, "Corrija os erros do usuário.")
+        self.assertContains(response, "Já existe um usuário cadastrado com este nome.")
 
     def test_update_view_handles_duplicate_full_name_integrity_error(self) -> None:
         with patch(
@@ -479,8 +479,8 @@ class EmployeeCreateUpdateIntegrityHandlingTest(TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Corrija os erros do funcionario.")
-        self.assertContains(response, "Ja existe um usuario cadastrado com este nome.")
+        self.assertContains(response, "Corrija os erros do usuário.")
+        self.assertContains(response, "Já existe um usuário cadastrado com este nome.")
 
 
 class EmployeeAdminFormValidationTest(TestCase):

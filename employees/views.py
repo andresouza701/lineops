@@ -153,10 +153,10 @@ class EmployeeCreateView(RoleRequiredMixin, CreateView):
             if not _is_duplicate_full_name_error(exc):
                 raise
             form.add_error("full_name", DUPLICATE_EMPLOYEE_NAME_MESSAGE)
-            messages.error(self.request, "Corrija os erros do funcionario.")
+            messages.error(self.request, "Corrija os erros do usuário.")
             return self.form_invalid(form)
 
-        messages.success(self.request, "Funcionário criado com sucesso.")
+        messages.success(self.request, "Usuário criado com sucesso.")
         return response
 
 
@@ -170,9 +170,9 @@ class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
     success_url = reverse_lazy("employees:employee_list")
 
     def get_queryset(self):
-        """Filtra employees baseado na role do usuário"""
+        """Filtra usuários baseado na role do usuário"""
         queryset = Employee.objects.all()
-        # SUPER users can only access their own employees
+        # SUPER users can only access their own users
         return self.request.user.scope_employee_queryset(queryset)
 
     def form_valid(self, form):
@@ -182,10 +182,10 @@ class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
             if not _is_duplicate_full_name_error(exc):
                 raise
             form.add_error("full_name", DUPLICATE_EMPLOYEE_NAME_MESSAGE)
-            messages.error(self.request, "Corrija os erros do funcionario.")
+            messages.error(self.request, "Corrija os erros do usuário.")
             return self.form_invalid(form)
 
-        messages.success(self.request, "Funcionário atualizado com sucesso.")
+        messages.success(self.request, "Usuário atualizado com sucesso.")
         return response
 
 
@@ -195,7 +195,7 @@ class EmployeeDeactivateView(RoleRequiredMixin, View):
     def post(self, request, pk):
         employee = get_object_or_404(Employee, pk=pk)
         employee.delete()
-        messages.success(request, "Funcionário desativado com sucesso.")
+        messages.success(request, "Usuário desativado com sucesso.")
         return redirect("employees:employee_list")
 
 

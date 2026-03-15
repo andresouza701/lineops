@@ -657,7 +657,7 @@ class PhoneLineViewsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
-            "O funcionario TESTE1 ja possui 2 linhas alocadas ativas.",
+            "O usuário TESTE1 já possui 2 linhas alocadas ativas.",
         )
         self.line_available.refresh_from_db()
         self.assertEqual(self.line_available.status, PhoneLine.Status.AVAILABLE)

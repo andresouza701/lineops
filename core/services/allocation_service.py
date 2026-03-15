@@ -33,8 +33,7 @@ class AllocationService:
                 },
             )
             raise BusinessRuleException(
-                f"O funcionario {employee.full_name} "
-                "ja possui 2 linhas alocadas ativas."
+                f"O usuário {employee.full_name} " "já possui 2 linhas alocadas ativas."
             )
 
         if LineAllocation.objects.filter(
