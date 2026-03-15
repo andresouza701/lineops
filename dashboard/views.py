@@ -79,7 +79,9 @@ def get_daily_indicators_queryset(user):
     elif user.role == SystemUser.Role.GERENTE:
         supervisor_emails = user.get_managed_supervisor_emails()
         indicators = indicators.filter(
-            Q(supervisor__in=supervisor_emails) | Q(created_by=user) | Q(updated_by=user)
+            Q(supervisor__in=supervisor_emails)
+            | Q(created_by=user)
+            | Q(updated_by=user)
         )
     return indicators
 
@@ -665,7 +667,9 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
                 "total_reconnect": 0,
                 "total_new_number": 0,
             }
-            for supervisor_email in sorted(self.request.user.get_managed_supervisor_emails())
+            for supervisor_email in sorted(
+                self.request.user.get_managed_supervisor_emails()
+            )
         }
 
         employees = get_supervised_employees_queryset(self.request.user).filter(
@@ -703,7 +707,11 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
                     "new_number_count": 0,
                 },
             )
-            is_logged = employee.status == Employee.Status.ACTIVE
+            is_active_employee = employee.status == Employee.Status.ACTIVE
+            if not is_active_employee:
+                continue
+
+            is_logged = True
             has_line = employee.id in active_allocated_employee_ids
 
             if is_logged:
@@ -718,6 +726,8 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
 
         for action in get_latest_unresolved_actions_queryset(self.request.user):
             employee = action.employee
+            if employee.status != Employee.Status.ACTIVE:
+                continue
             supervisor = employee.corporate_email or "Sem supervisor"
             portfolio = employee.employee_id or "Sem carteira"
 

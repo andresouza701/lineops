@@ -757,7 +757,7 @@ class ManagerScopeTests(TestCase):
         self.assertNotContains(response, "Usuario Nao Vinculado")
 
     def test_manager_dashboard_shows_operator_counts_by_portfolio(self):
-        other_employee_same_portfolio = Employee.objects.create(
+        Employee.objects.create(
             full_name="Usuario Vinculado 2",
             corporate_email=self.supervisor.email,
             employee_id="Ambiental",
@@ -792,7 +792,34 @@ class ManagerScopeTests(TestCase):
         )
         self.assertEqual(row["logged_count"], 1)
         self.assertEqual(row["with_line_count"], 1)
-        self.assertEqual(row["without_line_count"], 1)
+        self.assertEqual(row["without_line_count"], 0)
+
+    def test_manager_dashboard_ignores_inactive_user_in_all_metrics(self):
+        self.managed_employee.status = Employee.Status.INACTIVE
+        self.managed_employee.save(update_fields=["status"])
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.managed_employee,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.supervisor,
+            created_by=self.supervisor,
+            updated_by=self.supervisor,
+            is_resolved=False,
+        )
+
+        response = self.client.get(reverse("manager_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        row = next(
+            item
+            for item in response.context["supervisor_dashboards"][0]["rows"]
+            if item["portfolio"] == "Ambiental"
+        )
+        self.assertEqual(row["logged_count"], 0)
+        self.assertEqual(row["with_line_count"], 0)
+        self.assertEqual(row["without_line_count"], 0)
+        self.assertEqual(row["reconnect_count"], 0)
+        self.assertEqual(row["new_number_count"], 0)
 
     def test_manager_dashboard_shows_supervisor_even_without_employees(self):
         Employee.objects.filter(pk=self.managed_employee.pk).delete()
