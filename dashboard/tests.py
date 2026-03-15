@@ -139,6 +139,21 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertEqual(latest["b2b_sem_whats"], 0)
         self.assertEqual(latest["b2c_sem_whats"], 1)
 
+    def test_dashboard_counts_only_available_lines_as_available(self):
+        sim_3 = SIMcard.objects.create(iccid="8900000000000001002", carrier="CarrierX")
+        PhoneLine.objects.create(
+            phone_number="+5511999999003",
+            sim_card=sim_3,
+            status=PhoneLine.Status.SUSPENDED,
+        )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        latest = response.context["indicadores_diarios"][-1]
+        self.assertEqual(response.context["available_lines"], 1)
+        self.assertEqual(latest["numeros_disponiveis"], 1)
+
     def test_daily_indicator_form_rejects_people_logged_in_above_limit(self):
         form = DailyIndicatorForm(
             data={

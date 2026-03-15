@@ -230,7 +230,11 @@ def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
     sem_whats = employees_without_whats.count()
     perc_sem_whats = (sem_whats / total_negociadores * 100) if total_negociadores else 0
 
-    base_lines = PhoneLine.objects.filter(is_deleted=False, created_at__date__lte=day)
+    base_lines = PhoneLine.objects.filter(
+        is_deleted=False,
+        created_at__date__lte=day,
+        status=PhoneLine.Status.AVAILABLE,
+    )
     allocated_line_ids = active_allocations.values_list(
         "phone_line_id", flat=True
     ).distinct()
@@ -343,7 +347,10 @@ class DashboardView(AuthenticadView, TemplateView):
         context["allocated_lines"] = LineAllocation.objects.filter(
             is_active=True
         ).count()
-        context["available_lines"] = context["total_lines"] - context["allocated_lines"]
+        context["available_lines"] = PhoneLine.objects.filter(
+            is_deleted=False,
+            status=PhoneLine.Status.AVAILABLE,
+        ).count()
         context["total_simcards"] = SIMcard.objects.filter(is_deleted=False).count()
 
         context.update(self._build_status_counts())
