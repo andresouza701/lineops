@@ -7,22 +7,15 @@
 <section class="surface-card reveal-item mb-3">
     <div>
         <h2 class="h5 mb-1">Visão por supervisor</h2>
-        <p class="text-muted mb-0">Pendências abertas dos supervisores vinculados ao gerente logado.</p>
+        <p class="text-muted mb-0">Carteiras vinculadas aos supervisores do gerente logado.</p>
     </div>
 </section>
 
 {% if supervisor_dashboards %}
     {% for supervisor_data in supervisor_dashboards %}
     <section class="surface-card reveal-item mb-3">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div>
-                <h2 class="h6 mb-1">Supervisor {{ supervisor_data.supervisor }}</h2>
-                <p class="text-muted mb-0">
-                    Total: {{ supervisor_data.grand_total }} |
-                    Reconectar: {{ supervisor_data.total_reconnect }} |
-                    Número Novo: {{ supervisor_data.total_new_number }}
-                </p>
-            </div>
+        <div class="mb-3">
+            <h2 class="h6 mb-1">Supervisor {{ supervisor_data.supervisor }}</h2>
         </div>
         <div class="table-responsive">
             <table class="table table-striped table-hover align-middle">
@@ -31,7 +24,6 @@
                         <th>Carteira</th>
                         <th>Reconectar</th>
                         <th>Número Novo</th>
-                        <th>Total</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -40,20 +32,18 @@
                         <td>{{ row.portfolio }}</td>
                         <td>{{ row.reconnect_count }}</td>
                         <td>{{ row.new_number_count }}</td>
-                        <td>{{ row.total }}</td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="4" class="text-center text-muted">Nenhuma carteira vinculada para este supervisor.</td>
+                        <td colspan="3" class="text-center text-muted">Nenhuma carteira vinculada para este supervisor.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
                 <tfoot>
-                    <tr class="table-light">
+                    <tr class="manager-dashboard-total-row">
                         <th>Total</th>
                         <th>{{ supervisor_data.total_reconnect }}</th>
                         <th>{{ supervisor_data.total_new_number }}</th>
-                        <th>{{ supervisor_data.grand_total }}</th>
                     </tr>
                 </tfoot>
             </table>
@@ -62,7 +52,7 @@
     {% endfor %}
 {% else %}
 <section class="surface-card reveal-item">
-    <p class="text-muted mb-0">Nenhum supervisor vinculado com pendências abertas.</p>
+    <p class="text-muted mb-0">Nenhum supervisor vinculado ao gerente.</p>
 </section>
 {% endif %}
 {% endblock %}

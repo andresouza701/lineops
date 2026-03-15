@@ -624,6 +624,11 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--text-main) !important;
 }
 
+.manager-dashboard-total-row {
+    --bs-table-bg: rgba(37, 99, 235, 0.18);
+    --bs-table-color: var(--text-main);
+}
+
 
 .users-auto-table {
     width: 100%;
