@@ -14,7 +14,7 @@ from users.models import SystemUser
 from .models import Employee, EmployeeHistory
 
 DUPLICATE_EMPLOYEE_NAME_CONSTRAINT = "employees_employee_unique_active_full_name_ci"
-DUPLICATE_EMPLOYEE_NAME_MESSAGE = "Ja existe um usuario cadastrado com este nome."
+DUPLICATE_EMPLOYEE_NAME_MESSAGE = "Já existe um usuário cadastrado com este nome."
 
 
 def _is_duplicate_full_name_error(exc: IntegrityError) -> bool:
@@ -98,12 +98,18 @@ class EmployeeListView(RoleRequiredMixin, ListView):
         queryset = request.user.scope_employee_queryset(queryset)
 
         name = request.GET.get("name", "").strip()
+        line = request.GET.get("line", "").strip()
         team = request.GET.get("team", "").strip()
         teams = request.GET.get("teams", "").strip()
         supervisor = request.GET.get("supervisor", "").strip()
 
         if name:
             queryset = queryset.filter(full_name__icontains=name)
+        if line:
+            queryset = queryset.filter(
+                allocations__is_active=True,
+                allocations__phone_line__phone_number__icontains=line,
+            )
         if team:
             queryset = queryset.filter(teams__icontains=team)
         if teams:
