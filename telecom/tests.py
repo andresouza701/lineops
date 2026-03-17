@@ -567,6 +567,26 @@ class PhoneLineViewsTest(TestCase):
         self.assertEqual(len(lines), 1)
         self.assertEqual(lines[0].pk, self.line_allocated.pk)
 
+    def test_ajax_overview_returns_plural_urls_for_actions(self):
+        url = reverse("telecom:overview")
+        response = self.client.get(
+            url,
+            {"table": "main", "offset": 0, "limit": 10},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        target = next(item for item in payload["data"] if item["id"] == self.line_available.pk)
+        self.assertEqual(
+            target["edit_url"],
+            reverse("telecom:phoneline_update", args=[self.line_available.pk]),
+        )
+        self.assertEqual(
+            target["history_url"],
+            reverse("telecom:phoneline_history", args=[self.line_available.pk]),
+        )
+
     def test_create_view_binds_sim_to_new_line(self):
         new_sim = SIMcard.objects.create(
             iccid="8900000000000000606",

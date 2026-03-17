@@ -489,8 +489,8 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
             }
 
             if table_type == "main" and is_admin:
-                line_data["edit_url"] = f"/telecom/phoneline/{line.pk}/update/"
-                line_data["history_url"] = f"/telecom/phoneline/{line.pk}/history/"
+                line_data["edit_url"] = f"/telecom/phonelines/{line.pk}/update/"
+                line_data["history_url"] = f"/telecom/phonelines/{line.pk}/history/"
 
             data.append(line_data)
 
