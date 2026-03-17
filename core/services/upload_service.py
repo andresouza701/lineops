@@ -42,18 +42,22 @@ class UploadSummary:
 
 
 ALLOWED_EMPLOYEE_STATUSES = {value.lower(): value for value in Employee.Status.values}
-ALLOWED_SIM_STATUSES = {value.lower(): value for value in SIMcard.Status.values}
+ALLOWED_PHONE_LINE_STATUSES = {
+    value.lower(): value for value in PhoneLine.Status.values
+}
 
 EMPLOYEE_STATUS_ALIASES = {
     "ativo": Employee.Status.ACTIVE,
     "inativo": Employee.Status.INACTIVE,
 }
 
-SIM_STATUS_ALIASES = {
-    "disponivel": SIMcard.Status.AVAILABLE,
-    "ativo": SIMcard.Status.ACTIVE,
-    "bloqueado": SIMcard.Status.BLOCKED,
-    "cancelado": SIMcard.Status.CANCELLED,
+PHONE_LINE_STATUS_ALIASES = {
+    "disponivel": PhoneLine.Status.AVAILABLE,
+    "alocado": PhoneLine.Status.ALLOCATED,
+    "quarentena": PhoneLine.Status.SUSPENDED,
+    "cancelado": PhoneLine.Status.CANCELLED,
+    "aquecendo": PhoneLine.Status.AQUECENDO,
+    "novo": PhoneLine.Status.NOVO,
 }
 
 
@@ -209,10 +213,10 @@ def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
 
     phone_number = row.get("phone_number") or ""
     iccid = row["iccid"]
-    status = _normalize_sim_status(row.get("status"))
+    line_status = _normalize_phone_line_status(row.get("status"))
     sim_defaults = {
         "carrier": row["carrier"],
-        "status": status,
+        "status": _map_phone_line_status_to_sim_status(line_status),
         "is_deleted": False,
     }
 
@@ -238,7 +242,7 @@ def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
         phone_line = existing_line or PhoneLine(phone_number=phone_number)
         phone_line.phone_number = phone_number
         phone_line.sim_card = simcard
-        phone_line.status = PhoneLine.Status.AVAILABLE
+        phone_line.status = line_status
         phone_line.is_deleted = False
         if origem:
             phone_line.origem = origem
@@ -289,18 +293,31 @@ def _normalize_origem(raw_origem: str | None) -> str:
     )
 
 
-def _normalize_sim_status(raw_status: str | None) -> str:
+def _normalize_phone_line_status(raw_status: str | None) -> str:
     if not raw_status:
-        return SIMcard.Status.AVAILABLE
+        return PhoneLine.Status.AVAILABLE
 
     normalized = slugify(raw_status).replace("-", "").lower()
-    if normalized in SIM_STATUS_ALIASES:
-        return SIM_STATUS_ALIASES[normalized]
+    if normalized in PHONE_LINE_STATUS_ALIASES:
+        return PHONE_LINE_STATUS_ALIASES[normalized]
 
-    status = ALLOWED_SIM_STATUSES.get(normalized)
+    status = ALLOWED_PHONE_LINE_STATUSES.get(normalized)
     if not status:
         raise ValueError(
-            "Status de SIMcard inválido. "
-            "Use AVAILABLE/ACTIVE/BLOCKED/CANCELLED ou equivalentes em português."
+            "Status de linha inv?lido para upload de simcard. "
+            "Use AVAILABLE/ALLOCATED/SUSPENDED/CANCELLED/AQUECENDO/NOVO "
+            "ou equivalentes em portugu?s."
         )
     return status
+
+
+def _map_phone_line_status_to_sim_status(phone_line_status: str) -> str:
+    mapping = {
+        PhoneLine.Status.AVAILABLE: SIMcard.Status.AVAILABLE,
+        PhoneLine.Status.ALLOCATED: SIMcard.Status.ACTIVE,
+        PhoneLine.Status.SUSPENDED: SIMcard.Status.BLOCKED,
+        PhoneLine.Status.CANCELLED: SIMcard.Status.CANCELLED,
+        PhoneLine.Status.AQUECENDO: SIMcard.Status.ACTIVE,
+        PhoneLine.Status.NOVO: SIMcard.Status.AVAILABLE,
+    }
+    return mapping[phone_line_status]

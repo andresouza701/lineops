@@ -23,7 +23,7 @@ class UploadServiceTests(TestCase):
         initial_csv = (
             "type,full_name,corporate_email,manager_email,employee_id,teams,pa,status,iccid,carrier,phone_number,origem\n"
             "employee,Alice Smith,,gerente@test.com,Pepsico,Joinville,PA-10,ativo,,,,\n"
-            "simcard,,,,,,,8999999999999999999,Carrier A,+5511999990000,SRVMEMU-01\n"
+            "simcard,,,,,,,,8999999999999999999,Carrier A,+5511999990000,SRVMEMU-01\n"
         )
         path = self._write("initial.csv", initial_csv)
         summary = process_upload_file(path)
@@ -39,13 +39,14 @@ class UploadServiceTests(TestCase):
         self.assertEqual(employee.manager_email, "gerente@test.com")
         self.assertEqual(simcard.status, SIMcard.Status.AVAILABLE)
         phone_line = PhoneLine.objects.get(phone_number="+5511999990000")
+        self.assertEqual(phone_line.status, PhoneLine.Status.AVAILABLE)
         self.assertEqual(phone_line.origem, "SRVMEMU-01")
 
         # Update by same full_name — changes carteira and status
         update_csv = (
             "type,full_name,corporate_email,manager_email,employee_id,teams,pa,status,iccid,carrier,phone_number,origem\n"
             "employee,Alice Smith,,gerente-2@test.com,Natura,Araquari,,inativo,,,,\n"
-            "simcard,,,,,,,8999999999999999999,Carrier B,,\n"
+            "simcard,,,,,,,,8999999999999999999,Carrier B,,\n"
         )
         update_path = self._write("update.csv", update_csv)
         update_summary = process_upload_file(update_path)
@@ -97,7 +98,7 @@ class UploadServiceTests(TestCase):
         )
         emp_row = "employee;Ana Paula;;gerente@corp.com;EMP-9;Joinville;;ativo;;;;\n"
         sim_row = (
-            "simcard;;;;;;AVAILABLE;8999999999999999999;"
+            "simcard;;;;;;;AVAILABLE;8999999999999999999;"
             "Carrier QA;+5511999990001;APARELHO\n"
         )
         csv_content = header + emp_row + sim_row
@@ -119,7 +120,7 @@ class UploadServiceTests(TestCase):
             "teams;pa;status;iccid;carrier;phone_number;origem\n"
         )
         sim_row = (
-            "simcard;;;;;;AVAILABLE;8999999999999999998;"
+            "simcard;;;;;;;AVAILABLE;8999999999999999998;"
             "Carrier QA;+5511999990002;INVALID\n"
         )
         csv_content = header + sim_row
@@ -142,7 +143,7 @@ class UploadServiceTests(TestCase):
         csv_content = (
             "type;full_name;corporate_email;manager_email;employee_id;"
             "teams;pa;status;iccid;carrier;phone_number;origem\n"
-            "simcard;;;;;;AVAILABLE;VIRTUAL;"
+            "simcard;;;;;;;AVAILABLE;VIRTUAL;"
             "Carrier Y;+5511999991000;SRVMEMU-02\n"
         )
         path = self._write("same_phone_update.csv", csv_content)
@@ -158,15 +159,34 @@ class UploadServiceTests(TestCase):
         self.assertEqual(sim.carrier, "Carrier Y")
         # Same phone line kept, origem updated
         line.refresh_from_db()
+        self.assertEqual(line.status, PhoneLine.Status.AVAILABLE)
         self.assertEqual(line.origem, "SRVMEMU-02")
+
+    def test_simcard_upload_uses_phone_line_status_choices(self):
+        csv_content = (
+            "type;full_name;corporate_email;manager_email;employee_id;"
+            "teams;pa;status;iccid;carrier;phone_number;origem\n"
+            "simcard;;;;;;;quarentena;8999999999999997777;"
+            "Carrier Z;+5511999997777;SRVMEMU-03\n"
+        )
+        path = self._write("line_status_alias.csv", csv_content)
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(summary.rows_processed, 1)
+        self.assertFalse(summary.errors)
+        simcard = SIMcard.objects.get(iccid="8999999999999997777")
+        phone_line = PhoneLine.objects.get(phone_number="+5511999997777")
+        self.assertEqual(phone_line.status, PhoneLine.Status.SUSPENDED)
+        self.assertEqual(simcard.status, SIMcard.Status.BLOCKED)
 
     def test_different_phone_numbers_same_iccid_each_create_own_sim_and_line(self):
         csv_content = (
             "type;full_name;corporate_email;manager_email;employee_id;"
             "teams;pa;status;iccid;carrier;phone_number;origem\n"
-            "simcard;;;;;;AVAILABLE;VIRTUAL;ALGAR;4730260539;SRVMEMU-01\n"
-            "simcard;;;;;;AVAILABLE;VIRTUAL;ALGAR;4735113591;SRVMEMU-01\n"
-            "simcard;;;;;;AVAILABLE;VIRTUAL;ALGAR;4730260547;SRVMEMU-01\n"
+            "simcard;;;;;;;AVAILABLE;VIRTUAL;ALGAR;4730260539;SRVMEMU-01\n"
+            "simcard;;;;;;;AVAILABLE;VIRTUAL;ALGAR;4735113591;SRVMEMU-01\n"
+            "simcard;;;;;;;AVAILABLE;VIRTUAL;ALGAR;4730260547;SRVMEMU-01\n"
         )
         path = self._write("virtual_multi.csv", csv_content)
 
@@ -181,7 +201,7 @@ class UploadServiceTests(TestCase):
         csv_content = (
             "type;full_name;corporate_email;manager_email;employee_id;"
             "teams;pa;status;iccid;carrier;phone_number;origem\n"
-            "simcard;;;;;;AVAILABLE;VIRTUALABC123;ALGAR;4730260539;SRVMEMU-01\n"
+            "simcard;;;;;;;AVAILABLE;VIRTUALABC123;ALGAR;4730260539;SRVMEMU-01\n"
         )
         path = self._write("alphanumeric_iccid.csv", csv_content)
 
@@ -197,7 +217,7 @@ class UploadServiceTests(TestCase):
         csv_content = (
             "type;full_name;corporate_email;manager_email;employee_id;"
             "teams;pa;status;iccid;carrier;phone_number;origem\n"
-            "simcard;;;;;;AVAILABLE;;ALGAR;4730260539;SRVMEMU-01\n"
+            "simcard;;;;;;;AVAILABLE;;ALGAR;4730260539;SRVMEMU-01\n"
         )
         path = self._write("missing_iccid.csv", csv_content)
 
