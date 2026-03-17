@@ -2,6 +2,7 @@
 Context processors para disponibilizar dados globalmente nos templates.
 """
 
+from django.conf import settings
 from django.db.models import Exists, F, OuterRef, Q
 
 from allocations.models import LineAllocation
@@ -59,3 +60,9 @@ def pending_actions_count(request):
         count = len(seen_keys)
 
     return {"pending_actions_count": count}
+
+
+def app_metadata(request):
+    """Disponibiliza metadados globais da aplicação para os templates."""
+
+    return {"app_version": settings.APP_VERSION}

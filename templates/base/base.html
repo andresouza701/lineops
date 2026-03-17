@@ -88,6 +88,11 @@
                 {% include "base/messages.html" %}
                 {% block content %}{% endblock %}
             </main>
+
+            <footer class="app-footer">
+                <p class="app-footer-copy">LineOps</p>
+                <p class="app-footer-version">Versão {{ app_version }}</p>
+            </footer>
         </div>
     </div>
 
@@ -112,5 +117,4 @@
     {% block scripts %}{% endblock %}
 </body>
 </html>
-
 

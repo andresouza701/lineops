@@ -29,6 +29,7 @@ if ENV_FILE.exists():
     environ.Env.read_env(ENV_FILE)
 
 APP_ENV = env("APP_ENV", default="dev")
+APP_VERSION = env("APP_VERSION", default="1.0.0")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -93,6 +94,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "django.template.context_processors.debug",
                 "core.context_processors.pending_actions_count",
+                "core.context_processors.app_metadata",
             ],
         },
     },
