@@ -111,6 +111,150 @@ def get_latest_unresolved_actions_queryset(user):
     return list(latest_by_key.values())
 
 
+def get_unresolved_action_maps(employee_ids):
+    all_actions = (
+        DailyUserAction.objects.filter(
+            employee_id__in=employee_ids,
+            is_resolved=False,
+        )
+        .select_related("employee", "allocation")
+        .order_by("employee_id", "-day", "-id", "allocation_id")
+    )
+
+    actions_by_allocation = {}
+    latest_action_by_employee = {}
+    for action in all_actions:
+        allocation_id = action.allocation_id if action.allocation else None
+        key = (action.employee_id, allocation_id)
+        if key not in actions_by_allocation:
+            actions_by_allocation[key] = action
+        if action.employee_id not in latest_action_by_employee:
+            latest_action_by_employee[action.employee_id] = action
+
+    return actions_by_allocation, latest_action_by_employee
+
+
+def get_active_allocations_by_employee(employee_ids):
+    active_allocations = (
+        LineAllocation.objects.filter(
+            is_active=True,
+            employee_id__in=employee_ids,
+        )
+        .select_related("phone_line")
+        .order_by("employee_id", "-allocated_at")
+    )
+
+    allocations_by_employee = defaultdict(list)
+    for allocation in active_allocations:
+        if allocation.phone_line:
+            allocations_by_employee[allocation.employee_id].append(allocation)
+    return allocations_by_employee
+
+
+def should_hide_row_for_admin(row):
+    action = row.get("action")
+    allocation = row.get("allocation")
+    if allocation:
+        return (
+            allocation.line_status == LineAllocation.LineStatus.ACTIVE
+            and (not action or not action.action_type)
+        )
+
+    return (
+        row["employee"].line_status == Employee.LineStatus.ACTIVE
+        and (not action or not action.action_type)
+    )
+
+
+def apply_action_board_visibility_rules(rows, user):
+    if user.role != SystemUser.Role.ADMIN:
+        return rows
+    return [row for row in rows if not should_hide_row_for_admin(row)]
+
+
+def build_daily_user_action_rows(
+    employees_qs, user, include_forms=False, form_day=None
+):
+    employees = list(employees_qs)
+    employee_ids = [employee.id for employee in employees]
+    actions_by_allocation, latest_action_by_employee = get_unresolved_action_maps(
+        employee_ids
+    )
+    allocations_by_employee = get_active_allocations_by_employee(employee_ids)
+    form_day = form_day or timezone.localdate()
+
+    rows = []
+    for employee in employees:
+        allocations = allocations_by_employee.get(employee.id, [])
+        if allocations:
+            for allocation in allocations:
+                action = actions_by_allocation.get((employee.id, allocation.id))
+                row = {
+                    "employee": employee,
+                    "allocation": allocation,
+                    "has_line": True,
+                    "action": action,
+                }
+                if include_forms:
+                    row["line_number"] = allocation.phone_line.phone_number
+                    row["form"] = DailyUserActionForm(
+                        initial={
+                            "day": form_day,
+                            "employee_id": employee.id,
+                            "allocation_id": allocation.id,
+                            "action_type": action.action_type if action else "",
+                            "note": action.note if action else "",
+                            "line_status": allocation.line_status,
+                        }
+                    )
+                rows.append(row)
+            continue
+
+        action = actions_by_allocation.get((employee.id, None))
+        if not action:
+            action = latest_action_by_employee.get(employee.id)
+
+        row = {
+            "employee": employee,
+            "allocation": None,
+            "has_line": False,
+            "action": action,
+        }
+        if include_forms:
+            row["line_number"] = None
+            row["form"] = DailyUserActionForm(
+                initial={
+                    "day": form_day,
+                    "employee_id": employee.id,
+                    "allocation_id": None,
+                    "action_type": action.action_type if action else "",
+                    "note": action.note if action else "",
+                    "line_status": employee.line_status,
+                }
+            )
+        rows.append(row)
+
+    return apply_action_board_visibility_rules(rows, user)
+
+
+def count_visible_pending_actions(rows):
+    return {
+        "new_number": sum(
+            1
+            for row in rows
+            if row.get("action")
+            and row["action"].action_type == DailyUserAction.ActionType.NEW_NUMBER
+        ),
+        "reconnect_whatsapp": sum(
+            1
+            for row in rows
+            if row.get("action")
+            and row["action"].action_type
+            == DailyUserAction.ActionType.RECONNECT_WHATSAPP
+        ),
+    }
+
+
 def build_number_details_for_day(
     day: date, base_lines, allocated_line_ids
 ) -> tuple[list[str], list[dict], list[dict], list[str]]:
@@ -367,120 +511,13 @@ class DashboardView(AuthenticadView, TemplateView):
     def _build_dashboard_insights(self, context):  # noqa: PLR0912, PLR0915
         daily = context.get("indicadores_diarios", [])
         latest = daily[-1] if daily else {}
-
-        # Filtrar por supervisão (Super vê apenas seus supervisados)
-        # Dashboard filtra por ACTIVE
         employees_qs = get_supervised_employees_queryset(self.request.user).filter(
             status=Employee.Status.ACTIVE, is_deleted=False
         )
-
-        # Pegar ações não-resolvidas (mesma lógica de "Ações do Dia")
-        all_actions = (
-            DailyUserAction.objects.filter(
-                employee_id__in=employees_qs.values_list("id", flat=True),
-                is_resolved=False,
-            )
-            .select_related("employee", "allocation")
-            .order_by("employee_id", "-day", "-id", "allocation_id")
-        )
-
-        # Pegar a mais recente por allocation e também por employee (fallback)
-        actions_by_allocation = {}
-        latest_action_by_employee = {}
-        for action in all_actions:
-            allocation_id = action.allocation_id if action.allocation else None
-            key = (action.employee_id, allocation_id)
-            if key not in actions_by_allocation:
-                actions_by_allocation[key] = action
-            if action.employee_id not in latest_action_by_employee:
-                latest_action_by_employee[action.employee_id] = action
-
-        # Pegar TODAS as alocações ativas por employee
-        active_allocations = (
-            LineAllocation.objects.filter(
-                is_active=True,
-                employee_id__in=employees_qs.values_list("id", flat=True),
-            )
-            .select_related("phone_line")
-            .order_by("employee_id", "-allocated_at")
-        )
-        allocations_by_employee = {}
-        for allocation in active_allocations:
-            if allocation.employee_id not in allocations_by_employee:
-                allocations_by_employee[allocation.employee_id] = []
-            if allocation.phone_line:
-                allocations_by_employee[allocation.employee_id].append(allocation)
-
-        # Construir rows (mesmo de "Ações do Dia")
-        rows = []
-        for employee in employees_qs:
-            # Se tem alocações, criar uma linha para cada alocação
-            allocations = allocations_by_employee.get(employee.id, [])
-            if allocations:
-                for allocation in allocations:
-                    # Buscar a ação específica para esta alocação
-                    allocation_key = (employee.id, allocation.id)
-                    action = actions_by_allocation.get(allocation_key)
-
-                    rows.append(
-                        {
-                            "employee": employee,
-                            "allocation": allocation,
-                            "has_line": True,
-                            "action": action,
-                        }
-                    )
-            else:
-                # Se não tem alocação ativa, busca ação sem alocação
-                # (mesmo de "Ações do Dia")
-                no_allocation_key = (employee.id, None)
-                action = actions_by_allocation.get(no_allocation_key)
-                if not action:
-                    action = latest_action_by_employee.get(employee.id)
-
-                rows.append(
-                    {
-                        "employee": employee,
-                        "allocation": None,
-                        "has_line": False,
-                        "action": action,
-                    }
-                )
-
-        # Filtrar por role: ADMIN vê apenas usuários com ações pendentes
-        # OU com status da linha diferente de 'Ativo'
-        # Regra: Não mostrar se Status da linha = Ativo E Atualizar ação = Sem ação
-        if self.request.user.role == SystemUser.Role.ADMIN:
-            rows = [
-                row
-                for row in rows
-                if not (
-                    row.get("allocation")
-                    and row["allocation"].line_status
-                    == LineAllocation.LineStatus.ACTIVE
-                    and (not row.get("action") or not row["action"].action_type)
-                )
-                and not (
-                    not row.get("allocation")
-                    and row["employee"].line_status == LineAllocation.LineStatus.ACTIVE
-                    and (not row.get("action") or not row["action"].action_type)
-                )
-            ]
-
-        # Contar ações apenas das linhas visíveis (após filtro de role)
-        pending_new_number_count = sum(
-            1
-            for row in rows
-            if row.get("action")
-            and row["action"].action_type == DailyUserAction.ActionType.NEW_NUMBER
-        )
-        pending_reconnect_whatsapp_count = sum(
-            1
-            for row in rows
-            if row.get("action")
-            and row["action"].action_type
-            == DailyUserAction.ActionType.RECONNECT_WHATSAPP
-        )
+        rows = build_daily_user_action_rows(employees_qs, self.request.user)
+        action_counts = count_visible_pending_actions(rows)
+        pending_new_number_count = action_counts["new_number"]
+        pending_reconnect_whatsapp_count = action_counts["reconnect_whatsapp"]
         action_board_url = reverse("daily_user_action_board")
 
         latest_sem_whats = float(latest.get("perc_sem_whats", 0) or 0)
@@ -515,13 +552,13 @@ class DashboardView(AuthenticadView, TemplateView):
                 "value": f"{latest_sem_whats:.1f}%",
                 "description": "Percentual da equipe sem linha ativa.",
                 "level": level_for_percentage(latest_sem_whats),
-                "action_label": "Ver usuários",
+                "action_label": "Ver usuÃƒÂ¡rios",
                 "action_url": "/employees/",
             },
             {
                 "title": "Linhas bloqueadas",
                 "value": blocked_lines,
-                "description": "Linhas suspensas ou canceladas no inventário.",
+                "description": "Linhas suspensas ou canceladas no inventÃƒÂ¡rio.",
                 "level": level_for_count(blocked_lines),
                 "action_label": "Ver telecom",
                 "action_url": "/telecom/",
@@ -545,7 +582,7 @@ class DashboardView(AuthenticadView, TemplateView):
             {
                 "title": "Descobertos hoje",
                 "value": latest_descoberto,
-                "description": "Usuários sem linha no fechamento do dia.",
+                "description": "UsuÃƒÂ¡rios sem linha no fechamento do dia.",
                 "level": level_for_count(latest_descoberto),
                 "action_label": "Ir para cadastro",
                 "action_url": "/allocations/",
@@ -553,7 +590,7 @@ class DashboardView(AuthenticadView, TemplateView):
             {
                 "title": "Reconectados hoje",
                 "value": latest_reconectados,
-                "description": "Recuperações efetivas no dia atual.",
+                "description": "RecuperaÃƒÂ§ÃƒÂµes efetivas no dia atual.",
                 "level": "ok" if latest_reconectados > 0 else "warning",
                 "action_label": "Detalhar telecom",
                 "action_url": "/telecom/",
@@ -563,7 +600,7 @@ class DashboardView(AuthenticadView, TemplateView):
         trend_defs = [
             ("pessoas_logadas", "Pessoas logadas", ""),
             ("perc_sem_whats", "% sem Whats", "%"),
-            ("numeros_entregues", "Números entregues", ""),
+            ("numeros_entregues", "NÃƒÂºmeros entregues", ""),
             ("reconectados", "Reconectados", ""),
         ]
         trend_series = []
@@ -786,9 +823,9 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
 @login_required
 def daily_indicator_entry(request):
     """
-    View para supervisores inserirem indicadores diários.
-    Apenas o campo "Pessoas Logadas" é preenchido manualmente.
-    Os demais indicadores são calculados automaticamente.
+    View para supervisores inserirem indicadores diÃƒÂ¡rios.
+    Apenas o campo "Pessoas Logadas" ÃƒÂ© preenchido manualmente.
+    Os demais indicadores sÃƒÂ£o calculados automaticamente.
     """
     if request.method == "POST":
         form = DailyIndicatorForm(request.POST)
@@ -798,7 +835,7 @@ def daily_indicator_entry(request):
             indicator.updated_by = request.user
             indicator.save()
 
-            # Disparar cálculo automático dos outros indicadores
+            # Disparar cÃƒÂ¡lculo automÃƒÂ¡tico dos outros indicadores
             DailyIndicatorService.populate_daily_indicators(indicator.date)
 
             msg = f"Indicador para {indicator.supervisor} registrado com sucesso!"
@@ -809,7 +846,7 @@ def daily_indicator_entry(request):
 
     context = {
         "form": form,
-        "title": "Registrar Indicador Diário",
+        "title": "Registrar Indicador DiÃƒÂ¡rio",
         "b2b_supervisors": B2B_SUPERVISORS,
         "b2b_portfolios": B2B_PORTFOLIOS,
         "b2c_supervisors": B2C_SUPERVISORS,
@@ -821,8 +858,8 @@ def daily_indicator_entry(request):
 @login_required
 def daily_indicator_management(request):
     """
-    View para visualizar e gerenciar todos os indicadores diários.
-    Permite filtrar por supervisor, carteira, segmento e período.
+    View para visualizar e gerenciar todos os indicadores diÃƒÂ¡rios.
+    Permite filtrar por supervisor, carteira, segmento e perÃƒÂ­odo.
     """
     filter_form = DailyIndicatorFilterForm(request.GET or None)
     indicators = get_daily_indicators_queryset(request.user)
@@ -845,14 +882,14 @@ def daily_indicator_management(request):
         if date_to:
             indicators = indicators.filter(date__lte=date_to)
 
-    # Paginação
+    # PaginaÃƒÂ§ÃƒÂ£o
     from django.core.paginator import Paginator
 
     paginator = Paginator(indicators.order_by("-date"), 50)
     page_number = request.GET.get("page", 1)
     page_obj = paginator.get_page(page_number)
 
-    # Calcular resumo do período
+    # Calcular resumo do perÃƒÂ­odo
     if filter_form.is_valid():
         date_from = filter_form.cleaned_data.get("date_from")
         date_to = filter_form.cleaned_data.get("date_to")
@@ -872,7 +909,7 @@ def daily_indicator_management(request):
         "page_obj": page_obj,
         "indicators": page_obj,
         "summary": summary,
-        "title": "Gestão de Indicadores Diários",
+        "title": "GestÃƒÂ£o de Indicadores DiÃƒÂ¡rios",
     }
     return render(request, "dashboard/daily_indicator_management.html", context)
 
@@ -885,7 +922,7 @@ def daily_indicator_legacy_redirect(request, *args, **kwargs):
 @login_required
 def daily_indicator_detail(request, pk):
     """
-    View para visualizar detalhes de um indicador específico.
+    View para visualizar detalhes de um indicador especÃƒÂ­fico.
     """
     indicator = get_object_or_404(get_daily_indicators_queryset(request.user), pk=pk)
 
@@ -911,7 +948,7 @@ def daily_indicator_edit(request, pk):
             indicator.updated_by = request.user
             indicator.save()
 
-            # Recalcular indicadores automáticos
+            # Recalcular indicadores automÃƒÂ¡ticos
             DailyIndicatorService.populate_daily_indicators(indicator.date)
 
             messages.success(request, "Indicador atualizado com sucesso!")
@@ -952,12 +989,10 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                     "Usuario nao encontrado para este supervisor.",
                 )
             else:
-                # Processar line_status (somente ADMIN pode alterar)
                 if request.user.role == SystemUser.Role.ADMIN:
                     line_status = form.cleaned_data.get("line_status")
                     if line_status and line_status in dict(Employee.LineStatus.choices):
                         if allocation_id:
-                            # Atualizar status da alocação específica
                             allocation = LineAllocation.objects.filter(
                                 pk=allocation_id, employee=employee, is_active=True
                             ).first()
@@ -973,31 +1008,27 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                                     new_value=f"Status da linha: {new_line_status}",
                                     changed_by=request.user,
                                     description=(
-                                        "Status da linha alterado em Ações do Dia de "
+                                        "Status da linha alterado em AÃƒÂ§ÃƒÂµes do Dia de "
                                         f"{old_line_status} para {new_line_status}"
                                     ),
                                 )
                                 messages.success(
                                     request,
-                                    f"Status da linha atualizado para "
-                                    f"{employee.full_name}.",
+                                    f"Status da linha atualizado para {employee.full_name}.",
                                 )
                         elif employee.line_status != line_status:
                             employee.line_status = line_status
                             employee.save(update_fields=["line_status"])
                             messages.success(
                                 request,
-                                f"Status da linha atualizado para "
-                                f"{employee.full_name}.",
+                                f"Status da linha atualizado para {employee.full_name}.",
                             )
 
-                # Processar ações
                 if action_type and action_type not in dict(
                     DailyUserAction.ActionType.choices
                 ):
-                    messages.error(request, "Tipo de ação inválido.")
+                    messages.error(request, "Tipo de aÃƒÂ§ÃƒÂ£o invÃƒÂ¡lido.")
                 elif not action_type:
-                    # Busca a ação não resolvida mais recente para esta alocação
                     action_filter = {"employee": employee, "is_resolved": False}
                     if allocation_id:
                         action_filter["allocation_id"] = allocation_id
@@ -1018,34 +1049,30 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                             PhoneLineHistory.objects.create(
                                 phone_line=action.allocation.phone_line,
                                 action=PhoneLineHistory.ActionType.DAILY_ACTION_CHANGED,
-                                old_value=f"Atualizar ação: {action_label}",
-                                new_value="Atualizar ação: Sem ação",
+                                old_value=f"Atualizar aÃƒÂ§ÃƒÂ£o: {action_label}",
+                                new_value="Atualizar aÃƒÂ§ÃƒÂ£o: Sem aÃƒÂ§ÃƒÂ£o",
                                 changed_by=request.user,
                                 description=(
-                                    "Ação da linha marcada como resolvida em "
-                                    "Ações do dia"
+                                    "AÃƒÂ§ÃƒÂ£o da linha marcada como resolvida em "
+                                    "AÃƒÂ§ÃƒÂµes do dia"
                                 ),
                             )
                         messages.success(
                             request,
-                            f"Ação marcada como resolvida para {employee.full_name}.",
+                            f"AÃƒÂ§ÃƒÂ£o marcada como resolvida para {employee.full_name}.",
                         )
                     else:
                         messages.info(
                             request,
-                            f"Nenhuma ação aberta para resolver para "
-                            f"{employee.full_name}.",
+                            f"Nenhuma aÃƒÂ§ÃƒÂ£o aberta para resolver para {employee.full_name}.",
                         )
                 else:
-                    # Obter a alocação se foi fornecido allocation_id
                     allocation_obj = None
                     if allocation_id:
                         allocation_obj = LineAllocation.objects.filter(
                             pk=allocation_id, employee=employee, is_active=True
                         ).first()
 
-                    # Sempre incluir allocation na chave (mesmo que None)
-                    # porque unique_together é ("day", "employee", "allocation")
                     update_or_create_filter = {
                         "day": timezone.localdate(),
                         "employee": employee,
@@ -1075,7 +1102,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                     )
                     previous_action_label = dict(
                         DailyUserAction.ActionType.choices
-                    ).get(previous_action_type, "Sem ação")
+                    ).get(previous_action_type, "Sem aÃƒÂ§ÃƒÂ£o")
                     current_action_label = dict(DailyUserAction.ActionType.choices).get(
                         action_type, action_type
                     )
@@ -1095,155 +1122,32 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                             new_value=f"Atualizar acao: {current_action_label}",
                             changed_by=request.user,
                             description=(
-                                "Ação da linha criada/atualizada em Ações do dia"
+                                "AÃƒÂ§ÃƒÂ£o da linha criada/atualizada em AÃƒÂ§ÃƒÂµes do dia"
                             ),
                         )
                     verb = "criada" if created else "atualizada"
                     messages.success(
                         request,
-                        f"Ação {verb} para {action.employee.full_name}.",
+                        f"AÃƒÂ§ÃƒÂ£o {verb} para {action.employee.full_name}.",
                     )
         else:
-            messages.error(request, "Não foi possível salvar a ação.")
+            messages.error(request, "NÃƒÂ£o foi possÃƒÂ­vel salvar a aÃƒÂ§ÃƒÂ£o.")
 
         query = {}
         if supervisor_filter:
             query["supervisor"] = supervisor_filter
         return redirect(f"{reverse('daily_user_action_board')}?{urlencode(query)}")
 
-    # Pegar ações não-resolvidas (sem limite de dia)
-    all_actions = (
-        DailyUserAction.objects.filter(
-            employee_id__in=employees_qs.values_list("id", flat=True),
-            is_resolved=False,
-        )
-        .select_related("employee", "allocation")
-        .order_by("employee_id", "-day", "-id", "allocation_id")
+    rows = build_daily_user_action_rows(
+        employees_qs,
+        request.user,
+        include_forms=True,
+        form_day=timezone.localdate(),
     )
-
-    # Pegar a mais recente por allocation e também por employee (fallback)
-    actions_by_allocation = {}
-    latest_action_by_employee = {}
-    for action in all_actions:
-        allocation_id = action.allocation_id if action.allocation else None
-        key = (action.employee_id, allocation_id)
-        if key not in actions_by_allocation:
-            actions_by_allocation[key] = action
-        if action.employee_id not in latest_action_by_employee:
-            latest_action_by_employee[action.employee_id] = action
-
-    # Pegar TODAS as alocações ativas por employee
-    active_allocations = (
-        LineAllocation.objects.filter(
-            is_active=True, employee_id__in=employees_qs.values_list("id", flat=True)
-        )
-        .select_related("phone_line")
-        .order_by("employee_id", "-allocated_at")
-    )
-    allocations_by_employee = {}
-    for allocation in active_allocations:
-        if allocation.employee_id not in allocations_by_employee:
-            allocations_by_employee[allocation.employee_id] = []
-        if allocation.phone_line:
-            allocations_by_employee[allocation.employee_id].append(allocation)
-
-    rows = []
-    for employee in employees_qs:
-        # Se tem alocações, criar uma linha para cada alocação
-        allocations = allocations_by_employee.get(employee.id, [])
-        if allocations:
-            for allocation in allocations:
-                # Buscar a ação específica para esta alocação
-                allocation_key = (employee.id, allocation.id)
-                action = actions_by_allocation.get(allocation_key)
-
-                action_form = DailyUserActionForm(
-                    initial={
-                        "day": timezone.localdate(),
-                        "employee_id": employee.id,
-                        "allocation_id": allocation.id,
-                        "action_type": action.action_type if action else "",
-                        "note": action.note if action else "",
-                        "line_status": allocation.line_status,
-                    }
-                )
-                rows.append(
-                    {
-                        "employee": employee,
-                        "allocation": allocation,
-                        "line_number": allocation.phone_line.phone_number,
-                        "has_line": True,
-                        "action": action,
-                        "form": action_form,
-                    }
-                )
-        else:
-            # Se não tem alocação, criar uma linha sem número
-            # Buscar a ação sem alocação para este employee
-            no_allocation_key = (employee.id, None)
-            action = actions_by_allocation.get(no_allocation_key)
-            if not action:
-                action = latest_action_by_employee.get(employee.id)
-
-            action_form = DailyUserActionForm(
-                initial={
-                    "day": timezone.localdate(),
-                    "employee_id": employee.id,
-                    "allocation_id": None,
-                    "action_type": action.action_type if action else "",
-                    "note": action.note if action else "",
-                    "line_status": employee.line_status,
-                }
-            )
-            rows.append(
-                {
-                    "employee": employee,
-                    "allocation": None,
-                    "line_number": None,
-                    "has_line": False,
-                    "action": action,
-                    "form": action_form,
-                }
-            )
-
-    # Filtrar por role: ADMIN vê apenas usuários com ações pendentes
-    # OU com status da linha diferente de 'Ativo'
-    # Regra: Não mostrar se Status da linha = Ativo E Atualizar ação = Sem ação
-    if request.user.role == SystemUser.Role.ADMIN:
-        rows = [
-            row
-            for row in rows
-            if not (
-                row.get("allocation")
-                and row["allocation"].line_status == LineAllocation.LineStatus.ACTIVE
-                and (not row.get("action") or not row["action"].action_type)
-            )
-            and not (
-                not row.get("allocation")
-                and row["employee"].line_status == Employee.LineStatus.ACTIVE
-                and (not row.get("action") or not row["action"].action_type)
-            )
-        ]
-
-    # Contar ações apenas das linhas visíveis (após filtro de role)
-    action_counts = {
-        "new_number": sum(
-            1
-            for row in rows
-            if row.get("action")
-            and row["action"].action_type == DailyUserAction.ActionType.NEW_NUMBER
-        ),
-        "reconnect_whatsapp": sum(
-            1
-            for row in rows
-            if row.get("action")
-            and row["action"].action_type
-            == DailyUserAction.ActionType.RECONNECT_WHATSAPP
-        ),
-    }
+    action_counts = count_visible_pending_actions(rows)
 
     context = {
-        "title": "Ações do Dia",
+        "title": "AÃƒÂ§ÃƒÂµes do Dia",
         "rows": rows,
         "action_counts": action_counts,
         "supervisor_filter": supervisor_filter,
@@ -1282,3 +1186,4 @@ def daily_indicator_day_breakdown(request, day):
         "users": indicator.get("users", []),
     }
     return render(request, "dashboard/daily_indicator_day_breakdown.html", context)
+
