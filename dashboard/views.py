@@ -552,13 +552,13 @@ class DashboardView(AuthenticadView, TemplateView):
                 "value": f"{latest_sem_whats:.1f}%",
                 "description": "Percentual da equipe sem linha ativa.",
                 "level": level_for_percentage(latest_sem_whats),
-                "action_label": "Ver usuÃƒÂ¡rios",
+                "action_label": "Ver usuários",
                 "action_url": "/employees/",
             },
             {
                 "title": "Linhas bloqueadas",
                 "value": blocked_lines,
-                "description": "Linhas suspensas ou canceladas no inventÃƒÂ¡rio.",
+                "description": "Linhas suspensas ou canceladas no inventário.",
                 "level": level_for_count(blocked_lines),
                 "action_label": "Ver telecom",
                 "action_url": "/telecom/",
@@ -582,7 +582,7 @@ class DashboardView(AuthenticadView, TemplateView):
             {
                 "title": "Descobertos hoje",
                 "value": latest_descoberto,
-                "description": "UsuÃƒÂ¡rios sem linha no fechamento do dia.",
+                "description": "Usuários sem linha no fechamento do dia.",
                 "level": level_for_count(latest_descoberto),
                 "action_label": "Ir para cadastro",
                 "action_url": "/allocations/",
@@ -590,7 +590,7 @@ class DashboardView(AuthenticadView, TemplateView):
             {
                 "title": "Reconectados hoje",
                 "value": latest_reconectados,
-                "description": "RecuperaÃƒÂ§ÃƒÂµes efetivas no dia atual.",
+                "description": "Recuperações efetivas no dia atual.",
                 "level": "ok" if latest_reconectados > 0 else "warning",
                 "action_label": "Detalhar telecom",
                 "action_url": "/telecom/",
@@ -600,7 +600,7 @@ class DashboardView(AuthenticadView, TemplateView):
         trend_defs = [
             ("pessoas_logadas", "Pessoas logadas", ""),
             ("perc_sem_whats", "% sem Whats", "%"),
-            ("numeros_entregues", "NÃƒÂºmeros entregues", ""),
+            ("numeros_entregues", "Números entregues", ""),
             ("reconectados", "Reconectados", ""),
         ]
         trend_series = []
@@ -823,9 +823,9 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
 @login_required
 def daily_indicator_entry(request):
     """
-    View para supervisores inserirem indicadores diÃƒÂ¡rios.
-    Apenas o campo "Pessoas Logadas" ÃƒÂ© preenchido manualmente.
-    Os demais indicadores sÃƒÂ£o calculados automaticamente.
+    View para supervisores inserirem indicadores diários.
+    Apenas o campo "Pessoas Logadas" é preenchido manualmente.
+    Os demais indicadores são calculados automaticamente.
     """
     if request.method == "POST":
         form = DailyIndicatorForm(request.POST)
@@ -835,7 +835,7 @@ def daily_indicator_entry(request):
             indicator.updated_by = request.user
             indicator.save()
 
-            # Disparar cÃƒÂ¡lculo automÃƒÂ¡tico dos outros indicadores
+            # Disparar cálculo automático dos outros indicadores
             DailyIndicatorService.populate_daily_indicators(indicator.date)
 
             msg = f"Indicador para {indicator.supervisor} registrado com sucesso!"
@@ -846,7 +846,7 @@ def daily_indicator_entry(request):
 
     context = {
         "form": form,
-        "title": "Registrar Indicador DiÃƒÂ¡rio",
+        "title": "Registrar Indicador Diário",
         "b2b_supervisors": B2B_SUPERVISORS,
         "b2b_portfolios": B2B_PORTFOLIOS,
         "b2c_supervisors": B2C_SUPERVISORS,
@@ -858,8 +858,8 @@ def daily_indicator_entry(request):
 @login_required
 def daily_indicator_management(request):
     """
-    View para visualizar e gerenciar todos os indicadores diÃƒÂ¡rios.
-    Permite filtrar por supervisor, carteira, segmento e perÃƒÂ­odo.
+    View para visualizar e gerenciar todos os indicadores diários.
+    Permite filtrar por supervisor, carteira, segmento e período.
     """
     filter_form = DailyIndicatorFilterForm(request.GET or None)
     indicators = get_daily_indicators_queryset(request.user)
@@ -882,14 +882,14 @@ def daily_indicator_management(request):
         if date_to:
             indicators = indicators.filter(date__lte=date_to)
 
-    # PaginaÃƒÂ§ÃƒÂ£o
+    # Paginação
     from django.core.paginator import Paginator
 
     paginator = Paginator(indicators.order_by("-date"), 50)
     page_number = request.GET.get("page", 1)
     page_obj = paginator.get_page(page_number)
 
-    # Calcular resumo do perÃƒÂ­odo
+    # Calcular resumo do período
     if filter_form.is_valid():
         date_from = filter_form.cleaned_data.get("date_from")
         date_to = filter_form.cleaned_data.get("date_to")
@@ -909,7 +909,7 @@ def daily_indicator_management(request):
         "page_obj": page_obj,
         "indicators": page_obj,
         "summary": summary,
-        "title": "GestÃƒÂ£o de Indicadores DiÃƒÂ¡rios",
+        "title": "Gestão de Indicadores Diários",
     }
     return render(request, "dashboard/daily_indicator_management.html", context)
 
@@ -922,7 +922,7 @@ def daily_indicator_legacy_redirect(request, *args, **kwargs):
 @login_required
 def daily_indicator_detail(request, pk):
     """
-    View para visualizar detalhes de um indicador especÃƒÂ­fico.
+    View para visualizar detalhes de um indicador específico.
     """
     indicator = get_object_or_404(get_daily_indicators_queryset(request.user), pk=pk)
 
@@ -948,7 +948,7 @@ def daily_indicator_edit(request, pk):
             indicator.updated_by = request.user
             indicator.save()
 
-            # Recalcular indicadores automÃƒÂ¡ticos
+            # Recalcular indicadores automáticos
             DailyIndicatorService.populate_daily_indicators(indicator.date)
 
             messages.success(request, "Indicador atualizado com sucesso!")
@@ -1008,7 +1008,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                                     new_value=f"Status da linha: {new_line_status}",
                                     changed_by=request.user,
                                     description=(
-                                        "Status da linha alterado em AÃƒÂ§ÃƒÂµes do Dia de "
+                                        "Status da linha alterado em Ações do Dia de "
                                         f"{old_line_status} para {new_line_status}"
                                     ),
                                 )
@@ -1027,7 +1027,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                 if action_type and action_type not in dict(
                     DailyUserAction.ActionType.choices
                 ):
-                    messages.error(request, "Tipo de aÃƒÂ§ÃƒÂ£o invÃƒÂ¡lido.")
+                    messages.error(request, "Tipo de ação inválido.")
                 elif not action_type:
                     action_filter = {"employee": employee, "is_resolved": False}
                     if allocation_id:
@@ -1049,22 +1049,22 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                             PhoneLineHistory.objects.create(
                                 phone_line=action.allocation.phone_line,
                                 action=PhoneLineHistory.ActionType.DAILY_ACTION_CHANGED,
-                                old_value=f"Atualizar aÃƒÂ§ÃƒÂ£o: {action_label}",
-                                new_value="Atualizar aÃƒÂ§ÃƒÂ£o: Sem aÃƒÂ§ÃƒÂ£o",
+                                old_value=f"Atualizar ação: {action_label}",
+                                new_value="Atualizar ação: Sem ação",
                                 changed_by=request.user,
                                 description=(
-                                    "AÃƒÂ§ÃƒÂ£o da linha marcada como resolvida em "
-                                    "AÃƒÂ§ÃƒÂµes do dia"
+                                    "Ação da linha marcada como resolvida em "
+                                    "Ações do dia"
                                 ),
                             )
                         messages.success(
                             request,
-                            f"AÃƒÂ§ÃƒÂ£o marcada como resolvida para {employee.full_name}.",
+                            f"Ação marcada como resolvida para {employee.full_name}.",
                         )
                     else:
                         messages.info(
                             request,
-                            f"Nenhuma aÃƒÂ§ÃƒÂ£o aberta para resolver para {employee.full_name}.",
+                            f"Nenhuma ação aberta para resolver para {employee.full_name}.",
                         )
                 else:
                     allocation_obj = None
@@ -1102,7 +1102,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                     )
                     previous_action_label = dict(
                         DailyUserAction.ActionType.choices
-                    ).get(previous_action_type, "Sem aÃƒÂ§ÃƒÂ£o")
+                    ).get(previous_action_type, "Sem ação")
                     current_action_label = dict(DailyUserAction.ActionType.choices).get(
                         action_type, action_type
                     )
@@ -1122,16 +1122,16 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                             new_value=f"Atualizar acao: {current_action_label}",
                             changed_by=request.user,
                             description=(
-                                "AÃƒÂ§ÃƒÂ£o da linha criada/atualizada em AÃƒÂ§ÃƒÂµes do dia"
+                                "Ação da linha criada/atualizada em Ações do dia"
                             ),
                         )
                     verb = "criada" if created else "atualizada"
                     messages.success(
                         request,
-                        f"AÃƒÂ§ÃƒÂ£o {verb} para {action.employee.full_name}.",
+                        f"Ação {verb} para {action.employee.full_name}.",
                     )
         else:
-            messages.error(request, "NÃƒÂ£o foi possÃƒÂ­vel salvar a aÃƒÂ§ÃƒÂ£o.")
+            messages.error(request, "Não foi possível salvar a ação.")
 
         query = {}
         if supervisor_filter:
@@ -1147,7 +1147,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
     action_counts = count_visible_pending_actions(rows)
 
     context = {
-        "title": "AÃƒÂ§ÃƒÂµes do Dia",
+        "title": "Ações do Dia",
         "rows": rows,
         "action_counts": action_counts,
         "supervisor_filter": supervisor_filter,
