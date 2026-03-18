@@ -208,6 +208,7 @@ def _upsert_employee(row: dict[str, str], summary: UploadSummary) -> None:
 
 
 def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
+    row = _normalize_legacy_simcard_row(row)
     required = ["iccid", "carrier"]
     _ensure_required(row, required)
 
@@ -258,6 +259,62 @@ def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
                 setattr(simcard, field_name, value)
             simcard.save(update_fields=[*sim_defaults.keys(), "updated_at"])
             summary.simcards_updated += 1
+
+
+def _normalize_legacy_simcard_row(row: dict[str, str]) -> dict[str, str]:
+    """Support older CSV layouts that omitted pa/phone_number/origem columns."""
+    normalized = dict(row)
+
+    if _has_shifted_semicolon_legacy_shape(row):
+        normalized["status"] = row.get("pa", "")
+        normalized["iccid"] = row.get("status", "")
+        normalized["carrier"] = row.get("iccid", "")
+        normalized["phone_number"] = row.get("carrier", "")
+        normalized["pa"] = ""
+        return normalized
+
+    if not _has_compact_legacy_shape(row):
+        return row
+
+    normalized["status"] = row.get("teams", "")
+    normalized["iccid"] = row.get("status", "")
+    normalized["carrier"] = row.get("iccid", "")
+    normalized["teams"] = ""
+    return normalized
+
+
+def _has_compact_legacy_shape(row: dict[str, str]) -> bool:
+    phone_number = row.get("phone_number") or ""
+    origem = row.get("origem") or ""
+    teams_value = row.get("teams") or ""
+    status_value = row.get("status") or ""
+    iccid_value = row.get("iccid") or ""
+    carrier_value = row.get("carrier") or ""
+    return (
+        not phone_number
+        and not origem
+        and teams_value
+        and status_value
+        and iccid_value
+        and not carrier_value
+    )
+
+
+def _has_shifted_semicolon_legacy_shape(row: dict[str, str]) -> bool:
+    return (
+        not (row.get("phone_number") or "")
+        and not (row.get("origem") or "")
+        and not (row.get("teams") or "")
+        and (row.get("pa") or "")
+        and (row.get("status") or "")
+        and (row.get("iccid") or "")
+        and _looks_like_phone_number(row.get("carrier") or "")
+    )
+
+
+def _looks_like_phone_number(value: str) -> bool:
+    digits = "".join(char for char in value if char.isdigit())
+    return len(digits) >= 10
 
 
 def _ensure_required(row: dict[str, str], required_fields: list[str]) -> None:

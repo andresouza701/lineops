@@ -221,6 +221,9 @@ class AllocationEditView(RoleRequiredMixin, View):
         )
         action = request.POST.get("action")
         if action == "release":
+            if not allocation.is_active:
+                messages.error(request, "Apenas alocacoes ativas podem ser liberadas.")
+                return redirect(reverse("allocations:allocation_edit", args=[pk]))
             AllocationService.release_line(allocation, released_by=request.user)
             messages.success(request, "Linha liberada com sucesso!")
             return redirect(reverse("telecom:overview"))
