@@ -443,7 +443,7 @@ class DashboardDailyIndicatorsTests(TestCase):
 
         response = self.client.get(reverse("dashboard"))
         latest = response.context["indicadores_diarios"][-1]
-        self.assertEqual(latest["reconectados"], 0)
+        self.assertEqual(latest["reconectados"], 1)
 
         cards = response.context["exception_cards"]
         reconnected_card = next(
@@ -530,7 +530,7 @@ class DashboardDailyIndicatorsTests(TestCase):
 
         response = self.client.get(reverse("dashboard"))
         latest = response.context["indicadores_diarios"][-1]
-        self.assertEqual(latest["reconectados"], 1)
+        self.assertEqual(latest["reconectados"], 2)
 
         cards = response.context["exception_cards"]
         reconnected_card = next(
@@ -571,6 +571,8 @@ class DashboardDailyIndicatorsTests(TestCase):
 
         dashboard_response = self.client.get(reverse("dashboard"))
         self.assertEqual(dashboard_response.status_code, 200)
+        latest = dashboard_response.context["indicadores_diarios"][-1]
+        self.assertEqual(latest["reconectados"], 1)
         cards = dashboard_response.context["exception_cards"]
         reconnected_card = next(
             card for card in cards if card["title"] == "Reconectados hoje"
@@ -628,6 +630,45 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertContains(response, "Usuários logados")
         self.assertContains(response, "Usuários com linha")
         self.assertContains(response, "Usuários sem linha")
+
+    def test_daily_indicator_day_breakdown_shows_admin_resolved_reconnect_number(self):
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+
+        response = self.client.post(
+            reverse("daily_user_action_board"),
+            data={
+                "day": timezone.localdate().isoformat(),
+                "employee_id": self.employee_b2b.id,
+                "allocation_id": str(self.line_allocation.id),
+                "action_type": "",
+                "note": "",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+
+        today_iso = timezone.localdate().strftime("%Y-%m-%d")
+        breakdown_response = self.client.get(
+            reverse("daily_indicator_day_breakdown", kwargs={"day": today_iso})
+        )
+
+        self.assertEqual(breakdown_response.status_code, 200)
+        indicator = breakdown_response.context["indicator"]
+        self.assertEqual(indicator["reconectados"], 1)
+        self.assertEqual(len(indicator["reconnected_numbers"]), 1)
+        self.assertEqual(
+            indicator["reconnected_numbers"][0]["numero"],
+            self.line_allocated.phone_number,
+        )
+        self.assertContains(breakdown_response, self.line_allocated.phone_number)
 
     def test_daily_user_action_board_allows_marking_action(self):
         response = self.client.post(

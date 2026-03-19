@@ -275,14 +275,77 @@ def count_admin_resolved_reconnect_actions(user):
         is_deleted=False,
     )
     employee_ids = employees_qs.values_list("id", flat=True)
-    return DailyUserAction.objects.filter(
-        employee_id__in=employee_ids,
-        day=timezone.localdate(),
+    return get_admin_resolved_reconnect_actions_queryset(
+        timezone.localdate(), employee_ids
+    ).count()
+
+
+def get_admin_resolved_reconnect_actions_queryset(day, employee_ids=None):
+    queryset = DailyUserAction.objects.filter(
+        day=day,
         action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
         is_resolved=True,
         updated_by__role=SystemUser.Role.ADMIN,
-        updated_at__date=timezone.localdate(),
-    ).count()
+        updated_at__date=day,
+    ).select_related("employee", "allocation__phone_line")
+
+    if employee_ids is not None:
+        queryset = queryset.filter(employee_id__in=employee_ids)
+
+    return queryset.order_by("-updated_at", "-id")
+
+
+def build_admin_resolved_reconnect_numbers_for_day(day):
+    end_of_day = timezone.make_aware(datetime.combine(day, time.max))
+    actions = list(get_admin_resolved_reconnect_actions_queryset(day))
+    details = []
+
+    for action in actions:
+        allocation = action.allocation
+        if not allocation:
+            active_allocations = list(
+                LineAllocation.objects.filter(
+                    employee=action.employee,
+                    allocated_at__lte=end_of_day,
+                )
+                .filter(Q(released_at__isnull=True) | Q(released_at__gt=end_of_day))
+                .select_related("phone_line")
+                .order_by("-allocated_at")[:2]
+            )
+            if len(active_allocations) == 1:
+                allocation = active_allocations[0]
+
+        if not allocation or not allocation.phone_line:
+            continue
+
+        details.append(
+            {
+                "numero": allocation.phone_line.phone_number,
+                "usuario": action.employee.full_name,
+                "carteira": action.employee.employee_id,
+            }
+        )
+
+    return details
+
+
+def build_reconnected_numbers_for_day(day):
+    reconnected_allocations = list(
+        DailyIndicatorService.get_reconnected_allocations_queryset(day)
+        .select_related("employee", "phone_line")
+        .order_by("allocated_at")
+    )
+    reconnected_numbers = [
+        {
+            "numero": allocation.phone_line.phone_number,
+            "usuario": allocation.employee.full_name,
+            "carteira": allocation.employee.employee_id,
+        }
+        for allocation in reconnected_allocations
+        if allocation.phone_line
+    ]
+    reconnected_numbers.extend(build_admin_resolved_reconnect_numbers_for_day(day))
+    return reconnected_numbers
 
 
 def get_open_action_for_resolution(employee, allocation_id=None):
@@ -342,20 +405,7 @@ def build_number_details_for_day(
         if allocation.phone_line
     ]
 
-    reconnected_allocations = list(
-        DailyIndicatorService.get_reconnected_allocations_queryset(day)
-        .select_related("employee", "phone_line")
-        .order_by("allocated_at")
-    )
-    reconnected_numbers = [
-        {
-            "numero": allocation.phone_line.phone_number,
-            "usuario": allocation.employee.full_name,
-            "carteira": allocation.employee.employee_id,
-        }
-        for allocation in reconnected_allocations
-        if allocation.phone_line
-    ]
+    reconnected_numbers = build_reconnected_numbers_for_day(day)
 
     new_numbers = list(
         PhoneLine.objects.filter(created_at__date=day, is_deleted=False)
@@ -445,7 +495,8 @@ def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
     numeros_disponiveis = base_lines.exclude(id__in=allocated_line_ids).count()
 
     numeros_entregues = LineAllocation.objects.filter(allocated_at__date=day).count()
-    reconectados = DailyIndicatorService.get_reconnected_allocations_queryset(day).count()
+    reconnected_numbers = build_reconnected_numbers_for_day(day)
+    reconectados = len(reconnected_numbers)
     novos = PhoneLine.objects.filter(created_at__date=day, is_deleted=False).count()
     sem_whats_portfolios = employees_without_whats.values_list("employee_id", flat=True)
     b2b_sem_whats = 0
@@ -457,8 +508,8 @@ def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
         elif normalized in B2C_PORTFOLIO_NAMES:
             b2c_sem_whats += 1
 
-    available_numbers, delivered_numbers, reconnected_numbers, new_numbers = (
-        build_number_details_for_day(day, base_lines, allocated_line_ids)
+    available_numbers, delivered_numbers, _, new_numbers = build_number_details_for_day(
+        day, base_lines, allocated_line_ids
     )
 
     indicator = {
@@ -573,17 +624,12 @@ class DashboardView(AuthenticadView, TemplateView):
         action_counts = count_visible_pending_actions(rows)
         pending_new_number_count = action_counts["new_number"]
         pending_reconnect_whatsapp_count = action_counts["reconnect_whatsapp"]
-        resolved_reconnect_whatsapp_count = count_admin_resolved_reconnect_actions(
-            self.request.user
-        )
         action_board_url = reverse("daily_user_action_board")
 
         latest_sem_whats = float(latest.get("perc_sem_whats", 0) or 0)
         latest_descoberto = int(latest.get("total_descoberto_dia", 0) or 0)
         latest_reconectados = int(latest.get("reconectados", 0) or 0)
-        reconectados_exception_value = (
-            latest_reconectados + resolved_reconnect_whatsapp_count
-        )
+        reconectados_exception_value = latest_reconectados
 
         line_status_map = {
             entry["value"]: int(entry.get("count", 0))
