@@ -118,7 +118,7 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
                     employee=form.cleaned_data["employee"],
                     actor=request.user,
                 )
-            else:  # new line
+            else:
                 result = TelephonyUseCase.create_new_line_with_allocation(
                     line_data={
                         "phone_number": form.cleaned_data["phone_number"],
@@ -145,10 +145,9 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
         current_role = (request.user.role or "").lower()
         allowed = {role.lower() for role in allowed_roles}
         if current_role not in allowed:
-            raise PermissionDenied("Acesso negado: Permissão insuficiente!")
+            raise PermissionDenied("Acesso negado: permissão insuficiente!")
 
     def _allocations_qs(self):
-        # Atualiza para buscar phone_line com sim_card e status atualizado
         return LineAllocation.objects.select_related(
             "employee", "phone_line__sim_card", "phone_line"
         ).order_by("-allocated_at")
@@ -226,31 +225,16 @@ class AllocationEditView(RoleRequiredMixin, View):
                 return redirect(reverse("allocations:allocation_edit", args=[pk]))
             AllocationService.release_line(allocation, released_by=request.user)
             messages.success(request, "Linha liberada com sucesso!")
-            return redirect(reverse("telecom:overview"))
-        elif action == "save":
-            new_status = request.POST.get("status")
-            employee_pk = request.POST.get("employee")
-            updated = False
-            if new_status and new_status != allocation.phone_line.status:
-                allocation.phone_line.status = new_status
-                allocation.phone_line.save(update_fields=["status"])
-                updated = True
-            if employee_pk:
-                employee = get_object_or_404(
-                    Employee.objects.filter(
-                        is_deleted=False,
-                        status=Employee.Status.ACTIVE,
-                    ),
-                    pk=employee_pk,
-                )
-                if allocation.employee != employee:
-                    allocation.employee = employee
-                    allocation.save(update_fields=["employee"])
-                    updated = True
-            if updated:
-                messages.success(request, "Dados atualizados com sucesso!")
-            else:
-                messages.info(request, "Nenhuma alteração realizada.")
+            return redirect(reverse("allocations:allocation_list"))
+        if action == "save":
+            messages.error(
+                request,
+                (
+                    "Edição direta da alocação foi desativada para preservar a "
+                    "consistência. Use a tela da linha telefônica para "
+                    "remanejar ou liberar a linha."
+                ),
+            )
             return redirect(
                 reverse("allocations:allocation_edit", args=[allocation.pk])
             )

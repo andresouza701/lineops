@@ -15,6 +15,7 @@ from telecom.models import PhoneLine, SIMcard
 ALLOWED_ORIGEM_VALUES = {v.lower(): v for v in PhoneLine.Origem.values}
 
 logger = logging.getLogger(__name__)
+MIN_PHONE_NUMBER_DIGITS = 10
 
 
 @dataclass
@@ -314,7 +315,7 @@ def _has_shifted_semicolon_legacy_shape(row: dict[str, str]) -> bool:
 
 def _looks_like_phone_number(value: str) -> bool:
     digits = "".join(char for char in value if char.isdigit())
-    return len(digits) >= 10
+    return len(digits) >= MIN_PHONE_NUMBER_DIGITS
 
 
 def _ensure_required(row: dict[str, str], required_fields: list[str]) -> None:

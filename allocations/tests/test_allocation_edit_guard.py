@@ -75,3 +75,28 @@ class AllocationEditGuardTests(TestCase):
         self.assertEqual(self.line.status, PhoneLine.Status.ALLOCATED)
         self.assertTrue(current_allocation.is_active)
         self.assertFalse(old_allocation.is_active)
+
+    def test_save_action_is_blocked_to_preserve_allocation_invariants(self):
+        allocation = LineAllocation.objects.create(
+            employee=self.first_employee,
+            phone_line=self.line,
+            allocated_by=self.admin,
+            is_active=True,
+        )
+
+        response = self.client.post(
+            reverse("allocations:allocation_edit", args=[allocation.pk]),
+            {
+                "action": "save",
+                "status": PhoneLine.Status.AVAILABLE,
+                "employee": self.second_employee.pk,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Edi")
+        allocation.refresh_from_db()
+        self.line.refresh_from_db()
+        self.assertEqual(allocation.employee_id, self.first_employee.pk)
+        self.assertEqual(self.line.status, PhoneLine.Status.ALLOCATED)

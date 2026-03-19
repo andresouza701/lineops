@@ -15,7 +15,15 @@ class SystemUserAdmin(UserAdmin):
         (None, {"fields": ("email", "password")}),
         (
             "Permissions",
-            {"fields": ("is_staff", "is_active", "role", "manager_email", "is_superuser")},
+            {
+                "fields": (
+                    "is_staff",
+                    "is_active",
+                    "role",
+                    "manager_email",
+                    "is_superuser",
+                )
+            },
         ),
         ("Important dates", {"fields": ("last_login",)}),
     )

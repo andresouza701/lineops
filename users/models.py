@@ -1,5 +1,5 @@
-from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.apps import apps
+from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 
 

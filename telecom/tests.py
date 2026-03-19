@@ -96,12 +96,14 @@ class PhoneLineHistoryAuditTest(TestCase):
                 "status": PhoneLine.Status.SUSPENDED,
                 "employee": self.employee_b.pk,
             },
+            follow=True,
         )
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200)
         allocation.refresh_from_db()
         self.phone_line.refresh_from_db()
-        self.assertEqual(allocation.employee_id, self.employee_b.pk)
-        self.assertEqual(self.phone_line.status, PhoneLine.Status.SUSPENDED)
+        self.assertEqual(allocation.employee_id, self.employee_a.pk)
+        self.assertEqual(self.phone_line.status, PhoneLine.Status.ALLOCATED)
+        self.assertContains(response, "Edi")
 
         update_url = reverse("telecom:phoneline_update", args=[self.phone_line.pk])
         response = self.client.post(
@@ -139,21 +141,12 @@ class PhoneLineHistoryAuditTest(TestCase):
         self.assertTrue(
             {
                 PhoneLineHistory.ActionType.CREATED,
-                PhoneLineHistory.ActionType.STATUS_CHANGED,
                 PhoneLineHistory.ActionType.SIMCARD_CHANGED,
-                PhoneLineHistory.ActionType.EMPLOYEE_CHANGED,
                 PhoneLineHistory.ActionType.DELETED,
                 PhoneLineHistory.ActionType.ALLOCATED,
                 PhoneLineHistory.ActionType.RELEASED,
             }.issubset(actions)
         )
-
-        status_event = PhoneLineHistory.objects.filter(
-            phone_line=self.phone_line,
-            action=PhoneLineHistory.ActionType.STATUS_CHANGED,
-        ).first()
-        self.assertIsNotNone(status_event)
-        self.assertEqual(status_event.changed_by, self.admin)
 
         sim_event = PhoneLineHistory.objects.filter(
             phone_line=self.phone_line,
@@ -161,13 +154,6 @@ class PhoneLineHistoryAuditTest(TestCase):
         ).first()
         self.assertIsNotNone(sim_event)
         self.assertEqual(sim_event.changed_by, self.admin)
-
-        employee_event = PhoneLineHistory.objects.filter(
-            phone_line=self.phone_line,
-            action=PhoneLineHistory.ActionType.EMPLOYEE_CHANGED,
-        ).first()
-        self.assertIsNotNone(employee_event)
-        self.assertEqual(employee_event.changed_by, self.admin)
 
         deleted_event = PhoneLineHistory.objects.filter(
             phone_line=self.phone_line,
@@ -577,7 +563,9 @@ class PhoneLineViewsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        target = next(item for item in payload["data"] if item["id"] == self.line_available.pk)
+        target = next(
+            item for item in payload["data"] if item["id"] == self.line_available.pk
+        )
         self.assertEqual(
             target["edit_url"],
             reverse("telecom:phoneline_update", args=[self.line_available.pk]),
@@ -586,6 +574,19 @@ class PhoneLineViewsTest(TestCase):
             target["history_url"],
             reverse("telecom:phoneline_history", args=[self.line_available.pk]),
         )
+
+    def test_ajax_overview_ignores_invalid_offset_and_limit(self):
+        url = reverse("telecom:overview")
+        response = self.client.get(
+            url,
+            {"table": "main", "offset": "abc", "limit": "xyz"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("data", payload)
+        self.assertGreaterEqual(len(payload["data"]), 1)
 
     def test_create_view_binds_sim_to_new_line(self):
         new_sim = SIMcard.objects.create(
@@ -680,4 +681,29 @@ class PhoneLineViewsTest(TestCase):
             "O usuário TESTE1 já possui 2 linhas alocadas ativas.",
         )
         self.line_available.refresh_from_db()
+        self.assertEqual(self.line_available.status, PhoneLine.Status.AVAILABLE)
+
+    def test_delete_view_releases_active_allocation_before_soft_delete(self):
+        employee = Employee.objects.create(
+            full_name="Delete Release User",
+            corporate_email="delete@corp.com",
+            employee_id="EMP-DEL-1",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        allocation = AllocationService.allocate_line(
+            employee=employee,
+            phone_line=self.line_available,
+            allocated_by=self.admin,
+        )
+
+        response = self.client.post(
+            reverse("telecom:phoneline_delete", args=[self.line_available.pk])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.line_available.refresh_from_db()
+        allocation.refresh_from_db()
+        self.assertTrue(self.line_available.is_deleted)
+        self.assertFalse(allocation.is_active)
         self.assertEqual(self.line_available.status, PhoneLine.Status.AVAILABLE)

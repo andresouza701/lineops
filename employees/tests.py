@@ -7,6 +7,7 @@ from django.urls import reverse
 
 from allocations.models import LineAllocation
 from core.current_user import clear_current_user, set_current_user
+from core.services.allocation_service import AllocationService
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 
@@ -332,6 +333,38 @@ class EmployeeHistoryAuditTest(TestCase):
         self.assertIsNotNone(updated_event)
         self.assertIn("PA:", updated_event.new_value)
         self.assertIn("PA-123", updated_event.new_value)
+
+    def test_deactivate_view_releases_active_allocations_before_soft_delete(
+        self,
+    ) -> None:
+        self.client.force_login(self.admin)
+        sim = SIMcard.objects.create(
+            iccid="8900000000000012345",
+            carrier="Carrier Rel",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        line = PhoneLine.objects.create(
+            phone_number="+5511999994321",
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        allocation = AllocationService.allocate_line(
+            employee=self.employee,
+            phone_line=line,
+            allocated_by=self.admin,
+        )
+
+        response = self.client.post(
+            reverse("employees:employee_deactivate", args=[self.employee.pk])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.employee.refresh_from_db()
+        allocation.refresh_from_db()
+        line.refresh_from_db()
+        self.assertTrue(self.employee.is_deleted)
+        self.assertFalse(allocation.is_active)
+        self.assertEqual(line.status, PhoneLine.Status.AVAILABLE)
 
 
 class EmployeeFormPortfolioChoicesTest(TestCase):

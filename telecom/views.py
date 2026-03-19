@@ -21,6 +21,7 @@ from allocations.models import LineAllocation
 from core.exceptions.domain_exceptions import BusinessRuleException
 from core.mixins import RoleRequiredMixin, StandardPaginationMixin
 from core.services.allocation_service import AllocationService
+from core.validation import parse_non_negative_int
 from users.models import SystemUser
 
 from .forms import PhoneLineForm, PhoneLineUpdateForm, SIMcardCreateWithLineForm
@@ -65,8 +66,10 @@ class SIMcardListView(RoleRequiredMixin, ListView):
         return queryset.order_by("iccid"), search_query, status_filter
 
     def _handle_ajax_request(self, request):
-        offset = max(int(request.GET.get("offset", 0)), 0)
-        limit = max(int(request.GET.get("limit", self.chunk_size)), 1)
+        offset = parse_non_negative_int(request.GET.get("offset", 0), default=0)
+        limit = max(
+            parse_non_negative_int(request.GET.get("limit", self.chunk_size), 10), 1
+        )
         queryset, _, _ = self._base_filtered_queryset(request)
 
         simcards = list(queryset[offset : offset + limit])
@@ -193,8 +196,10 @@ class PhoneLineListView(StandardPaginationMixin, RoleRequiredMixin, ListView):
         return queryset.order_by("phone_number"), search_query, status_filter
 
     def _handle_ajax_request(self, request):
-        offset = max(int(request.GET.get("offset", 0)), 0)
-        limit = max(int(request.GET.get("limit", self.chunk_size)), 1)
+        offset = parse_non_negative_int(request.GET.get("offset", 0), default=0)
+        limit = max(
+            parse_non_negative_int(request.GET.get("limit", self.chunk_size), 10), 1
+        )
         queryset, _, _ = self._base_filtered_queryset(request)
 
         lines = list(queryset[offset : offset + limit])
@@ -359,8 +364,16 @@ class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
 class PhoneLineDeleteView(RoleRequiredMixin, View):
     allowed_roles = [SystemUser.Role.ADMIN]
 
+    @transaction.atomic
     def post(self, request, pk):
         phone_line = get_object_or_404(PhoneLine, pk=pk, is_deleted=False)
+        active_allocation = (
+            LineAllocation.objects.filter(phone_line=phone_line, is_active=True)
+            .select_related("employee")
+            .first()
+        )
+        if active_allocation:
+            AllocationService.release_line(active_allocation, released_by=request.user)
         phone_line.is_deleted = True
         phone_line.save(update_fields=["is_deleted"])
         messages.success(request, "Linha telefônica excluída com sucesso.")
@@ -404,8 +417,8 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
     def _handle_ajax_request(self, request):
         """Retorna dados em JSON para lazy loading"""
         table_type = request.GET.get("table", "main")
-        offset = int(request.GET.get("offset", 0))
-        limit = int(request.GET.get("limit", 10))
+        offset = parse_non_negative_int(request.GET.get("offset", 0), default=0)
+        limit = max(parse_non_negative_int(request.GET.get("limit", 10), 10), 1)
 
         base_lines = PhoneLine.objects.filter(is_deleted=False)
         valid_statuses = {choice[0] for choice in PhoneLine.Status.choices}

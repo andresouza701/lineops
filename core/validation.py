@@ -27,3 +27,11 @@ def validate_phone_number_format(phone_number: str) -> str:
             "Linha deve conter entre 10 e 15 digitos (com + opcional)."
         )
     return phone_number
+
+
+def parse_non_negative_int(value, default: int = 0) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(parsed, 0)
