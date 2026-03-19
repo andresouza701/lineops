@@ -2,7 +2,7 @@ from django import forms
 from django.contrib import admin
 from django.db import transaction
 
-from .models import PhoneLine, SIMcard
+from .models import BlipConfiguration, PhoneLine, SIMcard
 
 
 class SIMcardAdminForm(forms.ModelForm):
@@ -67,3 +67,10 @@ class PhoneLineAdmin(admin.ModelAdmin):
     list_display = ("phone_number", "sim_card", "status", "origem", "activated_at")
     search_fields = ("phone_number", "sim_card__iccid")
     list_filter = ("status", "origem")
+
+
+@admin.register(BlipConfiguration)
+class BlipConfigurationAdmin(admin.ModelAdmin):
+    list_display = ("blip_id", "type", "description", "phone_number", "key", "value")
+    search_fields = ("blip_id", "description", "value")
+    list_filter = ("type", "key")

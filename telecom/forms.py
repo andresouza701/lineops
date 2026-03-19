@@ -11,7 +11,7 @@ from core.validation import (
 )
 from employees.models import Employee
 
-from .models import PhoneLine, SIMcard
+from .models import BlipConfiguration, PhoneLine, SIMcard
 
 MAX_ACTIVE_LINES_PER_EMPLOYEE = 4
 
@@ -183,3 +183,17 @@ class CombinedSimLineForm(forms.Form):
         if PhoneLine.objects.filter(phone_number=phone, is_deleted=False).exists():
             raise forms.ValidationError("Número já cadastrado!")
         return phone
+
+
+class BlipConfigurationForm(forms.ModelForm):
+    class Meta:
+        model = BlipConfiguration
+        fields = ["blip_id", "type", "description", "phone_number", "key", "value"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name in ["blip_id", "description", "phone_number", "value"]:
+            self.fields[field_name].widget.attrs.setdefault("class", "form-control")
+
+        for field_name in ["type", "key"]:
+            self.fields[field_name].widget.attrs.setdefault("class", "form-select")

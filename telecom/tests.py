@@ -6,13 +6,16 @@ from django.utils import timezone
 from core.current_user import clear_current_user, set_current_user
 from core.services.allocation_service import AllocationService
 from employees.models import Employee
-from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
+from telecom.models import BlipConfiguration, PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
 
 
 class TelecomAdminRegistrationTest(TestCase):
     def test_phone_line_is_registered_in_admin(self):
         self.assertIn(PhoneLine, admin.site._registry)
+
+    def test_blip_configuration_is_registered_in_admin(self):
+        self.assertIn(BlipConfiguration, admin.site._registry)
 
 
 class PhoneLineHistoryAuditTest(TestCase):
@@ -707,3 +710,65 @@ class PhoneLineViewsTest(TestCase):
         self.assertTrue(self.line_available.is_deleted)
         self.assertFalse(allocation.is_active)
         self.assertEqual(self.line_available.status, PhoneLine.Status.AVAILABLE)
+
+
+class BlipConfigurationViewsTest(TestCase):
+    def setUp(self):
+        self.dev = SystemUser.objects.create_user(
+            email="dev.blip@test.com",
+            password="123456",
+            role=SystemUser.Role.DEV,
+        )
+        self.admin = SystemUser.objects.create_user(
+            email="admin.blip@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+
+    def test_dev_can_list_blip_configurations(self):
+        configuration = BlipConfiguration.objects.create(
+            blip_id="blip-flow-01",
+            type=BlipConfiguration.ConfigurationType.FLOW,
+            description="Fluxo principal",
+            phone_number=5547999999999,
+            key=BlipConfiguration.KeyType.ACCESS,
+            value="token-123",
+        )
+        self.client.force_login(self.dev)
+
+        response = self.client.get(reverse("telecom:blip_configuration_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, configuration.blip_id)
+        self.assertContains(response, "Novo cadastro")
+
+    def test_dev_can_create_blip_configuration(self):
+        self.client.force_login(self.dev)
+
+        response = self.client.post(
+            reverse("telecom:blip_configuration_create"),
+            data={
+                "blip_id": "router-02",
+                "type": BlipConfiguration.ConfigurationType.ROUTER,
+                "description": "Roteador para fallback",
+                "phone_number": 5547988887777,
+                "key": BlipConfiguration.KeyType.HTTP,
+                "value": "https://example.test/router",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse("telecom:blip_configuration_list"))
+        self.assertTrue(
+            BlipConfiguration.objects.filter(
+                blip_id="router-02",
+                type=BlipConfiguration.ConfigurationType.ROUTER,
+            ).exists()
+        )
+
+    def test_non_dev_cannot_access_blip_configuration_area(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("telecom:blip_configuration_list"))
+
+        self.assertEqual(response.status_code, 403)

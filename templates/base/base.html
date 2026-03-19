@@ -64,6 +64,11 @@
                             <i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>
                         </a>
                     {% endif %}
+                    {% if request.user.role == 'dev' %}
+                        <a href="{% url 'telecom:blip_configuration_list' %}" class="rail-link {% if current_name == 'blip_configuration_list' or current_name == 'blip_configuration_create' or current_name == 'blip_configuration_update' %}is-active{% endif %}" aria-label="Configuração Blip" title="Configuração Blip">
+                            <i class="bi bi-sliders" aria-hidden="true"></i>
+                        </a>
+                    {% endif %}
                 {% endif %}
             </nav>
             {% endwith %}
@@ -117,4 +122,3 @@
     {% block scripts %}{% endblock %}
 </body>
 </html>
-

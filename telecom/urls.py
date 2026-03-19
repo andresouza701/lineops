@@ -1,6 +1,9 @@
 from django.urls import path
 
 from .views import (
+    BlipConfigurationCreateView,
+    BlipConfigurationListView,
+    BlipConfigurationUpdateView,
     ExportPhoneLinesCSVView,
     PhoneLineCreateView,
     PhoneLineDeleteView,
@@ -17,6 +20,21 @@ app_name = "telecom"
 
 urlpatterns = [
     path("", TelecomOverviewView.as_view(), name="overview"),
+    path(
+        "blip-configurations/",
+        BlipConfigurationListView.as_view(),
+        name="blip_configuration_list",
+    ),
+    path(
+        "blip-configurations/create/",
+        BlipConfigurationCreateView.as_view(),
+        name="blip_configuration_create",
+    ),
+    path(
+        "blip-configurations/<int:pk>/update/",
+        BlipConfigurationUpdateView.as_view(),
+        name="blip_configuration_update",
+    ),
     path("simcards/", SIMcardListView.as_view(), name="simcard_list"),
     path("phonelines/create/", PhoneLineCreateView.as_view(), name="phoneline_create"),
     path(
