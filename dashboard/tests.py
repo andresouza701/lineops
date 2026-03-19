@@ -1,11 +1,12 @@
 import re
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from allocations.models import LineAllocation
+from core.services.daily_indicator_service import DailyIndicatorService
 from employees.models import Employee
 from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
@@ -309,6 +310,84 @@ class DashboardDailyIndicatorsTests(TestCase):
             card for card in cards if card["title"] == "Pendêcia - Número Novo"
         )
         self.assertEqual(pending_new_number["value"], 0)
+
+    def test_dashboard_counts_real_reconnections_for_same_employee_only(self):
+        today = timezone.localdate()
+        yesterday = today - timedelta(days=1)
+
+        previous_allocated_at = timezone.make_aware(
+            datetime.combine(yesterday, time(10, 0))
+        )
+        released_at = timezone.make_aware(datetime.combine(today, time(9, 0)))
+        reconnected_at = timezone.make_aware(datetime.combine(today, time(11, 0)))
+
+        LineAllocation.objects.filter(pk=self.line_allocation.pk).update(
+            allocated_at=previous_allocated_at,
+            released_at=released_at,
+            is_active=False,
+        )
+
+        reconnected_allocation = LineAllocation.objects.create(
+            employee=self.employee_b2b,
+            phone_line=self.line_allocated,
+            allocated_by=self.user,
+            is_active=True,
+        )
+        LineAllocation.objects.filter(pk=reconnected_allocation.pk).update(
+            allocated_at=reconnected_at
+        )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        latest = response.context["indicadores_diarios"][-1]
+        self.assertEqual(latest["reconectados"], 1)
+        self.assertEqual(DailyIndicatorService.calculate_reconnected_numbers(today), 1)
+
+        cards = response.context["exception_cards"]
+        reconnected_card = next(
+            card for card in cards if card["title"] == "Reconectados hoje"
+        )
+        self.assertEqual(reconnected_card["value"], 1)
+
+    def test_dashboard_does_not_count_line_transfer_as_reconnection(self):
+        today = timezone.localdate()
+        yesterday = today - timedelta(days=1)
+
+        previous_allocated_at = timezone.make_aware(
+            datetime.combine(yesterday, time(10, 0))
+        )
+        released_at = timezone.make_aware(datetime.combine(today, time(9, 0)))
+        transferred_at = timezone.make_aware(datetime.combine(today, time(11, 0)))
+
+        LineAllocation.objects.filter(pk=self.line_allocation.pk).update(
+            allocated_at=previous_allocated_at,
+            released_at=released_at,
+            is_active=False,
+        )
+
+        transferred_allocation = LineAllocation.objects.create(
+            employee=self.employee_b2c,
+            phone_line=self.line_allocated,
+            allocated_by=self.user,
+            is_active=True,
+        )
+        LineAllocation.objects.filter(pk=transferred_allocation.pk).update(
+            allocated_at=transferred_at
+        )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        latest = response.context["indicadores_diarios"][-1]
+        self.assertEqual(latest["reconectados"], 0)
+        self.assertEqual(DailyIndicatorService.calculate_reconnected_numbers(today), 0)
+
+        cards = response.context["exception_cards"]
+        reconnected_card = next(
+            card for card in cards if card["title"] == "Reconectados hoje"
+        )
+        self.assertEqual(reconnected_card["value"], 0)
 
     def test_daily_indicator_day_breakdown_shows_user_details(self):
         today_iso = timezone.localdate().strftime("%Y-%m-%d")

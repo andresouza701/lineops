@@ -1,6 +1,6 @@
 from datetime import datetime, time, timedelta
 
-from django.db.models import F
+from django.db.models import Exists, OuterRef
 from django.utils import timezone
 
 from allocations.models import LineAllocation
@@ -69,20 +69,33 @@ class DailyIndicatorService:
         Returns:
             int: Quantidade de números reconectados
         """
+        return DailyIndicatorService.get_reconnected_allocations_queryset(date).count()
+
+    @staticmethod
+    def get_reconnected_allocations_queryset(date):
+        """
+        Retorna as alocações do dia que representam uma reconexão real.
+
+        Reconexão real = a mesma linha voltou para o mesmo negociador após uma
+        liberação anterior.
+        """
         end_of_day = timezone.make_aware(datetime.combine(date, time.max))
         start_of_day = timezone.make_aware(datetime.combine(date, time.min))
 
-        # Alocações do dia que tiveram uso anterior (foram liberadas e realocadas)
-        reconnected = (
-            LineAllocation.objects.filter(
-                allocated_at__range=(start_of_day, end_of_day)
-            )
-            .filter(phone_line__allocations__released_at__lt=F("allocated_at"))
-            .distinct()
-            .count()
+        previous_same_employee_allocation = LineAllocation.objects.filter(
+            phone_line_id=OuterRef("phone_line_id"),
+            employee_id=OuterRef("employee_id"),
+            released_at__isnull=False,
+            released_at__lt=OuterRef("allocated_at"),
         )
 
-        return reconnected
+        return LineAllocation.objects.filter(
+            allocated_at__range=(start_of_day, end_of_day)
+        ).annotate(
+            was_reconnected_to_same_employee=Exists(previous_same_employee_allocation)
+        ).filter(
+            was_reconnected_to_same_employee=True
+        )
 
     @staticmethod
     def calculate_new_numbers(date, segment=None):

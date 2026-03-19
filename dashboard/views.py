@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, F, Q
+from django.db.models import Count, Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -286,10 +286,8 @@ def build_number_details_for_day(
     ]
 
     reconnected_allocations = list(
-        LineAllocation.objects.filter(allocated_at__date=day)
-        .filter(phone_line__allocations__released_at__lt=F("allocated_at"))
+        DailyIndicatorService.get_reconnected_allocations_queryset(day)
         .select_related("employee", "phone_line")
-        .distinct()
         .order_by("allocated_at")
     )
     reconnected_numbers = [
@@ -390,12 +388,7 @@ def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
     numeros_disponiveis = base_lines.exclude(id__in=allocated_line_ids).count()
 
     numeros_entregues = LineAllocation.objects.filter(allocated_at__date=day).count()
-    reconectados = (
-        LineAllocation.objects.filter(allocated_at__date=day)
-        .filter(phone_line__allocations__released_at__lt=F("allocated_at"))
-        .distinct()
-        .count()
-    )
+    reconectados = DailyIndicatorService.get_reconnected_allocations_queryset(day).count()
     novos = PhoneLine.objects.filter(created_at__date=day, is_deleted=False).count()
     sem_whats_portfolios = employees_without_whats.values_list("employee_id", flat=True)
     b2b_sem_whats = 0
