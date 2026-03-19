@@ -82,6 +82,22 @@ class PhoneLineForm(forms.ModelForm):
         self.fields["sim_card"].widget.attrs.setdefault("class", "form-select")
         self.fields["origem"].widget.attrs.setdefault("class", "form-select")
 
+    def clean_phone_number(self):
+        phone_number = normalize_phone_number(self.cleaned_data.get("phone_number"))
+        validate_phone_number_format(phone_number)
+
+        existing_lines = PhoneLine.objects.filter(
+            phone_number=phone_number,
+            is_deleted=False,
+        )
+        if self.instance and self.instance.pk:
+            existing_lines = existing_lines.exclude(pk=self.instance.pk)
+
+        if existing_lines.exists():
+            raise forms.ValidationError("Número de linha já cadastrado.")
+
+        return phone_number
+
 
 class PhoneLineUpdateForm(PhoneLineForm):
     employee = forms.ModelChoiceField(

@@ -614,6 +614,30 @@ class PhoneLineViewsTest(TestCase):
             ).exists()
         )
 
+    def test_create_view_shows_form_error_when_phone_number_already_exists(self):
+        new_sim = SIMcard.objects.create(
+            iccid="8900000000000000607",
+            carrier="CarrierG",
+            status=SIMcard.Status.AVAILABLE,
+        )
+
+        url = reverse("telecom:phoneline_create")
+        payload = {
+            "phone_number": self.line_available.phone_number,
+            "sim_card": new_sim.pk,
+        }
+
+        response = self.client.post(url, data=payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("phone_number", response.context["form"].errors)
+        self.assertFalse(
+            PhoneLine.objects.filter(
+                phone_number=self.line_available.phone_number,
+                sim_card=new_sim,
+            ).exists()
+        )
+
     def test_update_view_changes_phone_number(self):
         url = reverse("telecom:phoneline_update", args=[self.line_available.pk])
         payload = {
