@@ -368,6 +368,24 @@ class SIMcardViewsTest(TestCase):
             ).exists()
         )
 
+    def test_simcard_create_view_accepts_textual_iccid(self):
+        url = reverse("telecom:simcard_create")
+        payload = {
+            "iccid": "VIRTUAL",
+            "carrier": "CCCC",
+            "phone_number": "111111111111",
+            "origem": PhoneLine.Origem.SRVMEMU_01,
+        }
+
+        response = self.client.post(url, data=payload)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse("telecom:simcard_list"))
+        created_sim = SIMcard.objects.get(iccid=payload["iccid"])
+        line = PhoneLine.objects.get(sim_card=created_sim)
+        self.assertEqual(line.phone_number, payload["phone_number"])
+        self.assertEqual(line.origem, payload["origem"])
+
     def test_simcard_create_view_allows_duplicate_iccid(self):
         url = reverse("telecom:simcard_create")
         payload = {

@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError
 from django.shortcuts import get_object_or_404, redirect, render
@@ -18,6 +19,8 @@ from .forms import CombinedRegistrationForm, TelephonyAssignmentForm
 from .models import LineAllocation
 
 DUPLICATE_EMPLOYEE_NAME_CONSTRAINT = "employees_employee_unique_active_full_name_ci"
+DUPLICATE_PHONE_NUMBER_CONSTRAINT = "telecom_phoneline_phone_number_key"
+DUPLICATE_SIMCARD_ICCID_CONSTRAINT = "telecom_simcard_iccid_key"
 
 
 def _is_duplicate_full_name_error(exc: IntegrityError) -> bool:
@@ -34,6 +37,21 @@ def _is_duplicate_full_name_error(exc: IntegrityError) -> bool:
     diag = getattr(cause, "diag", None)
     constraint_name = getattr(diag, "constraint_name", None)
     return constraint_name == DUPLICATE_EMPLOYEE_NAME_CONSTRAINT
+
+
+def _integrity_error_matches(exc: IntegrityError, constraint_name: str, field_name: str) -> bool:
+    if constraint_name in str(exc) or field_name in str(exc):
+        return True
+
+    cause = getattr(exc, "__cause__", None)
+    if not cause:
+        return False
+
+    if constraint_name in str(cause) or field_name in str(cause):
+        return True
+
+    diag = getattr(cause, "diag", None)
+    return getattr(diag, "constraint_name", None) == constraint_name
 
 
 class RegistrationHubView(RoleRequiredMixin, TemplateView):
@@ -133,6 +151,24 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
             messages.success(request, result.message)
         except BusinessRuleException as exc:
             messages.error(request, str(exc))
+            return self._render_with_forms(telephony_form=form)
+        except ValidationError as exc:
+            form.add_error(None, exc.message if hasattr(exc, "message") else str(exc))
+            messages.error(request, "Corrija os erros de telefonia.")
+            return self._render_with_forms(telephony_form=form)
+        except IntegrityError as exc:
+            if _integrity_error_matches(
+                exc, DUPLICATE_PHONE_NUMBER_CONSTRAINT, "phone_number"
+            ):
+                form.add_error("phone_number", "Linha já cadastrada!")
+            elif _integrity_error_matches(
+                exc, DUPLICATE_SIMCARD_ICCID_CONSTRAINT, "iccid"
+            ):
+                form.add_error("iccid", "ICCID já cadastrado.")
+            else:
+                raise
+
+            messages.error(request, "Corrija os erros de telefonia.")
             return self._render_with_forms(telephony_form=form)
 
         return redirect("allocations:allocation_list")

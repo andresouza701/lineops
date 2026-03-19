@@ -177,6 +177,75 @@ class TelephonyRegistrationFlowTests(TestCase):
         line = PhoneLine.objects.get(phone_number="+5511999990888")
         self.assertEqual(line.sim_card.iccid, "ICCID-TEXTO-01")
 
+    def test_new_line_with_virtual_iccid_payload_succeeds(self):
+        response = self.client.post(
+            reverse("allocations:allocation_list"),
+            {
+                "action": "telephony",
+                "line_action": "new",
+                "phone_number": "111111111111",
+                "iccid": "VIRTUAL",
+                "carrier": "CCCC",
+                "origem": PhoneLine.Origem.SRVMEMU_01,
+            },
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        line = PhoneLine.objects.get(phone_number="111111111111")
+        self.assertEqual(line.sim_card.iccid, "VIRTUAL")
+        self.assertEqual(line.origem, PhoneLine.Origem.SRVMEMU_01)
+
+    def test_new_line_handles_duplicate_phone_integrity_error_without_500(self):
+        with patch(
+            "allocations.views.TelephonyUseCase.create_new_line_with_allocation",
+            side_effect=IntegrityError(
+                "duplicate key value violates unique constraint "
+                "telecom_phoneline_phone_number_key"
+            ),
+        ):
+            response = self.client.post(
+                reverse("allocations:allocation_list"),
+                {
+                    "action": "telephony",
+                    "line_action": "new",
+                    "phone_number": "111111111111",
+                    "iccid": "VIRTUAL",
+                    "carrier": "CCCC",
+                    "origem": PhoneLine.Origem.SRVMEMU_01,
+                },
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Corrija os erros de telefonia.")
+        self.assertIn("phone_number", response.context["telephony_form"].errors)
+
+    def test_new_line_handles_duplicate_iccid_integrity_error_without_500(self):
+        with patch(
+            "allocations.views.TelephonyUseCase.create_new_line_with_allocation",
+            side_effect=IntegrityError(
+                "duplicate key value violates unique constraint "
+                "telecom_simcard_iccid_key"
+            ),
+        ):
+            response = self.client.post(
+                reverse("allocations:allocation_list"),
+                {
+                    "action": "telephony",
+                    "line_action": "new",
+                    "phone_number": "111111111111",
+                    "iccid": "VIRTUAL",
+                    "carrier": "CCCC",
+                    "origem": PhoneLine.Origem.SRVMEMU_01,
+                },
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Corrija os erros de telefonia.")
+        self.assertIn("iccid", response.context["telephony_form"].errors)
+
     def test_employee_registration_rejects_duplicate_full_name(self):
         response = self.client.post(
             reverse("allocations:allocation_list"),
