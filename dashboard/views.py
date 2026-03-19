@@ -530,6 +530,9 @@ class DashboardView(AuthenticadView, TemplateView):
         latest_sem_whats = float(latest.get("perc_sem_whats", 0) or 0)
         latest_descoberto = int(latest.get("total_descoberto_dia", 0) or 0)
         latest_reconectados = int(latest.get("reconectados", 0) or 0)
+        reconectados_exception_value = latest_reconectados
+        if self.request.user.role == SystemUser.Role.ADMIN:
+            reconectados_exception_value += pending_reconnect_whatsapp_count
 
         line_status_map = {
             entry["value"]: int(entry.get("count", 0))
@@ -596,9 +599,9 @@ class DashboardView(AuthenticadView, TemplateView):
             },
             {
                 "title": "Reconectados hoje",
-                "value": latest_reconectados,
+                "value": reconectados_exception_value,
                 "description": "Recuperações efetivas no dia atual.",
-                "level": "ok" if latest_reconectados > 0 else "warning",
+                "level": "ok" if reconectados_exception_value > 0 else "warning",
                 "action_label": "Detalhar telecom",
                 "action_url": "/telecom/",
             },

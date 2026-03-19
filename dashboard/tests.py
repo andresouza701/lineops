@@ -389,6 +389,79 @@ class DashboardDailyIndicatorsTests(TestCase):
         )
         self.assertEqual(reconnected_card["value"], 0)
 
+    def test_dashboard_reconnected_exception_card_includes_admin_reconnect_actions(self):
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        latest = response.context["indicadores_diarios"][-1]
+        self.assertEqual(latest["reconectados"], 0)
+
+        cards = response.context["exception_cards"]
+        reconnected_card = next(
+            card for card in cards if card["title"] == "Reconectados hoje"
+        )
+        self.assertEqual(reconnected_card["value"], 1)
+
+    def test_dashboard_reconnected_exception_card_sums_actual_and_admin_action_counts(self):
+        today = timezone.localdate()
+        yesterday = today - timedelta(days=1)
+
+        previous_allocated_at = timezone.make_aware(
+            datetime.combine(yesterday, time(10, 0))
+        )
+        released_at = timezone.make_aware(datetime.combine(today, time(9, 0)))
+        reconnected_at = timezone.make_aware(datetime.combine(today, time(11, 0)))
+
+        LineAllocation.objects.filter(pk=self.line_allocation.pk).update(
+            allocated_at=previous_allocated_at,
+            released_at=released_at,
+            is_active=False,
+        )
+
+        reconnected_allocation = LineAllocation.objects.create(
+            employee=self.employee_b2b,
+            phone_line=self.line_allocated,
+            allocated_by=self.user,
+            is_active=True,
+        )
+        LineAllocation.objects.filter(pk=reconnected_allocation.pk).update(
+            allocated_at=reconnected_at
+        )
+
+        DailyUserAction.objects.create(
+            day=today,
+            employee=self.employee_b2b,
+            allocation=reconnected_allocation,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        latest = response.context["indicadores_diarios"][-1]
+        self.assertEqual(latest["reconectados"], 1)
+
+        cards = response.context["exception_cards"]
+        reconnected_card = next(
+            card for card in cards if card["title"] == "Reconectados hoje"
+        )
+        self.assertEqual(reconnected_card["value"], 2)
+
     def test_daily_indicator_day_breakdown_shows_user_details(self):
         today_iso = timezone.localdate().strftime("%Y-%m-%d")
         response = self.client.get(
