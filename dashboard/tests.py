@@ -573,6 +573,51 @@ class DashboardDailyIndicatorsTests(TestCase):
         ]
         self.assertGreater(len(b2b_rows), 0, "Admin should see Active line with action")
 
+    def test_admin_hides_employee_without_line_when_status_is_active_and_no_action(
+        self,
+    ):
+        admin_user = SystemUser.objects.create_user(
+            email="admin.test3@test.com",
+            password="AdminPass123",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.client.force_login(admin_user)
+
+        response = self.client.get(reverse("daily_user_action_board"))
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+
+        b2c_rows = [row for row in rows if row["employee"].id == self.employee_b2c.id]
+        self.assertEqual(
+            len(b2c_rows),
+            0,
+            (
+                "Admin should not see employee without line when status is "
+                "Active and no action"
+            ),
+        )
+
+    def test_admin_sees_employee_without_line_when_status_is_not_active(self):
+        admin_user = SystemUser.objects.create_user(
+            email="admin.test4@test.com",
+            password="AdminPass123",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.client.force_login(admin_user)
+        self.employee_b2c.line_status = Employee.LineStatus.RESTRICTED
+        self.employee_b2c.save(update_fields=["line_status"])
+
+        response = self.client.get(reverse("daily_user_action_board"))
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+
+        b2c_rows = [row for row in rows if row["employee"].id == self.employee_b2c.id]
+        self.assertEqual(len(b2c_rows), 1)
+        self.assertFalse(b2c_rows[0]["has_line"])
+        self.assertIsNone(b2c_rows[0]["action"])
+
     def test_pending_badge_ignores_action_with_mismatched_allocation_employee(self):
         other_employee = Employee.objects.create(
             full_name="Other User",
