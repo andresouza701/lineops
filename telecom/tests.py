@@ -11,8 +11,11 @@ from users.models import SystemUser
 
 
 class TelecomAdminRegistrationTest(TestCase):
-    def test_phone_line_is_registered_in_admin(self):
-        self.assertIn(PhoneLine, admin.site._registry)
+    def test_phone_line_is_not_registered_in_admin(self):
+        self.assertNotIn(PhoneLine, admin.site._registry)
+
+    def test_simcard_is_registered_in_admin(self):
+        self.assertIn(SIMcard, admin.site._registry)
 
     def test_blip_configuration_is_registered_in_admin(self):
         self.assertIn(BlipConfiguration, admin.site._registry)

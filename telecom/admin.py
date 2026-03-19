@@ -2,6 +2,8 @@ from django import forms
 from django.contrib import admin
 from django.db import transaction
 
+from core.validation import normalize_phone_number, validate_phone_number_format
+
 from .models import BlipConfiguration, PhoneLine, SIMcard
 
 
@@ -12,6 +14,17 @@ class SIMcardAdminForm(forms.ModelForm):
         required=True,
         help_text="Numero da linha vinculado ao SIM card.",
     )
+    origem = forms.ChoiceField(
+        label="Origem",
+        choices=PhoneLine.Origem.choices,
+        required=False,
+    )
+    line_status = forms.ChoiceField(
+        label="Status da linha",
+        choices=PhoneLine.Status.choices,
+        required=True,
+        initial=PhoneLine.Status.AVAILABLE,
+    )
 
     class Meta:
         model = SIMcard
@@ -21,9 +34,12 @@ class SIMcardAdminForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.instance and self.instance.pk and hasattr(self.instance, "phone_line"):
             self.fields["phone_number"].initial = self.instance.phone_line.phone_number
+            self.fields["origem"].initial = self.instance.phone_line.origem
+            self.fields["line_status"].initial = self.instance.phone_line.status
 
     def clean_phone_number(self):
-        phone_number = (self.cleaned_data.get("phone_number") or "").strip()
+        phone_number = normalize_phone_number(self.cleaned_data.get("phone_number"))
+        validate_phone_number_format(phone_number)
         current_line_id = None
         if self.instance and self.instance.pk and hasattr(self.instance, "phone_line"):
             current_line_id = self.instance.phone_line.id
@@ -39,34 +55,61 @@ class SIMcardAdminForm(forms.ModelForm):
 @admin.register(SIMcard)
 class SIMcardAdmin(admin.ModelAdmin):
     form = SIMcardAdminForm
-    list_display = ("iccid", "carrier", "status", "activated_at")
-    search_fields = ("iccid", "carrier")
-    list_filter = ("status", "carrier")
+    list_display = (
+        "iccid",
+        "carrier",
+        "status",
+        "phone_number",
+        "line_status",
+        "origem",
+        "activated_at",
+    )
+    search_fields = ("iccid", "carrier", "phone_line__phone_number")
+    list_filter = ("status", "carrier", "phone_line__status", "phone_line__origem")
+
+    @admin.display(description="Linha")
+    def phone_number(self, obj):
+        return getattr(getattr(obj, "phone_line", None), "phone_number", "-")
+
+    @admin.display(description="Status da linha")
+    def line_status(self, obj):
+        phone_line = getattr(obj, "phone_line", None)
+        return phone_line.get_status_display() if phone_line else "-"
+
+    @admin.display(description="Origem")
+    def origem(self, obj):
+        phone_line = getattr(obj, "phone_line", None)
+        return phone_line.get_origem_display() if phone_line and phone_line.origem else "-"
 
     @transaction.atomic
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         phone_number = form.cleaned_data["phone_number"]
+        origem = form.cleaned_data.get("origem")
+        line_status = form.cleaned_data["line_status"]
 
         line = getattr(obj, "phone_line", None)
         if line:
+            updated_fields = []
             if line.phone_number != phone_number:
                 line.phone_number = phone_number
-                line.save(update_fields=["phone_number"])
+                updated_fields.append("phone_number")
+            if line.origem != origem:
+                line.origem = origem
+                updated_fields.append("origem")
+            if line.status != line_status:
+                line.status = line_status
+                updated_fields.append("status")
+            if updated_fields:
+                line.save(update_fields=updated_fields)
             return
 
         PhoneLine.objects.create(
             phone_number=phone_number,
             sim_card=obj,
-            status=PhoneLine.Status.AVAILABLE,
+            status=line_status,
+            origem=origem,
         )
-
-
-@admin.register(PhoneLine)
-class PhoneLineAdmin(admin.ModelAdmin):
-    list_display = ("phone_number", "sim_card", "status", "origem", "activated_at")
-    search_fields = ("phone_number", "sim_card__iccid")
-    list_filter = ("status", "origem")
 
 
 @admin.register(BlipConfiguration)
