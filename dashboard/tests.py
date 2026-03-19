@@ -131,6 +131,26 @@ class DashboardDailyIndicatorsTests(TestCase):
         if payload["rows"]:
             self.assertIn("detail_url", payload["rows"][0])
 
+    def test_operator_cannot_access_sensitive_dashboard_views(self):
+        operator = SystemUser.objects.create_user(
+            email="operator.dashboard@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.OPERATOR,
+        )
+        self.client.force_login(operator)
+
+        today_iso = timezone.localdate().strftime("%Y-%m-%d")
+        urls = [
+            reverse("daily_user_action_board"),
+            reverse("daily_indicators_live"),
+            reverse("daily_indicator_day_breakdown", kwargs={"day": today_iso}),
+            reverse("daily_indicator_management"),
+        ]
+
+        for url in urls:
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 403)
+
     def test_dashboard_splits_sem_whats_by_b2b_and_b2c_portfolios(self):
         response = self.client.get(reverse("dashboard"))
         self.assertEqual(response.status_code, 200)

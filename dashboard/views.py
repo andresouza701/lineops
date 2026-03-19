@@ -20,7 +20,7 @@ from core.constants import (
     B2C_PORTFOLIO_NAMES,
     B2C_PORTFOLIOS,
 )
-from core.mixins import AuthenticadView, RoleRequiredMixin
+from core.mixins import AuthenticadView, RoleRequiredMixin, roles_required
 from core.services.daily_indicator_service import DailyIndicatorService
 from employees.models import Employee
 from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
@@ -41,6 +41,11 @@ COUNT_CRITICAL_THRESHOLD = 10
 COUNT_WARNING_THRESHOLD = 5
 DEFAULT_TREND_PERIOD = 7
 ALLOWED_TREND_PERIODS = (7, 15, 30)
+DASHBOARD_ALLOWED_ROLES = (
+    SystemUser.Role.ADMIN,
+    SystemUser.Role.SUPER,
+    SystemUser.Role.GERENTE,
+)
 
 
 def resolve_trend_period(raw_period):
@@ -821,6 +826,7 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
 
 
 @login_required
+@roles_required(*DASHBOARD_ALLOWED_ROLES)
 def daily_indicator_entry(request):
     """
     View para supervisores inserirem indicadores diários.
@@ -856,6 +862,7 @@ def daily_indicator_entry(request):
 
 
 @login_required
+@roles_required(*DASHBOARD_ALLOWED_ROLES)
 def daily_indicator_management(request):
     """
     View para visualizar e gerenciar todos os indicadores diários.
@@ -915,11 +922,13 @@ def daily_indicator_management(request):
 
 
 @login_required
+@roles_required(*DASHBOARD_ALLOWED_ROLES)
 def daily_indicator_legacy_redirect(request, *args, **kwargs):
     return redirect("daily_user_action_board")
 
 
 @login_required
+@roles_required(*DASHBOARD_ALLOWED_ROLES)
 def daily_indicator_detail(request, pk):
     """
     View para visualizar detalhes de um indicador específico.
@@ -934,6 +943,7 @@ def daily_indicator_detail(request, pk):
 
 
 @login_required
+@roles_required(*DASHBOARD_ALLOWED_ROLES)
 def daily_indicator_edit(request, pk):
     """
     View para editar um indicador existente.
@@ -969,6 +979,7 @@ def daily_indicator_edit(request, pk):
 
 
 @login_required
+@roles_required(*DASHBOARD_ALLOWED_ROLES)
 def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
     supervisor_filter = (request.GET.get("supervisor") or "").strip()
     employees_qs = get_supervised_employees_queryset(request.user, supervisor_filter)
@@ -1014,14 +1025,20 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                                 )
                                 messages.success(
                                     request,
-                                    f"Status da linha atualizado para {employee.full_name}.",
+                                    (
+                                        "Status da linha atualizado para "
+                                        f"{employee.full_name}."
+                                    ),
                                 )
                         elif employee.line_status != line_status:
                             employee.line_status = line_status
                             employee.save(update_fields=["line_status"])
                             messages.success(
                                 request,
-                                f"Status da linha atualizado para {employee.full_name}.",
+                                (
+                                    "Status da linha atualizado para "
+                                    f"{employee.full_name}."
+                                ),
                             )
 
                 if action_type and action_type not in dict(
@@ -1064,7 +1081,10 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                     else:
                         messages.info(
                             request,
-                            f"Nenhuma ação aberta para resolver para {employee.full_name}.",
+                            (
+                                "Nenhuma ação aberta para resolver para "
+                                f"{employee.full_name}."
+                            ),
                         )
                 else:
                     allocation_obj = None
@@ -1158,6 +1178,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
 
 
 @login_required
+@roles_required(*DASHBOARD_ALLOWED_ROLES)
 def daily_indicators_live(request):
     period = resolve_trend_period(request.GET.get("period", DEFAULT_TREND_PERIOD))
     rows, fingerprint = get_daily_indicators_payload(days=period)
@@ -1172,6 +1193,7 @@ def daily_indicators_live(request):
 
 
 @login_required
+@roles_required(*DASHBOARD_ALLOWED_ROLES)
 def daily_indicator_day_breakdown(request, day):
     try:
         selected_day = datetime.strptime(day, "%Y-%m-%d").date()

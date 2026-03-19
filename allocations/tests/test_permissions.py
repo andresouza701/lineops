@@ -112,3 +112,19 @@ class AllocationRBACViewTests(TestCase):
         self.client.logout()
         anon_resp = self.client.post(url)
         self.assertEqual(anon_resp.status_code, 403)
+
+    def test_operator_release_from_edit_redirects_back_to_registration_hub(self):
+        self.client.force_login(self.admin)
+        allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=self.line,
+            allocated_by=self.admin,
+            is_active=True,
+        )
+
+        edit_url = reverse("allocations:allocation_edit", args=[allocation.pk])
+
+        self.client.force_login(self.operator)
+        response = self.client.post(edit_url, {"action": "release"})
+
+        self.assertRedirects(response, reverse("allocations:allocation_list"))

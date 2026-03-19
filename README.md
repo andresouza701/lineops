@@ -7,6 +7,10 @@ Aplicação Django para gestão de linhas telefônicas, alocações e indicadore
 - Docker e Docker Compose
 - Python 3.11+ (se rodar sem Docker)
 
+## Release Notes
+
+- `1.0.2`: veja [docs/release-notes-1.0.2.md](/c:/Users/andre.souza/Desktop/Vscode/brach-lineops/lineops/docs/release-notes-1.0.2.md)
+
 ## Variáveis de ambiente
 
 Crie o arquivo `.env` a partir do exemplo:

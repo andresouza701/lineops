@@ -1,5 +1,5 @@
 from django.contrib import messages
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Prefetch
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -9,6 +9,8 @@ from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
 from allocations.models import LineAllocation
 from core.mixins import RoleRequiredMixin
+from core.services.allocation_service import AllocationService
+from core.validation import parse_non_negative_int
 from users.models import SystemUser
 
 from .models import Employee, EmployeeHistory
@@ -48,8 +50,10 @@ class EmployeeListView(RoleRequiredMixin, ListView):
 
     def _handle_ajax_request(self, request):
         """Retorna dados em JSON para load more"""
-        offset = int(request.GET.get("offset", 0))
-        limit = int(request.GET.get("limit", self.paginate_by))
+        offset = parse_non_negative_int(request.GET.get("offset", 0), default=0)
+        limit = max(
+            parse_non_negative_int(request.GET.get("limit", self.paginate_by), 10), 1
+        )
 
         queryset = self._build_queryset(request)
         employees = list(queryset[offset : offset + limit])
@@ -198,8 +202,16 @@ class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
 class EmployeeDeactivateView(RoleRequiredMixin, View):
     allowed_roles = [SystemUser.Role.ADMIN]
 
+    @transaction.atomic
     def post(self, request, pk):
         employee = get_object_or_404(Employee, pk=pk)
+        active_allocations = list(
+            LineAllocation.objects.filter(employee=employee, is_active=True)
+            .select_related("phone_line")
+            .order_by("-allocated_at")
+        )
+        for allocation in active_allocations:
+            AllocationService.release_line(allocation, released_by=request.user)
         employee.delete()
         messages.success(request, "Usuário desativado com sucesso.")
         return redirect("employees:employee_list")
