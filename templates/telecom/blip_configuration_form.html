@@ -1,0 +1,62 @@
+{% extends "base/base.html" %}
+
+{% block title %}Cadastro Blip{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="fw-semibold">
+            {% if object %}Editar configuracao Blip{% else %}Nova configuracao Blip{% endif %}
+        </h2>
+
+        <a href="{% url 'telecom:blip_configuration_list' %}" class="btn btn-outline-secondary">
+            Voltar
+        </a>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Blip ID</label>
+                        {{ form.blip_id }}
+                        {{ form.blip_id.errors }}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Tipo</label>
+                        {{ form.type }}
+                        {{ form.type.errors }}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Descricao</label>
+                        {{ form.description }}
+                        {{ form.description.errors }}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Numero Telefone</label>
+                        {{ form.phone_number }}
+                        {{ form.phone_number.errors }}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Chave</label>
+                        {{ form.key }}
+                        {{ form.key.errors }}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Valor</label>
+                        {{ form.value }}
+                        {{ form.value.errors }}
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary mt-4">
+                    {% if object %}Atualizar{% else %}Salvar{% endif %}
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

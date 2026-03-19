@@ -166,3 +166,42 @@ class PhoneLineHistory(models.Model):
             f"{self.phone_line.phone_number} - "
             f"{self.get_action_display()} - {self.changed_at}"
         )
+
+
+class BlipConfiguration(models.Model):
+    class ConfigurationType(models.TextChoices):
+        FLOW = "FLOW", "Fluxo"
+        ROUTER = "ROUTER", "Roteador"
+
+    class KeyType(models.TextChoices):
+        ACCESS = "ACCESS", "Acesso"
+        HTTP = "HTTP", "Http"
+
+    blip_id = models.CharField(max_length=255, verbose_name="Blip ID", db_index=True)
+    type = models.CharField(
+        max_length=20,
+        choices=ConfigurationType.choices,
+        verbose_name="Tipo",
+    )
+    description = models.CharField(max_length=255, verbose_name="Descricao")
+    phone_number = models.BigIntegerField(verbose_name="Numero Telefone", db_index=True)
+    key = models.CharField(
+        max_length=20,
+        choices=KeyType.choices,
+        verbose_name="Chave",
+    )
+    value = models.CharField(max_length=255, verbose_name="Valor")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Configuracao Blip"
+        verbose_name_plural = "Configuracoes Blip"
+        ordering = ["blip_id", "phone_number", "type"]
+        indexes = [
+            models.Index(fields=["blip_id", "type"]),
+            models.Index(fields=["phone_number", "key"]),
+        ]
+
+    def __str__(self):
+        return f"{self.blip_id} - {self.get_type_display()}"

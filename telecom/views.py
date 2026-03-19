@@ -24,8 +24,13 @@ from core.services.allocation_service import AllocationService
 from core.validation import parse_non_negative_int
 from users.models import SystemUser
 
-from .forms import PhoneLineForm, PhoneLineUpdateForm, SIMcardCreateWithLineForm
-from .models import PhoneLine, PhoneLineHistory, SIMcard
+from .forms import (
+    BlipConfigurationForm,
+    PhoneLineForm,
+    PhoneLineUpdateForm,
+    SIMcardCreateWithLineForm,
+)
+from .models import BlipConfiguration, PhoneLine, PhoneLineHistory, SIMcard
 
 
 class SIMCardFilterForm(forms.Form):
@@ -716,3 +721,35 @@ class ExportPhoneLinesCSVView(RoleRequiredMixin, View):
             )
 
         return response
+
+
+class BlipConfigurationListView(RoleRequiredMixin, ListView):
+    allowed_roles = [SystemUser.Role.DEV]
+    model = BlipConfiguration
+    template_name = "telecom/blip_configuration_list.html"
+    context_object_name = "configurations"
+    ordering = ["blip_id", "phone_number", "type"]
+
+
+class BlipConfigurationCreateView(RoleRequiredMixin, CreateView):
+    allowed_roles = [SystemUser.Role.DEV]
+    model = BlipConfiguration
+    form_class = BlipConfigurationForm
+    template_name = "telecom/blip_configuration_form.html"
+    success_url = reverse_lazy("telecom:blip_configuration_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, "Configuracao Blip cadastrada com sucesso.")
+        return super().form_valid(form)
+
+
+class BlipConfigurationUpdateView(RoleRequiredMixin, UpdateView):
+    allowed_roles = [SystemUser.Role.DEV]
+    model = BlipConfiguration
+    form_class = BlipConfigurationForm
+    template_name = "telecom/blip_configuration_form.html"
+    success_url = reverse_lazy("telecom:blip_configuration_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, "Configuracao Blip atualizada com sucesso.")
+        return super().form_valid(form)

@@ -47,6 +47,15 @@
             </a>
         </li>
         {% endif %}
+
+        {% if request.user.role == 'dev' %}
+        <li>
+            <a href="{% url 'telecom:blip_configuration_list' %}"
+               class="nav-link {% if current_name == 'blip_configuration_list' or current_name == 'blip_configuration_create' or current_name == 'blip_configuration_update' %}active{% endif %}">
+                Config. Blip
+            </a>
+        </li>
+        {% endif %}
     {% endif %}
 
 </ul>
