@@ -277,6 +277,7 @@ def count_admin_resolved_reconnect_actions(user):
     employee_ids = employees_qs.values_list("id", flat=True)
     return DailyUserAction.objects.filter(
         employee_id__in=employee_ids,
+        day=timezone.localdate(),
         action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
         is_resolved=True,
         updated_by__role=SystemUser.Role.ADMIN,
