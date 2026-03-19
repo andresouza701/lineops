@@ -269,6 +269,21 @@ def count_visible_pending_actions(rows):
     }
 
 
+def count_admin_resolved_reconnect_actions(user):
+    employees_qs = get_supervised_employees_queryset(user).filter(
+        status=Employee.Status.ACTIVE,
+        is_deleted=False,
+    )
+    employee_ids = employees_qs.values_list("id", flat=True)
+    return DailyUserAction.objects.filter(
+        employee_id__in=employee_ids,
+        action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+        is_resolved=True,
+        updated_by__role=SystemUser.Role.ADMIN,
+        updated_at__date=timezone.localdate(),
+    ).count()
+
+
 def build_number_details_for_day(
     day: date, base_lines, allocated_line_ids
 ) -> tuple[list[str], list[dict], list[dict], list[str]]:
@@ -525,14 +540,17 @@ class DashboardView(AuthenticadView, TemplateView):
         action_counts = count_visible_pending_actions(rows)
         pending_new_number_count = action_counts["new_number"]
         pending_reconnect_whatsapp_count = action_counts["reconnect_whatsapp"]
+        resolved_reconnect_whatsapp_count = count_admin_resolved_reconnect_actions(
+            self.request.user
+        )
         action_board_url = reverse("daily_user_action_board")
 
         latest_sem_whats = float(latest.get("perc_sem_whats", 0) or 0)
         latest_descoberto = int(latest.get("total_descoberto_dia", 0) or 0)
         latest_reconectados = int(latest.get("reconectados", 0) or 0)
-        reconectados_exception_value = latest_reconectados
-        if self.request.user.role == SystemUser.Role.ADMIN:
-            reconectados_exception_value += pending_reconnect_whatsapp_count
+        reconectados_exception_value = (
+            latest_reconectados + resolved_reconnect_whatsapp_count
+        )
 
         line_status_map = {
             entry["value"]: int(entry.get("count", 0))

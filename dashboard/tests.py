@@ -389,7 +389,9 @@ class DashboardDailyIndicatorsTests(TestCase):
         )
         self.assertEqual(reconnected_card["value"], 0)
 
-    def test_dashboard_reconnected_exception_card_includes_admin_reconnect_actions(self):
+    def test_dashboard_reconnected_exception_card_does_not_include_open_reconnect_actions(
+        self,
+    ):
         DailyUserAction.objects.create(
             day=timezone.localdate(),
             employee=self.employee_b2b,
@@ -411,9 +413,63 @@ class DashboardDailyIndicatorsTests(TestCase):
         reconnected_card = next(
             card for card in cards if card["title"] == "Reconectados hoje"
         )
+        self.assertEqual(reconnected_card["value"], 0)
+
+    def test_dashboard_reconnected_exception_card_includes_admin_resolved_reconnect_actions(
+        self,
+    ):
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=True,
+        )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        latest = response.context["indicadores_diarios"][-1]
+        self.assertEqual(latest["reconectados"], 0)
+
+        cards = response.context["exception_cards"]
+        reconnected_card = next(
+            card for card in cards if card["title"] == "Reconectados hoje"
+        )
         self.assertEqual(reconnected_card["value"], 1)
 
-    def test_dashboard_reconnected_exception_card_sums_actual_and_admin_action_counts(self):
+    def test_dashboard_reconnected_exception_card_ignores_non_admin_resolution(self):
+        supervisor_user = SystemUser.objects.create_user(
+            email="super.reconnect@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.SUPER,
+        )
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            supervisor=supervisor_user,
+            created_by=supervisor_user,
+            updated_by=supervisor_user,
+            is_resolved=True,
+        )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        cards = response.context["exception_cards"]
+        reconnected_card = next(
+            card for card in cards if card["title"] == "Reconectados hoje"
+        )
+        self.assertEqual(reconnected_card["value"], 0)
+
+    def test_dashboard_reconnected_exception_card_sums_actual_and_admin_resolved_counts(
+        self,
+    ):
         today = timezone.localdate()
         yesterday = today - timedelta(days=1)
 
@@ -447,7 +503,7 @@ class DashboardDailyIndicatorsTests(TestCase):
             supervisor=self.user,
             created_by=self.user,
             updated_by=self.user,
-            is_resolved=False,
+            is_resolved=True,
         )
 
         response = self.client.get(reverse("dashboard"))
