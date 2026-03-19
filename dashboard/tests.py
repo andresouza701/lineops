@@ -786,6 +786,40 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertEqual(dashboard_response.status_code, 200)
         self.assertEqual(dashboard_response.context["pending_actions_count"], 0)
 
+    def test_reconnect_whatsapp_without_allocation_counts_for_employee_with_single_line_v2(
+        self,
+    ):
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=None,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+
+        board_response = self.client.get(reverse("daily_user_action_board"))
+        self.assertEqual(board_response.status_code, 200)
+        self.assertEqual(board_response.context["action_counts"]["new_number"], 0)
+        self.assertEqual(
+            board_response.context["action_counts"]["reconnect_whatsapp"], 1
+        )
+
+        dashboard_response = self.client.get(reverse("dashboard"))
+        self.assertEqual(dashboard_response.status_code, 200)
+        self.assertEqual(dashboard_response.context["pending_actions_count"], 1)
+
+        cards = dashboard_response.context["exception_cards"]
+        pending_reconnect = next(
+            card
+            for card in cards
+            if "Reconex" in card["title"]
+            and card["action_url"] == reverse("daily_user_action_board")
+        )
+        self.assertEqual(pending_reconnect["value"], 1)
+
     def test_admin_keeps_employee_visible_when_allocation_removed_with_pending_action(
         self,
     ):

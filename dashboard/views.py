@@ -191,9 +191,18 @@ def build_daily_user_action_rows(
     rows = []
     for employee in employees:
         allocations = allocations_by_employee.get(employee.id, [])
+        employee_level_action = actions_by_allocation.get((employee.id, None))
         if allocations:
             for allocation in allocations:
                 action = actions_by_allocation.get((employee.id, allocation.id))
+                if (
+                    not action
+                    and len(allocations) == 1
+                    and employee_level_action
+                    and employee_level_action.action_type
+                    == DailyUserAction.ActionType.RECONNECT_WHATSAPP
+                ):
+                    action = employee_level_action
                 row = {
                     "employee": employee,
                     "allocation": allocation,
@@ -215,7 +224,7 @@ def build_daily_user_action_rows(
                 rows.append(row)
             continue
 
-        action = actions_by_allocation.get((employee.id, None))
+        action = employee_level_action
         if not action:
             action = latest_action_by_employee.get(employee.id)
 
