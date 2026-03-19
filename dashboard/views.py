@@ -284,6 +284,38 @@ def count_admin_resolved_reconnect_actions(user):
     ).count()
 
 
+def get_open_action_for_resolution(employee, allocation_id=None):
+    unresolved_actions = DailyUserAction.objects.filter(
+        employee=employee,
+        is_resolved=False,
+    ).order_by("-day", "-id")
+
+    if allocation_id:
+        action = unresolved_actions.filter(allocation_id=allocation_id).first()
+        if action:
+            return action
+
+        allocation = LineAllocation.objects.filter(
+            pk=allocation_id,
+            employee=employee,
+            is_active=True,
+        ).first()
+        if allocation:
+            active_allocations_count = LineAllocation.objects.filter(
+                employee=employee,
+                is_active=True,
+            ).count()
+            if active_allocations_count == 1:
+                return unresolved_actions.filter(
+                    allocation__isnull=True,
+                    action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+                ).first()
+
+        return None
+
+    return unresolved_actions.filter(allocation__isnull=True).first()
+
+
 def build_number_details_for_day(
     day: date, base_lines, allocated_line_ids
 ) -> tuple[list[str], list[dict], list[dict], list[str]]:
@@ -1069,14 +1101,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                 ):
                     messages.error(request, "Tipo de ação inválido.")
                 elif not action_type:
-                    action_filter = {"employee": employee, "is_resolved": False}
-                    if allocation_id:
-                        action_filter["allocation_id"] = allocation_id
-                    action = (
-                        DailyUserAction.objects.filter(**action_filter)
-                        .order_by("-day")
-                        .first()
-                    )
+                    action = get_open_action_for_resolution(employee, allocation_id)
                     if action:
                         action_label = dict(DailyUserAction.ActionType.choices).get(
                             action.action_type, action.action_type
@@ -1084,7 +1109,15 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                         action.is_resolved = True
                         action.note = note
                         action.updated_by = request.user
-                        action.save(update_fields=["is_resolved", "note", "updated_by"])
+                        action.updated_at = timezone.now()
+                        action.save(
+                            update_fields=[
+                                "is_resolved",
+                                "note",
+                                "updated_by",
+                                "updated_at",
+                            ]
+                        )
                         if action.allocation and action.allocation.phone_line:
                             PhoneLineHistory.objects.create(
                                 phone_line=action.allocation.phone_line,
