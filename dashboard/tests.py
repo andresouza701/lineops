@@ -670,6 +670,23 @@ class DashboardDailyIndicatorsTests(TestCase):
         )
         self.assertContains(breakdown_response, self.line_allocated.phone_number)
 
+    def test_daily_indicator_day_breakdown_hides_line_with_soft_deleted_simcard(self):
+        self.line_available.sim_card.delete()
+
+        today_iso = timezone.localdate().strftime("%Y-%m-%d")
+        response = self.client.get(
+            reverse("daily_indicator_day_breakdown", kwargs={"day": today_iso})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        indicator = response.context["indicator"]
+        self.assertEqual(indicator["numeros_disponiveis"], 0)
+        self.assertEqual(indicator["total_descoberto_dia"], 1)
+        self.assertEqual(len(indicator["available_numbers"]), 0)
+        self.assertEqual(len(indicator["users_with_line"]), 1)
+        self.assertEqual(len(indicator["users_without_line"]), 1)
+        self.assertNotContains(response, self.line_available.phone_number)
+
     def test_daily_user_action_board_allows_marking_action(self):
         response = self.client.post(
             reverse("daily_user_action_board"),

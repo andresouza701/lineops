@@ -348,6 +348,14 @@ def build_reconnected_numbers_for_day(day):
     return reconnected_numbers
 
 
+def get_visible_phone_lines_for_day(day):
+    return PhoneLine.objects.filter(
+        is_deleted=False,
+        sim_card__is_deleted=False,
+        created_at__date__lte=day,
+    )
+
+
 def get_open_action_for_resolution(employee, allocation_id=None):
     unresolved_actions = DailyUserAction.objects.filter(
         employee=employee,
@@ -408,7 +416,8 @@ def build_number_details_for_day(
     reconnected_numbers = build_reconnected_numbers_for_day(day)
 
     new_numbers = list(
-        PhoneLine.objects.filter(created_at__date=day, is_deleted=False)
+        get_visible_phone_lines_for_day(day)
+        .filter(created_at__date=day)
         .order_by("phone_number")
         .values_list("phone_number", flat=True)
     )
@@ -470,7 +479,11 @@ def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
     employees = Employee.objects.filter(is_deleted=False, created_at__date__lte=day)
     active_employees = employees.filter(status=Employee.Status.ACTIVE)
 
-    active_allocations = LineAllocation.objects.filter(allocated_at__lte=end_of_day)
+    active_allocations = LineAllocation.objects.filter(
+        allocated_at__lte=end_of_day,
+        phone_line__is_deleted=False,
+        phone_line__sim_card__is_deleted=False,
+    )
     active_allocations = active_allocations.filter(
         Q(released_at__isnull=True) | Q(released_at__gt=end_of_day)
     )
@@ -484,9 +497,7 @@ def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
     sem_whats = employees_without_whats.count()
     perc_sem_whats = (sem_whats / total_negociadores * 100) if total_negociadores else 0
 
-    base_lines = PhoneLine.objects.filter(
-        is_deleted=False,
-        created_at__date__lte=day,
+    base_lines = get_visible_phone_lines_for_day(day).filter(
         status=PhoneLine.Status.AVAILABLE,
     )
     allocated_line_ids = active_allocations.values_list(
@@ -497,7 +508,7 @@ def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
     numeros_entregues = LineAllocation.objects.filter(allocated_at__date=day).count()
     reconnected_numbers = build_reconnected_numbers_for_day(day)
     reconectados = len(reconnected_numbers)
-    novos = PhoneLine.objects.filter(created_at__date=day, is_deleted=False).count()
+    novos = get_visible_phone_lines_for_day(day).filter(created_at__date=day).count()
     sem_whats_portfolios = employees_without_whats.values_list("employee_id", flat=True)
     b2b_sem_whats = 0
     b2c_sem_whats = 0
