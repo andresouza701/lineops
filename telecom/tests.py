@@ -21,6 +21,19 @@ class TelecomAdminRegistrationTest(TestCase):
     def test_blip_configuration_is_registered_in_admin(self):
         self.assertIn(BlipConfiguration, admin.site._registry)
 
+    def test_simcard_admin_form_hides_soft_delete_flag(self):
+        admin_user = SystemUser.objects.create_user(
+            email="simcard.admin.form@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        request = RequestFactory().get("/admin/telecom/simcard/add/")
+        request.user = admin_user
+
+        form_class = admin.site._registry[SIMcard].get_form(request)
+
+        self.assertNotIn("is_deleted", form_class.base_fields)
+
 
 class TelecomAdminDeleteTest(TestCase):
     def setUp(self):

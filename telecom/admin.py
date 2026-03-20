@@ -30,7 +30,7 @@ class SIMcardAdminForm(forms.ModelForm):
 
     class Meta:
         model = SIMcard
-        fields = "__all__"
+        fields = ["iccid", "carrier", "status", "activated_at"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
