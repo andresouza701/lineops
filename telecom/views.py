@@ -628,7 +628,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
             },
             {
                 "value": PhoneLine.Status.ALLOCATED,
-                "label": "Ativas",
+                "label": "Alocadas",
                 "description": "Alocadas e em uso",
                 "variant": "primary",
             },
