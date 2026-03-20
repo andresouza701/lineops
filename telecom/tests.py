@@ -613,6 +613,69 @@ class SIMcardViewsTest(TestCase):
         self.assertContains(response, "Número de linha já cadastrado.")
         self.assertFalse(SIMcard.objects.filter(iccid=payload["iccid"]).exists())
 
+    def test_simcard_create_view_reuses_soft_deleted_phone_line_number(self):
+        old_sim = SIMcard.objects.create(
+            iccid="8900000000000000312",
+            carrier="CarrierOld",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        old_line = PhoneLine.objects.create(
+            phone_number="+5511999990312",
+            sim_card=old_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        old_line.delete()
+
+        response = self.client.post(
+            reverse("telecom:simcard_create"),
+            data={
+                "iccid": "8900000000000001312",
+                "carrier": "CarrierNew",
+                "phone_number": old_line.phone_number,
+                "origem": PhoneLine.Origem.APARELHO,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        reused_line = PhoneLine.all_objects.get(pk=old_line.pk)
+        self.assertFalse(reused_line.is_deleted)
+        self.assertEqual(reused_line.sim_card.iccid, "8900000000000001312")
+        self.assertEqual(reused_line.origem, PhoneLine.Origem.APARELHO)
+        self.assertEqual(
+            PhoneLine.all_objects.filter(phone_number=old_line.phone_number).count(),
+            1,
+        )
+
+    def test_simcard_create_view_reuses_line_from_soft_deleted_simcard(self):
+        old_sim = SIMcard.objects.create(
+            iccid="8900000000000000313",
+            carrier="CarrierLegacy",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        old_line = PhoneLine.objects.create(
+            phone_number="+5511999990313",
+            sim_card=old_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        old_sim.is_deleted = True
+        old_sim.save(update_fields=["is_deleted"])
+
+        response = self.client.post(
+            reverse("telecom:simcard_create"),
+            data={
+                "iccid": "8900000000000001313",
+                "carrier": "CarrierRecovered",
+                "phone_number": old_line.phone_number,
+                "origem": PhoneLine.Origem.SRVMEMU_01,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        reused_line = PhoneLine.all_objects.get(pk=old_line.pk)
+        self.assertFalse(reused_line.is_deleted)
+        self.assertEqual(reused_line.sim_card.iccid, "8900000000000001313")
+        self.assertEqual(reused_line.origem, PhoneLine.Origem.SRVMEMU_01)
+
     def test_simcard_update_view(self):
         url = reverse("telecom:simcard_update", args=[self.sim_available.pk])
         payload = {
@@ -834,6 +897,39 @@ class PhoneLineViewsTest(TestCase):
                 sim_card=new_sim,
             ).exists()
         )
+
+    def test_create_view_reuses_soft_deleted_line_with_same_simcard(self):
+        recycled_sim = SIMcard.objects.create(
+            iccid="8900000000000000608",
+            carrier="CarrierRecycle",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        deleted_line = PhoneLine.objects.create(
+            phone_number="+5511999990608",
+            sim_card=recycled_sim,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.APARELHO,
+        )
+        deleted_line.delete()
+
+        response = self.client.get(reverse("telecom:phoneline_create"))
+        form_queryset = response.context["form"].fields["sim_card"].queryset
+        self.assertIn(recycled_sim.pk, list(form_queryset.values_list("pk", flat=True)))
+
+        response = self.client.post(
+            reverse("telecom:phoneline_create"),
+            data={
+                "phone_number": deleted_line.phone_number,
+                "sim_card": recycled_sim.pk,
+                "origem": PhoneLine.Origem.SRVMEMU_01,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        reused_line = PhoneLine.all_objects.get(pk=deleted_line.pk)
+        self.assertFalse(reused_line.is_deleted)
+        self.assertEqual(reused_line.sim_card_id, recycled_sim.pk)
+        self.assertEqual(reused_line.origem, PhoneLine.Origem.SRVMEMU_01)
 
     def test_update_view_changes_phone_number(self):
         url = reverse("telecom:phoneline_update", args=[self.line_available.pk])

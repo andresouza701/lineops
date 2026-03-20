@@ -48,10 +48,7 @@ class SIMcardCreateWithLineForm(SIMcardForm):
     def clean_phone_number(self):
         phone_number = normalize_phone_number(self.cleaned_data.get("phone_number"))
         validate_phone_number_format(phone_number)
-        if PhoneLine.objects.filter(
-            phone_number=phone_number,
-            is_deleted=False,
-        ).exists():
+        if PhoneLine.active_phone_number_conflicts(phone_number).exists():
             raise forms.ValidationError("Número de linha já cadastrado.")
         return phone_number
 
@@ -64,11 +61,7 @@ class PhoneLineForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        available_simcards = SIMcard.objects.filter(
-            is_deleted=False,
-            phone_line__isnull=True,
-            status=SIMcard.Status.AVAILABLE,
-        )
+        available_simcards = SIMcard.available_for_line_registration()
 
         if self.instance and self.instance.pk and self.instance.sim_card_id:
             available_simcards = (
@@ -86,17 +79,29 @@ class PhoneLineForm(forms.ModelForm):
         phone_number = normalize_phone_number(self.cleaned_data.get("phone_number"))
         validate_phone_number_format(phone_number)
 
-        existing_lines = PhoneLine.objects.filter(
-            phone_number=phone_number,
-            is_deleted=False,
+        existing_lines = PhoneLine.active_phone_number_conflicts(
+            phone_number,
+            exclude_id=self.instance.pk if self.instance and self.instance.pk else None,
         )
-        if self.instance and self.instance.pk:
-            existing_lines = existing_lines.exclude(pk=self.instance.pk)
 
         if existing_lines.exists():
             raise forms.ValidationError("Número de linha já cadastrado.")
 
         return phone_number
+
+    def save(self, commit=True):
+        if self.instance and self.instance.pk:
+            return super().save(commit=commit)
+
+        if not commit:
+            return super().save(commit=False)
+
+        return PhoneLine.create_or_reuse(
+            phone_number=self.cleaned_data["phone_number"],
+            sim_card=self.cleaned_data["sim_card"],
+            status=PhoneLine.Status.AVAILABLE,
+            origem=self.cleaned_data.get("origem"),
+        )
 
 
 class PhoneLineUpdateForm(PhoneLineForm):
@@ -196,7 +201,7 @@ class CombinedSimLineForm(forms.Form):
     def clean_phone_number(self):
         phone = normalize_phone_number(self.cleaned_data["phone_number"])
         validate_phone_number_format(phone)
-        if PhoneLine.objects.filter(phone_number=phone, is_deleted=False).exists():
+        if PhoneLine.active_phone_number_conflicts(phone).exists():
             raise forms.ValidationError("Número já cadastrado!")
         return phone
 

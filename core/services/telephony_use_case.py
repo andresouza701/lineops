@@ -73,7 +73,7 @@ class TelephonyUseCase:
             status=SIMcard.Status.AVAILABLE,
         )
 
-        phone_line = PhoneLine.objects.create(
+        phone_line = PhoneLine.create_or_reuse(
             phone_number=line_data["phone_number"],
             sim_card=sim,
             status=PhoneLine.Status.AVAILABLE,

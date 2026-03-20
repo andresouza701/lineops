@@ -194,11 +194,7 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
         ).select_related("sim_card")
 
     def _available_simcards_qs(self):
-        return SIMcard.objects.filter(
-            is_deleted=False,
-            phone_line__isnull=True,
-            status=SIMcard.Status.AVAILABLE,
-        )
+        return SIMcard.available_for_line_registration()
 
     def _active_employees_qs(self):
         return Employee.objects.filter(

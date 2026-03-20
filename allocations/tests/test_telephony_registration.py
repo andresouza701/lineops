@@ -91,6 +91,43 @@ class TelephonyRegistrationFlowTests(TestCase):
         self.assertEqual(line.sim_card.iccid, "8900000000000000999")
         self.assertFalse(LineAllocation.objects.filter(phone_line=line).exists())
 
+    def test_new_line_creation_reuses_soft_deleted_phone_number(self):
+        recycled_sim = SIMcard.objects.create(
+            iccid="8900000000000000888",
+            carrier="CarrierOld",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        deleted_line = PhoneLine.objects.create(
+            phone_number="+5511999990888",
+            sim_card=recycled_sim,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.APARELHO,
+        )
+        deleted_line.delete()
+
+        response = self.client.post(
+            reverse("allocations:allocation_list"),
+            {
+                "action": "telephony",
+                "line_action": "new",
+                "phone_number": deleted_line.phone_number,
+                "iccid": "ICCID-REUSE-01",
+                "carrier": "CarrierRecovered",
+                "origem": PhoneLine.Origem.SRVMEMU_01,
+            },
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        reused_line = PhoneLine.all_objects.get(pk=deleted_line.pk)
+        self.assertFalse(reused_line.is_deleted)
+        self.assertEqual(reused_line.sim_card.iccid, "ICCID-REUSE-01")
+        self.assertEqual(reused_line.origem, PhoneLine.Origem.SRVMEMU_01)
+        self.assertEqual(
+            PhoneLine.all_objects.filter(phone_number=deleted_line.phone_number).count(),
+            1,
+        )
+
     def test_allocation_template_has_default_line_action_new(self):
         response = self.client.get(reverse("allocations:allocation_list"))
         self.assertEqual(response.status_code, 200)

@@ -44,7 +44,7 @@ class SIMcardAdminForm(forms.ModelForm):
         if self.instance and self.instance.pk and hasattr(self.instance, "phone_line"):
             current_line_id = self.instance.phone_line.id
 
-        queryset = PhoneLine.objects.filter(phone_number=phone_number)
+        queryset = PhoneLine.active_phone_number_conflicts(phone_number)
         if current_line_id:
             queryset = queryset.exclude(pk=current_line_id)
         if queryset.exists():
@@ -124,18 +124,7 @@ class SIMcardAdmin(admin.ModelAdmin):
                 line.save(update_fields=updated_fields)
             return
 
-        reusable_line = PhoneLine.all_objects.filter(phone_number=phone_number).first()
-        if reusable_line and reusable_line.is_deleted:
-            reusable_line.sim_card = obj
-            reusable_line.status = line_status
-            reusable_line.origem = origem
-            reusable_line.is_deleted = False
-            reusable_line.save(
-                update_fields=["sim_card", "status", "origem", "is_deleted"]
-            )
-            return
-
-        PhoneLine.objects.create(
+        PhoneLine.create_or_reuse(
             phone_number=phone_number,
             sim_card=obj,
             status=line_status,

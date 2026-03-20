@@ -1,6 +1,8 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 
@@ -47,6 +49,12 @@ class SIMcard(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     is_deleted = models.BooleanField(default=False, db_index=True)
+
+    @classmethod
+    def available_for_line_registration(cls):
+        return cls.objects.filter(status=cls.Status.AVAILABLE).filter(
+            Q(phone_line__isnull=True) | Q(phone_line__is_deleted=True)
+        )
 
     def delete(self, using=None, keep_parents=False, released_by=None):
         phone_line = PhoneLine.all_objects.filter(sim_card=self).first()
@@ -113,6 +121,51 @@ class PhoneLine(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     is_deleted = models.BooleanField(default=False, db_index=True)
+
+    @classmethod
+    def active_phone_number_conflicts(cls, phone_number, exclude_id=None):
+        queryset = cls.all_objects.filter(
+            phone_number=phone_number,
+            is_deleted=False,
+            sim_card__is_deleted=False,
+        )
+        if exclude_id is not None:
+            queryset = queryset.exclude(pk=exclude_id)
+        return queryset
+
+    @classmethod
+    def create_or_reuse(cls, *, phone_number, sim_card, status, origem=None):
+        existing_line = (
+            cls.all_objects.select_related("sim_card")
+            .filter(phone_number=phone_number)
+            .first()
+        )
+        if existing_line:
+            if not existing_line.is_deleted and not existing_line.sim_card.is_deleted:
+                raise ValidationError("Número de linha já cadastrado.")
+
+            existing_line.sim_card = sim_card
+            existing_line.status = status
+            existing_line.origem = origem
+            existing_line.is_deleted = False
+            existing_line.updated_at = timezone.now()
+            existing_line.save(
+                update_fields=[
+                    "sim_card",
+                    "status",
+                    "origem",
+                    "is_deleted",
+                    "updated_at",
+                ]
+            )
+            return existing_line
+
+        return cls.objects.create(
+            phone_number=phone_number,
+            sim_card=sim_card,
+            status=status,
+            origem=origem,
+        )
 
     def delete(self, using=None, keep_parents=False, released_by=None):
         if self.is_deleted:

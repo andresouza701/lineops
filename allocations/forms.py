@@ -127,7 +127,7 @@ class CombinedRegistrationForm(forms.Form):
         phone = normalize_phone_number(self.cleaned_data["phone_number"])
         if self.cleaned_data.get("line_action") == "new" and phone:
             validate_phone_number_format(phone)
-            if PhoneLine.objects.filter(phone_number=phone, is_deleted=False).exists():
+            if PhoneLine.active_phone_number_conflicts(phone).exists():
                 raise forms.ValidationError("Linha já cadastrada.")
         return phone
 
@@ -256,7 +256,7 @@ class TelephonyAssignmentForm(forms.Form):
         phone = normalize_phone_number(self.cleaned_data["phone_number"])
         if self.cleaned_data.get("line_action") == "new" and phone:
             validate_phone_number_format(phone)
-            if PhoneLine.objects.filter(phone_number=phone, is_deleted=False).exists():
+            if PhoneLine.active_phone_number_conflicts(phone).exists():
                 raise forms.ValidationError("Linha já cadastrada!")
         return phone
 
