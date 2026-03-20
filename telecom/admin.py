@@ -2,6 +2,8 @@ from django import forms
 from django.contrib import admin
 from django.db import transaction
 
+from allocations.models import LineAllocation
+from core.services.allocation_service import AllocationService
 from core.validation import normalize_phone_number, validate_phone_number_format
 
 from .models import BlipConfiguration, PhoneLine, SIMcard
@@ -81,6 +83,22 @@ class SIMcardAdmin(admin.ModelAdmin):
         phone_line = getattr(obj, "phone_line", None)
         return phone_line.get_origem_display() if phone_line and phone_line.origem else "-"
 
+    def _delete_with_related_phone_line(self, request, sim_card):
+        phone_line = PhoneLine.all_objects.filter(sim_card=sim_card).first()
+        if phone_line and not phone_line.is_deleted:
+            active_allocation = (
+                LineAllocation.objects.filter(phone_line=phone_line, is_active=True)
+                .select_related("employee")
+                .first()
+            )
+            if active_allocation:
+                AllocationService.release_line(
+                    active_allocation, released_by=request.user
+                )
+            phone_line.delete()
+
+        sim_card.delete()
+
     @transaction.atomic
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -110,6 +128,15 @@ class SIMcardAdmin(admin.ModelAdmin):
             status=line_status,
             origem=origem,
         )
+
+    @transaction.atomic
+    def delete_model(self, request, obj):
+        self._delete_with_related_phone_line(request, obj)
+
+    @transaction.atomic
+    def delete_queryset(self, request, queryset):
+        for sim_card in queryset.select_related("phone_line"):
+            self._delete_with_related_phone_line(request, sim_card)
 
 
 @admin.register(BlipConfiguration)

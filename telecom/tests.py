@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.test import RequestFactory
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -19,6 +20,86 @@ class TelecomAdminRegistrationTest(TestCase):
 
     def test_blip_configuration_is_registered_in_admin(self):
         self.assertIn(BlipConfiguration, admin.site._registry)
+
+
+class TelecomAdminDeleteTest(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.admin_user = SystemUser.objects.create_user(
+            email="telecom.admin@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.model_admin = admin.site._registry[SIMcard]
+
+    def _build_sim_with_active_line(self, suffix):
+        employee = Employee.objects.create(
+            full_name=f"Delete Admin User {suffix}",
+            corporate_email=f"delete-admin-{suffix}@corp.com",
+            employee_id=f"EMP-ADM-{suffix}",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        sim_card = SIMcard.objects.create(
+            iccid=f"8900000000000009{suffix:03d}",
+            carrier="CarrierA",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        phone_line = PhoneLine.objects.create(
+            phone_number=f"+551199990{suffix:04d}",
+            sim_card=sim_card,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        allocation = AllocationService.allocate_line(
+            employee=employee,
+            phone_line=phone_line,
+            allocated_by=self.admin_user,
+        )
+        return sim_card, phone_line, allocation
+
+    def test_simcard_admin_delete_model_releases_active_allocation_and_soft_deletes(self):
+        sim_card, phone_line, allocation = self._build_sim_with_active_line(1)
+        request = self.factory.post("/admin/telecom/simcard/")
+        request.user = self.admin_user
+
+        set_current_user(self.admin_user)
+        try:
+            self.model_admin.delete_model(request, sim_card)
+        finally:
+            clear_current_user()
+
+        sim_card.refresh_from_db()
+        phone_line.refresh_from_db()
+        allocation.refresh_from_db()
+        self.assertTrue(sim_card.is_deleted)
+        self.assertTrue(phone_line.is_deleted)
+        self.assertFalse(allocation.is_active)
+        self.assertEqual(phone_line.status, PhoneLine.Status.AVAILABLE)
+
+    def test_simcard_admin_delete_queryset_releases_active_allocations_and_soft_deletes(self):
+        first_sim, first_line, first_allocation = self._build_sim_with_active_line(2)
+        second_sim, second_line, second_allocation = self._build_sim_with_active_line(3)
+        request = self.factory.post("/admin/telecom/simcard/")
+        request.user = self.admin_user
+
+        set_current_user(self.admin_user)
+        try:
+            queryset = SIMcard.objects.filter(pk__in=[first_sim.pk, second_sim.pk])
+            self.model_admin.delete_queryset(request, queryset)
+        finally:
+            clear_current_user()
+
+        for sim_card, phone_line, allocation in [
+            (first_sim, first_line, first_allocation),
+            (second_sim, second_line, second_allocation),
+        ]:
+            sim_card.refresh_from_db()
+            phone_line.refresh_from_db()
+            allocation.refresh_from_db()
+            self.assertTrue(sim_card.is_deleted)
+            self.assertTrue(phone_line.is_deleted)
+            self.assertFalse(allocation.is_active)
+            self.assertEqual(phone_line.status, PhoneLine.Status.AVAILABLE)
 
 
 class PhoneLineHistoryAuditTest(TestCase):
