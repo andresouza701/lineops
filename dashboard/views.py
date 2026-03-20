@@ -688,6 +688,11 @@ def normalize_portfolio_name(value):
 class DashboardView(AuthenticadView, TemplateView):
     template_name = "dashboard/dashboard.html"
 
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and request.user.role == SystemUser.Role.DEV:
+            return redirect("telecom:blip_configuration_list")
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         trend_period = self._resolve_trend_period()

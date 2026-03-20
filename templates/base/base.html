@@ -27,9 +27,11 @@
             </div>
             {% with current_ns=request.resolver_match.namespace|default:'' current_name=request.resolver_match.url_name|default:'' %}
             <nav class="rail-nav">
+                {% if request.user.role != 'dev' %}
                 <a href="{% url 'dashboard' %}" class="rail-link {% if current_name == 'dashboard' %}is-active{% endif %}" aria-label="Dashboard" title="Dashboard">
                     <i class="bi bi-speedometer2" aria-hidden="true"></i>
                 </a>
+                {% endif %}
                 {% if request.user.is_authenticated %}
                     {% if request.user.role == 'gerente' %}
                     <a href="{% url 'manager_dashboard' %}" class="rail-link {% if current_name == 'manager_dashboard' %}is-active{% endif %}" aria-label="Dash Gerencial" title="Dash Gerencial">
@@ -44,7 +46,7 @@
                     </a>
                     {% endif %}
                 {% endif %}
-                {% if request.user.is_authenticated %}
+                {% if request.user.is_authenticated and request.user.role != 'dev' %}
                     <a href="{% url 'daily_user_action_board' %}" class="rail-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' or current_name == 'daily_user_action_board' or current_name == 'daily_indicator_day_breakdown' %}is-active{% endif %}" aria-label="Ações do Dia" title="Ações do Dia">
                         <i class="bi bi-clipboard-data" aria-hidden="true"></i>
                         {% if request.user.role == 'admin' and pending_actions_count > 0 %}

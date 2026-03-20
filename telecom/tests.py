@@ -1090,6 +1090,23 @@ class BlipConfigurationViewsTest(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
+    def test_dev_root_dashboard_redirects_to_blip_configuration_list(self):
+        self.client.force_login(self.dev)
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertRedirects(response, reverse("telecom:blip_configuration_list"))
+
+    def test_dev_navigation_shows_only_blip_entry(self):
+        self.client.force_login(self.dev)
+
+        response = self.client.get(reverse("telecom:blip_configuration_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("telecom:blip_configuration_list"))
+        self.assertNotContains(response, 'aria-label="Dashboard"', html=False)
+        self.assertNotContains(response, 'aria-label="Ações do Dia"', html=False)
+
     def test_dev_can_filter_blip_configurations_by_blip_id(self):
         target = BlipConfiguration.objects.create(
             blip_id="blip-flow-01",

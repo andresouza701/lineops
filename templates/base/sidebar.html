@@ -1,12 +1,14 @@
 ﻿{% with current_ns=request.resolver_match.namespace|default:'' current_name=request.resolver_match.url_name|default:'' %}
 <ul class="nav nav-pills flex-column mb-auto">
 
+    {% if request.user.role != 'dev' %}
     <li class="nav-item">
         <a href="{% url 'dashboard' %}"
            class="nav-link {% if current_name == 'dashboard' %}active{% endif %}">
             Dashboard
         </a>
     </li>
+    {% endif %}
 
     {% if request.user.is_authenticated %}
         {% if request.user.role == 'gerente' %}
@@ -17,12 +19,14 @@
             </a>
         </li>
         {% endif %}
+        {% if request.user.role != 'dev' %}
         <li>
             <a href="{% url 'daily_user_action_board' %}"
                class="nav-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' or current_name == 'daily_user_action_board' or current_name == 'daily_indicator_day_breakdown' %}active{% endif %}">
                 Ações do Dia
             </a>
         </li>
+        {% endif %}
         {% if request.user.can_access_employee_area %}
         <li>
             <a href="{% url 'employees:employee_list' %}"
