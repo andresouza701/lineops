@@ -114,6 +114,64 @@ class TelecomAdminDeleteTest(TestCase):
             self.assertFalse(allocation.is_active)
             self.assertEqual(phone_line.status, PhoneLine.Status.AVAILABLE)
 
+    def test_simcard_admin_delete_confirmation_has_no_protected_blockers(self):
+        sim_card, phone_line, _ = self._build_sim_with_active_line(4)
+        request = self.factory.get(f"/admin/telecom/simcard/{sim_card.pk}/delete/")
+        request.user = self.admin_user
+
+        deleted_objects, model_count, perms_needed, protected = (
+            self.model_admin.get_deleted_objects([sim_card], request)
+        )
+
+        self.assertFalse(perms_needed)
+        self.assertEqual(protected, [])
+        self.assertIn(str(sim_card), deleted_objects)
+        self.assertIn(
+            f"Linha vinculada (soft delete): {phone_line.phone_number}",
+            deleted_objects,
+        )
+        self.assertEqual(model_count["simcards"], 1)
+        self.assertEqual(model_count["phone lines"], 1)
+
+    def test_simcard_admin_reuses_soft_deleted_phone_line_number(self):
+        old_sim = SIMcard.objects.create(
+            iccid="8900000000000010001",
+            carrier="CarrierOld",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        old_line = PhoneLine.objects.create(
+            phone_number="+551199991111",
+            sim_card=old_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        old_line.delete()
+        old_sim.delete()
+
+        request = self.factory.post("/admin/telecom/simcard/add/")
+        request.user = self.admin_user
+        form_class = self.model_admin.get_form(request)
+        form = form_class(
+            data={
+                "iccid": "8900000000000010002",
+                "carrier": "CarrierNew",
+                "status": SIMcard.Status.AVAILABLE,
+                "activated_at": "",
+                "phone_number": old_line.phone_number,
+                "origem": PhoneLine.Origem.APARELHO,
+                "line_status": PhoneLine.Status.AVAILABLE,
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        new_sim = form.save(commit=False)
+        self.model_admin.save_model(request, new_sim, form, change=False)
+
+        reused_line = PhoneLine.all_objects.get(pk=old_line.pk)
+        self.assertFalse(reused_line.is_deleted)
+        self.assertEqual(reused_line.sim_card_id, new_sim.pk)
+        self.assertEqual(reused_line.phone_number, old_line.phone_number)
+        self.assertEqual(reused_line.origem, PhoneLine.Origem.APARELHO)
+
 
 class PhoneLineHistoryAuditTest(TestCase):
     def setUp(self):

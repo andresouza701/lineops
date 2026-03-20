@@ -99,6 +99,23 @@ class SIMcardAdmin(admin.ModelAdmin):
 
         sim_card.delete()
 
+    def get_deleted_objects(self, objs, request):
+        deleted_objects = []
+        model_count = {}
+
+        for sim_card in objs:
+            deleted_objects.append(str(sim_card))
+            model_count["simcards"] = model_count.get("simcards", 0) + 1
+
+            phone_line = PhoneLine.all_objects.filter(sim_card=sim_card).first()
+            if phone_line and not phone_line.is_deleted:
+                deleted_objects.append(
+                    f"Linha vinculada (soft delete): {phone_line.phone_number}"
+                )
+                model_count["phone lines"] = model_count.get("phone lines", 0) + 1
+
+        return deleted_objects, model_count, set(), []
+
     @transaction.atomic
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -120,6 +137,17 @@ class SIMcardAdmin(admin.ModelAdmin):
                 updated_fields.append("status")
             if updated_fields:
                 line.save(update_fields=updated_fields)
+            return
+
+        reusable_line = PhoneLine.all_objects.filter(phone_number=phone_number).first()
+        if reusable_line and reusable_line.is_deleted:
+            reusable_line.sim_card = obj
+            reusable_line.status = line_status
+            reusable_line.origem = origem
+            reusable_line.is_deleted = False
+            reusable_line.save(
+                update_fields=["sim_card", "status", "origem", "is_deleted"]
+            )
             return
 
         PhoneLine.objects.create(
