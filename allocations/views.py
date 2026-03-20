@@ -64,7 +64,8 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
             kwargs.get("employee_form") or CombinedRegistrationForm()
         )
         context["telephony_form"] = (
-            kwargs.get("telephony_form") or TelephonyAssignmentForm()
+            kwargs.get("telephony_form")
+            or TelephonyAssignmentForm(user=self.request.user)
         )
         context["allocations"] = self._allocations_qs()
         context["available_lines"] = self._available_lines_qs()
@@ -115,7 +116,7 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
 
     def _handle_telephony(self, request):
         self._ensure_roles(request, [SystemUser.Role.ADMIN])
-        form = TelephonyAssignmentForm(request.POST)
+        form = TelephonyAssignmentForm(request.POST, user=request.user)
 
         if not form.is_valid():
             messages.error(request, "Corrija os erros de telefonia.")
@@ -189,9 +190,12 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
         ).order_by("-allocated_at")
 
     def _available_lines_qs(self):
-        return PhoneLine.objects.filter(
-            is_deleted=False, status=PhoneLine.Status.AVAILABLE
-        ).select_related("sim_card")
+        return PhoneLine.visible_to_user(
+            self.request.user,
+            PhoneLine.objects.filter(
+                is_deleted=False, status=PhoneLine.Status.AVAILABLE
+            ).select_related("sim_card"),
+        )
 
     def _available_simcards_qs(self):
         return SIMcard.available_for_line_registration()
@@ -230,9 +234,12 @@ class AllocationEditView(RoleRequiredMixin, View):
             LineAllocation.objects.select_related("phone_line__sim_card"),
             pk=pk,
         )
-        available_lines = PhoneLine.objects.filter(
-            is_deleted=False, status=PhoneLine.Status.AVAILABLE
-        ).select_related("sim_card")
+        available_lines = PhoneLine.visible_to_user(
+            request.user,
+            PhoneLine.objects.filter(
+                is_deleted=False, status=PhoneLine.Status.AVAILABLE
+            ).select_related("sim_card"),
+        )
         employees = Employee.objects.filter(
             is_deleted=False, status=Employee.Status.ACTIVE
         )

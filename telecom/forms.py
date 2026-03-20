@@ -207,14 +207,42 @@ class CombinedSimLineForm(forms.Form):
 
 
 class BlipConfigurationForm(forms.ModelForm):
+    phone_number = forms.TypedChoiceField(
+        label="Numero Telefone",
+        choices=(),
+        coerce=int,
+    )
+
     class Meta:
         model = BlipConfiguration
         fields = ["blip_id", "type", "description", "phone_number", "key", "value"]
 
     def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
-        for field_name in ["blip_id", "description", "phone_number", "value"]:
+        for field_name in ["blip_id", "description", "value"]:
             self.fields[field_name].widget.attrs.setdefault("class", "form-control")
 
+        self.fields["phone_number"].widget.attrs.setdefault("class", "form-select")
         for field_name in ["type", "key"]:
             self.fields[field_name].widget.attrs.setdefault("class", "form-select")
+
+        available_lines = PhoneLine.visible_to_user(
+            self.user,
+            PhoneLine.objects.filter(
+                is_deleted=False,
+                sim_card__is_deleted=False,
+                origem=PhoneLine.Origem.BLIP,
+            ).order_by("phone_number"),
+        )
+        phone_choices = [
+            (line.phone_number, line.phone_number) for line in available_lines
+        ]
+
+        current_phone_number = getattr(self.instance, "phone_number", None)
+        if current_phone_number is not None:
+            current_phone_str = str(current_phone_number)
+            if all(value != current_phone_str for value, _ in phone_choices):
+                phone_choices.insert(0, (current_phone_str, current_phone_str))
+
+        self.fields["phone_number"].choices = phone_choices

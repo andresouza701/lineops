@@ -124,6 +124,16 @@ class PhoneLine(models.Model):
     is_deleted = models.BooleanField(default=False, db_index=True)
 
     @classmethod
+    def visible_to_user(cls, user, queryset=None):
+        queryset = queryset if queryset is not None else cls.objects.all()
+        role = (getattr(user, "role", "") or "").lower()
+
+        if role not in {"admin", "dev"}:
+            queryset = queryset.exclude(origem=cls.Origem.BLIP)
+
+        return queryset
+
+    @classmethod
     def active_phone_number_conflicts(cls, phone_number, exclude_id=None):
         queryset = cls.all_objects.filter(
             phone_number=phone_number,

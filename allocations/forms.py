@@ -237,6 +237,7 @@ class TelephonyAssignmentForm(forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
         for name in ["phone_number", "iccid", "carrier"]:
             self.fields[name].widget.attrs.setdefault("class", "form-control")
@@ -244,9 +245,14 @@ class TelephonyAssignmentForm(forms.Form):
         self.fields["employee"].widget.attrs.setdefault("class", "form-select")
         self.fields["phone_line"].widget.attrs.setdefault("class", "form-select")
         self.fields["line_action"].widget.attrs.setdefault("class", "form-check-input")
-        self.fields["phone_line_status"].queryset = PhoneLine.objects.filter(
-            is_deleted=False
-        ).order_by("phone_number")
+        visible_lines = PhoneLine.visible_to_user(
+            self.user,
+            PhoneLine.objects.filter(is_deleted=False).order_by("phone_number"),
+        )
+        self.fields["phone_line"].queryset = visible_lines.filter(
+            status=PhoneLine.Status.AVAILABLE
+        )
+        self.fields["phone_line_status"].queryset = visible_lines
 
     def clean_iccid(self):
         iccid = normalize_iccid(self.cleaned_data["iccid"])

@@ -33,11 +33,12 @@ from .forms import (
 from .models import BlipConfiguration, PhoneLine, PhoneLineHistory, SIMcard
 
 
-def get_visible_phone_lines_queryset():
-    return PhoneLine.objects.filter(
+def get_visible_phone_lines_queryset(user=None):
+    queryset = PhoneLine.objects.filter(
         is_deleted=False,
         sim_card__is_deleted=False,
     )
+    return PhoneLine.visible_to_user(user, queryset)
 
 
 class SIMCardFilterForm(forms.Form):
@@ -180,7 +181,7 @@ class PhoneLineListView(StandardPaginationMixin, RoleRequiredMixin, ListView):
         search_query = request.GET.get("search", "").strip()
         status_filter = request.GET.get("status", "").strip()
         queryset = (
-            get_visible_phone_lines_queryset()
+            get_visible_phone_lines_queryset(request.user)
             .select_related("sim_card")
             .prefetch_related(
                 Prefetch(
@@ -266,7 +267,7 @@ class PhoneLineDetailView(RoleRequiredMixin, DetailView):
     context_object_name = "phone_line"
 
     def get_queryset(self):
-        return get_visible_phone_lines_queryset()
+        return get_visible_phone_lines_queryset(self.request.user)
 
 
 class PhoneLineCreateView(RoleRequiredMixin, CreateView):
@@ -351,7 +352,7 @@ class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
 
     def get_queryset(self):
         return (
-            get_visible_phone_lines_queryset()
+            get_visible_phone_lines_queryset(self.request.user)
             .select_related("sim_card")
             .prefetch_related(
                 Prefetch(
@@ -378,7 +379,9 @@ class PhoneLineDeleteView(RoleRequiredMixin, View):
 
     @transaction.atomic
     def post(self, request, pk):
-        phone_line = get_object_or_404(get_visible_phone_lines_queryset(), pk=pk)
+        phone_line = get_object_or_404(
+            get_visible_phone_lines_queryset(request.user), pk=pk
+        )
         active_allocation = (
             LineAllocation.objects.filter(phone_line=phone_line, is_active=True)
             .select_related("employee")
@@ -400,7 +403,9 @@ class PhoneLineHistoryView(RoleRequiredMixin, DetailView):
     paginate_by = 50
 
     def get_queryset(self):
-        return get_visible_phone_lines_queryset().select_related("sim_card")
+        return get_visible_phone_lines_queryset(self.request.user).select_related(
+            "sim_card"
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -432,7 +437,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         offset = parse_non_negative_int(request.GET.get("offset", 0), default=0)
         limit = max(parse_non_negative_int(request.GET.get("limit", 10), 10), 1)
 
-        base_lines = get_visible_phone_lines_queryset()
+        base_lines = get_visible_phone_lines_queryset(request.user)
         valid_statuses = {choice[0] for choice in PhoneLine.Status.choices}
 
         if table_type == "main":
@@ -526,7 +531,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["total_simcards"] = SIMcard.objects.filter(is_deleted=False).count()
-        base_lines = get_visible_phone_lines_queryset()
+        base_lines = get_visible_phone_lines_queryset(self.request.user)
         context["total_lines"] = base_lines.count()
         counts = self._line_status_counts(base_lines)
         context["allocated_lines"] = LineAllocation.objects.filter(
@@ -667,7 +672,9 @@ class ExportPhoneLinesCSVView(RoleRequiredMixin, View):
     allowed_roles = [SystemUser.Role.ADMIN]
 
     def get(self, request, pk):
-        phone_line = get_object_or_404(get_visible_phone_lines_queryset(), pk=pk)
+        phone_line = get_object_or_404(
+            get_visible_phone_lines_queryset(request.user), pk=pk
+        )
 
         allocations = (
             LineAllocation.objects.filter(phone_line=phone_line)
@@ -766,6 +773,11 @@ class BlipConfigurationCreateView(RoleRequiredMixin, CreateView):
     template_name = "telecom/blip_configuration_form.html"
     success_url = reverse_lazy("telecom:blip_configuration_list")
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
+
     def form_valid(self, form):
         messages.success(self.request, "Configuracao Blip cadastrada com sucesso.")
         return super().form_valid(form)
@@ -777,6 +789,11 @@ class BlipConfigurationUpdateView(RoleRequiredMixin, UpdateView):
     form_class = BlipConfigurationForm
     template_name = "telecom/blip_configuration_form.html"
     success_url = reverse_lazy("telecom:blip_configuration_list")
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
 
     def form_valid(self, form):
         messages.success(self.request, "Configuracao Blip atualizada com sucesso.")

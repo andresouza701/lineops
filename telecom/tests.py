@@ -4,9 +4,11 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from allocations.forms import TelephonyAssignmentForm
 from core.current_user import clear_current_user, set_current_user
 from core.services.allocation_service import AllocationService
 from employees.models import Employee
+from telecom.forms import BlipConfigurationForm
 from telecom.models import BlipConfiguration, PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
 
@@ -755,6 +757,11 @@ class PhoneLineViewsTest(TestCase):
             password="123456",
             role=SystemUser.Role.ADMIN,
         )
+        self.operator = SystemUser.objects.create_user(
+            email="operator.lines@test.com",
+            password="123456",
+            role=SystemUser.Role.OPERATOR,
+        )
         self.client.force_login(self.admin)
 
         self.sim_available = SIMcard.objects.create(
@@ -778,6 +785,17 @@ class PhoneLineViewsTest(TestCase):
             sim_card=self.sim_other,
             status=PhoneLine.Status.ALLOCATED,
         )
+        self.blip_sim = SIMcard.objects.create(
+            iccid="8900000000000000515",
+            carrier="CarrierBlip",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.blip_line = PhoneLine.objects.create(
+            phone_number="+551199999515",
+            sim_card=self.blip_sim,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.BLIP,
+        )
 
     def test_list_view_shows_lines_and_sim_binding(self):
         url = reverse("telecom:overview")
@@ -794,8 +812,9 @@ class PhoneLineViewsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         lines = list(response.context["initial_lines"])
-        self.assertEqual(len(lines), 1)
-        self.assertEqual(lines[0].pk, self.line_available.pk)
+        self.assertEqual(len(lines), 2)
+        self.assertIn(self.line_available.pk, [line.pk for line in lines])
+        self.assertIn(self.blip_line.pk, [line.pk for line in lines])
 
     def test_search_by_phone_number(self):
         url = reverse("telecom:overview")
@@ -1028,6 +1047,26 @@ class PhoneLineViewsTest(TestCase):
         self.assertFalse(allocation.is_active)
         self.assertEqual(self.line_available.status, PhoneLine.Status.AVAILABLE)
 
+    def test_operator_telephony_form_hides_blip_lines(self):
+        form = TelephonyAssignmentForm(user=self.operator)
+
+        self.assertNotIn(
+            self.blip_line.pk,
+            list(form.fields["phone_line"].queryset.values_list("pk", flat=True)),
+        )
+        self.assertNotIn(
+            self.blip_line.pk,
+            list(form.fields["phone_line_status"].queryset.values_list("pk", flat=True)),
+        )
+
+    def test_admin_telephony_form_shows_blip_lines(self):
+        form = TelephonyAssignmentForm(user=self.admin)
+
+        self.assertIn(
+            self.blip_line.pk,
+            list(form.fields["phone_line"].queryset.values_list("pk", flat=True)),
+        )
+
 
 class BlipConfigurationViewsTest(TestCase):
     def setUp(self):
@@ -1040,6 +1079,28 @@ class BlipConfigurationViewsTest(TestCase):
             email="admin.blip@test.com",
             password="123456",
             role=SystemUser.Role.ADMIN,
+        )
+        self.blip_sim = SIMcard.objects.create(
+            iccid="8900000000000002121",
+            carrier="CarrierBlip",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.blip_line = PhoneLine.objects.create(
+            phone_number="5547999999999",
+            sim_card=self.blip_sim,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.BLIP,
+        )
+        self.other_sim = SIMcard.objects.create(
+            iccid="8900000000000002222",
+            carrier="CarrierOther",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.other_line = PhoneLine.objects.create(
+            phone_number="5547988887777",
+            sim_card=self.other_sim,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.APARELHO,
         )
 
     def test_dev_can_list_blip_configurations(self):
@@ -1068,7 +1129,7 @@ class BlipConfigurationViewsTest(TestCase):
                 "blip_id": "router-02",
                 "type": BlipConfiguration.ConfigurationType.ROUTER,
                 "description": "Roteador para fallback",
-                "phone_number": 5547988887777,
+                "phone_number": self.blip_line.phone_number,
                 "key": BlipConfiguration.KeyType.HTTP,
                 "value": "https://example.test/router",
             },
@@ -1082,6 +1143,36 @@ class BlipConfigurationViewsTest(TestCase):
                 type=BlipConfiguration.ConfigurationType.ROUTER,
             ).exists()
         )
+
+    def test_blip_configuration_form_phone_number_shows_only_blip_lines(self):
+        form = BlipConfigurationForm(user=self.dev)
+
+        self.assertIn(
+            (self.blip_line.phone_number, self.blip_line.phone_number),
+            list(form.fields["phone_number"].choices),
+        )
+        self.assertNotIn(
+            (self.other_line.phone_number, self.other_line.phone_number),
+            list(form.fields["phone_number"].choices),
+        )
+
+    def test_blip_configuration_create_rejects_non_blip_phone_number(self):
+        self.client.force_login(self.dev)
+
+        response = self.client.post(
+            reverse("telecom:blip_configuration_create"),
+            data={
+                "blip_id": "router-03",
+                "type": BlipConfiguration.ConfigurationType.ROUTER,
+                "description": "Roteador invalido",
+                "phone_number": self.other_line.phone_number,
+                "key": BlipConfiguration.KeyType.HTTP,
+                "value": "https://example.test/router-invalid",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("phone_number", response.context["form"].errors)
 
     def test_non_dev_cannot_access_blip_configuration_area(self):
         self.client.force_login(self.admin)
