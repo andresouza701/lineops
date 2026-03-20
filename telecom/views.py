@@ -634,7 +634,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
             },
             {
                 "value": PhoneLine.Status.SUSPENDED,
-                "label": "Bloqueadas",
+                "label": "Quarentena",
                 "description": "Suspensas temporariamente",
                 "variant": "warning",
             },
