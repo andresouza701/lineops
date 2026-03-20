@@ -14,3 +14,6 @@ class LineAllocationAdmin(admin.ModelAdmin):
     )
     list_filter = ("is_active", "allocated_at")
     search_fields = ("employee__full_name", "phone_line__phone_number")
+
+    def has_delete_permission(self, request, obj=None):
+        return False
