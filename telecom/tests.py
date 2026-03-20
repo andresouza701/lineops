@@ -1089,3 +1089,61 @@ class BlipConfigurationViewsTest(TestCase):
         response = self.client.get(reverse("telecom:blip_configuration_list"))
 
         self.assertEqual(response.status_code, 403)
+
+    def test_dev_can_filter_blip_configurations_by_blip_id(self):
+        target = BlipConfiguration.objects.create(
+            blip_id="blip-flow-01",
+            type=BlipConfiguration.ConfigurationType.FLOW,
+            description="Fluxo principal",
+            phone_number=5547999999999,
+            key=BlipConfiguration.KeyType.ACCESS,
+            value="token-123",
+        )
+        BlipConfiguration.objects.create(
+            blip_id="router-02",
+            type=BlipConfiguration.ConfigurationType.ROUTER,
+            description="Roteador",
+            phone_number=5547988887777,
+            key=BlipConfiguration.KeyType.HTTP,
+            value="https://example.test/router",
+        )
+        self.client.force_login(self.dev)
+
+        response = self.client.get(
+            reverse("telecom:blip_configuration_list"),
+            {"blip_id": "flow-01"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        configurations = list(response.context["configurations"])
+        self.assertEqual(len(configurations), 1)
+        self.assertEqual(configurations[0].pk, target.pk)
+
+    def test_dev_can_filter_blip_configurations_by_phone_number(self):
+        BlipConfiguration.objects.create(
+            blip_id="blip-flow-01",
+            type=BlipConfiguration.ConfigurationType.FLOW,
+            description="Fluxo principal",
+            phone_number=5547999999999,
+            key=BlipConfiguration.KeyType.ACCESS,
+            value="token-123",
+        )
+        target = BlipConfiguration.objects.create(
+            blip_id="router-02",
+            type=BlipConfiguration.ConfigurationType.ROUTER,
+            description="Roteador",
+            phone_number=5547988887777,
+            key=BlipConfiguration.KeyType.HTTP,
+            value="https://example.test/router",
+        )
+        self.client.force_login(self.dev)
+
+        response = self.client.get(
+            reverse("telecom:blip_configuration_list"),
+            {"phone_number": "88887777"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        configurations = list(response.context["configurations"])
+        self.assertEqual(len(configurations), 1)
+        self.assertEqual(configurations[0].pk, target.pk)

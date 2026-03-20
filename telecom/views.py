@@ -737,6 +737,27 @@ class BlipConfigurationListView(RoleRequiredMixin, ListView):
     context_object_name = "configurations"
     ordering = ["blip_id", "phone_number", "type"]
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        self.blip_id_filter = self.request.GET.get("blip_id", "").strip()
+        self.phone_number_filter = self.request.GET.get("phone_number", "").strip()
+
+        if self.blip_id_filter:
+            queryset = queryset.filter(blip_id__icontains=self.blip_id_filter)
+
+        if self.phone_number_filter:
+            queryset = queryset.filter(
+                phone_number__icontains=self.phone_number_filter
+            )
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["blip_id_filter"] = getattr(self, "blip_id_filter", "")
+        context["phone_number_filter"] = getattr(self, "phone_number_filter", "")
+        return context
+
 
 class BlipConfigurationCreateView(RoleRequiredMixin, CreateView):
     allowed_roles = [SystemUser.Role.DEV]
