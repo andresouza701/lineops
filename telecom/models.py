@@ -98,6 +98,7 @@ class PhoneLine(models.Model):
         SRVMEMU_04 = "SRVMEMU-04", "SRVMEMU-04"
         SRVMEMU_05 = "SRVMEMU-05", "SRVMEMU-05"
         SRVMEMU_06 = "SRVMEMU-06", "SRVMEMU-06"
+        BLIP = "BLIP", "Blip"
         APARELHO = "APARELHO", "APARELHO"
         PESSOAL = "PESSOAL", "PESSOAL"
 

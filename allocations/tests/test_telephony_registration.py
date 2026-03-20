@@ -5,6 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from allocations.models import LineAllocation
+from allocations.forms import TelephonyAssignmentForm
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
@@ -70,6 +71,14 @@ class TelephonyRegistrationFlowTests(TestCase):
         )
         self.line.refresh_from_db()
         self.assertEqual(self.line.status, PhoneLine.Status.ALLOCATED)
+
+    def test_telephony_registration_form_includes_blip_origin_choice(self):
+        form = TelephonyAssignmentForm()
+
+        self.assertIn(
+            (PhoneLine.Origem.BLIP, "Blip"),
+            list(form.fields["origem"].choices),
+        )
 
     def test_new_line_creation_flow_creates_sim_and_line_without_allocation(self):
         response = self.client.post(
