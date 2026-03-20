@@ -707,7 +707,6 @@ class DashboardView(AuthenticadView, TemplateView):
         context.update(self._build_status_counts())
         context["indicadores_diarios"] = self._build_daily_indicators(days=trend_period)
         context["trend_period"] = trend_period
-        context["trend_period_options"] = ALLOWED_TREND_PERIODS
         context.update(self._build_dashboard_insights(context))
         return context
 
@@ -805,38 +804,8 @@ class DashboardView(AuthenticadView, TemplateView):
             },
         ]
 
-        trend_defs = [
-            ("pessoas_logadas", "Pessoas logadas", ""),
-            ("perc_sem_whats", "% sem Whats", "%"),
-            ("numeros_entregues", "Números entregues", ""),
-            ("reconectados", "Reconectados", ""),
-        ]
-        trend_series = []
-        trend_points = {}
-        for key, label, suffix in trend_defs:
-            values = [float(item.get(key, 0) or 0) for item in daily]
-            trend_points[key] = values
-            first_value = values[0] if values else 0
-            latest_value = values[-1] if values else 0
-            delta = latest_value - first_value
-            trend_series.append(
-                {
-                    "key": key,
-                    "label": label,
-                    "suffix": suffix,
-                    "latest": latest_value,
-                    "delta": delta,
-                }
-            )
-
-        trend_points["labels"] = [
-            item["data"].strftime("%d/%m") for item in daily if item.get("data")
-        ]
-
         return {
             "exception_cards": exception_cards,
-            "trend_series": trend_series,
-            "trend_points": trend_points,
         }
 
     def _build_negociador_data(self):

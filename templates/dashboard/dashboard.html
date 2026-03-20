@@ -22,48 +22,6 @@
     </div>
 </section>
 
-<section class="surface-card reveal-item trend-panel">
-    <div class="section-header d-flex justify-content-between align-items-center mb-2">
-        <div>
-            <h2>Tendência de {{ trend_period }} dias</h2>
-            <p class="text-muted mb-0">Evolução dos indicadores operacionais.</p>
-        </div>
-        <div class="period-filter" role="group" aria-label="Filtro de período">
-            {% for option in trend_period_options %}
-                <a
-                    href="?period={{ option }}"
-                    class="period-btn {% if trend_period == option %}is-active{% endif %}"
-                >
-                    {{ option }}d
-                </a>
-            {% endfor %}
-        </div>
-    </div>
-    <div class="trend-grid">
-        {% for trend in trend_series %}
-            <article class="trend-card">
-                <p class="trend-title">{{ trend.label }}</p>
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <strong class="metric-mono">
-                        {{ trend.latest|floatformat:1 }}{{ trend.suffix }}
-                    </strong>
-                    <span class="trend-delta {% if trend.delta >= 0 %}is-up{% else %}is-down{% endif %}">
-                        {{ trend.delta|floatformat:1 }}
-                    </span>
-                </div>
-                <canvas
-                    class="trend-canvas"
-                    width="320"
-                    height="72"
-                    data-trend-canvas
-                    data-trend-key="{{ trend.key }}"
-                    aria-label="Gráfico {{ trend.label }}"
-                ></canvas>
-            </article>
-        {% endfor %}
-    </div>
-</section>
-
 <section class="table-stack reveal-group">
     <div class="surface-card reveal-item">
         <div class="mb-3">
@@ -125,5 +83,4 @@
     </div>
 </section>
 
-{{ trend_points|json_script:"trend-points" }}
 {% endblock %}
