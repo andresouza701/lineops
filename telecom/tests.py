@@ -658,6 +658,16 @@ class PhoneLineViewsTest(TestCase):
         self.assertEqual(len(lines), 1)
         self.assertEqual(lines[0].pk, self.line_allocated.pk)
 
+    def test_overview_hides_line_when_related_simcard_is_soft_deleted(self):
+        self.sim_available.delete()
+
+        response = self.client.get(reverse("telecom:overview"))
+
+        self.assertEqual(response.status_code, 200)
+        lines = list(response.context["initial_lines"])
+        self.assertNotIn(self.line_available.pk, [line.pk for line in lines])
+        self.assertNotContains(response, self.line_available.phone_number)
+
     def test_ajax_overview_returns_plural_urls_for_actions(self):
         url = reverse("telecom:overview")
         response = self.client.get(
