@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.db import transaction
 from django.utils import timezone
 
 
@@ -8,7 +9,14 @@ class SoftDeleteQuerySet(models.QuerySet):
         return self.filter(is_deleted=False)
 
     def delete(self):
-        return self.update(is_deleted=True, updated_at=timezone.now())
+        deleted = 0
+        details = {self.model._meta.label: 0}
+        with transaction.atomic():
+            for instance in self:
+                instance.delete()
+                deleted += 1
+                details[self.model._meta.label] += 1
+        return deleted, details
 
 
 class SoftDeleteManager(models.Manager):
@@ -40,7 +48,14 @@ class SIMcard(models.Model):
 
     is_deleted = models.BooleanField(default=False, db_index=True)
 
-    def delete(self, using=None, keep_parents=False):
+    def delete(self, using=None, keep_parents=False, released_by=None):
+        phone_line = PhoneLine.all_objects.filter(sim_card=self).first()
+        if phone_line and not phone_line.is_deleted:
+            phone_line.delete(released_by=released_by)
+
+        if self.is_deleted:
+            return
+
         self.is_deleted = True
         self.updated_at = timezone.now()
         self.save(update_fields=["is_deleted", "updated_at"])
@@ -99,7 +114,21 @@ class PhoneLine(models.Model):
 
     is_deleted = models.BooleanField(default=False, db_index=True)
 
-    def delete(self, using=None, keep_parents=False):
+    def delete(self, using=None, keep_parents=False, released_by=None):
+        if self.is_deleted:
+            return
+
+        from allocations.models import LineAllocation
+        from core.services.allocation_service import AllocationService
+
+        active_allocation = (
+            LineAllocation.objects.filter(phone_line=self, is_active=True)
+            .select_related("employee")
+            .first()
+        )
+        if active_allocation:
+            AllocationService.release_line(active_allocation, released_by=released_by)
+
         self.is_deleted = True
         self.updated_at = timezone.now()
         self.save(update_fields=["is_deleted", "updated_at"])

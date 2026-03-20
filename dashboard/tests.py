@@ -670,6 +670,53 @@ class DashboardDailyIndicatorsTests(TestCase):
         )
         self.assertContains(breakdown_response, self.line_allocated.phone_number)
 
+    def test_daily_indicator_history_preserves_numbers_after_later_simcard_delete(self):
+        yesterday = timezone.localdate() - timedelta(days=1)
+        created_at = timezone.make_aware(datetime.combine(yesterday, time(8, 0)))
+        allocated_at = timezone.make_aware(datetime.combine(yesterday, time(10, 0)))
+
+        sim = SIMcard.objects.create(
+            iccid="8900000000000001999",
+            carrier="CarrierHistory",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        line = PhoneLine.objects.create(
+            phone_number="+5511999999333",
+            sim_card=sim,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        PhoneLine.all_objects.filter(pk=line.pk).update(
+            created_at=created_at,
+            updated_at=created_at,
+        )
+
+        allocation = LineAllocation.objects.create(
+            employee=self.employee_b2b,
+            phone_line=line,
+            allocated_by=self.user,
+            is_active=True,
+        )
+        LineAllocation.objects.filter(pk=allocation.pk).update(allocated_at=allocated_at)
+
+        SIMcard.objects.filter(pk=sim.pk).delete()
+
+        self.assertEqual(DailyIndicatorService.calculate_delivered_numbers(yesterday), 1)
+        self.assertEqual(DailyIndicatorService.calculate_new_numbers(yesterday), 1)
+
+        response = self.client.get(
+            reverse(
+                "daily_indicator_day_breakdown",
+                kwargs={"day": yesterday.strftime("%Y-%m-%d")},
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        indicator = response.context["indicator"]
+        self.assertEqual(indicator["numeros_entregues"], 1)
+        self.assertEqual(indicator["novos"], 1)
+        self.assertEqual(indicator["delivered_numbers"][0]["numero"], line.phone_number)
+        self.assertIn(line.phone_number, indicator["new_numbers"])
+
     def test_daily_indicator_day_breakdown_hides_line_with_soft_deleted_simcard(self):
         self.line_available.sim_card.delete()
 
@@ -800,6 +847,34 @@ class DashboardDailyIndicatorsTests(TestCase):
         # Ações futuras DEVEM aparecer agora
         self.assertEqual(response.context["action_counts"]["new_number"], 1)
         self.assertEqual(response.context["action_counts"]["reconnect_whatsapp"], 0)
+
+    def test_daily_user_action_board_keeps_action_visible_when_simcard_line_is_hidden(self):
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+        self.line_allocated.sim_card.delete()
+
+        response = self.client.get(reverse("daily_user_action_board"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["action_counts"]["new_number"], 1)
+        rows = response.context["rows"]
+        matching_rows = [
+            row for row in rows if row["employee"].id == self.employee_b2b.id
+        ]
+        self.assertEqual(len(matching_rows), 1)
+        self.assertIsNone(matching_rows[0]["allocation"])
+        self.assertEqual(
+            matching_rows[0]["action"].action_type,
+            DailyUserAction.ActionType.NEW_NUMBER,
+        )
 
     def test_daily_user_action_board_logs_line_status_change_in_history(self):
         response = self.client.post(

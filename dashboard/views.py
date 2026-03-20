@@ -102,13 +102,17 @@ def get_latest_unresolved_actions_queryset(user):
             employee_id__in=employee_ids,
             is_resolved=False,
         )
-        .select_related("employee", "allocation")
+        .select_related("employee", "allocation__phone_line__sim_card")
         .order_by("employee_id", "-day", "-id", "allocation_id")
     )
 
     latest_by_key = {}
     for action in actions:
-        allocation_id = action.allocation_id if action.allocation else None
+        allocation_id = (
+            action.allocation_id
+            if action.allocation and allocation_is_currently_visible(action.allocation)
+            else None
+        )
         key = (action.employee_id, allocation_id)
         if key not in latest_by_key:
             latest_by_key[key] = action
@@ -122,14 +126,18 @@ def get_unresolved_action_maps(employee_ids):
             employee_id__in=employee_ids,
             is_resolved=False,
         )
-        .select_related("employee", "allocation")
+        .select_related("employee", "allocation__phone_line__sim_card")
         .order_by("employee_id", "-day", "-id", "allocation_id")
     )
 
     actions_by_allocation = {}
     latest_action_by_employee = {}
     for action in all_actions:
-        allocation_id = action.allocation_id if action.allocation else None
+        allocation_id = (
+            action.allocation_id
+            if action.allocation and allocation_is_currently_visible(action.allocation)
+            else None
+        )
         key = (action.employee_id, allocation_id)
         if key not in actions_by_allocation:
             actions_by_allocation[key] = action
@@ -139,11 +147,48 @@ def get_unresolved_action_maps(employee_ids):
     return actions_by_allocation, latest_action_by_employee
 
 
+def phone_line_is_visible_now(phone_line):
+    return bool(
+        phone_line
+        and not phone_line.is_deleted
+        and not phone_line.sim_card.is_deleted
+    )
+
+
+def is_historical_day(day):
+    return day < timezone.localdate()
+
+
+def allocation_is_currently_visible(allocation):
+    return bool(
+        allocation and allocation.phone_line and phone_line_is_visible_now(allocation.phone_line)
+    )
+
+
+def phone_line_was_visible_at(phone_line, reference_time):
+    return bool(
+        phone_line
+        and (not phone_line.is_deleted or phone_line.updated_at > reference_time)
+        and (
+            not phone_line.sim_card.is_deleted
+            or phone_line.sim_card.updated_at > reference_time
+        )
+    )
+
+
+def phone_line_is_visible_for_day(phone_line, day, reference_time):
+    if is_historical_day(day):
+        return phone_line_was_visible_at(phone_line, reference_time)
+    return phone_line_is_visible_now(phone_line)
+
+
 def get_active_allocations_by_employee(employee_ids):
     active_allocations = (
         LineAllocation.objects.filter(
             is_active=True,
             employee_id__in=employee_ids,
+            phone_line__is_deleted=False,
+            phone_line__sim_card__is_deleted=False,
         )
         .select_related("phone_line")
         .order_by("employee_id", "-allocated_at")
@@ -287,7 +332,7 @@ def get_admin_resolved_reconnect_actions_queryset(day, employee_ids=None):
         is_resolved=True,
         updated_by__role=SystemUser.Role.ADMIN,
         updated_at__date=day,
-    ).select_related("employee", "allocation__phone_line")
+    ).select_related("employee", "allocation__phone_line__sim_card")
 
     if employee_ids is not None:
         queryset = queryset.filter(employee_id__in=employee_ids)
@@ -296,26 +341,43 @@ def get_admin_resolved_reconnect_actions_queryset(day, employee_ids=None):
 
 
 def build_admin_resolved_reconnect_numbers_for_day(day):
-    end_of_day = timezone.make_aware(datetime.combine(day, time.max))
     actions = list(get_admin_resolved_reconnect_actions_queryset(day))
     details = []
 
     for action in actions:
+        action_reference_time = action.updated_at or timezone.make_aware(
+            datetime.combine(day, time.min)
+        )
         allocation = action.allocation
         if not allocation:
             active_allocations = list(
                 LineAllocation.objects.filter(
                     employee=action.employee,
-                    allocated_at__lte=end_of_day,
+                    allocated_at__lte=action_reference_time,
                 )
-                .filter(Q(released_at__isnull=True) | Q(released_at__gt=end_of_day))
-                .select_related("phone_line")
+                .filter(
+                    Q(released_at__isnull=True) | Q(released_at__gt=action_reference_time)
+                )
+                .select_related("phone_line__sim_card")
                 .order_by("-allocated_at")[:2]
             )
+            active_allocations = [
+                item
+                for item in active_allocations
+                if phone_line_is_visible_for_day(
+                    item.phone_line, day, action_reference_time
+                )
+            ]
             if len(active_allocations) == 1:
                 allocation = active_allocations[0]
 
-        if not allocation or not allocation.phone_line:
+        if (
+            not allocation
+            or not allocation.phone_line
+            or not phone_line_is_visible_for_day(
+                allocation.phone_line, day, action_reference_time
+            )
+        ):
             continue
 
         details.append(
@@ -330,9 +392,10 @@ def build_admin_resolved_reconnect_numbers_for_day(day):
 
 
 def build_reconnected_numbers_for_day(day):
+    start_of_day = timezone.make_aware(datetime.combine(day, time.min))
     reconnected_allocations = list(
         DailyIndicatorService.get_reconnected_allocations_queryset(day)
-        .select_related("employee", "phone_line")
+        .select_related("employee", "phone_line__sim_card")
         .order_by("allocated_at")
     )
     reconnected_numbers = [
@@ -343,17 +406,24 @@ def build_reconnected_numbers_for_day(day):
         }
         for allocation in reconnected_allocations
         if allocation.phone_line
+        and phone_line_is_visible_for_day(
+            allocation.phone_line,
+            day,
+            allocation.allocated_at or start_of_day,
+        )
     ]
     reconnected_numbers.extend(build_admin_resolved_reconnect_numbers_for_day(day))
     return reconnected_numbers
 
 
 def get_visible_phone_lines_for_day(day):
-    return PhoneLine.objects.filter(
-        is_deleted=False,
-        sim_card__is_deleted=False,
-        created_at__date__lte=day,
-    )
+    queryset = PhoneLine.all_objects.filter(created_at__date__lte=day)
+    if is_historical_day(day):
+        end_of_day = timezone.make_aware(datetime.combine(day, time.max))
+        return queryset.filter(
+            DailyIndicatorService.build_visible_phone_line_q(end_of_day)
+        )
+    return queryset.filter(is_deleted=False, sim_card__is_deleted=False)
 
 
 def get_open_action_for_resolution(employee, allocation_id=None):
@@ -371,11 +441,15 @@ def get_open_action_for_resolution(employee, allocation_id=None):
             pk=allocation_id,
             employee=employee,
             is_active=True,
+            phone_line__is_deleted=False,
+            phone_line__sim_card__is_deleted=False,
         ).first()
         if allocation:
             active_allocations_count = LineAllocation.objects.filter(
                 employee=employee,
                 is_active=True,
+                phone_line__is_deleted=False,
+                phone_line__sim_card__is_deleted=False,
             ).count()
             if active_allocations_count == 1:
                 return unresolved_actions.filter(
@@ -392,6 +466,7 @@ def build_number_details_for_day(
     day: date, base_lines, allocated_line_ids
 ) -> tuple[list[str], list[dict], list[dict], list[str]]:
     """Build detailed number allocations for a specific day."""
+    start_of_day = timezone.make_aware(datetime.combine(day, time.min))
     available_numbers = list(
         base_lines.exclude(id__in=allocated_line_ids)
         .order_by("phone_number")
@@ -400,7 +475,7 @@ def build_number_details_for_day(
 
     delivered_allocations = list(
         LineAllocation.objects.filter(allocated_at__date=day)
-        .select_related("employee", "phone_line")
+        .select_related("employee", "phone_line__sim_card")
         .order_by("allocated_at")
     )
     delivered_numbers = [
@@ -411,16 +486,25 @@ def build_number_details_for_day(
         }
         for allocation in delivered_allocations
         if allocation.phone_line
+        and phone_line_is_visible_for_day(
+            allocation.phone_line,
+            day,
+            allocation.allocated_at or start_of_day,
+        )
     ]
 
     reconnected_numbers = build_reconnected_numbers_for_day(day)
 
-    new_numbers = list(
-        get_visible_phone_lines_for_day(day)
-        .filter(created_at__date=day)
+    new_lines = list(
+        PhoneLine.all_objects.filter(created_at__date=day)
+        .select_related("sim_card")
         .order_by("phone_number")
-        .values_list("phone_number", flat=True)
     )
+    new_numbers = [
+        line.phone_number
+        for line in new_lines
+        if phone_line_is_visible_for_day(line, day, line.created_at or start_of_day)
+    ]
     return available_numbers, delivered_numbers, reconnected_numbers, new_numbers
 
 
@@ -479,11 +563,18 @@ def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
     employees = Employee.objects.filter(is_deleted=False, created_at__date__lte=day)
     active_employees = employees.filter(status=Employee.Status.ACTIVE)
 
-    active_allocations = LineAllocation.objects.filter(
-        allocated_at__lte=end_of_day,
-        phone_line__is_deleted=False,
-        phone_line__sim_card__is_deleted=False,
-    )
+    active_allocations = LineAllocation.objects.filter(allocated_at__lte=end_of_day)
+    if is_historical_day(day):
+        active_allocations = active_allocations.filter(
+            DailyIndicatorService.build_visible_phone_line_q(
+                end_of_day, prefix="phone_line__"
+            )
+        )
+    else:
+        active_allocations = active_allocations.filter(
+            phone_line__is_deleted=False,
+            phone_line__sim_card__is_deleted=False,
+        )
     active_allocations = active_allocations.filter(
         Q(released_at__isnull=True) | Q(released_at__gt=end_of_day)
     )
@@ -503,12 +594,7 @@ def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
     allocated_line_ids = active_allocations.values_list(
         "phone_line_id", flat=True
     ).distinct()
-    numeros_disponiveis = base_lines.exclude(id__in=allocated_line_ids).count()
-
-    numeros_entregues = LineAllocation.objects.filter(allocated_at__date=day).count()
     reconnected_numbers = build_reconnected_numbers_for_day(day)
-    reconectados = len(reconnected_numbers)
-    novos = get_visible_phone_lines_for_day(day).filter(created_at__date=day).count()
     sem_whats_portfolios = employees_without_whats.values_list("employee_id", flat=True)
     b2b_sem_whats = 0
     b2c_sem_whats = 0
@@ -522,6 +608,10 @@ def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
     available_numbers, delivered_numbers, _, new_numbers = build_number_details_for_day(
         day, base_lines, allocated_line_ids
     )
+    numeros_disponiveis = len(available_numbers)
+    numeros_entregues = len(delivered_numbers)
+    reconectados = len(reconnected_numbers)
+    novos = len(new_numbers)
 
     indicator = {
         "data": day,

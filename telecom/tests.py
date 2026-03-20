@@ -172,6 +172,20 @@ class TelecomAdminDeleteTest(TestCase):
         self.assertEqual(reused_line.phone_number, old_line.phone_number)
         self.assertEqual(reused_line.origem, PhoneLine.Origem.APARELHO)
 
+    def test_simcard_queryset_delete_releases_active_allocation_and_soft_deletes(self):
+        sim_card, phone_line, allocation = self._build_sim_with_active_line(5)
+
+        deleted_count, details = SIMcard.objects.filter(pk=sim_card.pk).delete()
+
+        sim_card.refresh_from_db()
+        phone_line.refresh_from_db()
+        allocation.refresh_from_db()
+        self.assertEqual(deleted_count, 1)
+        self.assertEqual(details["telecom.SIMcard"], 1)
+        self.assertTrue(sim_card.is_deleted)
+        self.assertTrue(phone_line.is_deleted)
+        self.assertFalse(allocation.is_active)
+
 
 class PhoneLineHistoryAuditTest(TestCase):
     def setUp(self):

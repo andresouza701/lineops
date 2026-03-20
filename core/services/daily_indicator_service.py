@@ -1,6 +1,6 @@
 from datetime import datetime, time, timedelta
 
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
 from allocations.models import LineAllocation
@@ -13,6 +13,20 @@ class DailyIndicatorService:
     Serviço para calcular e gerenciar indicadores diários.
     Responsável pelos cálculos automáticos baseado em dados do sistema.
     """
+
+    @staticmethod
+    def build_visible_phone_line_q(reference_time, prefix=""):
+        return (
+            Q(**{f"{prefix}is_deleted": False})
+            | Q(**{f"{prefix}updated_at__gt": reference_time})
+        ) & (
+            Q(**{f"{prefix}sim_card__is_deleted": False})
+            | Q(**{f"{prefix}sim_card__updated_at__gt": reference_time})
+        )
+
+    @staticmethod
+    def is_historical_day(date):
+        return date < timezone.localdate()
 
     @staticmethod
     def calculate_available_numbers(date, segment=None):
@@ -28,11 +42,18 @@ class DailyIndicatorService:
         """
         warmup_threshold = date - timedelta(days=15)
 
-        query = PhoneLine.objects.filter(
+        end_of_day = timezone.make_aware(datetime.combine(date, time.max))
+
+        query = PhoneLine.all_objects.filter(
             created_at__date__lte=warmup_threshold,
             status=PhoneLine.Status.AVAILABLE,
-            is_deleted=False,
         )
+        if DailyIndicatorService.is_historical_day(date):
+            query = query.filter(
+                DailyIndicatorService.build_visible_phone_line_q(end_of_day)
+            )
+        else:
+            query = query.filter(is_deleted=False, sim_card__is_deleted=False)
 
         return query.count()
 
@@ -52,8 +73,19 @@ class DailyIndicatorService:
         start_of_day = timezone.make_aware(datetime.combine(date, time.min))
 
         query = LineAllocation.objects.filter(
-            allocated_at__range=(start_of_day, end_of_day)
+            allocated_at__range=(start_of_day, end_of_day),
         )
+        if DailyIndicatorService.is_historical_day(date):
+            query = query.filter(
+                DailyIndicatorService.build_visible_phone_line_q(
+                    start_of_day, prefix="phone_line__"
+                )
+            )
+        else:
+            query = query.filter(
+                phone_line__is_deleted=False,
+                phone_line__sim_card__is_deleted=False,
+            )
 
         return query.count()
 
@@ -89,9 +121,21 @@ class DailyIndicatorService:
             released_at__lt=OuterRef("allocated_at"),
         )
 
-        return LineAllocation.objects.filter(
-            allocated_at__range=(start_of_day, end_of_day)
-        ).annotate(
+        query = LineAllocation.objects.filter(
+            allocated_at__range=(start_of_day, end_of_day),
+        )
+        if DailyIndicatorService.is_historical_day(date):
+            query = query.filter(
+                DailyIndicatorService.build_visible_phone_line_q(
+                    start_of_day, prefix="phone_line__"
+                )
+            )
+        else:
+            query = query.filter(
+                phone_line__is_deleted=False,
+                phone_line__sim_card__is_deleted=False,
+            )
+        return query.annotate(
             was_reconnected_to_same_employee=Exists(previous_same_employee_allocation)
         ).filter(
             was_reconnected_to_same_employee=True
@@ -112,9 +156,13 @@ class DailyIndicatorService:
         end_of_day = timezone.make_aware(datetime.combine(date, time.max))
         start_of_day = timezone.make_aware(datetime.combine(date, time.min))
 
-        query = PhoneLine.objects.filter(
-            created_at__range=(start_of_day, end_of_day), is_deleted=False
-        )
+        query = PhoneLine.all_objects.filter(created_at__range=(start_of_day, end_of_day))
+        if DailyIndicatorService.is_historical_day(date):
+            query = query.filter(
+                DailyIndicatorService.build_visible_phone_line_q(start_of_day)
+            )
+        else:
+            query = query.filter(is_deleted=False, sim_card__is_deleted=False)
 
         return query.count()
 
