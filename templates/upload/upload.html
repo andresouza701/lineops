@@ -16,6 +16,7 @@
             <h6 class="text-uppercase text-muted small mb-3">Como funciona</h6>
             <ul class="text-muted mb-4">
                 <li>Baixe o modelo de planilha com as colunas exigidas.</li>
+                <li>Para vincular a linha no upload, informe o <code>full_name</code> do usuario na linha <code>simcard</code> e use status <code>ALLOCATED</code>.</li>
                 <li>Preencha os dados dos usuários e/ou SIMcards.</li>
                 <li>Envie o arquivo para processar em lote.</li>
             </ul>
@@ -41,6 +42,7 @@
                 <div class="small text-muted">Linhas processadas: {{ summary.rows_processed }}</div>
                 <div class="small text-muted">Usuários criados/atualizados: {{ summary.employees_created }}/{{ summary.employees_updated }}</div>
                 <div class="small text-muted">SIMcards criados/atualizados: {{ summary.simcards_created }}/{{ summary.simcards_updated }}</div>
+                <div class="small text-muted">Alocacoes criadas: {{ summary.allocations_created }}</div>
             </div>
             {% if summary.errors %}
             <div class="alert alert-warning" role="alert">

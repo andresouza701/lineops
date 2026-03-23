@@ -2,6 +2,6 @@ type;full_name;corporate_email;manager_email;employee_id;teams;pa;status;iccid;c
 employee;Joana Silva;supervisor.joinville@empresa.com;gerente@empresa.com;Pepsico;Joinville;PA-10;ativo;;;;
 employee;Bruno Lima;supervisor.araquari@empresa.com;gerente@empresa.com;Natura;Araquari;;inativo;;;;
 simcard;;;;;;;AVAILABLE;8999999999999990001;Carrier A;+5511999990001;SRVMEMU-01
-simcard;;;;;;;ALLOCATED;8999999999999990002;Carrier B;+5511999990002;APARELHO
+simcard;Joana Silva;;;;;;ALLOCATED;8999999999999990002;Carrier B;+5511999990002;APARELHO
 simcard;;;;;;;SUSPENDED;8999999999999990003;Carrier C;+5511999990003;PESSOAL
 simcard;;;;;;;CANCELLED;8999999999999990004;Carrier D;;

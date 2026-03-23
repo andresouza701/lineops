@@ -6,6 +6,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from allocations.models import LineAllocation
 from config.forms import UploadForm
 from employees.models import Employee
 from telecom.models import SIMcard
@@ -106,3 +107,19 @@ class UploadViewTests(TestCase):
         self.assertEqual(Employee.objects.count(), 1)
         self.assertEqual(SIMcard.objects.count(), 1)
         self.assertEqual(Employee.objects.get().manager_email, "gerente@corp.com")
+
+    def test_upload_can_create_line_allocation_from_simcard_row(self):
+        csv_content = (
+            "type;full_name;corporate_email;manager_email;employee_id;teams;pa;status;iccid;carrier;phone_number;origem\n"
+            "employee;Ana Paula;;gerente@corp.com;EMP-9;Joinville;;ativo;;;;\n"
+            "simcard;Ana Paula;;;;;;ALLOCATED;8999999999999991003;Carrier QA;+5511999991003;SRVMEMU-01\n"
+        )
+        uploaded_file = SimpleUploadedFile(
+            "bulk.csv", csv_content.encode("utf-8"), content_type="text/csv"
+        )
+
+        response = self.client.post(reverse("upload"), {"file": uploaded_file})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(LineAllocation.objects.count(), 1)
+        self.assertEqual(response.context["summary"].allocations_created, 1)

@@ -6,6 +6,9 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from allocations.models import LineAllocation
+from core.exceptions.domain_exceptions import BusinessRuleException
+from core.services.allocation_service import AllocationService
 from django.db import IntegrityError, transaction
 from django.utils.text import slugify
 
@@ -25,6 +28,7 @@ class UploadSummary:
     employees_updated: int = 0
     simcards_created: int = 0
     simcards_updated: int = 0
+    allocations_created: int = 0
     errors: list[str] = field(default_factory=list)
 
     @property
@@ -38,6 +42,7 @@ class UploadSummary:
             "employees_updated": self.employees_updated,
             "simcards_created": self.simcards_created,
             "simcards_updated": self.simcards_updated,
+            "allocations_created": self.allocations_created,
             "errors": self.errors,
         }
 
@@ -216,6 +221,13 @@ def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
     phone_number = row.get("phone_number") or ""
     iccid = row["iccid"]
     line_status = _normalize_phone_line_status(row.get("status"))
+    allocation_employee = _resolve_upload_allocation_employee(row, line_status)
+
+    if allocation_employee and not phone_number:
+        raise ValueError(
+            "Linha vinculada por upload exige phone_number na linha de simcard."
+        )
+
     sim_defaults = {
         "carrier": row["carrier"],
         "status": _map_phone_line_status_to_sim_status(line_status),
@@ -227,6 +239,11 @@ def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
         # This allows multiple rows with the same ICCID (e.g. VIRTUAL) to each
         # produce a distinct SIM + line pair.
         existing_line = PhoneLine.all_objects.filter(phone_number=phone_number).first()
+        active_allocation = (
+            _get_active_allocation(existing_line)
+            if existing_line is not None
+            else None
+        )
         if existing_line:
             simcard = existing_line.sim_card
             simcard.iccid = iccid
@@ -244,11 +261,22 @@ def _upsert_simcard(row: dict[str, str], summary: UploadSummary) -> None:
         phone_line = existing_line or PhoneLine(phone_number=phone_number)
         phone_line.phone_number = phone_number
         phone_line.sim_card = simcard
-        phone_line.status = line_status
+        phone_line.status = _resolve_phone_line_status_for_upload(
+            line_status=line_status,
+            allocation_employee=allocation_employee,
+            active_allocation=active_allocation,
+        )
         phone_line.is_deleted = False
         if origem:
             phone_line.origem = origem
         phone_line.save()
+
+        if allocation_employee and _sync_phone_line_allocation(
+            phone_line=phone_line,
+            employee=allocation_employee,
+            active_allocation=active_allocation,
+        ):
+            summary.allocations_created += 1
     else:
         # No phone number: ICCID is the primary key.
         simcard = SIMcard.all_objects.filter(iccid=iccid).order_by("-id").first()
@@ -316,6 +344,85 @@ def _has_shifted_semicolon_legacy_shape(row: dict[str, str]) -> bool:
 def _looks_like_phone_number(value: str) -> bool:
     digits = "".join(char for char in value if char.isdigit())
     return len(digits) >= MIN_PHONE_NUMBER_DIGITS
+
+
+def _resolve_upload_allocation_employee(
+    row: dict[str, str], line_status: str
+) -> Employee | None:
+    employee_name = (row.get("full_name") or "").strip()
+    if not employee_name:
+        return None
+
+    if line_status != PhoneLine.Status.ALLOCATED:
+        raise ValueError(
+            "Linha vinculada por upload deve usar status ALLOCATED na linha de simcard."
+        )
+
+    employee = Employee.objects.filter(
+        full_name__iexact=employee_name,
+        is_deleted=False,
+        status=Employee.Status.ACTIVE,
+    ).first()
+    if employee is None:
+        raise ValueError(
+            f"Usuario ativo nao encontrado para vinculacao da linha: {employee_name}."
+        )
+    return employee
+
+
+def _get_active_allocation(phone_line: PhoneLine | None) -> LineAllocation | None:
+    if phone_line is None:
+        return None
+    return (
+        LineAllocation.objects.select_related("employee")
+        .filter(phone_line=phone_line, is_active=True)
+        .first()
+    )
+
+
+def _resolve_phone_line_status_for_upload(
+    *,
+    line_status: str,
+    allocation_employee: Employee | None,
+    active_allocation: LineAllocation | None,
+) -> str:
+    if allocation_employee is None:
+        return line_status
+
+    if (
+        active_allocation is not None
+        and active_allocation.employee_id == allocation_employee.id
+    ):
+        return PhoneLine.Status.ALLOCATED
+
+    return PhoneLine.Status.AVAILABLE
+
+
+def _sync_phone_line_allocation(
+    *,
+    phone_line: PhoneLine,
+    employee: Employee,
+    active_allocation: LineAllocation | None,
+) -> bool:
+    if active_allocation is None:
+        active_allocation = _get_active_allocation(phone_line)
+
+    if active_allocation and active_allocation.employee_id == employee.id:
+        return False
+
+    if active_allocation is not None:
+        AllocationService.release_line(active_allocation, released_by=None)
+
+    try:
+        AllocationService.allocate_line(
+            employee=employee,
+            phone_line=phone_line,
+            allocated_by=None,
+        )
+    except BusinessRuleException as exc:
+        raise ValueError(str(exc)) from exc
+
+    return True
 
 
 def _ensure_required(row: dict[str, str], required_fields: list[str]) -> None:

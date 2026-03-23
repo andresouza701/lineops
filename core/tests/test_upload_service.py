@@ -4,6 +4,7 @@ from pathlib import Path
 
 from django.test import TestCase
 
+from allocations.models import LineAllocation
 from core.services.upload_service import process_upload_file
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
@@ -228,3 +229,49 @@ class UploadServiceTests(TestCase):
         self.assertIn(
             "Colunas obrigatórias ausentes ou vazias: iccid.", summary.errors[0]
         )
+    def test_simcard_row_can_allocate_line_to_active_employee(self):
+        csv_content = (
+            "type;full_name;corporate_email;manager_email;employee_id;"
+            "teams;pa;status;iccid;carrier;phone_number;origem\n"
+            "employee;Ana Paula;;gerente@corp.com;EMP-9;Joinville;;ativo;;;;\n"
+            "simcard;Ana Paula;;;;;;ALLOCATED;8999999999999991001;"
+            "Carrier QA;+5511999991001;SRVMEMU-01\n"
+        )
+        path = self._write("allocated_line.csv", csv_content)
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(summary.rows_processed, 2)
+        self.assertFalse(summary.errors)
+        self.assertEqual(summary.allocations_created, 1)
+        allocation = LineAllocation.objects.select_related("employee", "phone_line").get()
+        self.assertEqual(allocation.employee.full_name, "Ana Paula")
+        self.assertEqual(allocation.phone_line.phone_number, "+5511999991001")
+        self.assertTrue(allocation.is_active)
+        self.assertEqual(allocation.phone_line.status, PhoneLine.Status.ALLOCATED)
+        self.assertEqual(allocation.phone_line.sim_card.status, SIMcard.Status.ACTIVE)
+
+    def test_simcard_row_with_employee_requires_allocated_status(self):
+        Employee.objects.create(
+            full_name="Ana Paula",
+            corporate_email="supervisor@corp.com",
+            manager_email="gerente@corp.com",
+            employee_id="EMP-9",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        csv_content = (
+            "type;full_name;corporate_email;manager_email;employee_id;"
+            "teams;pa;status;iccid;carrier;phone_number;origem\n"
+            "simcard;Ana Paula;;;;;;AVAILABLE;8999999999999991002;"
+            "Carrier QA;+5511999991002;SRVMEMU-01\n"
+        )
+        path = self._write("allocated_line_invalid_status.csv", csv_content)
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(summary.rows_processed, 0)
+        self.assertEqual(len(summary.errors), 1)
+        self.assertIn("status ALLOCATED", summary.errors[0])
+        self.assertEqual(LineAllocation.objects.count(), 0)
+        self.assertEqual(PhoneLine.objects.count(), 0)

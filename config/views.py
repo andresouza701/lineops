@@ -74,7 +74,8 @@ class UploadView(RoleRequiredMixin, FormView):
                 f"Usuários criados/atualizados: "
                 f"{summary.employees_created}/{summary.employees_updated}. "
                 f"SIM cards criados/atualizados: "
-                f"{summary.simcards_created}/{summary.simcards_updated}."
+                f"{summary.simcards_created}/{summary.simcards_updated}. "
+                f"Alocacoes criadas: {summary.allocations_created}."
             ),
         )
 
