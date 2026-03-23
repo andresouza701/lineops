@@ -218,6 +218,41 @@ class DashboardDailyIndicatorsTests(TestCase):
         )
         self.assertContains(response, expected_link)
 
+    def test_dashboard_shows_snapshot_report_export_filter(self):
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("dashboard_daily_snapshot_report"))
+        self.assertContains(response, 'name="date"', html=False)
+        self.assertContains(response, "Exportar relatório")
+
+    def test_dashboard_snapshot_report_exports_csv_for_selected_day(self):
+        yesterday = timezone.localdate() - timedelta(days=1)
+        DashboardDailySnapshot.objects.create(
+            date=yesterday,
+            people_logged_in=44,
+            percentage_without_whatsapp=2.27,
+            b2b_without_whatsapp=0,
+            b2c_without_whatsapp=1,
+            numbers_available=2,
+            numbers_delivered=23,
+            numbers_reconnected=1,
+            numbers_new=31,
+            total_uncovered_day=1,
+        )
+
+        response = self.client.get(
+            reverse("dashboard_daily_snapshot_report"),
+            {"date": yesterday.isoformat()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/csv; charset=utf-8")
+        self.assertIn("snapshot_diario_", response["Content-Disposition"])
+        content = response.content.decode("utf-8")
+        self.assertIn("Data,Pessoas Logadas,% sem Whats", content)
+        self.assertIn("44,2.27,0,1,2,23,1,31,1", content)
+
     def test_dashboard_historical_rows_use_preserved_snapshot(self):
         yesterday = timezone.localdate() - timedelta(days=1)
         created_at = timezone.make_aware(datetime.combine(yesterday, time(8, 0)))

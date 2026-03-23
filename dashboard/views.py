@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -691,17 +691,24 @@ def persist_dashboard_snapshot_for_day(day: date) -> dict:
     return indicator
 
 
-def get_dashboard_indicator_for_day(day: date) -> dict:
+def get_or_create_dashboard_snapshot_for_day(day: date) -> DashboardDailySnapshot:
     if is_historical_day(day):
         snapshot = DashboardDailySnapshot.objects.filter(date=day).first()
         if snapshot is not None:
-            return _serialize_snapshot_indicator(snapshot)
+            return snapshot
 
-        indicator = persist_dashboard_snapshot_for_day(day)
-        snapshot = DashboardDailySnapshot.objects.get(date=day)
+    persist_dashboard_snapshot_for_day(day)
+    return DashboardDailySnapshot.objects.get(date=day)
+
+
+def get_dashboard_indicator_for_day(day: date) -> dict:
+    if is_historical_day(day):
+        snapshot = get_or_create_dashboard_snapshot_for_day(day)
         return _serialize_snapshot_indicator(snapshot)
 
-    return persist_dashboard_snapshot_for_day(day)
+    persist_dashboard_snapshot_for_day(day)
+    snapshot = DashboardDailySnapshot.objects.get(date=day)
+    return _serialize_snapshot_indicator(snapshot)
 
 
 def serialize_daily_indicator(item):
@@ -756,6 +763,9 @@ class DashboardView(AuthenticadView, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         trend_period = self._resolve_trend_period()
+        context["snapshot_report_date"] = self.request.GET.get(
+            "snapshot_report_date", timezone.localdate().isoformat()
+        )
         context["total_employees"] = Employee.objects.filter(
             status=Employee.Status.ACTIVE
         ).count()
@@ -1428,6 +1438,50 @@ def daily_indicators_live(request):
             "generated_at": timezone.now().isoformat(),
         }
     )
+
+
+@login_required
+@roles_required(*DASHBOARD_ALLOWED_ROLES)
+def dashboard_daily_snapshot_report(request):
+    selected_day = resolve_day(request.GET.get("date"))
+    snapshot = get_or_create_dashboard_snapshot_for_day(selected_day)
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    filename = selected_day.strftime("snapshot_diario_%Y%m%d.csv")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    rows = [
+        [
+            "Data",
+            "Pessoas Logadas",
+            "% sem Whats",
+            "B2B sem Whats",
+            "B2C sem Whats",
+            "Números Disponíveis",
+            "Números Entregues",
+            "Reconectados",
+            "Novos",
+            "Total Descoberto DIA",
+        ],
+        [
+            selected_day.strftime("%d/%m/%Y"),
+            snapshot.people_logged_in,
+            f"{snapshot.percentage_without_whatsapp:.2f}",
+            snapshot.b2b_without_whatsapp,
+            snapshot.b2c_without_whatsapp,
+            snapshot.numbers_available,
+            snapshot.numbers_delivered,
+            snapshot.numbers_reconnected,
+            snapshot.numbers_new,
+            snapshot.total_uncovered_day,
+        ],
+    ]
+
+    import csv
+
+    writer = csv.writer(response)
+    writer.writerows(rows)
+    return response
 
 
 @login_required
