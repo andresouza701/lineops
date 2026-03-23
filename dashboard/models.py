@@ -192,3 +192,39 @@ class DailyUserAction(models.Model):
             f"{self.day.strftime('%d/%m/%Y')} - {self.employee.full_name} - "
             f"{self.get_action_type_display()}"
         )
+
+
+class DashboardDailySnapshot(models.Model):
+    date = models.DateField(unique=True, db_index=True, verbose_name="Data")
+    people_logged_in = models.IntegerField(default=0, verbose_name="Pessoas Logadas")
+    percentage_without_whatsapp = models.FloatField(
+        default=0, verbose_name="% sem Whats"
+    )
+    b2b_without_whatsapp = models.IntegerField(
+        default=0, verbose_name="B2B sem Whats"
+    )
+    b2c_without_whatsapp = models.IntegerField(
+        default=0, verbose_name="B2C sem Whats"
+    )
+    numbers_available = models.IntegerField(
+        default=0, verbose_name="Números Disponíveis"
+    )
+    numbers_delivered = models.IntegerField(default=0, verbose_name="Números Entregues")
+    numbers_reconnected = models.IntegerField(default=0, verbose_name="Reconectados")
+    numbers_new = models.IntegerField(default=0, verbose_name="Novos")
+    total_uncovered_day = models.IntegerField(
+        default=0, verbose_name="Total Descoberto DIA"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
+
+    class Meta:
+        ordering = ["-date"]
+        verbose_name = "Snapshot Diário do Dashboard"
+        verbose_name_plural = "Snapshots Diários do Dashboard"
+        indexes = [
+            models.Index(fields=["-date"]),
+        ]
+
+    def __str__(self):
+        return f"Snapshot {self.date.strftime('%d/%m/%Y')}"

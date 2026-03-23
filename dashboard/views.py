@@ -33,7 +33,7 @@ from .forms import (
     DailyIndicatorForm,
     DailyUserActionForm,
 )
-from .models import DailyIndicator, DailyUserAction
+from .models import DashboardDailySnapshot, DailyIndicator, DailyUserAction
 
 PERCENT_CRITICAL_THRESHOLD = 20
 PERCENT_WARNING_THRESHOLD = 10
@@ -652,6 +652,58 @@ def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
     return indicator
 
 
+def _serialize_snapshot_indicator(snapshot: DashboardDailySnapshot) -> dict:
+    return {
+        "data": snapshot.date,
+        "pessoas_logadas": snapshot.people_logged_in,
+        "perc_sem_whats": snapshot.percentage_without_whatsapp,
+        "b2b_sem_whats": snapshot.b2b_without_whatsapp,
+        "b2c_sem_whats": snapshot.b2c_without_whatsapp,
+        "numeros_disponiveis": snapshot.numbers_available,
+        "numeros_entregues": snapshot.numbers_delivered,
+        "reconectados": snapshot.numbers_reconnected,
+        "novos": snapshot.numbers_new,
+        "total_descoberto_dia": snapshot.total_uncovered_day,
+        "available_numbers": [],
+        "delivered_numbers": [],
+        "reconnected_numbers": [],
+        "new_numbers": [],
+    }
+
+
+def persist_dashboard_snapshot_for_day(day: date) -> dict:
+    indicator = build_indicator_for_day(day)
+    snapshot_defaults = {
+        "people_logged_in": int(indicator["pessoas_logadas"]),
+        "percentage_without_whatsapp": float(indicator["perc_sem_whats"]),
+        "b2b_without_whatsapp": int(indicator["b2b_sem_whats"]),
+        "b2c_without_whatsapp": int(indicator["b2c_sem_whats"]),
+        "numbers_available": int(indicator["numeros_disponiveis"]),
+        "numbers_delivered": int(indicator["numeros_entregues"]),
+        "numbers_reconnected": int(indicator["reconectados"]),
+        "numbers_new": int(indicator["novos"]),
+        "total_uncovered_day": int(indicator["total_descoberto_dia"]),
+    }
+    DashboardDailySnapshot.objects.update_or_create(
+        date=day,
+        defaults=snapshot_defaults,
+    )
+    return indicator
+
+
+def get_dashboard_indicator_for_day(day: date) -> dict:
+    if is_historical_day(day):
+        snapshot = DashboardDailySnapshot.objects.filter(date=day).first()
+        if snapshot is not None:
+            return _serialize_snapshot_indicator(snapshot)
+
+        indicator = persist_dashboard_snapshot_for_day(day)
+        snapshot = DashboardDailySnapshot.objects.get(date=day)
+        return _serialize_snapshot_indicator(snapshot)
+
+    return persist_dashboard_snapshot_for_day(day)
+
+
 def serialize_daily_indicator(item):
     date_iso = item["data"].strftime("%Y-%m-%d")
     return {
@@ -853,7 +905,7 @@ class DashboardView(AuthenticadView, TemplateView):
         return indicators
 
     def _build_indicator_for_day(self, day):
-        return build_indicator_for_day(day)
+        return get_dashboard_indicator_for_day(day)
 
     def _build_status_counts(self):
         sim_counts = defaultdict(int)

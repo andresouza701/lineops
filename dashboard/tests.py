@@ -12,7 +12,7 @@ from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
 
 from .forms import DailyIndicatorForm
-from .models import DailyUserAction
+from .models import DashboardDailySnapshot, DailyUserAction
 
 
 class DashboardDailyIndicatorsTests(TestCase):
@@ -217,6 +217,60 @@ class DashboardDailyIndicatorsTests(TestCase):
             "daily_indicator_day_breakdown", kwargs={"day": today_iso}
         )
         self.assertContains(response, expected_link)
+
+    def test_dashboard_historical_rows_use_preserved_snapshot(self):
+        yesterday = timezone.localdate() - timedelta(days=1)
+        created_at = timezone.make_aware(datetime.combine(yesterday, time(8, 0)))
+
+        employee = Employee.objects.create(
+            full_name="Snapshot User",
+            corporate_email="snapshot@corp.com",
+            employee_id="Natura",
+            teams="B2C Squad",
+            status=Employee.Status.ACTIVE,
+        )
+        Employee.all_objects.filter(pk=employee.pk).update(
+            created_at=created_at,
+            updated_at=created_at,
+        )
+
+        sim = SIMcard.objects.create(
+            iccid="8900000000000004555",
+            carrier="CarrierSnapshot",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        line = PhoneLine.objects.create(
+            phone_number="+5511999994555",
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        PhoneLine.all_objects.filter(pk=line.pk).update(
+            created_at=created_at,
+            updated_at=created_at,
+        )
+
+        first_response = self.client.get(reverse("dashboard"))
+        self.assertEqual(first_response.status_code, 200)
+
+        snapshot = DashboardDailySnapshot.objects.get(date=yesterday)
+        self.assertEqual(snapshot.people_logged_in, 1)
+        self.assertEqual(snapshot.b2c_without_whatsapp, 1)
+        self.assertEqual(snapshot.numbers_available, 1)
+
+        employee.delete()
+        sim.delete()
+
+        second_response = self.client.get(reverse("dashboard"))
+        self.assertEqual(second_response.status_code, 200)
+
+        historical_row = next(
+            item
+            for item in second_response.context["indicadores_diarios"]
+            if item["data"] == yesterday
+        )
+        self.assertEqual(historical_row["pessoas_logadas"], 1)
+        self.assertEqual(historical_row["b2c_sem_whats"], 1)
+        self.assertEqual(historical_row["numeros_disponiveis"], 1)
 
     def test_dashboard_exception_cards_show_pending_action_counts(self):
         DailyUserAction.objects.create(
