@@ -1,4 +1,8 @@
+import os
+
 from django.core.exceptions import ImproperlyConfigured
+
+os.environ["APP_ENV"] = "prod"
 
 from .settings import *  # noqa
 from .settings import env

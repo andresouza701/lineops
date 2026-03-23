@@ -1,6 +1,5 @@
 from django.contrib import messages
-from django.core.exceptions import ValidationError
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -20,7 +19,6 @@ from .models import LineAllocation
 
 DUPLICATE_EMPLOYEE_NAME_CONSTRAINT = "employees_employee_unique_active_full_name_ci"
 DUPLICATE_PHONE_NUMBER_CONSTRAINT = "telecom_phoneline_phone_number_key"
-DUPLICATE_SIMCARD_ICCID_CONSTRAINT = "telecom_simcard_iccid_key"
 
 
 def _is_duplicate_full_name_error(exc: IntegrityError) -> bool:
@@ -39,7 +37,9 @@ def _is_duplicate_full_name_error(exc: IntegrityError) -> bool:
     return constraint_name == DUPLICATE_EMPLOYEE_NAME_CONSTRAINT
 
 
-def _integrity_error_matches(exc: IntegrityError, constraint_name: str, field_name: str) -> bool:
+def _integrity_error_matches(
+    exc: IntegrityError, constraint_name: str, field_name: str
+) -> bool:
     if constraint_name in str(exc) or field_name in str(exc):
         return True
 
@@ -162,10 +162,6 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
                 exc, DUPLICATE_PHONE_NUMBER_CONSTRAINT, "phone_number"
             ):
                 form.add_error("phone_number", "Linha já cadastrada!")
-            elif _integrity_error_matches(
-                exc, DUPLICATE_SIMCARD_ICCID_CONSTRAINT, "iccid"
-            ):
-                form.add_error("iccid", "ICCID já cadastrado.")
             else:
                 raise
 

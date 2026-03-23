@@ -23,9 +23,8 @@ class AllocationRulesTestCase(TestCase):
             teams="IT",
         )
 
-        # Criar 3 linhas
         self.lines = []
-        for i in range(3):
+        for i in range(5):
             sim = SIMcard.objects.create(
                 iccid=f"890000000000000000{i}", carrier="CarrierX"
             )
@@ -36,22 +35,18 @@ class AllocationRulesTestCase(TestCase):
 
             self.lines.append(line)
 
-    def test_employee_cannot_have_more_than_two_active_lines(self):
-        # Primeira alocação
-        AllocationService.allocate_line(
-            employee=self.employee, phone_line=self.lines[0], allocated_by=self.admin
-        )
+    def test_employee_cannot_have_more_than_four_active_lines(self):
+        for line in self.lines[:4]:
+            AllocationService.allocate_line(
+                employee=self.employee,
+                phone_line=line,
+                allocated_by=self.admin,
+            )
 
-        # Segunda alocação
-        AllocationService.allocate_line(
-            employee=self.employee, phone_line=self.lines[1], allocated_by=self.admin
-        )
-
-        # Terceira deve falhar
         with self.assertRaises(BusinessRuleException):
             AllocationService.allocate_line(
                 employee=self.employee,
-                phone_line=self.lines[2],
+                phone_line=self.lines[4],
                 allocated_by=self.admin,
             )
 

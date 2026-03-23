@@ -3,6 +3,7 @@ from typing import cast
 from django import forms
 from django.apps import apps
 
+from core.services.allocation_service import MAX_ACTIVE_ALLOCATIONS_PER_EMPLOYEE
 from core.validation import (
     normalize_iccid,
     normalize_phone_number,
@@ -12,8 +13,6 @@ from core.validation import (
 from employees.models import Employee
 
 from .models import BlipConfiguration, PhoneLine, SIMcard
-
-MAX_ACTIVE_LINES_PER_EMPLOYEE = 4
 
 
 class SIMcardForm(forms.ModelForm):
@@ -123,7 +122,6 @@ class PhoneLineUpdateForm(PhoneLineForm):
         self.fields["status"].widget.attrs.setdefault("class", "form-select")
 
         if self.instance and self.instance.pk:
-            # Regra da tela de edição: linha e SIM não podem ser alterados.
             self.fields["phone_number"].disabled = True
             self.fields["sim_card"].disabled = True
             self.fields["origem"].disabled = True
@@ -170,12 +168,12 @@ class PhoneLineUpdateForm(PhoneLineForm):
                 .exclude(phone_line=self.instance)
                 .count()
             )
-            if employee_active_lines_count >= MAX_ACTIVE_LINES_PER_EMPLOYEE:
+            if employee_active_lines_count >= MAX_ACTIVE_ALLOCATIONS_PER_EMPLOYEE:
                 self.add_error(
                     "employee",
                     (
-                        f"O usuário {employee.full_name} "
-                        f"já possui {MAX_ACTIVE_LINES_PER_EMPLOYEE} "
+                        f"O usuário {employee.full_name} já possui "
+                        f"{MAX_ACTIVE_ALLOCATIONS_PER_EMPLOYEE} "
                         f"linhas alocadas ativas."
                     ),
                 )

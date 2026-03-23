@@ -362,9 +362,9 @@ def _normalize_phone_line_status(raw_status: str | None) -> str:
     status = ALLOWED_PHONE_LINE_STATUSES.get(normalized)
     if not status:
         raise ValueError(
-            "Status de linha inv?lido para upload de simcard. "
+            "Status de linha invalido para upload de simcard. "
             "Use AVAILABLE/ALLOCATED/SUSPENDED/CANCELLED/AQUECENDO/NOVO "
-            "ou equivalentes em portugu?s."
+            "ou equivalentes em portugues."
         )
     return status
 
