@@ -10,7 +10,7 @@ from telecom.models import PhoneLine
 
 logger = logging.getLogger(__name__)
 
-MAX_ACTIVE_ALLOCATIONS_PER_EMPLOYEE = 2
+MAX_ACTIVE_ALLOCATIONS_PER_EMPLOYEE = 4
 
 
 class AllocationService:
@@ -33,7 +33,8 @@ class AllocationService:
                 },
             )
             raise BusinessRuleException(
-                f"O usuário {employee.full_name} " "já possui 2 linhas alocadas ativas."
+                f"O usuario {employee.full_name} ja possui "
+                f"{MAX_ACTIVE_ALLOCATIONS_PER_EMPLOYEE} linhas alocadas ativas."
             )
 
         if LineAllocation.objects.filter(
