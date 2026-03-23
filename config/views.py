@@ -40,7 +40,11 @@ class UploadView(RoleRequiredMixin, FormView):
     def form_valid(self, form):
         uploaded_file = form.cleaned_data["file"]
         saved_path = self._persist_file(uploaded_file)
-        summary = process_upload_file(saved_path)
+        try:
+            summary = process_upload_file(saved_path)
+        except ValueError as exc:
+            messages.error(self.request, str(exc))
+            return self.render_to_response(self.get_context_data(form=form))
 
         self._notify(summary, saved_path.name)
         context = self.get_context_data(

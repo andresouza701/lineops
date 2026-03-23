@@ -20,6 +20,11 @@ class UploadServiceTests(TestCase):
         path.write_text(content, encoding="utf-8")
         return path
 
+    def _write_bytes(self, name: str, content: bytes) -> Path:
+        path = self.temp_dir / name
+        path.write_bytes(content)
+        return path
+
     def test_process_creates_and_updates_entities(self):
         initial_csv = (
             "type,full_name,corporate_email,manager_email,employee_id,teams,pa,status,iccid,carrier,phone_number,origem\n"
@@ -114,6 +119,21 @@ class UploadServiceTests(TestCase):
         self.assertEqual(SIMcard.objects.count(), 1)
         phone_line = PhoneLine.objects.get(phone_number="+5511999990001")
         self.assertEqual(phone_line.origem, "APARELHO")
+
+    def test_process_accepts_windows_1252_csv_with_nonbreaking_space(self):
+        csv_content = (
+            "type,full_name,corporate_email,manager_email,employee_id,teams,pa,status,iccid,carrier,phone_number,origem\n"
+            "simcard,,,,,,,ALOCADO,VIRTUAL,TIM ,47997340319\xa0,SRVMEMU-01\n"
+        )
+        path = self._write_bytes("windows1252.csv", csv_content.encode("cp1252"))
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(summary.rows_processed, 1)
+        self.assertFalse(summary.errors)
+        phone_line = PhoneLine.objects.get(phone_number="47997340319")
+        self.assertEqual(phone_line.status, PhoneLine.Status.ALLOCATED)
+        self.assertEqual(phone_line.origem, "SRVMEMU-01")
 
     def test_invalid_origem_raises_error(self):
         header = (

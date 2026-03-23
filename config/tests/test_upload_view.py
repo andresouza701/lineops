@@ -123,3 +123,20 @@ class UploadViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(LineAllocation.objects.count(), 1)
         self.assertEqual(response.context["summary"].allocations_created, 1)
+
+    def test_upload_accepts_windows_1252_csv(self):
+        csv_content = (
+            "type,full_name,corporate_email,manager_email,employee_id,teams,pa,status,iccid,carrier,phone_number,origem\n"
+            "simcard,,,,,,,ALOCADO,VIRTUAL,TIM ,47997340319\xa0,SRVMEMU-01\n"
+        )
+        uploaded_file = SimpleUploadedFile(
+            "bulk.csv",
+            csv_content.encode("cp1252"),
+            content_type="text/csv",
+        )
+
+        response = self.client.post(reverse("upload"), {"file": uploaded_file})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNotNone(response.context["summary"])
+        self.assertEqual(response.context["summary"].rows_processed, 1)

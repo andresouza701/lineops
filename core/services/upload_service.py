@@ -80,20 +80,28 @@ def process_upload_file(file_path: Path) -> UploadSummary:
 
 
 def _parse_csv(file_path: Path) -> list[dict[str, str]]:
-    with file_path.open("r", encoding="utf-8-sig", newline="") as csv_file:
-        sample = csv_file.read(2048)
-        csv_file.seek(0)
-
-        delimiter = ","
+    for encoding in ("utf-8-sig", "cp1252", "latin-1"):
         try:
-            dialect = csv.Sniffer().sniff(sample, delimiters=",;")
-            delimiter = dialect.delimiter
-        except csv.Error:
-            if sample.count(";") > sample.count(","):
-                delimiter = ";"
+            with file_path.open("r", encoding=encoding, newline="") as csv_file:
+                sample = csv_file.read(2048)
+                csv_file.seek(0)
 
-        reader = csv.DictReader(csv_file, delimiter=delimiter)
-        return [_normalize_row(row) for row in reader]
+                delimiter = ","
+                try:
+                    dialect = csv.Sniffer().sniff(sample, delimiters=",;")
+                    delimiter = dialect.delimiter
+                except csv.Error:
+                    if sample.count(";") > sample.count(","):
+                        delimiter = ";"
+
+                reader = csv.DictReader(csv_file, delimiter=delimiter)
+                return [_normalize_row(row) for row in reader]
+        except UnicodeDecodeError:
+            continue
+
+    raise ValueError(
+        "Nao foi possivel ler o CSV. Salve o arquivo em UTF-8, Windows-1252 ou Latin-1."
+    )
 
 
 def _parse_xlsx(file_path: Path) -> list[dict[str, str]]:
