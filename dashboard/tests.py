@@ -225,6 +225,7 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertContains(response, reverse("dashboard_daily_snapshot_report"))
         self.assertContains(response, 'name="date"', html=False)
         self.assertContains(response, "Exportar relatório")
+        self.assertContains(response, 'data-no-loading="true"', html=False)
 
     def test_dashboard_snapshot_report_exports_csv_for_selected_day(self):
         yesterday = timezone.localdate() - timedelta(days=1)
@@ -249,7 +250,8 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "text/csv; charset=utf-8")
         self.assertIn("snapshot_diario_", response["Content-Disposition"])
-        content = response.content.decode("utf-8")
+        self.assertTrue(response.content.startswith(b"\xef\xbb\xbf"))
+        content = response.content.decode("utf-8-sig")
         self.assertIn("Data,Pessoas Logadas,% sem Whats", content)
         self.assertIn("44,2.27,0,1,2,23,1,31,1", content)
 

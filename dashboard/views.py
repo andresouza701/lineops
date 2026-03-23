@@ -1449,6 +1449,7 @@ def dashboard_daily_snapshot_report(request):
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     filename = selected_day.strftime("snapshot_diario_%Y%m%d.csv")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response.write("\ufeff")
 
     rows = [
         [

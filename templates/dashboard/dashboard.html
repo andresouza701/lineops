@@ -28,7 +28,7 @@
             <div>
                 <h2 class="h5 mb-0">Indicadores Diários</h2>
             </div>
-            <form method="get" action="{% url 'dashboard_daily_snapshot_report' %}" class="d-flex align-items-end gap-2 flex-wrap">
+            <form method="get" action="{% url 'dashboard_daily_snapshot_report' %}" class="d-flex align-items-end gap-2 flex-wrap" data-no-loading="true">
                 <div>
                     <label for="snapshot-report-date" class="form-label mb-1">Data do relatório</label>
                     <input id="snapshot-report-date" type="date" name="date" value="{{ snapshot_report_date }}" class="form-control">
