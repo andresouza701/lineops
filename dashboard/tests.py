@@ -734,6 +734,39 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertEqual(len(indicator["users_without_line"]), 1)
         self.assertNotContains(response, self.line_available.phone_number)
 
+    def test_daily_indicator_history_preserves_employee_deleted_after_day(self):
+        yesterday = timezone.localdate() - timedelta(days=1)
+        created_at = timezone.make_aware(datetime.combine(yesterday, time(8, 0)))
+
+        employee = Employee.objects.create(
+            full_name="Deleted B2C User",
+            corporate_email="deleted@corp.com",
+            employee_id="Natura",
+            teams="B2C Squad",
+            status=Employee.Status.ACTIVE,
+        )
+        Employee.all_objects.filter(pk=employee.pk).update(
+            created_at=created_at,
+            updated_at=created_at,
+        )
+
+        employee.delete()
+
+        response = self.client.get(
+            reverse(
+                "daily_indicator_day_breakdown",
+                kwargs={"day": yesterday.strftime("%Y-%m-%d")},
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        indicator = response.context["indicator"]
+        self.assertEqual(indicator["pessoas_logadas"], 1)
+        self.assertEqual(indicator["b2c_sem_whats"], 1)
+        self.assertEqual(indicator["total_descoberto_dia"], 1)
+        self.assertEqual(len(indicator["users_without_line"]), 1)
+        self.assertContains(response, "Deleted B2C User")
+
     def test_daily_user_action_board_allows_marking_action(self):
         response = self.client.post(
             reverse("daily_user_action_board"),

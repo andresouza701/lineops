@@ -426,6 +426,14 @@ def get_visible_phone_lines_for_day(day):
     return queryset.filter(is_deleted=False, sim_card__is_deleted=False)
 
 
+def get_visible_employees_for_day(day):
+    queryset = Employee.all_objects.filter(created_at__date__lte=day)
+    if is_historical_day(day):
+        end_of_day = timezone.make_aware(datetime.combine(day, time.max))
+        return queryset.filter(Q(is_deleted=False) | Q(updated_at__gt=end_of_day))
+    return queryset.filter(is_deleted=False)
+
+
 def get_open_action_for_resolution(employee, allocation_id=None):
     unresolved_actions = DailyUserAction.objects.filter(
         employee=employee,
@@ -560,7 +568,7 @@ def build_user_details_for_day(
 def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
     """Calculate all indicators for a specific day from database state."""
     end_of_day = timezone.make_aware(datetime.combine(day, time.max))
-    employees = Employee.objects.filter(is_deleted=False, created_at__date__lte=day)
+    employees = get_visible_employees_for_day(day)
     active_employees = employees.filter(status=Employee.Status.ACTIVE)
 
     active_allocations = LineAllocation.objects.filter(allocated_at__lte=end_of_day)
