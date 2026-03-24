@@ -19,6 +19,11 @@ from whatsapp.services.instance_selector import (
     InstanceSelectorService,
     NoAvailableMeowInstanceError,
 )
+from whatsapp.services.session_service import (
+    WhatsAppSessionNotConfiguredError,
+    WhatsAppSessionResult,
+    WhatsAppSessionService,
+)
 
 
 class WhatsAppModelTests(TestCase):
@@ -159,6 +164,190 @@ class InstanceSelectorServiceTests(TestCase):
         )
 
         self.assertEqual(selected, self.meow_healthy)
+
+
+class WhatsAppSessionServiceTests(TestCase):
+    def setUp(self):
+        self.meow = MeowInstance.objects.create(
+            name="Session Meow",
+            base_url="http://session-meow.local",
+        )
+        self.sim = SIMcard.objects.create(
+            iccid="89000000000000999991",
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.line = PhoneLine.objects.create(
+            phone_number="+5511999990091",
+            sim_card=self.sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        self.service = WhatsAppSessionService()
+
+    @patch(
+        "whatsapp.services.session_service.InstanceSelectorService.select_available_instance"
+    )
+    def test_get_or_create_session_handles_line_without_reverse_relation(
+        self,
+        select_available_instance,
+    ):
+        select_available_instance.return_value = self.meow
+
+        session = self.service.get_or_create_session(self.line)
+
+        self.assertEqual(session.line, self.line)
+        self.assertEqual(session.meow_instance, self.meow)
+        self.assertEqual(session.session_id, "session_+5511999990091")
+
+    def test_get_status_raises_clean_error_when_line_has_no_session(self):
+        with self.assertRaises(WhatsAppSessionNotConfiguredError):
+            self.service.get_status(self.line)
+
+    def test_connect_audits_success_after_local_sync(self):
+        session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_+5511999990091",
+        )
+        events = []
+        mock_client = MagicMock()
+        mock_client.create_session.return_value = {"details": {"connected": True}}
+
+        def sync_side_effect(*args, **kwargs):
+            events.append("sync")
+            return WhatsAppSessionResult(
+                session=session,
+                status=WhatsAppSessionStatus.CONNECTED,
+                remote_payload=kwargs["remote_payload"],
+                connected=True,
+            )
+
+        with (
+            patch.object(self.service, "_get_client", return_value=mock_client),
+            patch.object(
+                self.service,
+                "_sync_from_remote",
+                side_effect=sync_side_effect,
+            ),
+            patch(
+                "whatsapp.services.session_service.WhatsAppAuditService.success",
+                side_effect=lambda **kwargs: events.append("audit"),
+            ),
+        ):
+            result = self.service.connect(self.line)
+
+        self.assertEqual(result.status, WhatsAppSessionStatus.CONNECTED)
+        self.assertEqual(events, ["sync", "audit"])
+
+    def test_get_status_audits_success_after_local_sync(self):
+        session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_+5511999990091",
+        )
+        events = []
+        mock_client = MagicMock()
+        mock_client.get_session.return_value = {"details": {"connected": True}}
+
+        def sync_side_effect(*args, **kwargs):
+            events.append("sync")
+            return WhatsAppSessionResult(
+                session=session,
+                status=WhatsAppSessionStatus.CONNECTED,
+                remote_payload=kwargs["remote_payload"],
+                connected=True,
+            )
+
+        with (
+            patch.object(self.service, "_get_client", return_value=mock_client),
+            patch.object(
+                self.service,
+                "_sync_from_remote",
+                side_effect=sync_side_effect,
+            ),
+            patch(
+                "whatsapp.services.session_service.WhatsAppAuditService.success",
+                side_effect=lambda **kwargs: events.append("audit"),
+            ),
+        ):
+            result = self.service.get_status(self.line)
+
+        self.assertEqual(result.status, WhatsAppSessionStatus.CONNECTED)
+        self.assertEqual(events, ["sync", "audit"])
+
+    def test_get_qr_audits_success_after_local_save(self):
+        session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_+5511999990091",
+        )
+        events = []
+        mock_client = MagicMock()
+        mock_client.get_qr.return_value = {
+            "has_qr": True,
+            "qr_code": "qr-base64",
+            "connected": False,
+            "raw": {"details": {"hasQR": True, "connected": False}},
+        }
+        original_save = WhatsAppSession.save
+
+        def save_side_effect(instance, *args, **kwargs):
+            if instance.pk == session.pk:
+                events.append("save")
+            return original_save(instance, *args, **kwargs)
+
+        with (
+            patch.object(self.service, "_get_client", return_value=mock_client),
+            patch.object(
+                WhatsAppSession,
+                "save",
+                autospec=True,
+                side_effect=save_side_effect,
+            ),
+            patch(
+                "whatsapp.services.session_service.WhatsAppAuditService.success",
+                side_effect=lambda **kwargs: events.append("audit"),
+            ),
+        ):
+            result = self.service.get_qr(self.line)
+
+        self.assertEqual(result.qr_code, "qr-base64")
+        self.assertEqual(events, ["save", "audit"])
+
+    def test_disconnect_audits_success_after_local_save(self):
+        session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_+5511999990091",
+            status=WhatsAppSessionStatus.CONNECTED,
+        )
+        events = []
+        mock_client = MagicMock()
+        mock_client.delete_session.return_value = {"success": True}
+        original_save = WhatsAppSession.save
+
+        def save_side_effect(instance, *args, **kwargs):
+            if instance.pk == session.pk:
+                events.append("save")
+            return original_save(instance, *args, **kwargs)
+
+        with (
+            patch.object(self.service, "_get_client", return_value=mock_client),
+            patch.object(
+                WhatsAppSession,
+                "save",
+                autospec=True,
+                side_effect=save_side_effect,
+            ),
+            patch(
+                "whatsapp.services.session_service.WhatsAppAuditService.success",
+                side_effect=lambda **kwargs: events.append("audit"),
+            ),
+        ):
+            result = self.service.disconnect(self.line)
+
+        self.assertEqual(result.status, WhatsAppSessionStatus.DISCONNECTED)
+        self.assertEqual(events, ["save", "audit"])
 
 
 @override_settings(WHATSAPP_MEOW_TIMEOUT_SECONDS=7)
