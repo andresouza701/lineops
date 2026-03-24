@@ -107,6 +107,18 @@ docker compose exec web python manage.py shell -c "from users.models import Syst
 HEALTHCHECK_REQUIRE_AUTH=True
 ```
 
+## QA com Docker Compose
+
+Para o servidor Oracle Linux de QA, use o compose dedicado:
+
+```bash
+cp .env.qa.example .env.qa
+docker compose -f docker-compose.qa.yml up -d --build
+```
+
+Detalhes operacionais e sizing estÃ£o em [docs/qa-deployment.md](/C:/Users/andre.souza/Desktop/reviewer/lineops/docs/qa-deployment.md).
+O passo a passo completo do servidor estÃ¡ em [docs/qa-server-runbook.md](/C:/Users/andre.souza/Desktop/reviewer/lineops/docs/qa-server-runbook.md).
+
 ## Troubleshooting (QA)
 
 ### Erro: `DB_PASSWORD not set`

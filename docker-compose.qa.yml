@@ -1,0 +1,89 @@
+services:
+  db:
+    image: postgres:15.8
+    container_name: lineops-db-qa
+    restart: unless-stopped
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c work_mem=8MB
+      -c maintenance_work_mem=64MB
+      -c effective_cache_size=1GB
+      -c max_connections=60
+    env_file:
+      - .env.qa
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - lineops_postgres_data_qa:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    container_name: lineops-app-qa
+    restart: unless-stopped
+    env_file:
+      - .env.qa
+    environment:
+      APP_ENV: prod
+      DEBUG: "False"
+      DJANGO_SETTINGS_MODULE: config.settings_qa
+      USE_X_FORWARDED_PROTO: "1"
+      RUN_MIGRATIONS: "1"
+      COLLECT_STATIC: "1"
+      WAIT_FOR_DB: "1"
+    command:
+      [
+        "gunicorn",
+        "config.wsgi:application",
+        "--bind",
+        "0.0.0.0:8000",
+        "--timeout",
+        "120",
+        "--workers",
+        "3",
+        "--threads",
+        "2",
+        "--keep-alive",
+        "5"
+      ]
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8000"
+    volumes:
+      - lineops_media_qa:/app/media
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; req=urllib.request.Request('http://127.0.0.1:8000/health/', headers={'X-Forwarded-Proto': 'https'}); urllib.request.urlopen(req, timeout=5)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: lineops-nginx-qa
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d/lineops.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${TLS_CERT_PATH}:/etc/nginx/certs/fullchain.pem:ro
+      - ${TLS_KEY_PATH}:/etc/nginx/certs/privkey.pem:ro
+      - lineops_media_qa:/app/media:ro
+
+volumes:
+  lineops_postgres_data_qa:
+    name: lineops_postgres_data_qa
+  lineops_media_qa:
+    name: lineops_media_qa

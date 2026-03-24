@@ -1,0 +1,227 @@
+import io
+import json
+from unittest.mock import MagicMock, patch
+from urllib.error import HTTPError
+
+from django.core.exceptions import ValidationError
+from django.test import TestCase, override_settings
+
+from telecom.models import PhoneLine, SIMcard
+from users.models import SystemUser
+from whatsapp.choices import MeowInstanceHealthStatus, WhatsAppSessionStatus
+from whatsapp.clients.exceptions import (
+    MeowClientConflictError,
+    MeowClientTimeoutError,
+)
+from whatsapp.clients.meow_client import MeowClient
+from whatsapp.models import MeowInstance, WhatsAppActionAudit, WhatsAppSession
+from whatsapp.services.instance_selector import (
+    InstanceSelectorService,
+    NoAvailableMeowInstanceError,
+)
+
+
+class WhatsAppModelTests(TestCase):
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="whatsapp-admin@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.meow = MeowInstance.objects.create(
+            name="Meow A",
+            base_url="http://meow-a.local/",
+        )
+        self.sim = SIMcard.objects.create(
+            iccid="89000000000000999901",
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.line = PhoneLine.objects.create(
+            phone_number="+5511999990001",
+            sim_card=self.sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+    def test_meow_instance_normalizes_trailing_slash(self):
+        self.meow.refresh_from_db()
+        self.assertEqual(self.meow.base_url, "http://meow-a.local")
+
+    def test_meow_instance_validates_capacity_thresholds(self):
+        invalid_instance = MeowInstance(
+            name="Meow B",
+            base_url="http://meow-b.local",
+            target_sessions=41,
+            warning_sessions=40,
+            max_sessions=45,
+        )
+
+        with self.assertRaises(ValidationError):
+            invalid_instance.full_clean()
+
+    def test_whatsapp_session_defaults_to_pending_new_number(self):
+        session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_5511999990001",
+        )
+
+        self.assertEqual(session.status, WhatsAppSessionStatus.PENDING_NEW_NUMBER)
+        self.assertTrue(session.is_active)
+
+    def test_action_audit_keeps_created_by(self):
+        session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_5511999990001",
+        )
+
+        audit = WhatsAppActionAudit.objects.create(
+            session=session,
+            action="CREATE_SESSION",
+            status="SUCCESS",
+            created_by=self.admin,
+            response_payload={"ok": True},
+        )
+
+        self.assertEqual(audit.created_by, self.admin)
+
+
+class InstanceSelectorServiceTests(TestCase):
+    def setUp(self):
+        self.meow_healthy = MeowInstance.objects.create(
+            name="Healthy",
+            base_url="http://healthy.local",
+            health_status=MeowInstanceHealthStatus.HEALTHY,
+        )
+        self.meow_unknown = MeowInstance.objects.create(
+            name="Unknown",
+            base_url="http://unknown.local",
+            health_status=MeowInstanceHealthStatus.UNKNOWN,
+        )
+
+    def _create_line(self, suffix):
+        sim = SIMcard.objects.create(
+            iccid=f"8900000000000099{suffix:04d}",
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        return PhoneLine.objects.create(
+            phone_number=f"+55119998{suffix:04d}",
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+    def test_selector_prefers_healthier_instance_with_lower_load(self):
+        line = self._create_line(1)
+        WhatsAppSession.objects.create(
+            line=line,
+            meow_instance=self.meow_unknown,
+            session_id="session_1",
+        )
+
+        selected = InstanceSelectorService.select_available_instance()
+
+        self.assertEqual(selected, self.meow_healthy)
+
+    def test_selector_raises_when_all_instances_exceed_limit(self):
+        self.meow_healthy.warning_sessions = 1
+        self.meow_healthy.max_sessions = 1
+        self.meow_healthy.save(update_fields=["warning_sessions", "max_sessions"])
+        line = self._create_line(2)
+        WhatsAppSession.objects.create(
+            line=line,
+            meow_instance=self.meow_healthy,
+            session_id="session_2",
+        )
+
+        self.meow_unknown.health_status = MeowInstanceHealthStatus.UNAVAILABLE
+        self.meow_unknown.save(update_fields=["health_status"])
+
+        with self.assertRaises(NoAvailableMeowInstanceError):
+            InstanceSelectorService.select_available_instance()
+
+    def test_selector_can_fallback_above_warning_up_to_max(self):
+        self.meow_healthy.warning_sessions = 1
+        self.meow_healthy.max_sessions = 2
+        self.meow_healthy.save(update_fields=["warning_sessions", "max_sessions"])
+        line = self._create_line(3)
+        WhatsAppSession.objects.create(
+            line=line,
+            meow_instance=self.meow_healthy,
+            session_id="session_3",
+        )
+        self.meow_unknown.health_status = MeowInstanceHealthStatus.UNAVAILABLE
+        self.meow_unknown.save(update_fields=["health_status"])
+
+        selected = InstanceSelectorService.select_available_instance(
+            allow_above_warning=True
+        )
+
+        self.assertEqual(selected, self.meow_healthy)
+
+
+@override_settings(WHATSAPP_MEOW_TIMEOUT_SECONDS=7)
+class MeowClientTests(TestCase):
+    def _mock_response(self, payload):
+        response = MagicMock()
+        response.read.return_value = json.dumps(payload).encode("utf-8")
+        context_manager = MagicMock()
+        context_manager.__enter__.return_value = response
+        context_manager.__exit__.return_value = False
+        return context_manager
+
+    @patch("whatsapp.clients.meow_client.request.urlopen")
+    def test_health_check_uses_expected_endpoint(self, urlopen):
+        urlopen.return_value = self._mock_response({"success": True})
+        client = MeowClient("http://meow.local/")
+
+        response = client.health_check()
+
+        self.assertEqual(response["success"], True)
+        called_request = urlopen.call_args.args[0]
+        self.assertEqual(called_request.full_url, "http://meow.local/api/health")
+        self.assertEqual(called_request.method, "GET")
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 7)
+
+    @patch("whatsapp.clients.meow_client.request.urlopen")
+    def test_create_session_posts_json_payload(self, urlopen):
+        urlopen.return_value = self._mock_response({"success": True, "sessionId": "s1"})
+        client = MeowClient("http://meow.local")
+
+        response = client.create_session("session_5511999990001")
+
+        self.assertEqual(response["sessionId"], "s1")
+        called_request = urlopen.call_args.args[0]
+        self.assertEqual(called_request.full_url, "http://meow.local/api/sessions")
+        self.assertEqual(called_request.method, "POST")
+        self.assertEqual(
+            json.loads(called_request.data.decode("utf-8")),
+            {"session_id": "session_5511999990001"},
+        )
+
+    @patch("whatsapp.clients.meow_client.request.urlopen")
+    def test_conflict_response_is_mapped(self, urlopen):
+        error_body = io.BytesIO(b'{"message":"session already exists"}')
+        urlopen.side_effect = HTTPError(
+            url="http://meow.local/api/sessions",
+            code=409,
+            msg="Conflict",
+            hdrs=None,
+            fp=error_body,
+        )
+        client = MeowClient("http://meow.local")
+
+        with self.assertRaises(MeowClientConflictError) as exc:
+            client.create_session("session_5511999990001")
+
+        self.assertEqual(exc.exception.status_code, 409)
+        self.assertIn("session already exists", str(exc.exception.detail))
+
+    @patch("whatsapp.clients.meow_client.request.urlopen")
+    def test_timeout_is_mapped(self, urlopen):
+        urlopen.side_effect = TimeoutError()
+        client = MeowClient("http://meow.local")
+
+        with self.assertRaises(MeowClientTimeoutError):
+            client.health_check()

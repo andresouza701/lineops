@@ -15,6 +15,7 @@ ENV/
 *.env
 .env.*
 !.env.example
+!.env.qa.example
 
 # Django / database
 db.sqlite3

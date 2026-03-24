@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     "telecom",
     "dashboard",
     "allocations",
+    "whatsapp",
 ]
 
 MIDDLEWARE = [
@@ -217,6 +218,7 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
 LOGIN_URL = "/accounts/login/"
 HEALTHCHECK_REQUIRE_AUTH = env.bool("HEALTHCHECK_REQUIRE_AUTH", default=False)
+WHATSAPP_MEOW_TIMEOUT_SECONDS = env.int("WHATSAPP_MEOW_TIMEOUT_SECONDS", default=5)
 
 CSRF_TRUSTED_ORIGINS = [
     "http://10.81.234.24",
