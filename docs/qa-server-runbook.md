@@ -211,14 +211,14 @@ docker compose --env-file .env.qa -f docker-compose.qa.yml logs db --tail=100
 Health local:
 
 ```bash
-curl -I http://localhost
-curl -k https://localhost/health/
+curl -I http://localhost:18080
+curl -k https://localhost:18443/health/
 ```
 
 Teste externo:
 
 ```bash
-curl -k https://qa.seu-dominio.com/health/
+curl -k https://10.103.4.178:18443/health/
 ```
 
 Esperado:
