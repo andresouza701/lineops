@@ -236,12 +236,15 @@ class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
     def post(self, request, *args, **kwargs):
         selected_instance = self._get_selected_instance(request.POST)
         selected_issue_code = self._get_selected_issue_code(request.POST)
+        selected_session = self._get_selected_session(request.POST)
         action = (request.POST.get("action") or "").strip()
 
         if action == "check_health":
             self._run_health_check(selected_instance)
         elif action == "sync_sessions":
             self._run_session_sync(selected_instance)
+        elif action == "sync_session":
+            self._run_single_session_sync(selected_session)
         elif action == "reconcile_sessions":
             self._run_session_reconcile(selected_instance)
         else:
@@ -268,6 +271,22 @@ class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
         if issue_code in WhatsAppSessionReconcileService.ISSUE_MESSAGES:
             return issue_code
         return None
+
+    def _get_selected_session(self, source) -> WhatsAppSession | None:
+        raw_session_pk = source.get("session_pk")
+        if not raw_session_pk:
+            return None
+
+        try:
+            session_pk = int(raw_session_pk)
+        except (TypeError, ValueError):
+            return None
+
+        return (
+            WhatsAppSession.objects.select_related("line", "meow_instance")
+            .filter(pk=session_pk)
+            .first()
+        )
 
     def _build_operations_url(
         self,
@@ -314,6 +333,28 @@ class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
             (
                 "Sincronizacao executada em "
                 f"{len(results)} sessao(oes): "
+                f"{success_count} sucesso, {failure_count} falha."
+            ),
+        )
+
+    def _run_single_session_sync(
+        self,
+        selected_session: WhatsAppSession | None,
+    ) -> None:
+        if selected_session is None:
+            messages.error(self.request, "Sessao operacional invalida.")
+            return
+
+        results = WhatsAppSessionSyncService().sync_sessions(
+            queryset=WhatsAppSession.objects.filter(pk=selected_session.pk),
+            include_inactive=True,
+        )
+        success_count = sum(result.success for result in results)
+        failure_count = len(results) - success_count
+        messages.success(
+            self.request,
+            (
+                f"Sessao {selected_session.session_id} sincronizada: "
                 f"{success_count} sucesso, {failure_count} falha."
             ),
         )

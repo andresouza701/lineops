@@ -7,7 +7,12 @@ from allocations.models import LineAllocation
 from core.exceptions.domain_exceptions import BusinessRuleException
 from employees.models import Employee
 from telecom.models import PhoneLine
+from whatsapp.models import MeowInstance, WhatsAppSession
 from whatsapp.services import WhatsAppProvisioningService
+from whatsapp.services.instance_selector import (
+    InstanceSelectorService,
+    NoAvailableMeowInstanceError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +20,36 @@ MAX_ACTIVE_ALLOCATIONS_PER_EMPLOYEE = 4
 
 
 class AllocationService:
+    @staticmethod
+    def _line_requires_new_whatsapp_session(phone_line: PhoneLine) -> bool:
+        return not WhatsAppSession.objects.filter(line=phone_line).exists()
+
+    @staticmethod
+    def _ensure_whatsapp_capacity_for_new_session(phone_line: PhoneLine) -> None:
+        if not AllocationService._line_requires_new_whatsapp_session(phone_line):
+            return
+
+        if not MeowInstance.objects.exists():
+            return
+
+        try:
+            InstanceSelectorService.select_available_instance()
+        except NoAvailableMeowInstanceError as exc:
+            logger.warning(
+                "Allocation blocked due to unavailable Meow capacity",
+                extra={
+                    "phone_line_id": phone_line.id,
+                    "phone_number": phone_line.phone_number,
+                },
+            )
+            raise BusinessRuleException(
+                (
+                    f"A linha {phone_line.phone_number} precisa de uma nova sessao "
+                    "WhatsApp, mas nao ha instancia Meow ativa com capacidade "
+                    "disponivel."
+                )
+            ) from exc
+
     @staticmethod
     def _run_provisioning_callback(
         callback_name: str,
@@ -80,6 +115,8 @@ class AllocationService:
             raise BusinessRuleException(
                 f"A linha {phone_line.phone_number} nao esta disponivel para alocacao."
             )
+
+        AllocationService._ensure_whatsapp_capacity_for_new_session(phone_line)
 
         allocation = LineAllocation.objects.create(
             employee=employee,

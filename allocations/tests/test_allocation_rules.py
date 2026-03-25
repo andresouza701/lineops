@@ -8,6 +8,8 @@ from core.services.allocation_service import AllocationService
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
+from whatsapp.models import MeowInstance, WhatsAppSession
+from whatsapp.services.instance_selector import NoAvailableMeowInstanceError
 
 
 class AllocationRulesTestCase(TestCase):
@@ -70,6 +72,68 @@ class AllocationRulesTestCase(TestCase):
             AllocationService.allocate_line(
                 employee=employee_2, phone_line=line, allocated_by=self.admin
             )
+
+    @patch(
+        "core.services.allocation_service.InstanceSelectorService.select_available_instance",
+        side_effect=NoAvailableMeowInstanceError("sem capacidade"),
+    )
+    def test_allocate_line_blocks_when_new_whatsapp_session_has_no_capacity(
+        self,
+        _select_available_instance,
+    ):
+        MeowInstance.objects.create(
+            name="QA Meow Saturado",
+            base_url="http://qa-meow-saturado.local",
+        )
+        line = self.lines[0]
+
+        with self.assertRaises(BusinessRuleException) as exc:
+            AllocationService.allocate_line(
+                employee=self.employee,
+                phone_line=line,
+                allocated_by=self.admin,
+            )
+
+        line.refresh_from_db()
+        self.assertIn("capacidade disponivel", str(exc.exception))
+        self.assertFalse(
+            PhoneLine.objects.filter(
+                pk=line.pk,
+                status=PhoneLine.Status.ALLOCATED,
+            ).exists()
+        )
+        self.assertEqual(line.status, PhoneLine.Status.AVAILABLE)
+        self.assertFalse(WhatsAppSession.objects.filter(line=line).exists())
+
+    @patch(
+        "core.services.allocation_service.InstanceSelectorService.select_available_instance",
+        side_effect=AssertionError("selector nao deveria ser chamado"),
+    )
+    def test_allocate_line_reuses_existing_whatsapp_session_without_capacity_check(
+        self,
+        _select_available_instance,
+    ):
+        meow = MeowInstance.objects.create(
+            name="QA Meow Reuso",
+            base_url="http://qa-meow-reuso.local",
+        )
+        line = self.lines[0]
+        WhatsAppSession.objects.create(
+            line=line,
+            meow_instance=meow,
+            session_id=f"session_{line.phone_number}",
+        )
+
+        allocation = AllocationService.allocate_line(
+            employee=self.employee,
+            phone_line=line,
+            allocated_by=self.admin,
+        )
+
+        allocation.refresh_from_db()
+        line.refresh_from_db()
+        self.assertTrue(allocation.is_active)
+        self.assertEqual(line.status, PhoneLine.Status.ALLOCATED)
 
     def test_full_allocation_flow(self):
         line = self.lines[0]

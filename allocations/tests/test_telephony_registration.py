@@ -10,7 +10,8 @@ from dashboard.models import DailyUserAction
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
-from whatsapp.models import WhatsAppSession
+from whatsapp.models import MeowInstance, WhatsAppSession
+from whatsapp.services.instance_selector import NoAvailableMeowInstanceError
 
 
 class TelephonyRegistrationFlowTests(TestCase):
@@ -102,6 +103,42 @@ class TelephonyRegistrationFlowTests(TestCase):
         self.assertEqual(action.action_type, DailyUserAction.ActionType.NEW_NUMBER)
         self.assertEqual(action.created_by, self.admin)
         self.assertEqual(WhatsAppSession.objects.filter(line=self.line).count(), 0)
+
+    @patch(
+        "core.services.allocation_service.InstanceSelectorService.select_available_instance",
+        side_effect=NoAvailableMeowInstanceError("sem capacidade"),
+    )
+    def test_existing_line_allocation_is_blocked_when_meow_is_configured_without_capacity(
+        self,
+        _select_available_instance,
+    ):
+        MeowInstance.objects.create(
+            name="QA Meow Saturado",
+            base_url="http://qa-meow-saturado.local",
+        )
+
+        response = self.client.post(
+            reverse("allocations:allocation_list"),
+            {
+                "action": "telephony",
+                "line_action": "existing",
+                "employee": self.employee.pk,
+                "phone_line": self.line.pk,
+            },
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "capacidade disponivel")
+        self.assertFalse(
+            LineAllocation.objects.filter(
+                employee=self.employee,
+                phone_line=self.line,
+                is_active=True,
+            ).exists()
+        )
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.status, PhoneLine.Status.AVAILABLE)
 
     def test_telephony_registration_form_includes_blip_origin_choice(self):
         form = TelephonyAssignmentForm()

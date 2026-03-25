@@ -202,6 +202,20 @@
                     <td>{{ result.detail }}</td>
                     <td>{{ result.session.last_error|default:"-" }}</td>
                     <td>
+                        <form method="post" action="{% url 'whatsapp_operations' %}" class="d-inline">
+                            {% csrf_token %}
+                            {% if selected_instance %}
+                            <input type="hidden" name="instance_id" value="{{ selected_instance.id }}">
+                            {% endif %}
+                            {% if selected_issue_code %}
+                            <input type="hidden" name="issue_code" value="{{ selected_issue_code }}">
+                            {% endif %}
+                            <input type="hidden" name="action" value="sync_session">
+                            <input type="hidden" name="session_pk" value="{{ result.session.pk }}">
+                            <button type="submit" class="btn btn-sm btn-outline-success">
+                                Sincronizar agora
+                            </button>
+                        </form>
                         {% if not result.session.line.is_deleted and not result.session.line.sim_card.is_deleted %}
                         <a
                             href="{% url 'telecom:phoneline_detail' result.session.line.pk %}"

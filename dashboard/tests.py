@@ -16,6 +16,7 @@ from whatsapp.models import MeowInstance, WhatsAppSession
 
 from .forms import DailyIndicatorForm
 from .models import DailyUserAction, DashboardDailySnapshot
+from .services import DashboardWhatsAppService
 
 
 class DashboardDailyIndicatorsTests(TestCase):
@@ -1476,6 +1477,106 @@ class DashboardDailyIndicatorsTests(TestCase):
             is_resolved=False,
         )
         self.assertEqual(action.action_type, DailyUserAction.ActionType.NEW_NUMBER)
+
+
+class DashboardWhatsAppServiceTests(TestCase):
+    def setUp(self):
+        self.user = SystemUser.objects.create_user(
+            email="dashboard-service@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.employee = Employee.objects.create(
+            full_name="Service User",
+            corporate_email="service@corp.com",
+            employee_id="Carteira X",
+            teams="Squad X",
+            status=Employee.Status.ACTIVE,
+        )
+        self.sim = SIMcard.objects.create(
+            iccid="8900000000000009001",
+            carrier="CarrierX",
+        )
+        self.line = PhoneLine.objects.create(
+            phone_number="+5511999999009",
+            sim_card=self.sim,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        self.allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=self.line,
+            allocated_by=self.user,
+            is_active=True,
+        )
+
+    def test_build_pending_summary_includes_counts_and_visible_line(self):
+        action = DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee,
+            allocation=self.allocation,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            note="Validar QR",
+            is_resolved=False,
+        )
+        rows = [
+            {
+                "employee": self.employee,
+                "allocation": self.allocation,
+                "action": action,
+            }
+        ]
+
+        summary = DashboardWhatsAppService.build_pending_summary(
+            rows,
+            action_board_url=reverse("daily_user_action_board"),
+            allocation_visibility_resolver=(
+                lambda allocation: allocation == self.allocation
+            ),
+        )
+
+        self.assertEqual(summary["total"], 1)
+        self.assertEqual(summary["new_number"], 0)
+        self.assertEqual(summary["reconnect_whatsapp"], 1)
+        self.assertEqual(
+            summary["action_board_url"],
+            reverse("daily_user_action_board"),
+        )
+        self.assertEqual(summary["items"][0]["phone_number"], self.line.phone_number)
+        self.assertEqual(
+            summary["items"][0]["line_detail_url"],
+            reverse("telecom:phoneline_detail", args=[self.line.pk]),
+        )
+
+    def test_build_meow_operational_summary_aggregates_instances_and_sessions(self):
+        healthy_meow = MeowInstance.objects.create(
+            name="Healthy Meow",
+            base_url="http://healthy-service.local",
+            health_status=MeowInstanceHealthStatus.HEALTHY,
+        )
+        MeowInstance.objects.create(
+            name="Unavailable Meow",
+            base_url="http://unavailable-service.local",
+            health_status=MeowInstanceHealthStatus.UNAVAILABLE,
+        )
+        WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=healthy_meow,
+            session_id=f"session_{self.line.phone_number}",
+            status=WhatsAppSessionStatus.QR_PENDING,
+            is_active=True,
+        )
+
+        summary = DashboardWhatsAppService.build_meow_operational_summary()
+
+        self.assertEqual(summary["total_instances"], 2)
+        self.assertEqual(summary["healthy_instances"], 1)
+        self.assertEqual(summary["unavailable_instances"], 1)
+        self.assertEqual(summary["active_sessions"], 1)
+        self.assertEqual(summary["pending_sessions"], 1)
+        self.assertEqual(summary["degraded_sessions"], 0)
 
 
 class DashboardMeowOperationalSummaryTests(TestCase):

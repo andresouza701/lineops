@@ -25,9 +25,6 @@ from core.services.daily_indicator_service import DailyIndicatorService
 from employees.models import Employee
 from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
-from whatsapp.choices import MeowInstanceHealthStatus, WhatsAppSessionStatus
-from whatsapp.models import MeowInstance, WhatsAppSession
-
 from .forms import (
     B2B_SUPERVISORS,
     B2C_SUPERVISORS,
@@ -36,6 +33,7 @@ from .forms import (
     DailyUserActionForm,
 )
 from .models import DailyIndicator, DailyUserAction, DashboardDailySnapshot
+from .services import DashboardWhatsAppService
 
 PERCENT_CRITICAL_THRESHOLD = 20
 PERCENT_WARNING_THRESHOLD = 10
@@ -299,63 +297,16 @@ def build_daily_user_action_rows(
 
 
 def count_visible_pending_actions(rows):
-    return {
-        "new_number": sum(
-            1
-            for row in rows
-            if row.get("action")
-            and row["action"].action_type == DailyUserAction.ActionType.NEW_NUMBER
-        ),
-        "reconnect_whatsapp": sum(
-            1
-            for row in rows
-            if row.get("action")
-            and row["action"].action_type
-            == DailyUserAction.ActionType.RECONNECT_WHATSAPP
-        ),
-    }
+    return DashboardWhatsAppService.count_pending_actions(rows)
 
 
-def build_whatsapp_pending_summary(rows, *, limit=8):
-    items = []
-    for row in rows:
-        action = row.get("action")
-        if not action or action.action_type not in {
-            DailyUserAction.ActionType.NEW_NUMBER,
-            DailyUserAction.ActionType.RECONNECT_WHATSAPP,
-        }:
-            continue
-
-        allocation = row.get("allocation")
-        phone_line = None
-        if allocation and allocation_is_currently_visible(allocation):
-            phone_line = allocation.phone_line
-
-        items.append(
-            {
-                "day": action.day,
-                "employee_name": row["employee"].full_name,
-                "portfolio": row["employee"].employee_id or "-",
-                "action_label": action.get_action_type_display(),
-                "phone_number": phone_line.phone_number if phone_line else "-",
-                "note": action.note or "-",
-                "line_detail_url": (
-                    reverse("telecom:phoneline_detail", args=[phone_line.pk])
-                    if phone_line
-                    else None
-                ),
-            }
-        )
-
-    items.sort(
-        key=lambda item: (item["day"], item["employee_name"].lower()),
-        reverse=True,
+def build_whatsapp_pending_summary(rows, *, limit=8, action_board_url=None):
+    return DashboardWhatsAppService.build_pending_summary(
+        rows,
+        limit=limit,
+        action_board_url=action_board_url,
+        allocation_visibility_resolver=allocation_is_currently_visible,
     )
-
-    return {
-        "total": len(items),
-        "items": items[:limit],
-    }
 
 
 def count_admin_resolved_reconnect_actions(user):
@@ -842,11 +793,15 @@ class DashboardView(AuthenticadView, TemplateView):
             status=Employee.Status.ACTIVE, is_deleted=False
         )
         rows = build_daily_user_action_rows(employees_qs, self.request.user)
-        action_counts = count_visible_pending_actions(rows)
-        whatsapp_pending_summary = build_whatsapp_pending_summary(rows)
-        pending_new_number_count = action_counts["new_number"]
-        pending_reconnect_whatsapp_count = action_counts["reconnect_whatsapp"]
         action_board_url = reverse("daily_user_action_board")
+        whatsapp_pending_summary = build_whatsapp_pending_summary(
+            rows,
+            action_board_url=action_board_url,
+        )
+        pending_new_number_count = whatsapp_pending_summary["new_number"]
+        pending_reconnect_whatsapp_count = whatsapp_pending_summary[
+            "reconnect_whatsapp"
+        ]
 
         latest_sem_whats = float(latest.get("perc_sem_whats", 0) or 0)
         latest_descoberto = int(latest.get("total_descoberto_dia", 0) or 0)
@@ -928,48 +883,11 @@ class DashboardView(AuthenticadView, TemplateView):
 
         return {
             "exception_cards": exception_cards,
-            "whatsapp_pending_summary": {
-                **whatsapp_pending_summary,
-                "action_board_url": action_board_url,
-                "new_number": pending_new_number_count,
-                "reconnect_whatsapp": pending_reconnect_whatsapp_count,
-            },
+            "whatsapp_pending_summary": whatsapp_pending_summary,
         }
 
     def _build_meow_operational_summary(self):
-        instances = MeowInstance.objects.all()
-        active_sessions = WhatsAppSession.objects.filter(is_active=True)
-
-        return {
-            "total_instances": instances.count(),
-            "healthy_instances": instances.filter(
-                health_status=MeowInstanceHealthStatus.HEALTHY
-            ).count(),
-            "degraded_instances": instances.filter(
-                health_status=MeowInstanceHealthStatus.DEGRADED
-            ).count(),
-            "unavailable_instances": instances.filter(
-                health_status=MeowInstanceHealthStatus.UNAVAILABLE
-            ).count(),
-            "active_sessions": active_sessions.count(),
-            "connected_sessions": active_sessions.filter(
-                status=WhatsAppSessionStatus.CONNECTED
-            ).count(),
-            "pending_sessions": active_sessions.filter(
-                status__in=[
-                    WhatsAppSessionStatus.PENDING_NEW_NUMBER,
-                    WhatsAppSessionStatus.PENDING_RECONNECT,
-                    WhatsAppSessionStatus.CONNECTING,
-                    WhatsAppSessionStatus.QR_PENDING,
-                ]
-            ).count(),
-            "degraded_sessions": active_sessions.filter(
-                status__in=[
-                    WhatsAppSessionStatus.ERROR,
-                    WhatsAppSessionStatus.DISCONNECTED,
-                ]
-            ).count(),
-        }
+        return DashboardWhatsAppService.build_meow_operational_summary()
 
     def _build_negociador_data(self):
         employees = Employee.objects.filter(is_deleted=False)
