@@ -30,3 +30,16 @@ class WhatsAppActionType(models.TextChoices):
 class WhatsAppActionStatus(models.TextChoices):
     SUCCESS = "SUCCESS", "Success"
     FAILURE = "FAILURE", "Failure"
+
+
+class WhatsAppSchedulerJobCode(models.TextChoices):
+    HEALTH_CHECK = "HEALTH_CHECK", "Health check"
+    SESSION_SYNC = "SESSION_SYNC", "Session sync"
+    SESSION_RECONCILE = "SESSION_RECONCILE", "Session reconcile"
+
+
+class WhatsAppSchedulerJobStatus(models.TextChoices):
+    IDLE = "IDLE", "Idle"
+    RUNNING = "RUNNING", "Running"
+    SUCCESS = "SUCCESS", "Success"
+    FAILURE = "FAILURE", "Failure"

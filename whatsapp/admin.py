@@ -1,7 +1,12 @@
 from django.contrib import admin
 from django.db.models import Count, Q
 
-from whatsapp.models import MeowInstance, WhatsAppActionAudit, WhatsAppSession
+from whatsapp.models import (
+    MeowInstance,
+    WhatsAppActionAudit,
+    WhatsAppScheduledJob,
+    WhatsAppSession,
+)
 from whatsapp.services.health_service import MeowHealthCheckService
 from whatsapp.services.reconcile_service import WhatsAppSessionReconcileService
 from whatsapp.services.sync_service import WhatsAppSessionSyncService
@@ -152,4 +157,30 @@ class WhatsAppActionAuditAdmin(admin.ModelAdmin):
         "duration_ms",
         "created_by",
         "created_at",
+    )
+
+
+@admin.register(WhatsAppScheduledJob)
+class WhatsAppScheduledJobAdmin(admin.ModelAdmin):
+    list_display = (
+        "job_code",
+        "interval_seconds",
+        "last_status",
+        "is_running",
+        "last_started_at",
+        "last_finished_at",
+        "next_run_at",
+    )
+    list_filter = ("job_code", "last_status", "is_running")
+    readonly_fields = (
+        "job_code",
+        "interval_seconds",
+        "last_status",
+        "last_detail",
+        "is_running",
+        "last_started_at",
+        "last_finished_at",
+        "next_run_at",
+        "created_at",
+        "updated_at",
     )

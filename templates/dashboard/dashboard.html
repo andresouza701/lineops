@@ -58,8 +58,9 @@
                     <th>Carteira</th>
                     <th>Acao</th>
                     <th>Linha</th>
+                    <th>Status WhatsApp</th>
                     <th>Observacao</th>
-                    <th></th>
+                    <th>Acesso</th>
                 </tr>
             </thead>
             <tbody>
@@ -69,14 +70,17 @@
                         <td>{{ item.portfolio }}</td>
                         <td>{{ item.action_label }}</td>
                         <td>{{ item.phone_number }}</td>
+                        <td>{{ item.whatsapp_status_summary }}</td>
                         <td>{{ item.note }}</td>
                         <td class="text-end">
                             {% if item.line_detail_url %}
                                 <a href="{{ item.line_detail_url }}" class="btn btn-sm btn-outline-primary">
                                     Abrir linha
                                 </a>
-                            {% else %}
+                            {% elif user.role == "admin" %}
                                 <span class="text-muted small">Sem linha visivel</span>
+                            {% else %}
+                                <span class="text-muted small">QR restrito ao admin</span>
                             {% endif %}
                         </td>
                     </tr>

@@ -17,6 +17,7 @@ from whatsapp.services.health_service import MeowHealthCheckService
 from whatsapp.services.metrics_service import WhatsAppMetricsService
 from whatsapp.services.reconcile_service import WhatsAppSessionReconcileService
 from whatsapp.services.rollout_service import MeowRolloutService
+from whatsapp.services.scheduler_service import WhatsAppOpsSchedulerService
 from whatsapp.services.session_service import (
     WhatsAppSessionNotConfiguredError,
     WhatsAppSessionService,
@@ -219,6 +220,9 @@ class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
             include_inactive=True
         )
         context["rollout_summary"] = MeowRolloutService().build_summary()
+        context["scheduler_job_summaries"] = (
+            WhatsAppOpsSchedulerService().build_job_summaries()
+        )
         context["instance_metric_summaries"] = (
             WhatsAppMetricsService().summarize_instances(
                 queryset=metrics_queryset,

@@ -6,6 +6,8 @@ from whatsapp.choices import (
     MeowInstanceHealthStatus,
     WhatsAppActionStatus,
     WhatsAppActionType,
+    WhatsAppSchedulerJobCode,
+    WhatsAppSchedulerJobStatus,
     WhatsAppSessionStatus,
 )
 
@@ -117,3 +119,34 @@ class WhatsAppActionAudit(models.Model):
 
     def __str__(self):
         return f"{self.session.session_id} - {self.action} - {self.status}"
+
+
+class WhatsAppScheduledJob(models.Model):
+    job_code = models.CharField(
+        max_length=32,
+        choices=WhatsAppSchedulerJobCode.choices,
+        unique=True,
+        db_index=True,
+    )
+    interval_seconds = models.PositiveIntegerField()
+    is_running = models.BooleanField(default=False, db_index=True)
+    last_status = models.CharField(
+        max_length=16,
+        choices=WhatsAppSchedulerJobStatus.choices,
+        default=WhatsAppSchedulerJobStatus.IDLE,
+    )
+    last_detail = models.TextField(blank=True)
+    last_started_at = models.DateTimeField(null=True, blank=True)
+    last_finished_at = models.DateTimeField(null=True, blank=True)
+    next_run_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["job_code"]
+        indexes = [
+            models.Index(fields=["is_running", "next_run_at"]),
+        ]
+
+    def __str__(self):
+        return self.get_job_code_display()

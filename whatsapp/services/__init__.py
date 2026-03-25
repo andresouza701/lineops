@@ -22,6 +22,12 @@ from whatsapp.services.rollout_service import (
     MeowRolloutStage,
     MeowRolloutSummary,
 )
+from whatsapp.services.scheduler_service import (
+    WhatsAppOpsSchedulerService,
+    WhatsAppSchedulerJobDefinition,
+    WhatsAppSchedulerJobSummary,
+    WhatsAppSchedulerRunResult,
+)
 from whatsapp.services.session_service import (
     WhatsAppSessionNotConfiguredError,
     WhatsAppSessionResult,
@@ -45,6 +51,10 @@ __all__ = [
     "MeowRolloutService",
     "MeowRolloutStage",
     "MeowRolloutSummary",
+    "WhatsAppOpsSchedulerService",
+    "WhatsAppSchedulerJobDefinition",
+    "WhatsAppSchedulerJobSummary",
+    "WhatsAppSchedulerRunResult",
     "WhatsAppSessionNotConfiguredError",
     "WhatsAppSessionService",
     "WhatsAppSessionResult",

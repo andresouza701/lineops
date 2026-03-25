@@ -39,6 +39,11 @@ No `.env.qa`, mantenha pelo menos:
 ```env
 WHATSAPP_MEOW_TIMEOUT_SECONDS=5
 WHATSAPP_SESSION_STALE_MINUTES=30
+WHATSAPP_OPS_INCLUDE_INACTIVE=False
+WHATSAPP_OPS_SCHEDULER_TICK_SECONDS=30
+WHATSAPP_OPS_HEALTH_INTERVAL_SECONDS=300
+WHATSAPP_OPS_SYNC_INTERVAL_SECONDS=600
+WHATSAPP_OPS_RECONCILE_INTERVAL_SECONDS=3600
 WHATSAPP_METRICS_WINDOW_HOURS=24
 WHATSAPP_MEOW_ROLLOUT_STAGES=25,30,35,40
 WHATSAPP_MEOW_ROLLOUT_BUFFER=5
@@ -52,6 +57,9 @@ considerada desatualizada na reconciliacao e na visao operacional.
 `WHATSAPP_MEOW_ROLLOUT_STAGES` define as etapas liberadas por instancia no
 rollout progressivo. Com `buffer=5` e teto operacional `45`, a etapa final
 `40` reproduz a politica `target=35`, `warning=40`, `max=45`.
+
+O scheduler embutido roda fora do processo web, em um worker dedicado, com os
+intervalos definidos por `WHATSAPP_OPS_*`.
 
 ## Bootstrap inicial das instancias Meow
 
@@ -157,6 +165,25 @@ Por padrao:
 
 Com 5 `meows` ativos na etapa final `40`, o gatilho de abertura do 6o Meow
 fica definido em `200` sessoes ativas no total.
+
+### Scheduler dedicado da app
+
+Como alternativa ao cron do host, o app agora pode executar os jobs
+periodicos em um processo dedicado:
+
+```bash
+cd /opt/lineops/lineops
+./scripts/run_qa_manage_command.sh run_whatsapp_ops_scheduler --run-once
+./scripts/run_qa_manage_command.sh run_whatsapp_ops_scheduler
+```
+
+O comando agenda:
+
+- `HEALTH_CHECK` a cada `WHATSAPP_OPS_HEALTH_INTERVAL_SECONDS`
+- `SESSION_SYNC` a cada `WHATSAPP_OPS_SYNC_INTERVAL_SECONDS`
+- `SESSION_RECONCILE` a cada `WHATSAPP_OPS_RECONCILE_INTERVAL_SECONDS`
+
+Mantenha esse scheduler em processo separado do `web`.
 
 Se algum comando falhar aqui, nao instale o cron ainda. Corrija o ambiente primeiro.
 

@@ -190,7 +190,7 @@ def get_active_allocations_by_employee(employee_ids):
             phone_line__is_deleted=False,
             phone_line__sim_card__is_deleted=False,
         )
-        .select_related("phone_line")
+        .select_related("phone_line", "phone_line__whatsapp_session__meow_instance")
         .order_by("employee_id", "-allocated_at")
     )
 
@@ -306,6 +306,7 @@ def build_whatsapp_pending_summary(rows, *, limit=8, action_board_url=None):
         limit=limit,
         action_board_url=action_board_url,
         allocation_visibility_resolver=allocation_is_currently_visible,
+        include_line_detail_url=False,
     )
 
 
@@ -798,6 +799,13 @@ class DashboardView(AuthenticadView, TemplateView):
             rows,
             action_board_url=action_board_url,
         )
+        if self.request.user.role == SystemUser.Role.ADMIN:
+            whatsapp_pending_summary = DashboardWhatsAppService.build_pending_summary(
+                rows,
+                action_board_url=action_board_url,
+                allocation_visibility_resolver=allocation_is_currently_visible,
+                include_line_detail_url=True,
+            )
         pending_new_number_count = whatsapp_pending_summary["new_number"]
         pending_reconnect_whatsapp_count = whatsapp_pending_summary[
             "reconnect_whatsapp"

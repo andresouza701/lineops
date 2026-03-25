@@ -19,14 +19,24 @@ from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 from whatsapp.admin import MeowInstanceAdmin, WhatsAppSessionAdmin
-from whatsapp.choices import MeowInstanceHealthStatus, WhatsAppSessionStatus
+from whatsapp.choices import (
+    MeowInstanceHealthStatus,
+    WhatsAppSchedulerJobCode,
+    WhatsAppSchedulerJobStatus,
+    WhatsAppSessionStatus,
+)
 from whatsapp.clients.exceptions import (
     MeowClientConflictError,
     MeowClientTimeoutError,
     MeowClientUnavailableError,
 )
 from whatsapp.clients.meow_client import MeowClient
-from whatsapp.models import MeowInstance, WhatsAppActionAudit, WhatsAppSession
+from whatsapp.models import (
+    MeowInstance,
+    WhatsAppActionAudit,
+    WhatsAppScheduledJob,
+    WhatsAppSession,
+)
 from whatsapp.services.capacity_service import MeowCapacityService
 from whatsapp.services.health_service import MeowHealthCheckService
 from whatsapp.services.instance_selector import (
@@ -37,6 +47,7 @@ from whatsapp.services.metrics_service import WhatsAppMetricsService
 from whatsapp.services.provisioning_service import WhatsAppProvisioningService
 from whatsapp.services.reconcile_service import WhatsAppSessionReconcileService
 from whatsapp.services.rollout_service import MeowRolloutService
+from whatsapp.services.scheduler_service import WhatsAppOpsSchedulerService
 from whatsapp.services.session_service import (
     WhatsAppSessionNotConfiguredError,
     WhatsAppSessionResult,
@@ -83,6 +94,15 @@ class WhatsAppModelTests(TestCase):
 
         with self.assertRaises(ValidationError):
             invalid_instance.full_clean()
+
+    def test_scheduled_job_defaults_to_idle(self):
+        job = WhatsAppScheduledJob.objects.create(
+            job_code=WhatsAppSchedulerJobCode.HEALTH_CHECK,
+            interval_seconds=300,
+        )
+
+        self.assertEqual(job.last_status, WhatsAppSchedulerJobStatus.IDLE)
+        self.assertFalse(job.is_running)
 
     def test_whatsapp_session_defaults_to_pending_new_number(self):
         session = WhatsAppSession.objects.create(
@@ -1135,6 +1155,124 @@ class MeowRolloutServiceTests(TestCase):
         self.assertIn("Abrir o 6o Meow", summary.recommendation)
 
 
+@override_settings(
+    WHATSAPP_OPS_INCLUDE_INACTIVE=False,
+    WHATSAPP_OPS_HEALTH_INTERVAL_SECONDS=300,
+    WHATSAPP_OPS_SYNC_INTERVAL_SECONDS=600,
+    WHATSAPP_OPS_RECONCILE_INTERVAL_SECONDS=3600,
+)
+class WhatsAppOpsSchedulerServiceTests(TestCase):
+    @patch("whatsapp.services.scheduler_service.MeowHealthCheckService")
+    @patch("whatsapp.services.scheduler_service.WhatsAppSessionSyncService")
+    @patch("whatsapp.services.scheduler_service.WhatsAppSessionReconcileService")
+    def test_scheduler_runs_due_jobs_and_persists_state(
+        self,
+        reconcile_service_class,
+        sync_service_class,
+        health_service_class,
+    ):
+        health_service_class.return_value.check_instances.return_value = [
+            MagicMock(health_status="HEALTHY"),
+            MagicMock(health_status="DEGRADED"),
+        ]
+        sync_service_class.return_value.sync_sessions.return_value = [
+            MagicMock(success=True),
+            MagicMock(success=False),
+        ]
+        reconcile_service_class.return_value.reconcile_sessions.return_value = [
+            MagicMock(is_consistent=True),
+            MagicMock(is_consistent=False),
+        ]
+
+        now = timezone.now()
+        results = WhatsAppOpsSchedulerService().run_due_jobs(now=now)
+
+        self.assertEqual(len(results), 3)
+        self.assertTrue(all(result.ran for result in results))
+        self.assertEqual(WhatsAppScheduledJob.objects.count(), 3)
+
+        health_job = WhatsAppScheduledJob.objects.get(
+            job_code=WhatsAppSchedulerJobCode.HEALTH_CHECK
+        )
+        sync_job = WhatsAppScheduledJob.objects.get(
+            job_code=WhatsAppSchedulerJobCode.SESSION_SYNC
+        )
+        reconcile_job = WhatsAppScheduledJob.objects.get(
+            job_code=WhatsAppSchedulerJobCode.SESSION_RECONCILE
+        )
+
+        self.assertEqual(health_job.last_status, WhatsAppSchedulerJobStatus.SUCCESS)
+        self.assertIn("2 instancia(s) verificadas", health_job.last_detail)
+        self.assertEqual(sync_job.last_status, WhatsAppSchedulerJobStatus.SUCCESS)
+        self.assertIn("1 sucesso, 1 falha", sync_job.last_detail)
+        self.assertEqual(
+            reconcile_job.last_status,
+            WhatsAppSchedulerJobStatus.SUCCESS,
+        )
+        self.assertIn(
+            "1 consistente(s), 1 com inconsistencias",
+            reconcile_job.last_detail,
+        )
+        self.assertFalse(health_job.is_running)
+        self.assertIsNotNone(health_job.next_run_at)
+
+    @patch("whatsapp.services.scheduler_service.MeowHealthCheckService")
+    @patch("whatsapp.services.scheduler_service.WhatsAppSessionSyncService")
+    @patch("whatsapp.services.scheduler_service.WhatsAppSessionReconcileService")
+    def test_scheduler_skips_jobs_that_are_not_due(
+        self,
+        reconcile_service_class,
+        sync_service_class,
+        health_service_class,
+    ):
+        now = timezone.now()
+        future = now + timedelta(minutes=30)
+        for job_code, interval_seconds in (
+            (WhatsAppSchedulerJobCode.HEALTH_CHECK, 300),
+            (WhatsAppSchedulerJobCode.SESSION_SYNC, 600),
+            (WhatsAppSchedulerJobCode.SESSION_RECONCILE, 3600),
+        ):
+            WhatsAppScheduledJob.objects.create(
+                job_code=job_code,
+                interval_seconds=interval_seconds,
+                last_status=WhatsAppSchedulerJobStatus.SUCCESS,
+                next_run_at=future,
+            )
+
+        results = WhatsAppOpsSchedulerService().run_due_jobs(now=now)
+
+        self.assertEqual(len(results), 3)
+        self.assertTrue(all(not result.ran for result in results))
+        health_service_class.return_value.check_instances.assert_not_called()
+        sync_service_class.return_value.sync_sessions.assert_not_called()
+        reconcile_service_class.return_value.reconcile_sessions.assert_not_called()
+
+    @patch("whatsapp.services.scheduler_service.MeowHealthCheckService")
+    @patch("whatsapp.services.scheduler_service.WhatsAppSessionSyncService")
+    @patch("whatsapp.services.scheduler_service.WhatsAppSessionReconcileService")
+    def test_scheduler_marks_failure_and_releases_job_lock(
+        self,
+        reconcile_service_class,
+        sync_service_class,
+        health_service_class,
+    ):
+        health_service_class.return_value.check_instances.side_effect = RuntimeError(
+            "meow offline"
+        )
+        sync_service_class.return_value.sync_sessions.return_value = []
+        reconcile_service_class.return_value.reconcile_sessions.return_value = []
+
+        WhatsAppOpsSchedulerService().run_due_jobs(now=timezone.now())
+
+        health_job = WhatsAppScheduledJob.objects.get(
+            job_code=WhatsAppSchedulerJobCode.HEALTH_CHECK
+        )
+        self.assertEqual(health_job.last_status, WhatsAppSchedulerJobStatus.FAILURE)
+        self.assertEqual(health_job.last_detail, "meow offline")
+        self.assertFalse(health_job.is_running)
+        self.assertIsNotNone(health_job.next_run_at)
+
+
 class MeowInstanceAdminTests(TestCase):
     def setUp(self):
         self.superuser = SystemUser.objects.create_superuser(
@@ -1781,6 +1919,17 @@ class WhatsAppOperationsViewTests(TestCase):
         self.assertEqual(rollout_summary.current_stage.stage_sessions, 40)
         self.assertFalse(rollout_summary.should_open_sixth_meow)
 
+    def test_operations_view_exposes_scheduler_job_summaries(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("whatsapp_operations"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Agendador operacional")
+        scheduler_job_summaries = response.context["scheduler_job_summaries"]
+        self.assertEqual(len(scheduler_job_summaries), 3)
+        self.assertEqual(scheduler_job_summaries[0].last_status, "IDLE")
+
     @patch("whatsapp.views.MeowHealthCheckService")
     def test_operations_view_post_runs_health_check_for_selected_instance(
         self,
@@ -2091,3 +2240,46 @@ class ApplyMeowRolloutStageCommandTests(TestCase):
 
         with self.assertRaises(CommandError):
             call_command("apply_meow_rollout_stage", stage=33)
+
+
+class RunWhatsAppOpsSchedulerCommandTests(TestCase):
+    @patch(
+        "whatsapp.management.commands.run_whatsapp_ops_scheduler.WhatsAppOpsSchedulerService"
+    )
+    def test_command_run_once_executes_due_jobs(self, service_class):
+        service = service_class.return_value
+        service.run_due_jobs.return_value = [
+            MagicMock(
+                ran=True,
+                job_code="HEALTH_CHECK",
+                status="SUCCESS",
+                detail="1 instancia(s) verificadas",
+                next_run_at=timezone.now(),
+            )
+        ]
+        stdout = io.StringIO()
+
+        call_command("run_whatsapp_ops_scheduler", run_once=True, stdout=stdout)
+
+        service.run_due_jobs.assert_called_once()
+        self.assertIn("HEALTH_CHECK: SUCCESS", stdout.getvalue())
+
+    @patch(
+        "whatsapp.management.commands.run_whatsapp_ops_scheduler.WhatsAppOpsSchedulerService"
+    )
+    def test_command_run_once_reports_when_nothing_is_due(self, service_class):
+        service = service_class.return_value
+        service.run_due_jobs.return_value = [
+            MagicMock(
+                ran=False,
+                job_code="HEALTH_CHECK",
+                status="SUCCESS",
+                detail="",
+                next_run_at=timezone.now(),
+            )
+        ]
+        stdout = io.StringIO()
+
+        call_command("run_whatsapp_ops_scheduler", run_once=True, stdout=stdout)
+
+        self.assertIn("Nenhum job elegivel neste ciclo.", stdout.getvalue())

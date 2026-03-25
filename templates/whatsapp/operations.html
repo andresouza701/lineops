@@ -67,6 +67,49 @@
 <section class="surface-card reveal-item mb-3">
     <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
         <div>
+            <h2 class="h5 mb-1">Agendador operacional</h2>
+            <p class="text-muted mb-0">
+                Health check, sync e reconciliacao executados por processo dedicado.
+            </p>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Job</th>
+                    <th>Intervalo</th>
+                    <th>Status</th>
+                    <th>Ultima execucao</th>
+                    <th>Proxima execucao</th>
+                    <th>Detalhe</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for summary in scheduler_job_summaries %}
+                <tr>
+                    <td>{{ summary.label }}</td>
+                    <td>{{ summary.interval_seconds }}s</td>
+                    <td>
+                        {% if summary.is_running %}
+                        RUNNING
+                        {% else %}
+                        {{ summary.last_status }}
+                        {% endif %}
+                    </td>
+                    <td>{{ summary.last_finished_at|date:"d/m/Y H:i"|default:"-" }}</td>
+                    <td>{{ summary.next_run_at|date:"d/m/Y H:i"|default:"-" }}</td>
+                    <td>{{ summary.last_detail|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="surface-card reveal-item mb-3">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div>
             <h2 class="h5 mb-1">Instancias Meow</h2>
             <p class="text-muted mb-0">
                 Saude, capacidade e distribuicao de sessoes por instancia.

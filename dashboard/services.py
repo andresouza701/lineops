@@ -47,6 +47,7 @@ class DashboardWhatsAppService:
         limit: int = 8,
         action_board_url: str | None = None,
         allocation_visibility_resolver=None,
+        include_line_detail_url: bool = False,
     ) -> dict:
         if allocation_visibility_resolver is None:
             allocation_visibility_resolver = lambda allocation: bool(allocation)
@@ -61,6 +62,7 @@ class DashboardWhatsAppService:
             phone_line = None
             if allocation and allocation_visibility_resolver(allocation):
                 phone_line = allocation.phone_line
+            session = cls._get_phone_line_session(phone_line)
 
             items.append(
                 {
@@ -69,10 +71,14 @@ class DashboardWhatsAppService:
                     "portfolio": row["employee"].employee_id or "-",
                     "action_label": action.get_action_type_display(),
                     "phone_number": phone_line.phone_number if phone_line else "-",
+                    "whatsapp_status_summary": cls._build_status_summary(
+                        phone_line,
+                        session,
+                    ),
                     "note": action.note or "-",
                     "line_detail_url": (
                         reverse("telecom:phoneline_detail", args=[phone_line.pk])
-                        if phone_line
+                        if phone_line and include_line_detail_url
                         else None
                     ),
                 }
@@ -91,6 +97,24 @@ class DashboardWhatsAppService:
         if action_board_url is not None:
             summary["action_board_url"] = action_board_url
         return summary
+
+    @staticmethod
+    def _get_phone_line_session(phone_line):
+        if not phone_line:
+            return None
+
+        try:
+            return phone_line.whatsapp_session
+        except WhatsAppSession.DoesNotExist:
+            return None
+
+    @classmethod
+    def _build_status_summary(cls, phone_line, session) -> str:
+        if not phone_line:
+            return "Sem linha visivel"
+        if session is None:
+            return "Nao configurado"
+        return session.get_status_display()
 
     @classmethod
     def build_meow_operational_summary(cls) -> dict[str, int]:

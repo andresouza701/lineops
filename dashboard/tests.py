@@ -346,6 +346,17 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertEqual(pending_reconnect["value"], 1)
 
     def test_dashboard_shows_whatsapp_pending_summary_section(self):
+        meow = MeowInstance.objects.create(
+            name="Dashboard Pending Meow",
+            base_url="http://dashboard-pending-meow.local",
+            health_status=MeowInstanceHealthStatus.HEALTHY,
+        )
+        WhatsAppSession.objects.create(
+            line=self.line_allocated,
+            meow_instance=meow,
+            session_id=f"session_{self.line_allocated.phone_number}",
+            status=WhatsAppSessionStatus.QR_PENDING,
+        )
         DailyUserAction.objects.create(
             day=timezone.localdate(),
             employee=self.employee_b2b,
@@ -367,6 +378,7 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertContains(response, "Fila WhatsApp")
         self.assertContains(response, self.employee_b2b.full_name)
         self.assertContains(response, self.line_allocated.phone_number)
+        self.assertContains(response, "QR pendente")
         self.assertContains(response, "Validar QR da linha")
         self.assertContains(
             response,
@@ -1510,6 +1522,17 @@ class DashboardWhatsAppServiceTests(TestCase):
         )
 
     def test_build_pending_summary_includes_counts_and_visible_line(self):
+        meow = MeowInstance.objects.create(
+            name="Pending Summary Meow",
+            base_url="http://pending-summary-meow.local",
+            health_status=MeowInstanceHealthStatus.HEALTHY,
+        )
+        WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=meow,
+            session_id=f"session_{self.line.phone_number}",
+            status=WhatsAppSessionStatus.CONNECTED,
+        )
         action = DailyUserAction.objects.create(
             day=timezone.localdate(),
             employee=self.employee,
@@ -1535,6 +1558,7 @@ class DashboardWhatsAppServiceTests(TestCase):
             allocation_visibility_resolver=(
                 lambda allocation: allocation == self.allocation
             ),
+            include_line_detail_url=True,
         )
 
         self.assertEqual(summary["total"], 1)
@@ -1545,10 +1569,52 @@ class DashboardWhatsAppServiceTests(TestCase):
             reverse("daily_user_action_board"),
         )
         self.assertEqual(summary["items"][0]["phone_number"], self.line.phone_number)
+        self.assertEqual(summary["items"][0]["whatsapp_status_summary"], "Conectado")
         self.assertEqual(
             summary["items"][0]["line_detail_url"],
             reverse("telecom:phoneline_detail", args=[self.line.pk]),
         )
+
+    def test_build_pending_summary_hides_line_detail_when_only_summary_is_allowed(self):
+        meow = MeowInstance.objects.create(
+            name="Restricted Summary Meow",
+            base_url="http://restricted-summary-meow.local",
+            health_status=MeowInstanceHealthStatus.HEALTHY,
+        )
+        WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=meow,
+            session_id=f"session_{self.line.phone_number}",
+            status=WhatsAppSessionStatus.ERROR,
+        )
+        action = DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee,
+            allocation=self.allocation,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            note="Somente resumo",
+            is_resolved=False,
+        )
+
+        summary = DashboardWhatsAppService.build_pending_summary(
+            [
+                {
+                    "employee": self.employee,
+                    "allocation": self.allocation,
+                    "action": action,
+                }
+            ],
+            allocation_visibility_resolver=(
+                lambda allocation: allocation == self.allocation
+            ),
+            include_line_detail_url=False,
+        )
+
+        self.assertEqual(summary["items"][0]["whatsapp_status_summary"], "Erro")
+        self.assertIsNone(summary["items"][0]["line_detail_url"])
 
     def test_build_meow_operational_summary_aggregates_instances_and_sessions(self):
         healthy_meow = MeowInstance.objects.create(
@@ -1949,6 +2015,17 @@ class ManagerScopeTests(TestCase):
             allocated_by=self.other_supervisor,
             is_active=True,
         )
+        meow = MeowInstance.objects.create(
+            name="Manager Scope Meow",
+            base_url="http://manager-scope-meow.local",
+            health_status=MeowInstanceHealthStatus.HEALTHY,
+        )
+        WhatsAppSession.objects.create(
+            line=managed_line,
+            meow_instance=meow,
+            session_id=f"session_{managed_line.phone_number}",
+            status=WhatsAppSessionStatus.ERROR,
+        )
         DailyUserAction.objects.create(
             day=timezone.localdate(),
             employee=self.managed_employee,
@@ -1977,8 +2054,16 @@ class ManagerScopeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         summary = response.context["whatsapp_pending_summary"]
         self.assertEqual(summary["total"], 1)
+        self.assertEqual(summary["items"][0]["whatsapp_status_summary"], "Erro")
+        self.assertIsNone(summary["items"][0]["line_detail_url"])
         self.assertContains(response, "Fila WhatsApp")
         self.assertContains(response, "Usuario Vinculado")
+        self.assertContains(response, "Erro")
+        self.assertContains(response, "QR restrito ao admin")
         self.assertContains(response, "Pendencia do escopo")
+        self.assertNotContains(
+            response,
+            reverse("telecom:phoneline_detail", args=[managed_line.pk]),
+        )
         self.assertNotContains(response, "Usuario Nao Vinculado")
         self.assertNotContains(response, "Nao deveria aparecer")
