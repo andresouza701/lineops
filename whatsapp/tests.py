@@ -43,6 +43,7 @@ from whatsapp.services.instance_selector import (
     InstanceSelectorService,
     NoAvailableMeowInstanceError,
 )
+from whatsapp.services.load_test_service import WhatsAppLoadTestService
 from whatsapp.services.metrics_service import WhatsAppMetricsService
 from whatsapp.services.provisioning_service import WhatsAppProvisioningService
 from whatsapp.services.reconcile_service import WhatsAppSessionReconcileService
@@ -1273,6 +1274,75 @@ class WhatsAppOpsSchedulerServiceTests(TestCase):
         self.assertIsNotNone(health_job.next_run_at)
 
 
+class WhatsAppLoadTestServiceTests(TestCase):
+    def setUp(self):
+        self.meow = MeowInstance.objects.create(
+            name="Load Test Meow",
+            base_url="http://load-test-meow.local",
+            health_status=MeowInstanceHealthStatus.HEALTHY,
+        )
+        self.session_a = self._create_session(
+            "+5511999990701",
+            "89000000000000997001",
+        )
+        self.session_b = self._create_session(
+            "+5511999990702",
+            "89000000000000997002",
+        )
+
+    def _create_session(self, phone_number, iccid):
+        sim = SIMcard.objects.create(
+            iccid=iccid,
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        line = PhoneLine.objects.create(
+            phone_number=phone_number,
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        return WhatsAppSession.objects.create(
+            line=line,
+            meow_instance=self.meow,
+            session_id=f"session_{phone_number}",
+            status=WhatsAppSessionStatus.CONNECTED,
+        )
+
+    @patch("whatsapp.services.load_test_service.MeowClient.get_session")
+    def test_load_test_service_summarizes_success_and_failure(self, get_session):
+        get_session.side_effect = [
+            {"status": "CONNECTED"},
+            RuntimeError("timeout meow"),
+        ]
+
+        summary = WhatsAppLoadTestService().run(
+            scenario="client_get_session",
+            session_limit=2,
+            concurrency=2,
+            connected_only=True,
+        )
+
+        self.assertEqual(summary.selected_sessions, 2)
+        self.assertEqual(summary.success_count, 1)
+        self.assertEqual(summary.failure_count, 1)
+        self.assertEqual(len(summary.instance_summaries), 1)
+        self.assertEqual(summary.instance_summaries[0].instance_name, self.meow.name)
+        self.assertEqual(summary.instance_summaries[0].total_requests, 2)
+        self.assertEqual(len(summary.failures), 1)
+        self.assertEqual(summary.failures[0].detail, "timeout meow")
+        self.assertIsNotNone(summary.average_latency_ms)
+        self.assertIsNotNone(summary.p95_latency_ms)
+
+    def test_load_test_service_requires_minimum_session_sample(self):
+        with self.assertRaises(ValueError):
+            WhatsAppLoadTestService().run(
+                scenario="client_get_session",
+                session_limit=1,
+                min_sessions=3,
+                connected_only=True,
+            )
+
+
 class MeowInstanceAdminTests(TestCase):
     def setUp(self):
         self.superuser = SystemUser.objects.create_superuser(
@@ -2283,3 +2353,55 @@ class RunWhatsAppOpsSchedulerCommandTests(TestCase):
         call_command("run_whatsapp_ops_scheduler", run_once=True, stdout=stdout)
 
         self.assertIn("Nenhum job elegivel neste ciclo.", stdout.getvalue())
+
+
+class RunWhatsAppLoadTestCommandTests(TestCase):
+    @patch("whatsapp.management.commands.run_whatsapp_load_test.WhatsAppLoadTestService.run")
+    def test_command_prints_summary(self, run_method):
+        run_method.return_value = MagicMock(
+            label="Leitura remota via MeowClient.get_session",
+            selected_sessions=200,
+            concurrency=25,
+            success_count=200,
+            failure_count=0,
+            average_latency_ms=120,
+            p95_latency_ms=180,
+            instance_summaries=[
+                MagicMock(
+                    instance_name="QA Meow 01",
+                    total_requests=40,
+                    success_count=40,
+                    failure_count=0,
+                )
+            ],
+            failures=[],
+        )
+        stdout = io.StringIO()
+
+        call_command(
+            "run_whatsapp_load_test",
+            scenario="client_get_session",
+            session_limit=200,
+            min_sessions=200,
+            concurrency=25,
+            connected_only=True,
+            stdout=stdout,
+        )
+
+        run_method.assert_called_once()
+        output = stdout.getvalue()
+        self.assertIn("Cenario: Leitura remota via MeowClient.get_session", output)
+        self.assertIn("Sessoes selecionadas: 200", output)
+        self.assertIn("QA Meow 01", output)
+
+    @patch("whatsapp.management.commands.run_whatsapp_load_test.WhatsAppLoadTestService.run")
+    def test_command_raises_command_error_on_invalid_sample(self, run_method):
+        run_method.side_effect = ValueError("Sessoes insuficientes")
+
+        with self.assertRaises(CommandError):
+            call_command(
+                "run_whatsapp_load_test",
+                scenario="client_get_session",
+                session_limit=200,
+                min_sessions=200,
+            )

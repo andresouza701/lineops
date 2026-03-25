@@ -8,6 +8,12 @@ from whatsapp.services.instance_selector import (
     InstanceSelectorService,
     NoAvailableMeowInstanceError,
 )
+from whatsapp.services.load_test_service import (
+    WhatsAppLoadTestInstanceSummary,
+    WhatsAppLoadTestRequestResult,
+    WhatsAppLoadTestService,
+    WhatsAppLoadTestSummary,
+)
 from whatsapp.services.metrics_service import (
     MeowMetricsSummary,
     WhatsAppMetricsService,
@@ -46,6 +52,10 @@ __all__ = [
     "MeowHealthCheckService",
     "InstanceSelectorService",
     "NoAvailableMeowInstanceError",
+    "WhatsAppLoadTestInstanceSummary",
+    "WhatsAppLoadTestRequestResult",
+    "WhatsAppLoadTestService",
+    "WhatsAppLoadTestSummary",
     "MeowMetricsSummary",
     "WhatsAppMetricsService",
     "MeowRolloutService",

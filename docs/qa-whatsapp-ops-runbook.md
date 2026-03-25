@@ -185,6 +185,45 @@ O comando agenda:
 
 Mantenha esse scheduler em processo separado do `web`.
 
+## 11. Teste de carga e concorrencia
+
+O app agora expõe um harness de carga por management command:
+
+```bash
+cd /opt/lineops/lineops
+./scripts/run_qa_manage_command.sh run_whatsapp_load_test --scenario client_get_session --connected-only --session-limit 200 --min-sessions 200 --concurrency 25
+```
+
+Esse comando executa chamadas concorrentes sobre a amostra selecionada e
+resume sucesso, falha, latencia media, p95 e distribuicao por instancia.
+
+### Cenarios atuais
+
+- `client_get_session`: leitura remota via `MeowClient.get_session`
+- `client_get_qr`: leitura remota via `MeowClient.get_qr`
+- `client_connect_session`: escrita remota via `MeowClient.connect_session`
+- `service_get_status`: leitura ponta a ponta via `WhatsAppSessionService.get_status`
+- `service_get_qr`: leitura ponta a ponta via `WhatsAppSessionService.get_qr`
+
+### Validar 200 numeros conectados
+
+```bash
+./scripts/run_qa_manage_command.sh run_whatsapp_load_test --scenario client_get_session --connected-only --session-limit 200 --min-sessions 200 --concurrency 25
+./scripts/run_qa_manage_command.sh run_whatsapp_load_test --scenario service_get_status --connected-only --session-limit 200 --min-sessions 200 --concurrency 20
+```
+
+### Sonda de escrita concorrente no contrato atual
+
+Como o LineOps ainda nao expoe endpoint de envio de mensagem, a sonda de
+escrita concorrente disponivel hoje usa `client_connect_session`:
+
+```bash
+./scripts/run_qa_manage_command.sh run_whatsapp_load_test --scenario client_connect_session --connected-only --session-limit 50 --min-sessions 50 --concurrency 10
+```
+
+Quando o contrato de envio for incorporado ao app, a recomendacao e adicionar
+um novo cenario dedicado ao endpoint real de mensagem.
+
 Se algum comando falhar aqui, nao instale o cron ainda. Corrija o ambiente primeiro.
 
 ## 5. Instalar o cron
