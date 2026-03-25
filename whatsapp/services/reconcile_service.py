@@ -20,6 +20,15 @@ class WhatsAppSessionReconcileResult:
 
 
 class WhatsAppSessionReconcileService:
+    ISSUE_MESSAGES = {
+        "LINE_HIDDEN": "Linha ou SIMcard oculto no inventario.",
+        "INSTANCE_INACTIVE": "Instancia Meow inativa.",
+        "INSTANCE_UNAVAILABLE": "Instancia Meow indisponivel no ultimo health check.",
+        "INSTANCE_DEGRADED": "Instancia Meow degradada no ultimo health check.",
+        "NEVER_SYNCED": "Sessao ainda nao foi sincronizada.",
+        "SYNC_STALE": "Sessao com sincronizacao desatualizada.",
+    }
+
     def reconcile_sessions(
         self,
         *,
@@ -77,14 +86,4 @@ class WhatsAppSessionReconcileService:
         return session.last_sync_at < threshold
 
     def _build_detail(self, issues: list[str]) -> str:
-        issue_messages = {
-            "LINE_HIDDEN": "Linha ou SIMcard oculto no inventario.",
-            "INSTANCE_INACTIVE": "Instancia Meow inativa.",
-            "INSTANCE_UNAVAILABLE": (
-                "Instancia Meow indisponivel no ultimo health check."
-            ),
-            "INSTANCE_DEGRADED": "Instancia Meow degradada no ultimo health check.",
-            "NEVER_SYNCED": "Sessao ainda nao foi sincronizada.",
-            "SYNC_STALE": "Sessao com sincronizacao desatualizada.",
-        }
-        return " ".join(issue_messages[issue] for issue in issues)
+        return " ".join(self.ISSUE_MESSAGES[issue] for issue in issues)

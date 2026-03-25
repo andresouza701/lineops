@@ -1,21 +1,16 @@
 from __future__ import annotations
 
-from datetime import timedelta
-
 from django.conf import settings
 from django.contrib import messages
-from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
-from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
 from core.mixins import RoleRequiredMixin
 from telecom.models import PhoneLine
 from users.models import SystemUser
-from whatsapp.choices import MeowInstanceHealthStatus, WhatsAppSessionStatus
 from whatsapp.models import MeowInstance, WhatsAppSession
 from whatsapp.services.capacity_service import MeowCapacityService
 from whatsapp.services.health_service import MeowHealthCheckService
@@ -211,13 +206,26 @@ class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         selected_instance = self._get_selected_instance(self.request.GET)
+        selected_issue_code = self._get_selected_issue_code(self.request.GET)
+        inconsistent_results = self._get_inconsistent_session_results(
+            selected_instance_id=getattr(selected_instance, "id", None)
+        )
         context["instance_summaries"] = MeowCapacityService().summarize_instances(
             include_inactive=True
         )
-        context["problem_sessions"] = self._get_problem_sessions(
-            selected_instance_id=getattr(selected_instance, "id", None)
+        context["issue_summary_counts"] = self._build_issue_summary_counts(
+            inconsistent_results
+        )
+        context["problem_session_results"] = self._filter_problem_session_results(
+            inconsistent_results,
+            selected_issue_code=selected_issue_code,
         )
         context["selected_instance"] = selected_instance
+        context["selected_issue_code"] = selected_issue_code
+        context["issue_filter_options"] = [
+            {"code": code, "label": label}
+            for code, label in WhatsAppSessionReconcileService.ISSUE_MESSAGES.items()
+        ]
         context["stale_minutes"] = getattr(
             settings,
             "WHATSAPP_SESSION_STALE_MINUTES",
@@ -227,6 +235,7 @@ class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
 
     def post(self, request, *args, **kwargs):
         selected_instance = self._get_selected_instance(request.POST)
+        selected_issue_code = self._get_selected_issue_code(request.POST)
         action = (request.POST.get("action") or "").strip()
 
         if action == "check_health":
@@ -238,7 +247,9 @@ class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
         else:
             messages.error(request, "Acao operacional invalida.")
 
-        return redirect(self._build_operations_url(selected_instance))
+        return redirect(
+            self._build_operations_url(selected_instance, selected_issue_code)
+        )
 
     def _get_selected_instance(self, source):
         raw_instance_id = source.get("instance_id")
@@ -252,11 +263,26 @@ class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
 
         return MeowInstance.objects.filter(pk=instance_id).first()
 
-    def _build_operations_url(self, selected_instance: MeowInstance | None) -> str:
+    def _get_selected_issue_code(self, source) -> str | None:
+        issue_code = (source.get("issue_code") or "").strip().upper()
+        if issue_code in WhatsAppSessionReconcileService.ISSUE_MESSAGES:
+            return issue_code
+        return None
+
+    def _build_operations_url(
+        self,
+        selected_instance: MeowInstance | None,
+        selected_issue_code: str | None = None,
+    ) -> str:
         base_url = reverse("whatsapp_operations")
-        if selected_instance is None:
+        query_params = []
+        if selected_instance is not None:
+            query_params.append(f"instance_id={selected_instance.id}")
+        if selected_issue_code:
+            query_params.append(f"issue_code={selected_issue_code}")
+        if not query_params:
             return base_url
-        return f"{base_url}?instance_id={selected_instance.id}"
+        return f"{base_url}?{'&'.join(query_params)}"
 
     def _run_health_check(self, selected_instance: MeowInstance | None) -> None:
         queryset = MeowInstance.objects.all()
@@ -312,33 +338,52 @@ class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
             ),
         )
 
-    def _get_problem_sessions(self, *, selected_instance_id: int | None = None):
-        stale_minutes = getattr(settings, "WHATSAPP_SESSION_STALE_MINUTES", 30)
-        stale_threshold = timezone.now() - timedelta(minutes=stale_minutes)
-
-        queryset = WhatsAppSession.objects.select_related(
-            "line__sim_card",
-            "meow_instance",
-        )
+    def _get_inconsistent_session_results(
+        self,
+        *,
+        selected_instance_id: int | None = None,
+    ):
+        queryset = WhatsAppSession.objects.all()
         if selected_instance_id is not None:
             queryset = queryset.filter(meow_instance_id=selected_instance_id)
 
-        return (
-            queryset.filter(
-                Q(last_error__gt="")
-                | Q(
-                    status__in=[
-                        WhatsAppSessionStatus.ERROR,
-                        WhatsAppSessionStatus.DISCONNECTED,
-                    ]
-                )
-                | Q(meow_instance__health_status=MeowInstanceHealthStatus.DEGRADED)
-                | Q(meow_instance__health_status=MeowInstanceHealthStatus.UNAVAILABLE)
-                | Q(meow_instance__is_active=False)
-                | Q(line__is_deleted=True)
-                | Q(line__sim_card__is_deleted=True)
-                | Q(last_sync_at__isnull=True)
-                | Q(last_sync_at__lt=stale_threshold)
-            )
-            .order_by("-last_sync_at", "-updated_at")[:25]
+        results = WhatsAppSessionReconcileService().reconcile_sessions(
+            queryset=queryset,
+            include_inactive=True,
         )
+        inconsistent_results = [
+            result for result in results if not result.is_consistent
+        ]
+        return sorted(
+            inconsistent_results,
+            key=lambda result: result.session.last_sync_at or result.session.updated_at,
+            reverse=True,
+        )
+
+    def _filter_problem_session_results(
+        self,
+        results,
+        *,
+        selected_issue_code: str | None = None,
+    ):
+        if selected_issue_code:
+            results = [
+                result
+                for result in results
+                if selected_issue_code in result.issue_codes
+            ]
+        return results[:25]
+
+    def _build_issue_summary_counts(self, results):
+        counts = []
+        for code, label in WhatsAppSessionReconcileService.ISSUE_MESSAGES.items():
+            total = sum(code in result.issue_codes for result in results)
+            if total:
+                counts.append(
+                    {
+                        "code": code,
+                        "label": label,
+                        "count": total,
+                    }
+                )
+        return sorted(counts, key=lambda item: (-item["count"], item["code"]))

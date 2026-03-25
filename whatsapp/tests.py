@@ -1438,6 +1438,10 @@ class WhatsAppOperationsViewTests(TestCase):
         self.assertContains(response, self.healthy_meow.name)
         self.assertContains(response, self.unavailable_meow.name)
         self.assertContains(response, "sem conexao com meow")
+        self.assertContains(
+            response,
+            reverse("telecom:phoneline_detail", args=[self.problem_session.line.pk]),
+        )
 
     def test_operations_view_allows_dev(self):
         self.client.force_login(self.dev)
@@ -1467,6 +1471,28 @@ class WhatsAppOperationsViewTests(TestCase):
         self.assertContains(response, self.problem_session.session_id)
         self.assertNotContains(response, self.healthy_problem_session.session_id)
 
+    def test_operations_view_can_filter_problem_sessions_by_issue_code(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("whatsapp_operations"),
+            {"issue_code": "INSTANCE_UNAVAILABLE"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "INSTANCE_UNAVAILABLE")
+        self.assertContains(response, self.problem_session.session_id)
+        self.assertNotContains(response, self.healthy_problem_session.session_id)
+
+    def test_operations_view_shows_issue_summary_links(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("whatsapp_operations"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "INSTANCE_UNAVAILABLE (1)")
+        self.assertContains(response, "SYNC_STALE (2)")
+
     @patch("whatsapp.views.MeowHealthCheckService")
     def test_operations_view_post_runs_health_check_for_selected_instance(
         self,
@@ -1481,13 +1507,14 @@ class WhatsAppOperationsViewTests(TestCase):
             {
                 "action": "check_health",
                 "instance_id": str(self.unavailable_meow.pk),
+                "issue_code": "INSTANCE_UNAVAILABLE",
             },
         )
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
             response["Location"],
-            f"{reverse('whatsapp_operations')}?instance_id={self.unavailable_meow.pk}",
+            f"{reverse('whatsapp_operations')}?instance_id={self.unavailable_meow.pk}&issue_code=INSTANCE_UNAVAILABLE",
         )
         queryset = service.check_instances.call_args.kwargs["queryset"]
         self.assertEqual(
