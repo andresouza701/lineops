@@ -9,6 +9,10 @@ from whatsapp.services.instance_selector import (
     NoAvailableMeowInstanceError,
 )
 from whatsapp.services.provisioning_service import WhatsAppProvisioningService
+from whatsapp.services.reconcile_service import (
+    WhatsAppSessionReconcileResult,
+    WhatsAppSessionReconcileService,
+)
 from whatsapp.services.session_service import (
     WhatsAppSessionNotConfiguredError,
     WhatsAppSessionResult,
@@ -31,6 +35,8 @@ __all__ = [
     "WhatsAppSessionService",
     "WhatsAppSessionResult",
     "WhatsAppSessionServiceError",
+    "WhatsAppSessionReconcileResult",
+    "WhatsAppSessionReconcileService",
     "WhatsAppSessionSyncResult",
     "WhatsAppSessionSyncService",
     "WhatsAppAuditService",

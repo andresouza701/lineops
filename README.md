@@ -119,6 +119,8 @@ docker compose -f docker-compose.qa.yml up -d --build
 Detalhes operacionais e sizing estÃ£o em [docs/qa-deployment.md](/C:/Users/andre.souza/Desktop/reviewer/lineops/docs/qa-deployment.md).
 O passo a passo completo do servidor estÃ¡ em [docs/qa-server-runbook.md](/C:/Users/andre.souza/Desktop/reviewer/lineops/docs/qa-server-runbook.md).
 
+Os jobs operacionais do WhatsApp em QA estao em [docs/qa-whatsapp-ops-runbook.md](/C:/Users/andre.souza/Desktop/reviewer/lineops/docs/qa-whatsapp-ops-runbook.md).
+
 ## Troubleshooting (QA)
 
 ### Erro: `DB_PASSWORD not set`

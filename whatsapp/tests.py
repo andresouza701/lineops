@@ -1,5 +1,6 @@
 import io
 import json
+from datetime import timedelta
 from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError
 
@@ -31,6 +32,7 @@ from whatsapp.services.instance_selector import (
     NoAvailableMeowInstanceError,
 )
 from whatsapp.services.provisioning_service import WhatsAppProvisioningService
+from whatsapp.services.reconcile_service import WhatsAppSessionReconcileService
 from whatsapp.services.session_service import (
     WhatsAppSessionNotConfiguredError,
     WhatsAppSessionResult,
@@ -781,6 +783,102 @@ class WhatsAppSessionSyncServiceTests(TestCase):
         )
 
 
+class WhatsAppSessionReconcileServiceTests(TestCase):
+    def setUp(self):
+        self.service = WhatsAppSessionReconcileService()
+        self.meow_ok = MeowInstance.objects.create(
+            name="Reconcile OK Meow",
+            base_url="http://reconcile-ok-meow.local",
+            health_status=MeowInstanceHealthStatus.HEALTHY,
+        )
+        self.meow_bad = MeowInstance.objects.create(
+            name="Reconcile Bad Meow",
+            base_url="http://reconcile-bad-meow.local",
+            health_status=MeowInstanceHealthStatus.UNAVAILABLE,
+            is_active=False,
+        )
+
+    def _create_session(
+        self,
+        phone_number,
+        *,
+        meow_instance,
+        line_deleted=False,
+        sim_deleted=False,
+        minutes_since_sync=5,
+    ):
+        sim = SIMcard.all_objects.create(
+            iccid=f"8900000000000{phone_number[-6:]}",
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+            is_deleted=sim_deleted,
+        )
+        line = PhoneLine.all_objects.create(
+            phone_number=phone_number,
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+            is_deleted=line_deleted,
+        )
+        return WhatsAppSession.objects.create(
+            line=line,
+            meow_instance=meow_instance,
+            session_id=f"session_{phone_number}",
+            status=WhatsAppSessionStatus.CONNECTED,
+            last_sync_at=timezone.now() - timedelta(minutes=minutes_since_sync),
+        )
+
+    @override_settings(WHATSAPP_SESSION_STALE_MINUTES=30)
+    def test_reconcile_detects_structural_and_stale_issues(self):
+        healthy_session = self._create_session(
+            "+5511999990031",
+            meow_instance=self.meow_ok,
+            minutes_since_sync=5,
+        )
+        inconsistent_session = self._create_session(
+            "+5511999990032",
+            meow_instance=self.meow_bad,
+            line_deleted=True,
+            minutes_since_sync=90,
+        )
+
+        results = self.service.reconcile_sessions(include_inactive=True)
+        result_map = {result.session.session_id: result for result in results}
+
+        self.assertTrue(result_map[healthy_session.session_id].is_consistent)
+        self.assertFalse(result_map[inconsistent_session.session_id].is_consistent)
+        self.assertEqual(
+            result_map[inconsistent_session.session_id].issue_codes,
+            [
+                "LINE_HIDDEN",
+                "INSTANCE_INACTIVE",
+                "INSTANCE_UNAVAILABLE",
+                "SYNC_STALE",
+            ],
+        )
+
+    @patch(
+        "whatsapp.management.commands.reconcile_whatsapp_sessions.WhatsAppSessionReconcileService"
+    )
+    def test_command_filters_sessions_by_instance(self, service_class):
+        session = self._create_session(
+            "+5511999990033",
+            meow_instance=self.meow_ok,
+            minutes_since_sync=5,
+        )
+        service = service_class.return_value
+        service.reconcile_sessions.return_value = []
+        stdout = io.StringIO()
+
+        call_command(
+            "reconcile_whatsapp_sessions",
+            instance_id=self.meow_ok.pk,
+            stdout=stdout,
+        )
+
+        queryset = service.reconcile_sessions.call_args.kwargs["queryset"]
+        self.assertEqual(list(queryset.values_list("pk", flat=True)), [session.pk])
+
+
 class MeowInstanceAdminTests(TestCase):
     def setUp(self):
         self.superuser = SystemUser.objects.create_superuser(
@@ -943,6 +1041,23 @@ class WhatsAppSessionAdminTests(TestCase):
             self.admin_instance.sync_selected_sessions(request, queryset)
 
         service.sync_sessions.assert_called_once_with(
+            queryset=queryset,
+            include_inactive=True,
+        )
+        message_user.assert_called_once()
+
+    @patch("whatsapp.admin.WhatsAppSessionReconcileService")
+    def test_admin_action_reconciles_selected_sessions(self, service_class):
+        service = service_class.return_value
+        service.reconcile_sessions.return_value = [MagicMock(is_consistent=False)]
+        request = self.factory.post("/admin/whatsapp/whatsappsession/")
+        request.user = self.superuser
+        queryset = WhatsAppSession.objects.filter(pk=self.session.pk)
+
+        with patch.object(self.admin_instance, "message_user") as message_user:
+            self.admin_instance.reconcile_selected_sessions(request, queryset)
+
+        service.reconcile_sessions.assert_called_once_with(
             queryset=queryset,
             include_inactive=True,
         )
