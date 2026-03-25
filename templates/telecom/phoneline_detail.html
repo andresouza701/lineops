@@ -15,33 +15,273 @@
     </div>
 </div>
 
-<div class="card shadow-sm border-0">
-    <div class="card-body">
-        <dl class="row mb-0">
-            <dt class="col-sm-3">Número</dt>
-            <dd class="col-sm-9">{{ phone_line.phone_number }}</dd>
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-body">
+                <h5 class="card-title mb-3">Informacoes da Linha</h5>
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">Numero</dt>
+                    <dd class="col-sm-9">{{ phone_line.phone_number }}</dd>
 
-            <dt class="col-sm-3">Status</dt>
-            <dd class="col-sm-9">{{ phone_line.get_status_display }}</dd>
+                    <dt class="col-sm-3">Status</dt>
+                    <dd class="col-sm-9">{{ phone_line.get_status_display }}</dd>
 
-            <dt class="col-sm-3">ICCID</dt>
-            <dd class="col-sm-9">{{ phone_line.sim_card.iccid }}</dd>
+                    <dt class="col-sm-3">ICCID</dt>
+                    <dd class="col-sm-9">{{ phone_line.sim_card.iccid }}</dd>
 
-            <dt class="col-sm-3">Operadora</dt>
-            <dd class="col-sm-9">{{ phone_line.sim_card.carrier }}</dd>
+                    <dt class="col-sm-3">Operadora</dt>
+                    <dd class="col-sm-9">{{ phone_line.sim_card.carrier }}</dd>
 
-            <dt class="col-sm-3">Origem</dt>
-            <dd class="col-sm-9">{{ phone_line.get_origem_display|default:"-" }}</dd>
+                    <dt class="col-sm-3">Origem</dt>
+                    <dd class="col-sm-9">{{ phone_line.get_origem_display|default:"-" }}</dd>
 
-            <dt class="col-sm-3">Ativada em</dt>
-            <dd class="col-sm-9">{{ phone_line.activated_at|date:"d/m/Y H:i"|default:"-" }}</dd>
-        </dl>
+                    <dt class="col-sm-3">Ativada em</dt>
+                    <dd class="col-sm-9">{{ phone_line.activated_at|date:"d/m/Y H:i"|default:"-" }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div
+            class="card shadow-sm border-0 h-100"
+            id="whatsapp-session-card"
+            data-status-url="{% url 'telecom:whatsapp:status' phone_line.pk %}"
+            data-qr-url="{% url 'telecom:whatsapp:qr' phone_line.pk %}"
+        >
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h5 class="card-title mb-1">WhatsApp</h5>
+                        <p class="text-muted small mb-0">
+                            Sessao vinculada a linha operacional
+                        </p>
+                    </div>
+                    <span class="badge text-bg-secondary" id="whatsapp-status-badge">
+                        Nao configurado
+                    </span>
+                </div>
+
+                <dl class="row mb-3 small">
+                    <dt class="col-sm-4">Sessao</dt>
+                    <dd class="col-sm-8 mb-2" id="whatsapp-session-id">-</dd>
+
+                    <dt class="col-sm-4">Instancia</dt>
+                    <dd class="col-sm-8 mb-2" id="whatsapp-meow-instance">-</dd>
+
+                    <dt class="col-sm-4">Ultima sync</dt>
+                    <dd class="col-sm-8 mb-2" id="whatsapp-last-sync">-</dd>
+
+                    <dt class="col-sm-4">Conectada em</dt>
+                    <dd class="col-sm-8 mb-0" id="whatsapp-connected-at">-</dd>
+                </dl>
+
+                <div class="alert alert-light border small mb-3" id="whatsapp-last-error">
+                    Nenhum erro registrado.
+                </div>
+
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <form
+                        method="post"
+                        action="{% url 'telecom:whatsapp:connect' phone_line.pk %}"
+                        class="m-0"
+                    >
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-success">
+                            Conectar
+                        </button>
+                    </form>
+
+                    <form
+                        method="post"
+                        action="{% url 'telecom:whatsapp:disconnect' phone_line.pk %}"
+                        class="m-0"
+                    >
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            Desconectar
+                        </button>
+                    </form>
+
+                    <button
+                        type="button"
+                        class="btn btn-sm btn-outline-primary"
+                        id="whatsapp-refresh-status"
+                    >
+                        Consultar status
+                    </button>
+
+                    <button
+                        type="button"
+                        class="btn btn-sm btn-outline-dark"
+                        id="whatsapp-refresh-qr"
+                    >
+                        Consultar QR
+                    </button>
+                </div>
+
+                <div class="border rounded p-3 bg-light-subtle">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <strong class="small">QR Code</strong>
+                        <span class="text-muted small" id="whatsapp-qr-meta">
+                            Nenhum QR carregado
+                        </span>
+                    </div>
+
+                    <div
+                        id="whatsapp-qr-container"
+                        class="text-center d-flex align-items-center justify-content-center"
+                        style="min-height: 220px;"
+                    >
+                        <span class="text-muted small">
+                            Use "Consultar QR" para buscar o codigo da sessao.
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
 <div class="mt-3">
     <a href="{% url 'telecom:phoneline_history' phone_line.pk %}" class="btn btn-outline-primary">
-        Ver histórico
+        Ver historico
     </a>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+    (() => {
+        const card = document.getElementById("whatsapp-session-card");
+        if (!card) return;
+
+        const statusUrl = card.dataset.statusUrl;
+        const qrUrl = card.dataset.qrUrl;
+
+        const badge = document.getElementById("whatsapp-status-badge");
+        const sessionId = document.getElementById("whatsapp-session-id");
+        const meowInstance = document.getElementById("whatsapp-meow-instance");
+        const lastSync = document.getElementById("whatsapp-last-sync");
+        const connectedAt = document.getElementById("whatsapp-connected-at");
+        const lastError = document.getElementById("whatsapp-last-error");
+        const qrMeta = document.getElementById("whatsapp-qr-meta");
+        const qrContainer = document.getElementById("whatsapp-qr-container");
+        const refreshStatusButton = document.getElementById("whatsapp-refresh-status");
+        const refreshQrButton = document.getElementById("whatsapp-refresh-qr");
+
+        const statusClassMap = {
+            CONNECTED: "text-bg-success",
+            QR_PENDING: "text-bg-warning",
+            CONNECTING: "text-bg-info",
+            DISCONNECTED: "text-bg-secondary",
+            ERROR: "text-bg-danger",
+            PENDING_NEW_NUMBER: "text-bg-dark",
+            PENDING_RECONNECT: "text-bg-dark",
+        };
+
+        function resetBadge(statusDisplay, statusValue) {
+            badge.className = "badge";
+            badge.classList.add(statusClassMap[statusValue] || "text-bg-secondary");
+            badge.textContent = statusDisplay || "Nao configurado";
+        }
+
+        function renderSession(payload) {
+            resetBadge(payload.status_display, payload.status);
+            sessionId.textContent = payload.session_id || "-";
+            meowInstance.textContent = payload.meow_instance || "-";
+            lastSync.textContent = payload.last_sync_at || "-";
+            connectedAt.textContent = payload.connected_at || "-";
+
+            if (payload.error || payload.last_error) {
+                lastError.className = "alert alert-danger small mb-3";
+                lastError.textContent = payload.error || payload.last_error;
+            } else {
+                lastError.className = "alert alert-light border small mb-3";
+                lastError.textContent = "Nenhum erro registrado.";
+            }
+        }
+
+        function renderQr(payload) {
+            if (payload.qr_code) {
+                qrMeta.textContent = payload.has_qr ? "QR disponivel" : "Sem QR";
+                qrContainer.innerHTML = `
+                    <img
+                        src="data:image/png;base64,${payload.qr_code}"
+                        alt="QR Code WhatsApp"
+                        class="img-fluid rounded border bg-white p-2"
+                        style="max-height: 220px;"
+                    >
+                `;
+                return;
+            }
+
+            if (payload.status === "QR_PENDING") {
+                qrMeta.textContent = "QR pendente";
+                qrContainer.innerHTML = `
+                    <span class="text-muted small">
+                        O QR ainda nao foi carregado. Clique em "Consultar QR" para atualizar.
+                    </span>
+                `;
+                return;
+            }
+
+            qrMeta.textContent = payload.connected ? "Sessao conectada" : "Nenhum QR disponivel";
+            qrContainer.innerHTML = `
+                <span class="text-muted small">
+                    ${payload.connected
+                        ? "A sessao ja esta conectada."
+                        : "Nenhum QR disponivel no momento."}
+                </span>
+            `;
+        }
+
+        async function fetchPayload(url) {
+            const response = await fetch(url, {
+                headers: { "X-Requested-With": "XMLHttpRequest" },
+            });
+            const contentType = response.headers.get("content-type") || "";
+
+            if (!contentType.includes("application/json")) {
+                throw new Error("Resposta invalida ao consultar a sessao WhatsApp.");
+            }
+
+            const payload = await response.json();
+            if (!response.ok && !payload.error) {
+                payload.error = "Falha ao consultar a sessao WhatsApp.";
+            }
+
+            return payload;
+        }
+
+        async function loadStatus() {
+            try {
+                const payload = await fetchPayload(statusUrl);
+                renderSession(payload);
+                renderQr(payload);
+            } catch (error) {
+                lastError.className = "alert alert-danger small mb-3";
+                lastError.textContent = error.message;
+            }
+        }
+
+        async function loadQr() {
+            try {
+                const payload = await fetchPayload(qrUrl);
+                renderSession(payload);
+                renderQr(payload);
+            } catch (error) {
+                lastError.className = "alert alert-danger small mb-3";
+                lastError.textContent = error.message;
+            }
+        }
+
+        refreshStatusButton.addEventListener("click", loadStatus);
+        refreshQrButton.addEventListener("click", loadQr);
+
+        loadStatus();
+    })();
+</script>
 {% endblock %}

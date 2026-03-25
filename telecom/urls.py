@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import include, path
 
 from .views import (
     BlipConfigurationCreateView,
@@ -36,32 +36,46 @@ urlpatterns = [
         name="blip_configuration_update",
     ),
     path("simcards/", SIMcardListView.as_view(), name="simcard_list"),
-    path("phonelines/create/", PhoneLineCreateView.as_view(), name="phoneline_create"),
     path(
-        "phonelines/<int:pk>/", PhoneLineDetailView.as_view(), name="phoneline_detail"
+        "phonelines/create/",
+        PhoneLineCreateView.as_view(),
+        name="phoneline_create",  # noqa: E501
+    ),
+    path(
+        "phonelines/<int:pk>/",
+        PhoneLineDetailView.as_view(),
+        name="phoneline_detail",  # noqa: E501
     ),
     path(
         "phonelines/<int:pk>/update/",
         PhoneLineUpdateView.as_view(),
-        name="phoneline_update",
+        name="phoneline_update",  # noqa: E501
     ),
     path(
         "phonelines/<int:pk>/delete/",
         PhoneLineDeleteView.as_view(),
-        name="phoneline_delete",
+        name="phoneline_delete",  # noqa: E501
     ),
     path(
         "phonelines/<int:pk>/history/",
         PhoneLineHistoryView.as_view(),
-        name="phoneline_history",
+        name="phoneline_history",  # noqa: E501
     ),
-    path("simcards/create/", SIMcardCreateView.as_view(), name="simcard_create"),
     path(
-        "simcards/<int:pk>/update/", SIMcardUpdateView.as_view(), name="simcard_update"
+        "simcards/create/", SIMcardCreateView.as_view(), name="simcard_create"
+    ),  # noqa: E501
+    path(
+        "simcards/<int:pk>/update/",
+        SIMcardUpdateView.as_view(),
+        name="simcard_update",  # noqa: E501
     ),
     path(
         "phonelines/<int:pk>/history/export/",
         ExportPhoneLinesCSVView.as_view(),
-        name="phoneline_history_export",
+        name="phoneline_history_export",  # noqa: E501
+    ),
+    path(
+        "phonelines/<int:line_pk>/whatsapp/",
+        include(("whatsapp.urls", "whatsapp"), namespace="whatsapp"),
     ),
 ]
