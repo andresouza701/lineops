@@ -99,6 +99,7 @@ class WhatsAppActionAudit(models.Model):
     status = models.CharField(max_length=16, choices=WhatsAppActionStatus.choices)
     request_payload = models.JSONField(null=True, blank=True)
     response_payload = models.JSONField(null=True, blank=True)
+    duration_ms = models.PositiveIntegerField(null=True, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

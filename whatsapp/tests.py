@@ -33,8 +33,10 @@ from whatsapp.services.instance_selector import (
     InstanceSelectorService,
     NoAvailableMeowInstanceError,
 )
+from whatsapp.services.metrics_service import WhatsAppMetricsService
 from whatsapp.services.provisioning_service import WhatsAppProvisioningService
 from whatsapp.services.reconcile_service import WhatsAppSessionReconcileService
+from whatsapp.services.rollout_service import MeowRolloutService
 from whatsapp.services.session_service import (
     WhatsAppSessionNotConfiguredError,
     WhatsAppSessionResult,
@@ -108,6 +110,22 @@ class WhatsAppModelTests(TestCase):
         )
 
         self.assertEqual(audit.created_by, self.admin)
+
+    def test_action_audit_can_store_duration_ms(self):
+        session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_5511999990002",
+        )
+
+        audit = WhatsAppActionAudit.objects.create(
+            session=session,
+            action="GET_QR",
+            status="SUCCESS",
+            duration_ms=187,
+        )
+
+        self.assertEqual(audit.duration_ms, 187)
 
 
 class InstanceSelectorServiceTests(TestCase):
@@ -256,6 +274,39 @@ class WhatsAppSessionServiceTests(TestCase):
 
         self.assertEqual(result.status, WhatsAppSessionStatus.CONNECTED)
         self.assertEqual(events, ["sync", "audit"])
+
+    def test_connect_audit_includes_duration_ms(self):
+        session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_+5511999990091",
+        )
+        mock_client = MagicMock()
+        mock_client.create_session.return_value = {"details": {"connected": True}}
+
+        with (
+            patch.object(self.service, "_get_client", return_value=mock_client),
+            patch.object(
+                self.service,
+                "_sync_from_remote",
+                return_value=WhatsAppSessionResult(
+                    session=session,
+                    status=WhatsAppSessionStatus.CONNECTED,
+                    remote_payload={"details": {"connected": True}},
+                    connected=True,
+                ),
+            ),
+            patch(
+                "whatsapp.services.session_service.WhatsAppAuditService.success"
+            ) as audit_success,
+            patch(
+                "whatsapp.services.session_service.time.monotonic",
+                side_effect=[10.0, 10.123],
+            ),
+        ):
+            self.service.connect(self.line)
+
+        self.assertEqual(audit_success.call_args.kwargs["duration_ms"], 123)
 
     def test_get_status_audits_success_after_local_sync(self):
         session = WhatsAppSession.objects.create(
@@ -882,6 +933,208 @@ class WhatsAppSessionReconcileServiceTests(TestCase):
         self.assertEqual(list(queryset.values_list("pk", flat=True)), [session.pk])
 
 
+class WhatsAppMetricsServiceTests(TestCase):
+    def setUp(self):
+        self.meow_a = MeowInstance.objects.create(
+            name="Metrics A",
+            base_url="http://metrics-a.local",
+        )
+        self.meow_b = MeowInstance.objects.create(
+            name="Metrics B",
+            base_url="http://metrics-b.local",
+            is_active=False,
+        )
+        self.line_a = self._create_line("+5511999990201", "89000000000000992001")
+        self.line_b = self._create_line("+5511999990202", "89000000000000992002")
+        self.session_a = WhatsAppSession.objects.create(
+            line=self.line_a,
+            meow_instance=self.meow_a,
+            session_id="session_metrics_a",
+        )
+        self.session_b = WhatsAppSession.objects.create(
+            line=self.line_b,
+            meow_instance=self.meow_b,
+            session_id="session_metrics_b",
+        )
+
+    def _create_line(self, phone_number, iccid):
+        sim = SIMcard.objects.create(
+            iccid=iccid,
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        return PhoneLine.objects.create(
+            phone_number=phone_number,
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+    def test_metrics_service_summarizes_recent_metrics_per_instance(self):
+        recent_qr = WhatsAppActionAudit.objects.create(
+            session=self.session_a,
+            action="GET_QR",
+            status="SUCCESS",
+            duration_ms=120,
+        )
+        recent_reconnect = WhatsAppActionAudit.objects.create(
+            session=self.session_a,
+            action="CONNECT_SESSION",
+            status="FAILURE",
+            duration_ms=240,
+        )
+        WhatsAppActionAudit.objects.create(
+            session=self.session_b,
+            action="GET_QR",
+            status="SUCCESS",
+            duration_ms=80,
+        )
+        old_audit = WhatsAppActionAudit.objects.create(
+            session=self.session_a,
+            action="GET_QR",
+            status="SUCCESS",
+            duration_ms=999,
+        )
+        old_time = timezone.now() - timedelta(hours=48)
+        WhatsAppActionAudit.objects.filter(pk=old_audit.pk).update(created_at=old_time)
+        recent_time = timezone.now() - timedelta(hours=1)
+        WhatsAppActionAudit.objects.filter(
+            pk__in=[recent_qr.pk, recent_reconnect.pk]
+        ).update(created_at=recent_time)
+
+        summaries = WhatsAppMetricsService().summarize_instances(
+            include_inactive=True,
+            window_hours=24,
+        )
+
+        summary_by_name = {summary.instance.name: summary for summary in summaries}
+        meow_a_summary = summary_by_name["Metrics A"]
+        meow_b_summary = summary_by_name["Metrics B"]
+
+        self.assertEqual(meow_a_summary.qr_requests, 1)
+        self.assertEqual(meow_a_summary.reconnect_attempts, 1)
+        self.assertEqual(meow_a_summary.failures, 1)
+        self.assertEqual(meow_a_summary.average_latency_ms, 180)
+        self.assertIsNotNone(meow_a_summary.last_audit_at)
+
+        self.assertEqual(meow_b_summary.qr_requests, 1)
+        self.assertEqual(meow_b_summary.reconnect_attempts, 0)
+        self.assertEqual(meow_b_summary.failures, 0)
+        self.assertEqual(meow_b_summary.average_latency_ms, 80)
+
+
+@override_settings(
+    WHATSAPP_MEOW_ROLLOUT_STAGES=[25, 30, 35, 40],
+    WHATSAPP_MEOW_ROLLOUT_BUFFER=5,
+    WHATSAPP_MEOW_OPERATIONAL_CEILING=45,
+    WHATSAPP_MEOW_EXPECTED_ACTIVE_INSTANCES=2,
+)
+class MeowRolloutServiceTests(TestCase):
+    def _create_line(self, phone_number, iccid):
+        sim = SIMcard.objects.create(
+            iccid=iccid,
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        return PhoneLine.objects.create(
+            phone_number=phone_number,
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+    def _create_session(self, meow_instance, phone_number, iccid):
+        line = self._create_line(phone_number, iccid)
+        return WhatsAppSession.objects.create(
+            line=line,
+            meow_instance=meow_instance,
+            session_id=f"session_{phone_number}",
+        )
+
+    def test_rollout_service_summarizes_uniform_stage_and_next_step(self):
+        meow_a = MeowInstance.objects.create(
+            name="Rollout A",
+            base_url="http://rollout-a.local",
+            target_sessions=25,
+            warning_sessions=30,
+            max_sessions=35,
+        )
+        meow_b = MeowInstance.objects.create(
+            name="Rollout B",
+            base_url="http://rollout-b.local",
+            target_sessions=25,
+            warning_sessions=30,
+            max_sessions=35,
+        )
+        self._create_session(meow_a, "+5511999990301", "89000000000000993001")
+        self._create_session(meow_b, "+5511999990302", "89000000000000993002")
+
+        summary = MeowRolloutService().build_summary()
+
+        self.assertTrue(summary.is_uniform)
+        self.assertIsNotNone(summary.current_stage)
+        self.assertEqual(summary.current_stage.stage_sessions, 30)
+        self.assertIsNotNone(summary.next_stage)
+        self.assertEqual(summary.next_stage.stage_sessions, 35)
+        self.assertEqual(summary.total_active_sessions, 2)
+        self.assertEqual(summary.current_capacity_sessions, 60)
+        self.assertIn("Proxima etapa: 35", summary.recommendation)
+
+    def test_rollout_service_flags_mixed_capacity_configuration(self):
+        MeowInstance.objects.create(
+            name="Mixed A",
+            base_url="http://mixed-a.local",
+            target_sessions=25,
+            warning_sessions=30,
+            max_sessions=35,
+        )
+        MeowInstance.objects.create(
+            name="Mixed B",
+            base_url="http://mixed-b.local",
+            target_sessions=30,
+            warning_sessions=35,
+            max_sessions=40,
+        )
+
+        summary = MeowRolloutService().build_summary()
+
+        self.assertFalse(summary.is_uniform)
+        self.assertIsNone(summary.current_stage)
+        self.assertIn("Padronize", summary.recommendation)
+
+    def test_rollout_service_recommends_opening_sixth_meow_at_trigger(self):
+        meow_a = MeowInstance.objects.create(
+            name="Final A",
+            base_url="http://final-a.local",
+            target_sessions=35,
+            warning_sessions=40,
+            max_sessions=45,
+        )
+        meow_b = MeowInstance.objects.create(
+            name="Final B",
+            base_url="http://final-b.local",
+            target_sessions=35,
+            warning_sessions=40,
+            max_sessions=45,
+        )
+
+        for index in range(40):
+            self._create_session(
+                meow_a,
+                f"+55119999904{index:02d}",
+                f"89000000000000994{index:03d}",
+            )
+            self._create_session(
+                meow_b,
+                f"+55119999905{index:02d}",
+                f"89000000000000995{index:03d}",
+            )
+
+        summary = MeowRolloutService().build_summary()
+
+        self.assertTrue(summary.should_open_sixth_meow)
+        self.assertEqual(summary.sixth_meow_trigger_sessions, 80)
+        self.assertIn("Abrir o 6o Meow", summary.recommendation)
+
+
 class MeowInstanceAdminTests(TestCase):
     def setUp(self):
         self.superuser = SystemUser.objects.create_superuser(
@@ -1495,6 +1748,39 @@ class WhatsAppOperationsViewTests(TestCase):
         self.assertContains(response, "INSTANCE_UNAVAILABLE (1)")
         self.assertContains(response, "SYNC_STALE (2)")
 
+    def test_operations_view_exposes_recent_metrics_for_selected_instance(self):
+        WhatsAppActionAudit.objects.create(
+            session=self.healthy_problem_session,
+            action="GET_QR",
+            status="SUCCESS",
+            duration_ms=140,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("whatsapp_operations"),
+            {"instance_id": self.healthy_meow.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Metricas recentes")
+        metric_summaries = response.context["instance_metric_summaries"]
+        self.assertEqual(len(metric_summaries), 1)
+        self.assertEqual(metric_summaries[0].instance, self.healthy_meow)
+        self.assertEqual(metric_summaries[0].qr_requests, 1)
+
+    def test_operations_view_exposes_rollout_summary(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("whatsapp_operations"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Rollout operacional")
+        rollout_summary = response.context["rollout_summary"]
+        self.assertIsNotNone(rollout_summary.current_stage)
+        self.assertEqual(rollout_summary.current_stage.stage_sessions, 40)
+        self.assertFalse(rollout_summary.should_open_sixth_meow)
+
     @patch("whatsapp.views.MeowHealthCheckService")
     def test_operations_view_post_runs_health_check_for_selected_instance(
         self,
@@ -1732,3 +2018,76 @@ class BootstrapMeowInstancesCommandTests(TestCase):
             call_command("bootstrap_meow_instances", config=str(config_path))
 
         self.assertFalse(MeowInstance.objects.exists())
+
+
+@override_settings(
+    WHATSAPP_MEOW_ROLLOUT_STAGES=[25, 30, 35, 40],
+    WHATSAPP_MEOW_ROLLOUT_BUFFER=5,
+    WHATSAPP_MEOW_OPERATIONAL_CEILING=45,
+)
+class ApplyMeowRolloutStageCommandTests(TestCase):
+    def test_command_updates_active_instances(self):
+        active_instance = MeowInstance.objects.create(
+            name="Command Meow Active",
+            base_url="http://command-meow-active.local",
+            target_sessions=35,
+            warning_sessions=40,
+            max_sessions=45,
+        )
+        inactive_instance = MeowInstance.objects.create(
+            name="Command Meow Inactive",
+            base_url="http://command-meow-inactive.local",
+            is_active=False,
+            target_sessions=35,
+            warning_sessions=40,
+            max_sessions=45,
+        )
+        stdout = io.StringIO()
+
+        call_command("apply_meow_rollout_stage", stage=30, stdout=stdout)
+
+        active_instance.refresh_from_db()
+        inactive_instance.refresh_from_db()
+        self.assertEqual(active_instance.target_sessions, 25)
+        self.assertEqual(active_instance.warning_sessions, 30)
+        self.assertEqual(active_instance.max_sessions, 35)
+        self.assertEqual(inactive_instance.warning_sessions, 40)
+        self.assertIn(
+            "Rollout aplicado em 1 instancia(s) para a etapa 30.",
+            stdout.getvalue(),
+        )
+
+    def test_command_dry_run_does_not_persist(self):
+        instance = MeowInstance.objects.create(
+            name="Dry Run Meow",
+            base_url="http://dry-run-meow.local",
+            target_sessions=35,
+            warning_sessions=40,
+            max_sessions=45,
+        )
+        stdout = io.StringIO()
+
+        call_command(
+            "apply_meow_rollout_stage",
+            stage=25,
+            dry_run=True,
+            stdout=stdout,
+        )
+
+        instance.refresh_from_db()
+        self.assertEqual(instance.target_sessions, 35)
+        self.assertEqual(instance.warning_sessions, 40)
+        self.assertIn("[dry-run] Dry Run Meow: target=20 warning=25 max=30", stdout.getvalue())
+        self.assertIn(
+            "Dry-run concluido: 1 instancia(s) seriam ajustadas para a etapa 25.",
+            stdout.getvalue(),
+        )
+
+    def test_command_rejects_unknown_stage(self):
+        MeowInstance.objects.create(
+            name="Invalid Stage Meow",
+            base_url="http://invalid-stage-meow.local",
+        )
+
+        with self.assertRaises(CommandError):
+            call_command("apply_meow_rollout_stage", stage=33)

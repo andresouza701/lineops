@@ -7,6 +7,66 @@
 <section class="surface-card reveal-item mb-3">
     <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
         <div>
+            <h2 class="h5 mb-1">Rollout operacional</h2>
+            <p class="text-muted mb-0">
+                {{ rollout_summary.recommendation }}
+            </p>
+        </div>
+        <div class="d-flex flex-wrap gap-2 justify-content-end">
+            {% for stage in rollout_summary.stages %}
+            <span class="badge {% if rollout_summary.current_stage and rollout_summary.current_stage.stage_sessions == stage.stage_sessions %}text-bg-primary{% else %}text-bg-light{% endif %}">
+                {{ stage.stage_sessions }}/instancia
+            </span>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="row g-3 mt-1">
+        <div class="col-md-3">
+            <div class="border rounded p-3 h-100">
+                <div class="small text-muted">Etapa atual</div>
+                <div class="fw-semibold">
+                    {% if rollout_summary.current_stage %}
+                    {{ rollout_summary.current_stage.stage_sessions }} sessoes/instancia
+                    {% else %}
+                    Configuracao mista
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="border rounded p-3 h-100">
+                <div class="small text-muted">Proxima etapa</div>
+                <div class="fw-semibold">
+                    {% if rollout_summary.next_stage %}
+                    {{ rollout_summary.next_stage.stage_sessions }} sessoes/instancia
+                    {% else %}
+                    -
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="border rounded p-3 h-100">
+                <div class="small text-muted">Carga atual</div>
+                <div class="fw-semibold">
+                    {{ rollout_summary.total_active_sessions }} / {{ rollout_summary.current_capacity_sessions }}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="border rounded p-3 h-100">
+                <div class="small text-muted">Gatilho 6o Meow</div>
+                <div class="fw-semibold">
+                    {{ rollout_summary.sixth_meow_trigger_sessions }} sessoes
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="surface-card reveal-item mb-3">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div>
             <h2 class="h5 mb-1">Instancias Meow</h2>
             <p class="text-muted mb-0">
                 Saude, capacidade e distribuicao de sessoes por instancia.
@@ -101,6 +161,56 @@
                 {% empty %}
                 <tr>
                     <td colspan="12" class="text-center text-muted">
+                        Nenhuma instancia Meow cadastrada.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="surface-card reveal-item mb-3">
+    <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+            <h2 class="h5 mb-1">Metricas recentes</h2>
+            <p class="text-muted mb-0">
+                QR, reconnect, falhas e latencia media por instancia nas ultimas
+                {{ metrics_window_hours }} horas.
+            </p>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Instancia</th>
+                    <th>QR</th>
+                    <th>Reconnect</th>
+                    <th>Falhas</th>
+                    <th>Latencia media</th>
+                    <th>Ultima auditoria</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for summary in instance_metric_summaries %}
+                <tr>
+                    <td>{{ summary.instance.name }}</td>
+                    <td>{{ summary.qr_requests }}</td>
+                    <td>{{ summary.reconnect_attempts }}</td>
+                    <td>{{ summary.failures }}</td>
+                    <td>
+                        {% if summary.average_latency_ms is not None %}
+                        {{ summary.average_latency_ms|floatformat:0 }} ms
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>{{ summary.last_audit_at|date:"d/m/Y H:i"|default:"-" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">
                         Nenhuma instancia Meow cadastrada.
                     </td>
                 </tr>

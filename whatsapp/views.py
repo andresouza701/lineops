@@ -14,7 +14,9 @@ from users.models import SystemUser
 from whatsapp.models import MeowInstance, WhatsAppSession
 from whatsapp.services.capacity_service import MeowCapacityService
 from whatsapp.services.health_service import MeowHealthCheckService
+from whatsapp.services.metrics_service import WhatsAppMetricsService
 from whatsapp.services.reconcile_service import WhatsAppSessionReconcileService
+from whatsapp.services.rollout_service import MeowRolloutService
 from whatsapp.services.session_service import (
     WhatsAppSessionNotConfiguredError,
     WhatsAppSessionService,
@@ -210,8 +212,18 @@ class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
         inconsistent_results = self._get_inconsistent_session_results(
             selected_instance_id=getattr(selected_instance, "id", None)
         )
+        metrics_queryset = MeowInstance.objects.all()
+        if selected_instance is not None:
+            metrics_queryset = metrics_queryset.filter(pk=selected_instance.pk)
         context["instance_summaries"] = MeowCapacityService().summarize_instances(
             include_inactive=True
+        )
+        context["rollout_summary"] = MeowRolloutService().build_summary()
+        context["instance_metric_summaries"] = (
+            WhatsAppMetricsService().summarize_instances(
+                queryset=metrics_queryset,
+                include_inactive=True,
+            )
         )
         context["issue_summary_counts"] = self._build_issue_summary_counts(
             inconsistent_results
@@ -230,6 +242,11 @@ class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
             settings,
             "WHATSAPP_SESSION_STALE_MINUTES",
             30,
+        )
+        context["metrics_window_hours"] = getattr(
+            settings,
+            "WHATSAPP_METRICS_WINDOW_HOURS",
+            WhatsAppMetricsService.DEFAULT_WINDOW_HOURS,
         )
         return context
 

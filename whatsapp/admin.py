@@ -132,7 +132,14 @@ class WhatsAppSessionAdmin(admin.ModelAdmin):
 
 @admin.register(WhatsAppActionAudit)
 class WhatsAppActionAuditAdmin(admin.ModelAdmin):
-    list_display = ("session", "action", "status", "created_by", "created_at")
+    list_display = (
+        "session",
+        "action",
+        "status",
+        "duration_ms",
+        "created_by",
+        "created_at",
+    )
     list_filter = ("action", "status")
     search_fields = ("session__session_id", "session__line__phone_number")
     autocomplete_fields = ("session", "created_by")
@@ -142,6 +149,7 @@ class WhatsAppActionAuditAdmin(admin.ModelAdmin):
         "status",
         "request_payload",
         "response_payload",
+        "duration_ms",
         "created_by",
         "created_at",
     )

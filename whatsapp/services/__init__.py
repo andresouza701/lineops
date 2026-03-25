@@ -8,10 +8,19 @@ from whatsapp.services.instance_selector import (
     InstanceSelectorService,
     NoAvailableMeowInstanceError,
 )
+from whatsapp.services.metrics_service import (
+    MeowMetricsSummary,
+    WhatsAppMetricsService,
+)
 from whatsapp.services.provisioning_service import WhatsAppProvisioningService
 from whatsapp.services.reconcile_service import (
     WhatsAppSessionReconcileResult,
     WhatsAppSessionReconcileService,
+)
+from whatsapp.services.rollout_service import (
+    MeowRolloutService,
+    MeowRolloutStage,
+    MeowRolloutSummary,
 )
 from whatsapp.services.session_service import (
     WhatsAppSessionNotConfiguredError,
@@ -31,6 +40,11 @@ __all__ = [
     "MeowHealthCheckService",
     "InstanceSelectorService",
     "NoAvailableMeowInstanceError",
+    "MeowMetricsSummary",
+    "WhatsAppMetricsService",
+    "MeowRolloutService",
+    "MeowRolloutStage",
+    "MeowRolloutSummary",
     "WhatsAppSessionNotConfiguredError",
     "WhatsAppSessionService",
     "WhatsAppSessionResult",

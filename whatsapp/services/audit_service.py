@@ -15,6 +15,7 @@ class WhatsAppAuditService:
         status: str,
         request_payload: dict[str, Any] | None = None,
         response_payload: dict[str, Any] | None = None,
+        duration_ms: int | None = None,
         created_by: None = None,
     ) -> WhatsAppActionAudit:
         """Records a WhatsApp action audit entry."""
@@ -24,6 +25,7 @@ class WhatsAppAuditService:
             status=status,
             request_payload=request_payload,
             response_payload=response_payload,
+            duration_ms=duration_ms,
             created_by=created_by,
         )
 
@@ -34,6 +36,7 @@ class WhatsAppAuditService:
         action: str,
         request_payload: dict[str, Any] | None = None,
         response_payload: dict[str, Any] | None = None,
+        duration_ms: int | None = None,
         created_by: None = None,
     ) -> WhatsAppActionAudit:
         """Records a successful WhatsApp action audit entry."""
@@ -43,6 +46,7 @@ class WhatsAppAuditService:
             status=WhatsAppActionStatus.SUCCESS,
             request_payload=request_payload,
             response_payload=response_payload,
+            duration_ms=duration_ms,
             created_by=created_by,
         )
 
@@ -53,6 +57,7 @@ class WhatsAppAuditService:
         action: str,
         request_payload: dict[str, Any] | None = None,
         response_payload: dict[str, Any] | None = None,
+        duration_ms: int | None = None,
         created_by: None = None,
     ) -> WhatsAppActionAudit:
         """Records a failed WhatsApp action audit entry."""
@@ -62,5 +67,6 @@ class WhatsAppAuditService:
             status=WhatsAppActionStatus.FAILURE,
             request_payload=request_payload,
             response_payload=response_payload,
+            duration_ms=duration_ms,
             created_by=created_by,
         )

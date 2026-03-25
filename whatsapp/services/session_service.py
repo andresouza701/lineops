@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
 from django.db import transaction
@@ -41,6 +42,10 @@ class WhatsAppSessionResult:
 
 
 class WhatsAppSessionService:
+    @staticmethod
+    def _elapsed_ms(started_at: float) -> int:
+        return max(0, int(round((time.monotonic() - started_at) * 1000)))
+
     def build_session_id(self, line: PhoneLine) -> str:
         return f"session_{line.phone_number}"
 
@@ -74,12 +79,14 @@ class WhatsAppSessionService:
 
         self._mark_connecting(session)
 
+        started_at = time.monotonic()
         try:
             try:
                 remote_payload = client.create_session(session.session_id)
             except MeowClientConflictError:
                 audit_action = WhatsAppActionType.CONNECT_SESSION
                 remote_payload = client.connect_session(session.session_id)
+            duration_ms = self._elapsed_ms(started_at)
             with transaction.atomic():
                 result = self._sync_from_remote(
                     session,
@@ -91,34 +98,41 @@ class WhatsAppSessionService:
                     action=audit_action,
                     request_payload=request_payload,
                     response_payload=remote_payload,
+                    duration_ms=duration_ms,
                 )
             return result
         except MeowClientNotFoundError as exc:
+            duration_ms = self._elapsed_ms(started_at)
             self._mark_error(session, str(exc))
             WhatsAppAuditService.failure(
                 session=session,
                 action=audit_action,
                 request_payload=request_payload,
                 response_payload={"error": str(exc)},
+                duration_ms=duration_ms,
             )
             raise WhatsAppSessionServiceError(str(exc)) from exc
         except MeowClientError as exc:
+            duration_ms = self._elapsed_ms(started_at)
             self._mark_error(session, str(exc))
             WhatsAppAuditService.failure(
                 session=session,
                 action=audit_action,
                 request_payload=request_payload,
                 response_payload={"error": str(exc)},
+                duration_ms=duration_ms,
             )
             raise WhatsAppSessionServiceError(str(exc)) from exc
 
     def get_status(self, line: PhoneLine) -> WhatsAppSessionResult:
         session = self._require_session(line)
         client = self._get_client(session)
+        started_at = time.monotonic()
 
         try:
             request_payload = {"session_id": session.session_id}
             remote_payload = client.get_session(session.session_id)
+            duration_ms = self._elapsed_ms(started_at)
             with transaction.atomic():
                 result = self._sync_from_remote(
                     session, remote_payload=remote_payload
@@ -128,15 +142,18 @@ class WhatsAppSessionService:
                     action=WhatsAppActionType.GET_SESSION,
                     request_payload=request_payload,
                     response_payload=remote_payload,
+                    duration_ms=duration_ms,
                 )
             return result
         except MeowClientNotFoundError as exc:
+            duration_ms = self._elapsed_ms(started_at)
             session.status = WhatsAppSessionStatus.DISCONNECTED
             WhatsAppAuditService.failure(
                 session=session,
                 action=WhatsAppActionType.GET_SESSION,
                 request_payload={"session_id": session.session_id},
                 response_payload={"error": "Sessao nao encontrada no Meow."},
+                duration_ms=duration_ms,
             )
 
             session.last_error = "Sessao nao encontrada no Meow."
@@ -151,21 +168,25 @@ class WhatsAppSessionService:
             )
             raise WhatsAppSessionServiceError(str(exc)) from exc
         except MeowClientError as exc:
+            duration_ms = self._elapsed_ms(started_at)
             self._mark_error(session, str(exc))
             WhatsAppAuditService.failure(
                 session=session,
                 action=WhatsAppActionType.GET_SESSION,
                 request_payload={"session_id": session.session_id},
                 response_payload={"error": str(exc)},
+                duration_ms=duration_ms,
             )
             raise WhatsAppSessionServiceError(str(exc)) from exc
 
     def get_qr(self, line: PhoneLine) -> WhatsAppSessionResult:
         session = self._require_session(line)
         client = self._get_client(session)
+        started_at = time.monotonic()
 
         try:
             qr_payload = client.get_qr(session.session_id)
+            duration_ms = self._elapsed_ms(started_at)
             now = timezone.now()
             has_qr = bool(qr_payload.get("qr_code"))
             connected = bool(qr_payload.get("connected"))
@@ -206,34 +227,41 @@ class WhatsAppSessionService:
                     action=WhatsAppActionType.GET_QR,
                     request_payload={"session_id": session.session_id},
                     response_payload=qr_payload,
+                    duration_ms=duration_ms,
                 )
             return result
         except MeowClientNotFoundError as exc:
+            duration_ms = self._elapsed_ms(started_at)
             self._mark_error(session, str(exc))
             WhatsAppAuditService.failure(
                 session=session,
                 action=WhatsAppActionType.GET_QR,
                 request_payload={"session_id": session.session_id},
                 response_payload={"error": str(exc)},
+                duration_ms=duration_ms,
             )
 
             raise WhatsAppSessionServiceError(str(exc)) from exc
         except MeowClientError as exc:
+            duration_ms = self._elapsed_ms(started_at)
             self._mark_error(session, str(exc))
             WhatsAppAuditService.failure(
                 session=session,
                 action=WhatsAppActionType.GET_QR,
                 request_payload={"session_id": session.session_id},
                 response_payload={"error": str(exc)},
+                duration_ms=duration_ms,
             )
             raise WhatsAppSessionServiceError(str(exc)) from exc
 
     def disconnect(self, line: PhoneLine) -> WhatsAppSessionResult:
         session = self._require_session(line)
         client = self._get_client(session)
+        started_at = time.monotonic()
 
         try:
             remote_payload = client.delete_session(session.session_id)
+            duration_ms = self._elapsed_ms(started_at)
             session.status = WhatsAppSessionStatus.DISCONNECTED
             session.last_error = ""
             session.last_sync_at = timezone.now()
@@ -257,24 +285,29 @@ class WhatsAppSessionService:
                     action=WhatsAppActionType.DELETE_SESSION,
                     request_payload={"session_id": session.session_id},
                     response_payload=remote_payload,
+                    duration_ms=duration_ms,
                 )
             return result
         except MeowClientNotFoundError as exc:
+            duration_ms = self._elapsed_ms(started_at)
             self._mark_error(session, str(exc))
             WhatsAppAuditService.failure(
                 session=session,
                 action=WhatsAppActionType.DELETE_SESSION,
                 request_payload={"session_id": session.session_id},
                 response_payload={"error": str(exc)},
+                duration_ms=duration_ms,
             )
             raise WhatsAppSessionServiceError(str(exc)) from exc
         except MeowClientError as exc:
+            duration_ms = self._elapsed_ms(started_at)
             self._mark_error(session, str(exc))
             WhatsAppAuditService.failure(
                 session=session,
                 action=WhatsAppActionType.DELETE_SESSION,
                 request_payload={"session_id": session.session_id},
                 response_payload={"error": str(exc)},
+                duration_ms=duration_ms,
             )
             raise WhatsAppSessionServiceError(str(exc)) from exc
 

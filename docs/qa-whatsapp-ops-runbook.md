@@ -39,10 +39,19 @@ No `.env.qa`, mantenha pelo menos:
 ```env
 WHATSAPP_MEOW_TIMEOUT_SECONDS=5
 WHATSAPP_SESSION_STALE_MINUTES=30
+WHATSAPP_METRICS_WINDOW_HOURS=24
+WHATSAPP_MEOW_ROLLOUT_STAGES=25,30,35,40
+WHATSAPP_MEOW_ROLLOUT_BUFFER=5
+WHATSAPP_MEOW_OPERATIONAL_CEILING=45
+WHATSAPP_MEOW_EXPECTED_ACTIVE_INSTANCES=5
 ```
 
 `WHATSAPP_SESSION_STALE_MINUTES` controla quando uma sessao passa a ser
 considerada desatualizada na reconciliacao e na visao operacional.
+
+`WHATSAPP_MEOW_ROLLOUT_STAGES` define as etapas liberadas por instancia no
+rollout progressivo. Com `buffer=5` e teto operacional `45`, a etapa final
+`40` reproduz a politica `target=35`, `warning=40`, `max=45`.
 
 ## Bootstrap inicial das instancias Meow
 
@@ -126,6 +135,28 @@ cd /opt/lineops/lineops
 cd /opt/lineops/lineops
 ./scripts/run_qa_manage_command.sh reconcile_whatsapp_sessions
 ```
+
+### Rollout progressivo
+
+```bash
+cd /opt/lineops/lineops
+./scripts/run_qa_manage_command.sh apply_meow_rollout_stage --stage 25 --dry-run
+./scripts/run_qa_manage_command.sh apply_meow_rollout_stage --stage 25
+./scripts/run_qa_manage_command.sh apply_meow_rollout_stage --stage 30
+./scripts/run_qa_manage_command.sh apply_meow_rollout_stage --stage 35
+./scripts/run_qa_manage_command.sh apply_meow_rollout_stage --stage 40
+```
+
+O rollout usa a capacidade liberada por instancia como etapa operacional.
+Por padrao:
+
+- etapa `25` aplica `target=20`, `warning=25`, `max=30`
+- etapa `30` aplica `target=25`, `warning=30`, `max=35`
+- etapa `35` aplica `target=30`, `warning=35`, `max=40`
+- etapa `40` aplica `target=35`, `warning=40`, `max=45`
+
+Com 5 `meows` ativos na etapa final `40`, o gatilho de abertura do 6o Meow
+fica definido em `200` sessoes ativas no total.
 
 Se algum comando falhar aqui, nao instale o cron ainda. Corrija o ambiente primeiro.
 
