@@ -1,0 +1,10 @@
+[
+  {
+    "name": "Ambiental PRD",
+    "base_url": "https://srvmeow-ambiental-prd.somosglobal.com.br",
+    "is_active": false,
+    "target_sessions": 35,
+    "warning_sessions": 40,
+    "max_sessions": 45
+  }
+]
