@@ -32,6 +32,18 @@ Manter o LineOps de QA com visibilidade basica sobre:
 - `docker compose` funcional no host
 - usuario operacional com permissao para executar Docker
 
+## Configuracao relevante
+
+No `.env.qa`, mantenha pelo menos:
+
+```env
+WHATSAPP_MEOW_TIMEOUT_SECONDS=5
+WHATSAPP_SESSION_STALE_MINUTES=30
+```
+
+`WHATSAPP_SESSION_STALE_MINUTES` controla quando uma sessao passa a ser
+considerada desatualizada na reconciliacao e na visao operacional.
+
 ## 1. Validar o ambiente antes do cron
 
 ```bash

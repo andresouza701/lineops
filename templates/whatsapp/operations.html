@@ -1,0 +1,124 @@
+{% extends "base/base.html" %}
+
+{% block title %}Operacao WhatsApp{% endblock %}
+{% block page_title %}Operacao WhatsApp{% endblock %}
+
+{% block content %}
+<section class="surface-card reveal-item mb-3">
+    <div>
+        <h2 class="h5 mb-1">Instancias Meow</h2>
+        <p class="text-muted mb-0">
+            Saude, capacidade e distribuicao de sessoes por instancia.
+        </p>
+    </div>
+</section>
+
+<section class="surface-card reveal-item mb-3">
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Instancia</th>
+                    <th>Saude</th>
+                    <th>Nivel</th>
+                    <th>Ativas</th>
+                    <th>Conectadas</th>
+                    <th>Pendentes</th>
+                    <th>Degradadas</th>
+                    <th>Target</th>
+                    <th>Warning</th>
+                    <th>Max</th>
+                    <th>Ultimo health</th>
+                    <th>Acoes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for summary in instance_summaries %}
+                <tr>
+                    <td>{{ summary.instance.name }}</td>
+                    <td>{{ summary.instance.get_health_status_display }}</td>
+                    <td>{{ summary.capacity_level }}</td>
+                    <td>{{ summary.active_sessions }}</td>
+                    <td>{{ summary.connected_sessions }}</td>
+                    <td>{{ summary.pending_sessions }}</td>
+                    <td>{{ summary.degraded_sessions }}</td>
+                    <td>{{ summary.instance.target_sessions }}</td>
+                    <td>{{ summary.instance.warning_sessions }}</td>
+                    <td>{{ summary.instance.max_sessions }}</td>
+                    <td>{{ summary.instance.last_health_check_at|date:"d/m/Y H:i"|default:"-" }}</td>
+                    <td>
+                        <a
+                            href="{% url 'whatsapp_operations' %}?instance_id={{ summary.instance.id }}"
+                            class="btn btn-sm btn-outline-primary"
+                        >
+                            Ver sessoes
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="12" class="text-center text-muted">
+                        Nenhuma instancia Meow cadastrada.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="surface-card reveal-item">
+    <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+            <h2 class="h5 mb-1">Sessoes com atencao operacional</h2>
+            <p class="text-muted mb-0">
+                Lista baseada em erro local, instancia degradada/indisponivel, linha
+                oculta ou sincronizacao acima de {{ stale_minutes }} minutos.
+            </p>
+        </div>
+        {% if selected_instance %}
+        <div class="text-end">
+            <p class="small text-muted mb-2">
+                Filtro ativo: {{ selected_instance.name }}
+            </p>
+            <a href="{% url 'whatsapp_operations' %}" class="btn btn-sm btn-outline-secondary">
+                Limpar filtro
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Linha</th>
+                    <th>Sessao</th>
+                    <th>Instancia</th>
+                    <th>Status</th>
+                    <th>Ultima sync</th>
+                    <th>Ultimo erro</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for session in problem_sessions %}
+                <tr>
+                    <td>{{ session.line.phone_number }}</td>
+                    <td>{{ session.session_id }}</td>
+                    <td>{{ session.meow_instance.name }}</td>
+                    <td>{{ session.get_status_display }}</td>
+                    <td>{{ session.last_sync_at|date:"d/m/Y H:i"|default:"-" }}</td>
+                    <td>{{ session.last_error|default:"-" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">
+                        Nenhuma sessao com atencao operacional.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

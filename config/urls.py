@@ -8,6 +8,7 @@ from config.views import (
     UploadView,
 )
 from users.views import AdminOnlyView
+from whatsapp.views import WhatsAppOperationsView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -18,6 +19,11 @@ urlpatterns = [
     path("telecom/", include("telecom.urls")),
     path("allocations/", include("allocations.urls")),
     path("upload/", UploadView.as_view(), name="upload"),
+    path(
+        "whatsapp/operacao/",
+        WhatsAppOperationsView.as_view(),
+        name="whatsapp_operations",
+    ),
     path("health/", HealthCheckView.as_view(), name="health"),
     path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),

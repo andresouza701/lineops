@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
+from django.conf import settings
 from django.contrib import messages
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.utils import timezone
 from django.views import View
+from django.views.generic import TemplateView
 
 from core.mixins import RoleRequiredMixin
 from telecom.models import PhoneLine
 from users.models import SystemUser
-from whatsapp.models import WhatsAppSession
+from whatsapp.choices import MeowInstanceHealthStatus, WhatsAppSessionStatus
+from whatsapp.models import MeowInstance, WhatsAppSession
+from whatsapp.services.capacity_service import MeowCapacityService
 from whatsapp.services.session_service import (
     WhatsAppSessionNotConfiguredError,
     WhatsAppSessionService,
@@ -190,3 +198,68 @@ class WhatsAppSessionDisconnectView(WhatsAppPhoneLineMixin, View):
 
         messages.success(request, "Sessao desconectada com sucesso.")
         return self.redirect_to_line_detail(line)
+
+
+class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
+    allowed_roles = [SystemUser.Role.ADMIN, SystemUser.Role.DEV]
+    template_name = "whatsapp/operations.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        selected_instance = self._get_selected_instance()
+        context["instance_summaries"] = MeowCapacityService().summarize_instances(
+            include_inactive=True
+        )
+        context["problem_sessions"] = self._get_problem_sessions(
+            selected_instance_id=getattr(selected_instance, "id", None)
+        )
+        context["selected_instance"] = selected_instance
+        context["stale_minutes"] = getattr(
+            settings,
+            "WHATSAPP_SESSION_STALE_MINUTES",
+            30,
+        )
+        return context
+
+    def _get_selected_instance(self):
+        raw_instance_id = self.request.GET.get("instance_id")
+        if not raw_instance_id:
+            return None
+
+        try:
+            instance_id = int(raw_instance_id)
+        except (TypeError, ValueError):
+            return None
+
+        return MeowInstance.objects.filter(pk=instance_id).first()
+
+    def _get_problem_sessions(self, *, selected_instance_id: int | None = None):
+        stale_minutes = getattr(settings, "WHATSAPP_SESSION_STALE_MINUTES", 30)
+        stale_threshold = timezone.now() - timedelta(minutes=stale_minutes)
+
+        queryset = WhatsAppSession.objects.select_related(
+            "line__sim_card",
+            "meow_instance",
+        )
+        if selected_instance_id is not None:
+            queryset = queryset.filter(meow_instance_id=selected_instance_id)
+
+        return (
+            queryset.filter(
+                Q(last_error__gt="")
+                | Q(
+                    status__in=[
+                        WhatsAppSessionStatus.ERROR,
+                        WhatsAppSessionStatus.DISCONNECTED,
+                    ]
+                )
+                | Q(meow_instance__health_status=MeowInstanceHealthStatus.DEGRADED)
+                | Q(meow_instance__health_status=MeowInstanceHealthStatus.UNAVAILABLE)
+                | Q(meow_instance__is_active=False)
+                | Q(line__is_deleted=True)
+                | Q(line__sim_card__is_deleted=True)
+                | Q(last_sync_at__isnull=True)
+                | Q(last_sync_at__lt=stale_threshold)
+            )
+            .order_by("-last_sync_at", "-updated_at")[:25]
+        )

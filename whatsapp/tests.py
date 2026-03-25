@@ -424,6 +424,7 @@ class WhatsAppProvisioningServiceTests(TestCase):
         self.assertEqual(action.action_type, DailyUserAction.ActionType.NEW_NUMBER)
         self.assertEqual(action.supervisor, self.supervisor)
         self.assertFalse(action.is_resolved)
+        self.assertIn("Infraestrutura Meow sem capacidade disponivel.", action.note)
         self.assertEqual(WhatsAppSession.objects.count(), 0)
 
     def test_mark_allocation_pending_keeps_new_number_on_first_allocation_with_existing_session(  # noqa: E501
@@ -1363,3 +1364,105 @@ class WhatsAppSessionViewTests(TestCase):
         self.assertContains(response, "Consultar QR")
         self.assertContains(response, "Conectar")
         self.assertContains(response, "Desconectar")
+
+
+class WhatsAppOperationsViewTests(TestCase):
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="admin-whatsapp-ops@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.dev = SystemUser.objects.create_user(
+            email="dev-whatsapp-ops@test.com",
+            password="123456",
+            role=SystemUser.Role.DEV,
+        )
+        self.operator = SystemUser.objects.create_user(
+            email="operator-whatsapp-ops@test.com",
+            password="123456",
+            role=SystemUser.Role.OPERATOR,
+        )
+        self.healthy_meow = MeowInstance.objects.create(
+            name="Healthy Ops Meow",
+            base_url="http://healthy-ops-meow.local",
+            health_status=MeowInstanceHealthStatus.HEALTHY,
+        )
+        self.unavailable_meow = MeowInstance.objects.create(
+            name="Unavailable Ops Meow",
+            base_url="http://unavailable-ops-meow.local",
+            health_status=MeowInstanceHealthStatus.UNAVAILABLE,
+            is_active=False,
+        )
+        self.problem_session = self._create_problem_session()
+        self.healthy_problem_session = self._create_problem_session(
+            phone_number="+5511999990090",
+            meow_instance=self.healthy_meow,
+            last_error="stale sync local",
+        )
+
+    def _create_problem_session(
+        self,
+        *,
+        phone_number="+5511999990089",
+        meow_instance=None,
+        last_error="sem conexao com meow",
+    ):
+        sim = SIMcard.objects.create(
+            iccid=f"8900000000000{phone_number[-6:]}",
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        line = PhoneLine.objects.create(
+            phone_number=phone_number,
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        return WhatsAppSession.objects.create(
+            line=line,
+            meow_instance=meow_instance or self.unavailable_meow,
+            session_id=f"session_{phone_number}",
+            status=WhatsAppSessionStatus.ERROR,
+            last_error=last_error,
+            last_sync_at=timezone.now() - timedelta(minutes=90),
+        )
+
+    def test_operations_view_allows_admin(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("whatsapp_operations"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Instancias Meow")
+        self.assertContains(response, "Sessoes com atencao operacional")
+        self.assertContains(response, self.healthy_meow.name)
+        self.assertContains(response, self.unavailable_meow.name)
+        self.assertContains(response, "sem conexao com meow")
+
+    def test_operations_view_allows_dev(self):
+        self.client.force_login(self.dev)
+
+        response = self.client.get(reverse("whatsapp_operations"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Operacao WhatsApp")
+
+    def test_operations_view_rejects_operator(self):
+        self.client.force_login(self.operator)
+
+        response = self.client.get(reverse("whatsapp_operations"))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_operations_view_can_filter_problem_sessions_by_instance(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("whatsapp_operations"),
+            {"instance_id": self.unavailable_meow.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Filtro ativo")
+        self.assertContains(response, self.problem_session.session_id)
+        self.assertNotContains(response, self.healthy_problem_session.session_id)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from django.db import transaction
 from django.utils import timezone
 
@@ -10,6 +12,8 @@ from whatsapp.choices import WhatsAppSessionStatus
 from whatsapp.models import WhatsAppSession
 from whatsapp.services.instance_selector import NoAvailableMeowInstanceError
 from whatsapp.services.session_service import WhatsAppSessionService
+
+logger = logging.getLogger(__name__)
 
 
 class WhatsAppProvisioningService:
@@ -26,7 +30,7 @@ class WhatsAppProvisioningService:
         target_status, action_type, note = self._resolve_pending_context(allocation)
         session = self._get_existing_session(allocation.phone_line)
         if session is None:
-            session = self._try_create_session(allocation.phone_line)
+            session, note = self._try_create_session(allocation.phone_line, note=note)
 
         if session is not None:
             self._set_session_pending(session, target_status)
@@ -90,11 +94,23 @@ class WhatsAppProvisioningService:
             .first()
         )
 
-    def _try_create_session(self, phone_line) -> WhatsAppSession | None:
+    def _try_create_session(
+        self,
+        phone_line,
+        *,
+        note: str,
+    ) -> tuple[WhatsAppSession | None, str]:
         try:
-            return self.session_service.get_or_create_session(phone_line)
-        except NoAvailableMeowInstanceError:
-            return None
+            return self.session_service.get_or_create_session(phone_line), note
+        except NoAvailableMeowInstanceError as exc:
+            logger.warning(
+                "WhatsApp session could not be provisioned due to Meow capacity",
+                extra={
+                    "phone_line_id": phone_line.id,
+                    "phone_number": phone_line.phone_number,
+                },
+            )
+            return None, f"{note} Infraestrutura Meow sem capacidade disponivel."
 
     def _is_first_allocation_for_line(self, allocation: LineAllocation) -> bool:
         return not (
