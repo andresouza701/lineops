@@ -1466,3 +1466,81 @@ class WhatsAppOperationsViewTests(TestCase):
         self.assertContains(response, "Filtro ativo")
         self.assertContains(response, self.problem_session.session_id)
         self.assertNotContains(response, self.healthy_problem_session.session_id)
+
+    @patch("whatsapp.views.MeowHealthCheckService")
+    def test_operations_view_post_runs_health_check_for_selected_instance(
+        self,
+        service_class,
+    ):
+        service = service_class.return_value
+        service.check_instances.return_value = [MagicMock()]
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("whatsapp_operations"),
+            {
+                "action": "check_health",
+                "instance_id": str(self.unavailable_meow.pk),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response["Location"],
+            f"{reverse('whatsapp_operations')}?instance_id={self.unavailable_meow.pk}",
+        )
+        queryset = service.check_instances.call_args.kwargs["queryset"]
+        self.assertEqual(
+            list(queryset.values_list("pk", flat=True)),
+            [self.unavailable_meow.pk],
+        )
+        self.assertTrue(service.check_instances.call_args.kwargs["include_inactive"])
+
+    @patch("whatsapp.views.WhatsAppSessionSyncService")
+    def test_operations_view_post_runs_sync_for_selected_instance(self, service_class):
+        service = service_class.return_value
+        service.sync_sessions.return_value = [MagicMock(success=True)]
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("whatsapp_operations"),
+            {
+                "action": "sync_sessions",
+                "instance_id": str(self.unavailable_meow.pk),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        queryset = service.sync_sessions.call_args.kwargs["queryset"]
+        self.assertEqual(
+            list(queryset.values_list("pk", flat=True)),
+            [self.problem_session.pk],
+        )
+        self.assertTrue(service.sync_sessions.call_args.kwargs["include_inactive"])
+
+    @patch("whatsapp.views.WhatsAppSessionReconcileService")
+    def test_operations_view_post_runs_reconcile_for_selected_instance(
+        self,
+        service_class,
+    ):
+        service = service_class.return_value
+        service.reconcile_sessions.return_value = [MagicMock(is_consistent=False)]
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("whatsapp_operations"),
+            {
+                "action": "reconcile_sessions",
+                "instance_id": str(self.unavailable_meow.pk),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        queryset = service.reconcile_sessions.call_args.kwargs["queryset"]
+        self.assertEqual(
+            list(queryset.values_list("pk", flat=True)),
+            [self.problem_session.pk],
+        )
+        self.assertTrue(
+            service.reconcile_sessions.call_args.kwargs["include_inactive"]
+        )

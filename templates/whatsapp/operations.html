@@ -5,11 +5,45 @@
 
 {% block content %}
 <section class="surface-card reveal-item mb-3">
-    <div>
-        <h2 class="h5 mb-1">Instancias Meow</h2>
-        <p class="text-muted mb-0">
-            Saude, capacidade e distribuicao de sessoes por instancia.
-        </p>
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div>
+            <h2 class="h5 mb-1">Instancias Meow</h2>
+            <p class="text-muted mb-0">
+                Saude, capacidade e distribuicao de sessoes por instancia.
+            </p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <form method="post" action="{% url 'whatsapp_operations' %}" class="m-0">
+                {% csrf_token %}
+                {% if selected_instance %}
+                <input type="hidden" name="instance_id" value="{{ selected_instance.id }}">
+                {% endif %}
+                <input type="hidden" name="action" value="check_health">
+                <button type="submit" class="btn btn-sm btn-outline-primary">
+                    Executar health
+                </button>
+            </form>
+            <form method="post" action="{% url 'whatsapp_operations' %}" class="m-0">
+                {% csrf_token %}
+                {% if selected_instance %}
+                <input type="hidden" name="instance_id" value="{{ selected_instance.id }}">
+                {% endif %}
+                <input type="hidden" name="action" value="sync_sessions">
+                <button type="submit" class="btn btn-sm btn-outline-success">
+                    Sincronizar sessoes
+                </button>
+            </form>
+            <form method="post" action="{% url 'whatsapp_operations' %}" class="m-0">
+                {% csrf_token %}
+                {% if selected_instance %}
+                <input type="hidden" name="instance_id" value="{{ selected_instance.id }}">
+                {% endif %}
+                <input type="hidden" name="action" value="reconcile_sessions">
+                <button type="submit" class="btn btn-sm btn-outline-dark">
+                    Reconciliar sessoes
+                </button>
+            </form>
+        </div>
     </div>
 </section>
 

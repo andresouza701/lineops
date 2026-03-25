@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
@@ -17,11 +18,14 @@ from users.models import SystemUser
 from whatsapp.choices import MeowInstanceHealthStatus, WhatsAppSessionStatus
 from whatsapp.models import MeowInstance, WhatsAppSession
 from whatsapp.services.capacity_service import MeowCapacityService
+from whatsapp.services.health_service import MeowHealthCheckService
+from whatsapp.services.reconcile_service import WhatsAppSessionReconcileService
 from whatsapp.services.session_service import (
     WhatsAppSessionNotConfiguredError,
     WhatsAppSessionService,
     WhatsAppSessionServiceError,
 )
+from whatsapp.services.sync_service import WhatsAppSessionSyncService
 
 
 class WhatsAppPhoneLineMixin(RoleRequiredMixin):
@@ -206,7 +210,7 @@ class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        selected_instance = self._get_selected_instance()
+        selected_instance = self._get_selected_instance(self.request.GET)
         context["instance_summaries"] = MeowCapacityService().summarize_instances(
             include_inactive=True
         )
@@ -221,8 +225,23 @@ class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
         )
         return context
 
-    def _get_selected_instance(self):
-        raw_instance_id = self.request.GET.get("instance_id")
+    def post(self, request, *args, **kwargs):
+        selected_instance = self._get_selected_instance(request.POST)
+        action = (request.POST.get("action") or "").strip()
+
+        if action == "check_health":
+            self._run_health_check(selected_instance)
+        elif action == "sync_sessions":
+            self._run_session_sync(selected_instance)
+        elif action == "reconcile_sessions":
+            self._run_session_reconcile(selected_instance)
+        else:
+            messages.error(request, "Acao operacional invalida.")
+
+        return redirect(self._build_operations_url(selected_instance))
+
+    def _get_selected_instance(self, source):
+        raw_instance_id = source.get("instance_id")
         if not raw_instance_id:
             return None
 
@@ -232,6 +251,66 @@ class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
             return None
 
         return MeowInstance.objects.filter(pk=instance_id).first()
+
+    def _build_operations_url(self, selected_instance: MeowInstance | None) -> str:
+        base_url = reverse("whatsapp_operations")
+        if selected_instance is None:
+            return base_url
+        return f"{base_url}?instance_id={selected_instance.id}"
+
+    def _run_health_check(self, selected_instance: MeowInstance | None) -> None:
+        queryset = MeowInstance.objects.all()
+        if selected_instance is not None:
+            queryset = queryset.filter(pk=selected_instance.pk)
+
+        results = MeowHealthCheckService().check_instances(
+            queryset=queryset,
+            include_inactive=True,
+        )
+        messages.success(
+            self.request,
+            f"Health check executado em {len(results)} instancia(s).",
+        )
+
+    def _run_session_sync(self, selected_instance: MeowInstance | None) -> None:
+        queryset = WhatsAppSession.objects.all()
+        if selected_instance is not None:
+            queryset = queryset.filter(meow_instance=selected_instance)
+
+        results = WhatsAppSessionSyncService().sync_sessions(
+            queryset=queryset,
+            include_inactive=True,
+        )
+        success_count = sum(result.success for result in results)
+        failure_count = len(results) - success_count
+        messages.success(
+            self.request,
+            (
+                "Sincronizacao executada em "
+                f"{len(results)} sessao(oes): "
+                f"{success_count} sucesso, {failure_count} falha."
+            ),
+        )
+
+    def _run_session_reconcile(self, selected_instance: MeowInstance | None) -> None:
+        queryset = WhatsAppSession.objects.all()
+        if selected_instance is not None:
+            queryset = queryset.filter(meow_instance=selected_instance)
+
+        results = WhatsAppSessionReconcileService().reconcile_sessions(
+            queryset=queryset,
+            include_inactive=True,
+        )
+        inconsistent_count = sum(not result.is_consistent for result in results)
+        messages.success(
+            self.request,
+            (
+                "Reconciliação executada em "
+                f"{len(results)} sessao(oes): "
+                f"{len(results) - inconsistent_count} consistente(s), "
+                f"{inconsistent_count} com inconsistencia."
+            ),
+        )
 
     def _get_problem_sessions(self, *, selected_instance_id: int | None = None):
         stale_minutes = getattr(settings, "WHATSAPP_SESSION_STALE_MINUTES", 30)
