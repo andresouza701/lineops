@@ -25,6 +25,8 @@ from core.services.daily_indicator_service import DailyIndicatorService
 from employees.models import Employee
 from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
+from whatsapp.choices import MeowInstanceHealthStatus, WhatsAppSessionStatus
+from whatsapp.models import MeowInstance, WhatsAppSession
 
 from .forms import (
     B2B_SUPERVISORS,
@@ -33,7 +35,7 @@ from .forms import (
     DailyIndicatorForm,
     DailyUserActionForm,
 )
-from .models import DashboardDailySnapshot, DailyIndicator, DailyUserAction
+from .models import DailyIndicator, DailyUserAction, DashboardDailySnapshot
 
 PERCENT_CRITICAL_THRESHOLD = 20
 PERCENT_WARNING_THRESHOLD = 10
@@ -783,6 +785,8 @@ class DashboardView(AuthenticadView, TemplateView):
         context["indicadores_diarios"] = self._build_daily_indicators(days=trend_period)
         context["trend_period"] = trend_period
         context.update(self._build_dashboard_insights(context))
+        if self.request.user.role == SystemUser.Role.ADMIN:
+            context["meow_operational_summary"] = self._build_meow_operational_summary()
         return context
 
     def _resolve_trend_period(self):
@@ -881,6 +885,41 @@ class DashboardView(AuthenticadView, TemplateView):
 
         return {
             "exception_cards": exception_cards,
+        }
+
+    def _build_meow_operational_summary(self):
+        instances = MeowInstance.objects.all()
+        active_sessions = WhatsAppSession.objects.filter(is_active=True)
+
+        return {
+            "total_instances": instances.count(),
+            "healthy_instances": instances.filter(
+                health_status=MeowInstanceHealthStatus.HEALTHY
+            ).count(),
+            "degraded_instances": instances.filter(
+                health_status=MeowInstanceHealthStatus.DEGRADED
+            ).count(),
+            "unavailable_instances": instances.filter(
+                health_status=MeowInstanceHealthStatus.UNAVAILABLE
+            ).count(),
+            "active_sessions": active_sessions.count(),
+            "connected_sessions": active_sessions.filter(
+                status=WhatsAppSessionStatus.CONNECTED
+            ).count(),
+            "pending_sessions": active_sessions.filter(
+                status__in=[
+                    WhatsAppSessionStatus.PENDING_NEW_NUMBER,
+                    WhatsAppSessionStatus.PENDING_RECONNECT,
+                    WhatsAppSessionStatus.CONNECTING,
+                    WhatsAppSessionStatus.QR_PENDING,
+                ]
+            ).count(),
+            "degraded_sessions": active_sessions.filter(
+                status__in=[
+                    WhatsAppSessionStatus.ERROR,
+                    WhatsAppSessionStatus.DISCONNECTED,
+                ]
+            ).count(),
         }
 
     def _build_negociador_data(self):

@@ -1,4 +1,9 @@
 from whatsapp.services.audit_service import WhatsAppAuditService
+from whatsapp.services.capacity_service import MeowCapacityService, MeowCapacitySummary
+from whatsapp.services.health_service import (
+    MeowHealthCheckResult,
+    MeowHealthCheckService,
+)
 from whatsapp.services.instance_selector import (
     InstanceSelectorService,
     NoAvailableMeowInstanceError,
@@ -10,14 +15,24 @@ from whatsapp.services.session_service import (
     WhatsAppSessionService,
     WhatsAppSessionServiceError,
 )
+from whatsapp.services.sync_service import (
+    WhatsAppSessionSyncResult,
+    WhatsAppSessionSyncService,
+)
 
 __all__ = [
+    "MeowCapacityService",
+    "MeowCapacitySummary",
+    "MeowHealthCheckResult",
+    "MeowHealthCheckService",
     "InstanceSelectorService",
     "NoAvailableMeowInstanceError",
     "WhatsAppSessionNotConfiguredError",
     "WhatsAppSessionService",
     "WhatsAppSessionResult",
     "WhatsAppSessionServiceError",
+    "WhatsAppSessionSyncResult",
+    "WhatsAppSessionSyncService",
     "WhatsAppAuditService",
     "WhatsAppProvisioningService",
 ]

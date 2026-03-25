@@ -6,13 +6,16 @@ from django.urls import reverse
 from django.utils import timezone
 
 from allocations.models import LineAllocation
+from core.services.allocation_service import AllocationService
 from core.services.daily_indicator_service import DailyIndicatorService
 from employees.models import Employee
 from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
+from whatsapp.choices import MeowInstanceHealthStatus, WhatsAppSessionStatus
+from whatsapp.models import MeowInstance, WhatsAppSession
 
 from .forms import DailyIndicatorForm
-from .models import DashboardDailySnapshot, DailyUserAction
+from .models import DailyUserAction, DashboardDailySnapshot
 
 
 class DashboardDailyIndicatorsTests(TestCase):
@@ -340,6 +343,77 @@ class DashboardDailyIndicatorsTests(TestCase):
         )
         self.assertEqual(pending_new_number["value"], 1)
         self.assertEqual(pending_reconnect["value"], 1)
+
+    def test_dashboard_counts_pending_new_number_from_allocation_flow(self):
+        employee = Employee.objects.create(
+            full_name="Flow User",
+            corporate_email="flow@corp.com",
+            employee_id="Unilever",
+            teams="B2C Squad",
+            status=Employee.Status.ACTIVE,
+        )
+        sim = SIMcard.objects.create(iccid="8900000000000001666", carrier="CarrierX")
+        line = PhoneLine.objects.create(
+            phone_number="+5511999999666",
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            allocation = AllocationService.allocate_line(
+                employee=employee,
+                phone_line=line,
+                allocated_by=self.user,
+            )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["pending_actions_count"], 1)
+
+        cards = response.context["exception_cards"]
+        pending_new_number = next(
+            card for card in cards if card["title"] == "PendÃªcia - NÃºmero Novo"
+        )
+        self.assertEqual(pending_new_number["value"], 1)
+
+        action = DailyUserAction.objects.get(
+            employee=employee,
+            allocation=allocation,
+            is_resolved=False,
+        )
+        self.assertEqual(action.action_type, DailyUserAction.ActionType.NEW_NUMBER)
+
+    def test_dashboard_clears_pending_count_after_release_flow_resolves_action(self):
+        employee = Employee.objects.create(
+            full_name="Release Flow User",
+            corporate_email="release@corp.com",
+            employee_id="Nestle",
+            teams="B2C Squad",
+            status=Employee.Status.ACTIVE,
+        )
+        sim = SIMcard.objects.create(iccid="8900000000000001667", carrier="CarrierX")
+        line = PhoneLine.objects.create(
+            phone_number="+5511999999667",
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            allocation = AllocationService.allocate_line(
+                employee=employee,
+                phone_line=line,
+                allocated_by=self.user,
+            )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            AllocationService.release_line(allocation=allocation, released_by=self.user)
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["pending_actions_count"], 0)
+
+        action = DailyUserAction.objects.get(employee=employee, allocation=allocation)
+        self.assertTrue(action.is_resolved)
 
     def test_dashboard_exception_cards_do_not_double_count_old_open_actions(self):
         today = timezone.localdate()
@@ -1333,6 +1407,139 @@ class DashboardDailyIndicatorsTests(TestCase):
             DailyUserAction.ActionType.RECONNECT_WHATSAPP,
         )
 
+    def test_dashboard_counts_pending_new_number_from_allocation_flow(self):
+        employee = Employee.objects.create(
+            full_name="Flow User",
+            corporate_email="flow@corp.com",
+            employee_id="Unilever",
+            teams="B2C Squad",
+            status=Employee.Status.ACTIVE,
+        )
+        sim = SIMcard.objects.create(iccid="8900000000000001666", carrier="CarrierX")
+        line = PhoneLine.objects.create(
+            phone_number="+5511999999666",
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            allocation = AllocationService.allocate_line(
+                employee=employee,
+                phone_line=line,
+                allocated_by=self.user,
+            )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["pending_actions_count"], 1)
+
+        cards = response.context["exception_cards"]
+        pending_new_number = next(
+            card
+            for card in cards
+            if card["action_url"] == reverse("daily_user_action_board")
+            and "novo" in card["description"].lower()
+        )
+        self.assertEqual(pending_new_number["value"], 1)
+
+        action = DailyUserAction.objects.get(
+            employee=employee,
+            allocation=allocation,
+            is_resolved=False,
+        )
+        self.assertEqual(action.action_type, DailyUserAction.ActionType.NEW_NUMBER)
+
+
+class DashboardMeowOperationalSummaryTests(TestCase):
+    def setUp(self):
+        self.admin_user = SystemUser.objects.create_user(
+            email="dashboard-meow-admin@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.manager_user = SystemUser.objects.create_user(
+            email="dashboard-meow-manager@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.GERENTE,
+        )
+
+        self.healthy_meow = MeowInstance.objects.create(
+            name="Healthy Meow",
+            base_url="http://healthy-meow.local",
+            health_status=MeowInstanceHealthStatus.HEALTHY,
+        )
+        self.degraded_meow = MeowInstance.objects.create(
+            name="Degraded Meow",
+            base_url="http://degraded-meow.local",
+            health_status=MeowInstanceHealthStatus.DEGRADED,
+        )
+        self.unavailable_meow = MeowInstance.objects.create(
+            name="Unavailable Meow",
+            base_url="http://unavailable-meow.local",
+            health_status=MeowInstanceHealthStatus.UNAVAILABLE,
+        )
+
+        self._create_session(
+            "+5511999993101",
+            self.healthy_meow,
+            WhatsAppSessionStatus.CONNECTED,
+        )
+        self._create_session(
+            "+5511999993102",
+            self.degraded_meow,
+            WhatsAppSessionStatus.ERROR,
+        )
+        self._create_session(
+            "+5511999993103",
+            self.unavailable_meow,
+            WhatsAppSessionStatus.PENDING_RECONNECT,
+        )
+
+    def _create_session(self, phone_number, meow_instance, status):
+        sim = SIMcard.objects.create(
+            iccid=f"8900000000000{phone_number[-6:]}",
+            carrier="CarrierX",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        line = PhoneLine.objects.create(
+            phone_number=phone_number,
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        return WhatsAppSession.objects.create(
+            line=line,
+            meow_instance=meow_instance,
+            session_id=f"session_{phone_number}",
+            status=status,
+        )
+
+    def test_dashboard_exposes_meow_operational_summary_for_admin(self):
+        self.client.force_login(self.admin_user)
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        summary = response.context["meow_operational_summary"]
+        self.assertEqual(summary["total_instances"], 3)
+        self.assertEqual(summary["healthy_instances"], 1)
+        self.assertEqual(summary["degraded_instances"], 1)
+        self.assertEqual(summary["unavailable_instances"], 1)
+        self.assertEqual(summary["connected_sessions"], 1)
+        self.assertEqual(summary["pending_sessions"], 1)
+        self.assertEqual(summary["degraded_sessions"], 1)
+        self.assertContains(response, "Operacao Meow")
+        self.assertContains(response, "Instancias saudaveis")
+        self.assertContains(response, "Sessoes degradadas")
+
+    def test_dashboard_hides_meow_operational_summary_for_manager(self):
+        self.client.force_login(self.manager_user)
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context.get("meow_operational_summary"))
+        self.assertNotContains(response, "Operacao Meow")
+
 
 class ManagerScopeTests(TestCase):
     def setUp(self):
@@ -1520,3 +1727,62 @@ class ManagerScopeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Usuario Vinculado")
         self.assertNotContains(response, "Usuario Nao Vinculado")
+
+    def test_manager_dashboard_counts_reconnect_from_allocation_flow(self):
+        previous_employee = Employee.objects.create(
+            full_name="Usuario Transferido",
+            corporate_email=self.supervisor.email,
+            employee_id="Ambiental",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        sim = SIMcard.objects.create(
+            iccid="8900000000000003003",
+            carrier="CarrierZ",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        line = PhoneLine.objects.create(
+            phone_number="+5511999993003",
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            old_allocation = AllocationService.allocate_line(
+                employee=previous_employee,
+                phone_line=line,
+                allocated_by=self.supervisor,
+            )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            AllocationService.release_line(
+                allocation=old_allocation,
+                released_by=self.supervisor,
+            )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            new_allocation = AllocationService.allocate_line(
+                employee=self.managed_employee,
+                phone_line=line,
+                allocated_by=self.supervisor,
+            )
+
+        response = self.client.get(reverse("manager_dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        row = next(
+            item
+            for item in response.context["supervisor_dashboards"][0]["rows"]
+            if item["portfolio"] == "Ambiental"
+        )
+        self.assertEqual(row["reconnect_count"], 1)
+
+        action = DailyUserAction.objects.get(
+            employee=self.managed_employee,
+            allocation=new_allocation,
+            is_resolved=False,
+        )
+        self.assertEqual(
+            action.action_type,
+            DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+        )

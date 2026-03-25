@@ -22,6 +22,51 @@
     </div>
 </section>
 
+{% if meow_operational_summary %}
+<section class="surface-card reveal-item mt-3">
+    <div class="section-header d-flex justify-content-between align-items-center">
+        <div>
+            <h2>Operacao Meow</h2>
+            <p class="text-muted mb-0">Resumo tecnico das instancias e sessoes WhatsApp.</p>
+        </div>
+    </div>
+    <div class="exception-grid mt-3">
+        <article class="exception-card severity-ok">
+            <p class="exception-title">Instancias saudaveis</p>
+            <p class="exception-value metric-mono">
+                {{ meow_operational_summary.healthy_instances }}/{{ meow_operational_summary.total_instances }}
+            </p>
+            <p class="exception-description">Instancias com health check saudavel.</p>
+        </article>
+        <article class="exception-card severity-warning">
+            <p class="exception-title">Instancias degradadas</p>
+            <p class="exception-value metric-mono">{{ meow_operational_summary.degraded_instances }}</p>
+            <p class="exception-description">Instancias respondendo com degradacao operacional.</p>
+        </article>
+        <article class="exception-card severity-critical">
+            <p class="exception-title">Instancias indisponiveis</p>
+            <p class="exception-value metric-mono">{{ meow_operational_summary.unavailable_instances }}</p>
+            <p class="exception-description">Instancias sem resposta no ultimo health check.</p>
+        </article>
+        <article class="exception-card severity-ok">
+            <p class="exception-title">Sessoes conectadas</p>
+            <p class="exception-value metric-mono">{{ meow_operational_summary.connected_sessions }}</p>
+            <p class="exception-description">Sessoes ativas conectadas ao WhatsApp.</p>
+        </article>
+        <article class="exception-card severity-warning">
+            <p class="exception-title">Sessoes pendentes</p>
+            <p class="exception-value metric-mono">{{ meow_operational_summary.pending_sessions }}</p>
+            <p class="exception-description">Sessoes aguardando numero novo, reconnect ou QR.</p>
+        </article>
+        <article class="exception-card severity-critical">
+            <p class="exception-title">Sessoes degradadas</p>
+            <p class="exception-value metric-mono">{{ meow_operational_summary.degraded_sessions }}</p>
+            <p class="exception-description">Sessoes com erro ou desconectadas.</p>
+        </article>
+    </div>
+</section>
+{% endif %}
+
 <section class="table-stack reveal-group">
     <div class="surface-card reveal-item">
         <div class="d-flex justify-content-between align-items-end gap-3 flex-wrap mb-3">
