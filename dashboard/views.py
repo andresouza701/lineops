@@ -316,6 +316,48 @@ def count_visible_pending_actions(rows):
     }
 
 
+def build_whatsapp_pending_summary(rows, *, limit=8):
+    items = []
+    for row in rows:
+        action = row.get("action")
+        if not action or action.action_type not in {
+            DailyUserAction.ActionType.NEW_NUMBER,
+            DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+        }:
+            continue
+
+        allocation = row.get("allocation")
+        phone_line = None
+        if allocation and allocation_is_currently_visible(allocation):
+            phone_line = allocation.phone_line
+
+        items.append(
+            {
+                "day": action.day,
+                "employee_name": row["employee"].full_name,
+                "portfolio": row["employee"].employee_id or "-",
+                "action_label": action.get_action_type_display(),
+                "phone_number": phone_line.phone_number if phone_line else "-",
+                "note": action.note or "-",
+                "line_detail_url": (
+                    reverse("telecom:phoneline_detail", args=[phone_line.pk])
+                    if phone_line
+                    else None
+                ),
+            }
+        )
+
+    items.sort(
+        key=lambda item: (item["day"], item["employee_name"].lower()),
+        reverse=True,
+    )
+
+    return {
+        "total": len(items),
+        "items": items[:limit],
+    }
+
+
 def count_admin_resolved_reconnect_actions(user):
     employees_qs = get_supervised_employees_queryset(user).filter(
         status=Employee.Status.ACTIVE,
@@ -801,6 +843,7 @@ class DashboardView(AuthenticadView, TemplateView):
         )
         rows = build_daily_user_action_rows(employees_qs, self.request.user)
         action_counts = count_visible_pending_actions(rows)
+        whatsapp_pending_summary = build_whatsapp_pending_summary(rows)
         pending_new_number_count = action_counts["new_number"]
         pending_reconnect_whatsapp_count = action_counts["reconnect_whatsapp"]
         action_board_url = reverse("daily_user_action_board")
@@ -885,6 +928,12 @@ class DashboardView(AuthenticadView, TemplateView):
 
         return {
             "exception_cards": exception_cards,
+            "whatsapp_pending_summary": {
+                **whatsapp_pending_summary,
+                "action_board_url": action_board_url,
+                "new_number": pending_new_number_count,
+                "reconnect_whatsapp": pending_reconnect_whatsapp_count,
+            },
         }
 
     def _build_meow_operational_summary(self):

@@ -44,6 +44,33 @@ WHATSAPP_SESSION_STALE_MINUTES=30
 `WHATSAPP_SESSION_STALE_MINUTES` controla quando uma sessao passa a ser
 considerada desatualizada na reconciliacao e na visao operacional.
 
+## Bootstrap inicial das instancias Meow
+
+Antes de habilitar os jobs operacionais, cadastre as instancias
+`MeowInstance` no Django.
+
+Use
+[`docs/meow-instances.example.json`](/C:/Users/andre.souza/Desktop/reviewer/lineops/docs/meow-instances.example.json)
+como base, ajustando `name` e `base_url` para o ambiente real.
+
+### Validar sem persistir
+
+```bash
+cd /opt/lineops/lineops
+./scripts/run_qa_manage_command.sh bootstrap_meow_instances --config docs/meow-instances.example.json --dry-run
+```
+
+### Aplicar bootstrap
+
+```bash
+cd /opt/lineops/lineops
+./scripts/run_qa_manage_command.sh bootstrap_meow_instances --config docs/meow-instances.example.json
+```
+
+O comando e idempotente por `name`: ele cria novas instancias e atualiza as
+existentes. Se o JSON tiver nomes duplicados, o bootstrap falha antes de
+persistir.
+
 ## 1. Validar o ambiente antes do cron
 
 ```bash

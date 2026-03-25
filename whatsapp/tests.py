@@ -1,12 +1,14 @@
 import io
 import json
 from datetime import timedelta
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError
 
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -1571,3 +1573,134 @@ class WhatsAppOperationsViewTests(TestCase):
         self.assertTrue(
             service.reconcile_sessions.call_args.kwargs["include_inactive"]
         )
+
+
+class BootstrapMeowInstancesCommandTests(TestCase):
+    def _write_config(self, payload):
+        config_path = Path(__file__).resolve().parent / "_test_meow_instances.json"
+        config_path.write_text(json.dumps(payload), encoding="utf-8")
+        self.addCleanup(lambda: config_path.unlink(missing_ok=True))
+        return config_path
+
+    def test_bootstrap_command_creates_instances_from_json(self):
+        payload = [
+            {
+                "name": "QA Meow 01",
+                "base_url": "http://qa-meow-01.local/",
+                "is_active": True,
+                "target_sessions": 35,
+                "warning_sessions": 40,
+                "max_sessions": 45,
+            },
+            {
+                "name": "QA Meow 02",
+                "base_url": "http://qa-meow-02.local",
+                "is_active": False,
+                "target_sessions": 30,
+                "warning_sessions": 35,
+                "max_sessions": 40,
+            },
+        ]
+        stdout = io.StringIO()
+        config_path = self._write_config(payload)
+
+        call_command(
+            "bootstrap_meow_instances",
+            config=str(config_path),
+            stdout=stdout,
+        )
+
+        self.assertEqual(MeowInstance.objects.count(), 2)
+        first = MeowInstance.objects.get(name="QA Meow 01")
+        second = MeowInstance.objects.get(name="QA Meow 02")
+        self.assertEqual(first.base_url, "http://qa-meow-01.local")
+        self.assertTrue(first.is_active)
+        self.assertFalse(second.is_active)
+        self.assertIn(
+            "Bootstrap concluido: 2 criada(s), 0 atualizada(s).",
+            stdout.getvalue(),
+        )
+
+    def test_bootstrap_command_updates_existing_instance(self):
+        instance = MeowInstance.objects.create(
+            name="QA Meow 01",
+            base_url="http://old-meow.local",
+            is_active=True,
+            target_sessions=35,
+            warning_sessions=40,
+            max_sessions=45,
+        )
+        payload = [
+            {
+                "name": "QA Meow 01",
+                "base_url": "http://new-meow.local/",
+                "is_active": False,
+                "target_sessions": 32,
+                "warning_sessions": 38,
+                "max_sessions": 44,
+            }
+        ]
+        stdout = io.StringIO()
+        config_path = self._write_config(payload)
+
+        call_command(
+            "bootstrap_meow_instances",
+            config=str(config_path),
+            stdout=stdout,
+        )
+
+        instance.refresh_from_db()
+        self.assertEqual(instance.base_url, "http://new-meow.local")
+        self.assertFalse(instance.is_active)
+        self.assertEqual(instance.target_sessions, 32)
+        self.assertEqual(instance.warning_sessions, 38)
+        self.assertEqual(instance.max_sessions, 44)
+        self.assertIn(
+            "Bootstrap concluido: 0 criada(s), 1 atualizada(s).",
+            stdout.getvalue(),
+        )
+
+    def test_bootstrap_command_dry_run_does_not_persist(self):
+        payload = [
+            {
+                "name": "QA Meow 01",
+                "base_url": "http://qa-meow-01.local",
+            }
+        ]
+        stdout = io.StringIO()
+        config_path = self._write_config(payload)
+
+        call_command(
+            "bootstrap_meow_instances",
+            config=str(config_path),
+            dry_run=True,
+            stdout=stdout,
+        )
+
+        self.assertFalse(MeowInstance.objects.exists())
+        self.assertIn(
+            "[dry-run] create: QA Meow 01 -> http://qa-meow-01.local",
+            stdout.getvalue(),
+        )
+        self.assertIn(
+            "Dry-run concluido: 1 criaria(m), 0 atualizaria(m), sem persistencia.",
+            stdout.getvalue(),
+        )
+
+    def test_bootstrap_command_rejects_duplicate_names(self):
+        payload = [
+            {
+                "name": "QA Meow 01",
+                "base_url": "http://qa-meow-01.local",
+            },
+            {
+                "name": "QA Meow 01",
+                "base_url": "http://qa-meow-02.local",
+            },
+        ]
+        config_path = self._write_config(payload)
+
+        with self.assertRaises(CommandError):
+            call_command("bootstrap_meow_instances", config=str(config_path))
+
+        self.assertFalse(MeowInstance.objects.exists())

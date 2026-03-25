@@ -1,0 +1,42 @@
+[
+  {
+    "name": "QA Meow 01",
+    "base_url": "http://10.103.4.201:8080",
+    "is_active": true,
+    "target_sessions": 35,
+    "warning_sessions": 40,
+    "max_sessions": 45
+  },
+  {
+    "name": "QA Meow 02",
+    "base_url": "http://10.103.4.202:8080",
+    "is_active": true,
+    "target_sessions": 35,
+    "warning_sessions": 40,
+    "max_sessions": 45
+  },
+  {
+    "name": "QA Meow 03",
+    "base_url": "http://10.103.4.203:8080",
+    "is_active": true,
+    "target_sessions": 35,
+    "warning_sessions": 40,
+    "max_sessions": 45
+  },
+  {
+    "name": "QA Meow 04",
+    "base_url": "http://10.103.4.204:8080",
+    "is_active": true,
+    "target_sessions": 35,
+    "warning_sessions": 40,
+    "max_sessions": 45
+  },
+  {
+    "name": "QA Meow 05",
+    "base_url": "http://10.103.4.205:8080",
+    "is_active": true,
+    "target_sessions": 35,
+    "warning_sessions": 40,
+    "max_sessions": 45
+  }
+]

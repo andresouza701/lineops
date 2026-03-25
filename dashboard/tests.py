@@ -344,6 +344,34 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertEqual(pending_new_number["value"], 1)
         self.assertEqual(pending_reconnect["value"], 1)
 
+    def test_dashboard_shows_whatsapp_pending_summary_section(self):
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            note="Validar QR da linha",
+            is_resolved=False,
+        )
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        summary = response.context["whatsapp_pending_summary"]
+        self.assertEqual(summary["total"], 1)
+        self.assertEqual(summary["reconnect_whatsapp"], 1)
+        self.assertContains(response, "Fila WhatsApp")
+        self.assertContains(response, self.employee_b2b.full_name)
+        self.assertContains(response, self.line_allocated.phone_number)
+        self.assertContains(response, "Validar QR da linha")
+        self.assertContains(
+            response,
+            reverse("telecom:phoneline_detail", args=[self.line_allocated.pk]),
+        )
+
     def test_dashboard_counts_pending_new_number_from_allocation_flow(self):
         employee = Employee.objects.create(
             full_name="Flow User",
@@ -1786,3 +1814,70 @@ class ManagerScopeTests(TestCase):
             action.action_type,
             DailyUserAction.ActionType.RECONNECT_WHATSAPP,
         )
+
+    def test_dashboard_whatsapp_pending_summary_respects_manager_scope(self):
+        managed_sim = SIMcard.objects.create(
+            iccid="8900000000000003010",
+            carrier="CarrierZ",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        managed_line = PhoneLine.objects.create(
+            phone_number="+5511999993010",
+            sim_card=managed_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        unmanaged_sim = SIMcard.objects.create(
+            iccid="8900000000000003011",
+            carrier="CarrierZ",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        unmanaged_line = PhoneLine.objects.create(
+            phone_number="+5511999993011",
+            sim_card=unmanaged_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        managed_allocation = LineAllocation.objects.create(
+            employee=self.managed_employee,
+            phone_line=managed_line,
+            allocated_by=self.supervisor,
+            is_active=True,
+        )
+        unmanaged_allocation = LineAllocation.objects.create(
+            employee=self.unmanaged_employee,
+            phone_line=unmanaged_line,
+            allocated_by=self.other_supervisor,
+            is_active=True,
+        )
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.managed_employee,
+            allocation=managed_allocation,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            supervisor=self.supervisor,
+            created_by=self.supervisor,
+            updated_by=self.supervisor,
+            note="Pendencia do escopo",
+            is_resolved=False,
+        )
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.unmanaged_employee,
+            allocation=unmanaged_allocation,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.other_supervisor,
+            created_by=self.other_supervisor,
+            updated_by=self.other_supervisor,
+            note="Nao deveria aparecer",
+            is_resolved=False,
+        )
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        summary = response.context["whatsapp_pending_summary"]
+        self.assertEqual(summary["total"], 1)
+        self.assertContains(response, "Fila WhatsApp")
+        self.assertContains(response, "Usuario Vinculado")
+        self.assertContains(response, "Pendencia do escopo")
+        self.assertNotContains(response, "Usuario Nao Vinculado")
+        self.assertNotContains(response, "Nao deveria aparecer")

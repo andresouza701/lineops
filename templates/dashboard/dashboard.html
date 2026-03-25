@@ -22,6 +22,71 @@
     </div>
 </section>
 
+{% if whatsapp_pending_summary.total %}
+<section class="surface-card reveal-item mt-3">
+    <div class="section-header d-flex justify-content-between align-items-center">
+        <div>
+            <h2>Fila WhatsApp</h2>
+            <p class="text-muted mb-0">Pendencias WhatsApp visiveis no seu escopo operacional.</p>
+        </div>
+        <a href="{{ whatsapp_pending_summary.action_board_url }}" class="btn btn-outline-secondary btn-sm">
+            Ver painel completo
+        </a>
+    </div>
+    <div class="exception-grid mt-3">
+        <article class="exception-card severity-warning">
+            <p class="exception-title">Pendencias totais</p>
+            <p class="exception-value metric-mono">{{ whatsapp_pending_summary.total }}</p>
+            <p class="exception-description">Itens abertos de numero novo ou reconnect.</p>
+        </article>
+        <article class="exception-card severity-warning">
+            <p class="exception-title">Numero novo</p>
+            <p class="exception-value metric-mono">{{ whatsapp_pending_summary.new_number }}</p>
+            <p class="exception-description">Linhas aguardando numero novo.</p>
+        </article>
+        <article class="exception-card severity-critical">
+            <p class="exception-title">Reconnect</p>
+            <p class="exception-value metric-mono">{{ whatsapp_pending_summary.reconnect_whatsapp }}</p>
+            <p class="exception-description">Linhas aguardando reconexao WhatsApp.</p>
+        </article>
+    </div>
+    <div class="table-responsive mt-3">
+        <table class="table table-striped table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Operador</th>
+                    <th>Carteira</th>
+                    <th>Acao</th>
+                    <th>Linha</th>
+                    <th>Observacao</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in whatsapp_pending_summary.items %}
+                    <tr>
+                        <td>{{ item.employee_name }}</td>
+                        <td>{{ item.portfolio }}</td>
+                        <td>{{ item.action_label }}</td>
+                        <td>{{ item.phone_number }}</td>
+                        <td>{{ item.note }}</td>
+                        <td class="text-end">
+                            {% if item.line_detail_url %}
+                                <a href="{{ item.line_detail_url }}" class="btn btn-sm btn-outline-primary">
+                                    Abrir linha
+                                </a>
+                            {% else %}
+                                <span class="text-muted small">Sem linha visivel</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
 {% if meow_operational_summary %}
 <section class="surface-card reveal-item mt-3">
     <div class="section-header d-flex justify-content-between align-items-center">
