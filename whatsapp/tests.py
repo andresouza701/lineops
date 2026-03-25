@@ -6,7 +6,11 @@ from urllib.error import HTTPError
 from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
+from allocations.models import LineAllocation
+from dashboard.models import DailyUserAction
+from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 from whatsapp.choices import MeowInstanceHealthStatus, WhatsAppSessionStatus
@@ -20,6 +24,7 @@ from whatsapp.services.instance_selector import (
     InstanceSelectorService,
     NoAvailableMeowInstanceError,
 )
+from whatsapp.services.provisioning_service import WhatsAppProvisioningService
 from whatsapp.services.session_service import (
     WhatsAppSessionNotConfiguredError,
     WhatsAppSessionResult,
@@ -350,6 +355,171 @@ class WhatsAppSessionServiceTests(TestCase):
 
         self.assertEqual(result.status, WhatsAppSessionStatus.DISCONNECTED)
         self.assertEqual(events, ["save", "audit"])
+
+
+class WhatsAppProvisioningServiceTests(TestCase):
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="admin-whatsapp-provision@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.supervisor = SystemUser.objects.create_user(
+            email="supervisor-whatsapp-provision@test.com",
+            password="123456",
+            role=SystemUser.Role.SUPER,
+        )
+        self.employee = Employee.objects.create(
+            full_name="Operador Provisioning",
+            corporate_email=self.supervisor.email,
+            employee_id="CART-001",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+        self.meow = MeowInstance.objects.create(
+            name="Provision Meow",
+            base_url="http://provision-meow.local",
+        )
+        self.sim = SIMcard.objects.create(
+            iccid="89000000000000777771",
+            carrier="Carrier A",
+            status=SIMcard.Status.ACTIVE,
+        )
+        self.line = PhoneLine.objects.create(
+            phone_number="+5511999990071",
+            sim_card=self.sim,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+
+    def test_mark_allocation_pending_creates_action_without_session_when_no_meow_is_available(  # noqa: E501
+        self,
+    ):
+        mock_session_service = MagicMock()
+        mock_session_service.get_or_create_session.side_effect = (
+            NoAvailableMeowInstanceError("sem capacidade")
+        )
+        service = WhatsAppProvisioningService(session_service=mock_session_service)
+        allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=self.line,
+            allocated_by=self.admin,
+            is_active=True,
+        )
+
+        session, action = service.mark_allocation_pending(
+            allocation=allocation,
+            actor=self.admin,
+        )
+
+        self.assertIsNone(session)
+        self.assertEqual(action.action_type, DailyUserAction.ActionType.NEW_NUMBER)
+        self.assertEqual(action.supervisor, self.supervisor)
+        self.assertFalse(action.is_resolved)
+        self.assertEqual(WhatsAppSession.objects.count(), 0)
+
+    def test_mark_allocation_pending_keeps_new_number_on_first_allocation_with_existing_session(  # noqa: E501
+        self,
+    ):
+        session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_+5511999990071",
+            status=WhatsAppSessionStatus.DISCONNECTED,
+        )
+        allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=self.line,
+            allocated_by=self.admin,
+            is_active=True,
+        )
+        service = WhatsAppProvisioningService()
+
+        returned_session, action = service.mark_allocation_pending(
+            allocation=allocation,
+            actor=self.admin,
+        )
+
+        session.refresh_from_db()
+        self.assertEqual(returned_session, session)
+        self.assertEqual(session.status, WhatsAppSessionStatus.PENDING_NEW_NUMBER)
+        self.assertEqual(action.action_type, DailyUserAction.ActionType.NEW_NUMBER)
+
+    def test_mark_allocation_pending_marks_reconnect_for_reallocated_line(self):
+        previous_employee = Employee.objects.create(
+            full_name="Operador Anterior",
+            corporate_email=self.supervisor.email,
+            employee_id="CART-002",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+        session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_+5511999990071",
+            status=WhatsAppSessionStatus.CONNECTED,
+        )
+        previous_allocation = LineAllocation.objects.create(
+            employee=previous_employee,
+            phone_line=self.line,
+            allocated_by=self.admin,
+        )
+        previous_allocation.is_active = False
+        previous_allocation.released_by = self.admin
+        previous_allocation.released_at = timezone.now()
+        previous_allocation.save(
+            update_fields=["is_active", "released_by", "released_at"]
+        )
+        current_allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=self.line,
+            allocated_by=self.admin,
+            is_active=True,
+        )
+        service = WhatsAppProvisioningService()
+
+        returned_session, action = service.mark_allocation_pending(
+            allocation=current_allocation,
+            actor=self.admin,
+        )
+
+        session.refresh_from_db()
+        self.assertEqual(returned_session, session)
+        self.assertEqual(session.status, WhatsAppSessionStatus.PENDING_RECONNECT)
+        self.assertEqual(
+            action.action_type, DailyUserAction.ActionType.RECONNECT_WHATSAPP
+        )
+
+    def test_resolve_allocation_pending_marks_matching_action_as_resolved(self):
+        allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=self.line,
+            allocated_by=self.admin,
+            is_active=True,
+        )
+        action = DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee,
+            allocation=allocation,
+            supervisor=self.supervisor,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            note="Pendente",
+            created_by=self.admin,
+            updated_by=self.admin,
+            is_resolved=False,
+        )
+        service = WhatsAppProvisioningService()
+
+        resolved = service.resolve_allocation_pending(
+            allocation=allocation,
+            actor=self.admin,
+            note="Resolvido pelo admin",
+        )
+
+        action.refresh_from_db()
+        self.assertEqual(resolved, 1)
+        self.assertTrue(action.is_resolved)
+        self.assertEqual(action.note, "Resolvido pelo admin")
+        self.assertEqual(action.updated_by, self.admin)
 
 
 @override_settings(WHATSAPP_MEOW_TIMEOUT_SECONDS=7)

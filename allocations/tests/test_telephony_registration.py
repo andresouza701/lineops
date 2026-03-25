@@ -4,11 +4,13 @@ from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
 
-from allocations.models import LineAllocation
 from allocations.forms import TelephonyAssignmentForm
+from allocations.models import LineAllocation
+from dashboard.models import DailyUserAction
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
+from whatsapp.models import WhatsAppSession
 
 
 class TelephonyRegistrationFlowTests(TestCase):
@@ -50,16 +52,17 @@ class TelephonyRegistrationFlowTests(TestCase):
         )
 
     def test_existing_line_links_employee_and_updates_line_status(self):
-        response = self.client.post(
-            reverse("allocations:allocation_list"),
-            {
-                "action": "telephony",
-                "line_action": "existing",
-                "employee": self.employee.pk,
-                "phone_line": self.line.pk,
-            },
-            follow=False,
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse("allocations:allocation_list"),
+                {
+                    "action": "telephony",
+                    "line_action": "existing",
+                    "employee": self.employee.pk,
+                    "phone_line": self.line.pk,
+                },
+                follow=False,
+            )
 
         self.assertEqual(response.status_code, 302)
         self.assertTrue(
@@ -71,6 +74,34 @@ class TelephonyRegistrationFlowTests(TestCase):
         )
         self.line.refresh_from_db()
         self.assertEqual(self.line.status, PhoneLine.Status.ALLOCATED)
+
+    def test_existing_line_allocation_creates_pending_daily_action_without_meow(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse("allocations:allocation_list"),
+                {
+                    "action": "telephony",
+                    "line_action": "existing",
+                    "employee": self.employee.pk,
+                    "phone_line": self.line.pk,
+                },
+                follow=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        allocation = LineAllocation.objects.get(
+            employee=self.employee,
+            phone_line=self.line,
+            is_active=True,
+        )
+        action = DailyUserAction.objects.get(
+            employee=self.employee,
+            allocation=allocation,
+            is_resolved=False,
+        )
+        self.assertEqual(action.action_type, DailyUserAction.ActionType.NEW_NUMBER)
+        self.assertEqual(action.created_by, self.admin)
+        self.assertEqual(WhatsAppSession.objects.filter(line=self.line).count(), 0)
 
     def test_telephony_registration_form_includes_blip_origin_choice(self):
         form = TelephonyAssignmentForm()
@@ -99,6 +130,130 @@ class TelephonyRegistrationFlowTests(TestCase):
         self.assertEqual(line.status, PhoneLine.Status.AVAILABLE)
         self.assertEqual(line.sim_card.iccid, "8900000000000000999")
         self.assertFalse(LineAllocation.objects.filter(phone_line=line).exists())
+
+    def test_new_line_creation_with_allocation_creates_pending_new_number_action(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse("allocations:allocation_list"),
+                {
+                    "action": "telephony",
+                    "line_action": "new",
+                    "employee": self.employee.pk,
+                    "phone_number": "+5511999990777",
+                    "iccid": "8900000000000000777",
+                    "carrier": "CarrierNew",
+                    "origem": PhoneLine.Origem.APARELHO,
+                },
+                follow=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        line = PhoneLine.objects.get(phone_number="+5511999990777")
+        allocation = LineAllocation.objects.get(phone_line=line, is_active=True)
+        action = DailyUserAction.objects.get(
+            employee=self.employee,
+            allocation=allocation,
+            is_resolved=False,
+        )
+        self.assertEqual(action.action_type, DailyUserAction.ActionType.NEW_NUMBER)
+        self.assertEqual(line.status, PhoneLine.Status.ALLOCATED)
+
+    def test_release_view_resolves_pending_daily_action(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            allocation = LineAllocation.objects.create(
+                employee=self.employee,
+                phone_line=self.line,
+                allocated_by=self.admin,
+                is_active=True,
+            )
+            self.line.status = PhoneLine.Status.ALLOCATED
+            self.line.save(update_fields=["status"])
+            DailyUserAction.objects.create(
+                day=allocation.allocated_at.date(),
+                employee=self.employee,
+                allocation=allocation,
+                action_type=DailyUserAction.ActionType.NEW_NUMBER,
+                supervisor=self.supervisor,
+                created_by=self.admin,
+                updated_by=self.admin,
+                is_resolved=False,
+            )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse("allocations:allocation_release", args=[allocation.pk]),
+                follow=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        allocation.refresh_from_db()
+        self.assertFalse(allocation.is_active)
+        action = DailyUserAction.objects.get(allocation=allocation)
+        self.assertTrue(action.is_resolved)
+        self.assertEqual(action.updated_by, self.admin)
+
+    def test_reallocating_released_line_creates_reconnect_action(self):
+        second_employee = Employee.objects.create(
+            full_name="Telephony User 2",
+            corporate_email="supervisor@test.com",
+            employee_id="EMP-TEL-2",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            first_allocation = LineAllocation.objects.create(
+                employee=self.employee,
+                phone_line=self.line,
+                allocated_by=self.admin,
+                is_active=True,
+            )
+            self.line.status = PhoneLine.Status.ALLOCATED
+            self.line.save(update_fields=["status"])
+            DailyUserAction.objects.create(
+                day=first_allocation.allocated_at.date(),
+                employee=self.employee,
+                allocation=first_allocation,
+                action_type=DailyUserAction.ActionType.NEW_NUMBER,
+                supervisor=self.supervisor,
+                created_by=self.admin,
+                updated_by=self.admin,
+                is_resolved=False,
+            )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(
+                reverse("allocations:allocation_release", args=[first_allocation.pk]),
+                follow=False,
+            )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse("allocations:allocation_list"),
+                {
+                    "action": "telephony",
+                    "line_action": "existing",
+                    "employee": second_employee.pk,
+                    "phone_line": self.line.pk,
+                },
+                follow=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        second_allocation = LineAllocation.objects.get(
+            employee=second_employee,
+            phone_line=self.line,
+            is_active=True,
+        )
+        reconnect_action = DailyUserAction.objects.get(
+            employee=second_employee,
+            allocation=second_allocation,
+            is_resolved=False,
+        )
+        self.assertEqual(
+            reconnect_action.action_type,
+            DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+        )
 
     def test_new_line_creation_reuses_soft_deleted_phone_number(self):
         recycled_sim = SIMcard.objects.create(

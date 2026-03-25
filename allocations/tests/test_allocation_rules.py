@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.test import TestCase
 from django.urls import reverse
 
@@ -72,9 +74,10 @@ class AllocationRulesTestCase(TestCase):
     def test_full_allocation_flow(self):
         line = self.lines[0]
 
-        allocation = AllocationService.allocate_line(
-            employee=self.employee, phone_line=line, allocated_by=self.admin
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            allocation = AllocationService.allocate_line(
+                employee=self.employee, phone_line=line, allocated_by=self.admin
+            )
 
         self.assertTrue(allocation.is_active)
         self.assertIsNone(allocation.released_at)
@@ -82,7 +85,11 @@ class AllocationRulesTestCase(TestCase):
         line.refresh_from_db()
         self.assertEqual(line.status, PhoneLine.Status.ALLOCATED)
 
-        AllocationService.release_line(allocation=allocation, released_by=self.admin)
+        with self.captureOnCommitCallbacks(execute=True):
+            AllocationService.release_line(
+                allocation=allocation,
+                released_by=self.admin,
+            )
 
         allocation.refresh_from_db()
         self.assertFalse(allocation.is_active)
@@ -111,6 +118,79 @@ class AllocationRulesTestCase(TestCase):
 
         with self.assertRaises(BusinessRuleException):
             allocation.delete()
+
+    @patch(
+        "core.services.allocation_service.WhatsAppProvisioningService.mark_allocation_pending"
+    )
+    def test_allocate_line_triggers_whatsapp_pending_on_commit(self, mark_pending):
+        line = self.lines[0]
+
+        with self.captureOnCommitCallbacks(execute=True):
+            allocation = AllocationService.allocate_line(
+                employee=self.employee,
+                phone_line=line,
+                allocated_by=self.admin,
+            )
+
+        mark_pending.assert_called_once()
+        called_kwargs = mark_pending.call_args.kwargs
+        self.assertEqual(called_kwargs["allocation"].pk, allocation.pk)
+        self.assertEqual(called_kwargs["actor"], self.admin)
+
+    @patch(
+        "core.services.allocation_service.WhatsAppProvisioningService.mark_allocation_pending",
+        side_effect=RuntimeError("boom"),
+    )
+    def test_allocate_line_does_not_fail_when_whatsapp_pending_callback_raises(
+        self,
+        _mark_pending,
+    ):
+        line = self.lines[1]
+
+        with (
+            self.assertLogs("core.services.allocation_service", level="ERROR") as logs,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+                allocation = AllocationService.allocate_line(
+                    employee=self.employee,
+                    phone_line=line,
+                    allocated_by=self.admin,
+                )
+
+        allocation.refresh_from_db()
+        line.refresh_from_db()
+        self.assertTrue(allocation.is_active)
+        self.assertEqual(line.status, PhoneLine.Status.ALLOCATED)
+        self.assertTrue(
+            any(
+                "WhatsApp provisioning callback failed" in entry
+                for entry in logs.output
+            )
+        )
+
+    @patch(
+        "core.services.allocation_service.WhatsAppProvisioningService.resolve_allocation_pending"
+    )
+    def test_release_line_resolves_whatsapp_pending_on_commit(self, resolve_pending):
+        with self.captureOnCommitCallbacks(execute=True):
+            allocation = AllocationService.allocate_line(
+                employee=self.employee,
+                phone_line=self.lines[2],
+                allocated_by=self.admin,
+            )
+
+        resolve_pending.reset_mock()
+
+        with self.captureOnCommitCallbacks(execute=True):
+            AllocationService.release_line(
+                allocation=allocation,
+                released_by=self.admin,
+            )
+
+        resolve_pending.assert_called_once()
+        called_kwargs = resolve_pending.call_args.kwargs
+        self.assertEqual(called_kwargs["allocation"].pk, allocation.pk)
+        self.assertEqual(called_kwargs["actor"], self.admin)
 
 
 class AllocationReleaseViewTestCase(TestCase):

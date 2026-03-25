@@ -7,6 +7,7 @@ from allocations.models import LineAllocation
 from core.exceptions.domain_exceptions import BusinessRuleException
 from employees.models import Employee
 from telecom.models import PhoneLine
+from whatsapp.services import WhatsAppProvisioningService
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,30 @@ MAX_ACTIVE_ALLOCATIONS_PER_EMPLOYEE = 4
 
 
 class AllocationService:
+    @staticmethod
+    def _run_provisioning_callback(
+        callback_name: str,
+        *,
+        allocation_id: int,
+        actor,
+    ) -> None:
+        try:
+            allocation = (
+                LineAllocation.objects.select_related("employee", "phone_line")
+                .get(pk=allocation_id)
+            )
+            service = WhatsAppProvisioningService()
+            getattr(service, callback_name)(allocation=allocation, actor=actor)
+        except Exception:
+            logger.exception(
+                "WhatsApp provisioning callback failed",
+                extra={
+                    "callback_name": callback_name,
+                    "allocation_id": allocation_id,
+                    "actor_id": getattr(actor, "id", None),
+                },
+            )
+
     @staticmethod
     @transaction.atomic
     def allocate_line(employee: Employee, phone_line: PhoneLine, allocated_by):
@@ -69,6 +94,14 @@ class AllocationService:
         if hasattr(phone_line, "_history_origin_action"):
             delattr(phone_line, "_history_origin_action")
 
+        transaction.on_commit(
+            lambda: AllocationService._run_provisioning_callback(
+                "mark_allocation_pending",
+                allocation_id=allocation.pk,
+                actor=allocated_by,
+            )
+        )
+
         logger.info(
             "Line allocated",
             extra={
@@ -97,6 +130,14 @@ class AllocationService:
         phone_line.save(update_fields=["status"])
         if hasattr(phone_line, "_history_origin_action"):
             delattr(phone_line, "_history_origin_action")
+
+        transaction.on_commit(
+            lambda: AllocationService._run_provisioning_callback(
+                "resolve_allocation_pending",
+                allocation_id=allocation.pk,
+                actor=released_by,
+            )
+        )
 
         logger.info(
             "Line released",
