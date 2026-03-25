@@ -226,13 +226,18 @@
             }
         }
 
+        function buildQrSrc(qrCode) {
+            if (!qrCode) return "";
+            return qrCode.startsWith("data:") ? qrCode : `data:image/png;base64,${qrCode}`;
+        }
+
         function renderQr(payload, { preservePendingQr = false } = {}) {
             if (payload.qr_code) {
                 cachedQrCode = payload.qr_code;
                 qrMeta.textContent = payload.has_qr ? "QR disponivel" : "Sem QR";
                 qrContainer.innerHTML = `
                     <img
-                        src="data:image/png;base64,${payload.qr_code}"
+                        src="${buildQrSrc(payload.qr_code)}"
                         alt="QR Code WhatsApp"
                         class="img-fluid rounded border bg-white p-2"
                         style="max-height: 220px;"
@@ -245,7 +250,7 @@
                 qrMeta.textContent = "QR carregado";
                 qrContainer.innerHTML = `
                     <img
-                        src="data:image/png;base64,${cachedQrCode}"
+                        src="${buildQrSrc(cachedQrCode)}"
                         alt="QR Code WhatsApp"
                         class="img-fluid rounded border bg-white p-2"
                         style="max-height: 220px;"

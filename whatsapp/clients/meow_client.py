@@ -45,6 +45,14 @@ class MeowClient:
             payload={},
         )
 
+    def disconnect_session(self, session_id: str):
+        encoded_session_id = parse.quote(session_id, safe="")
+        return self._request(
+            "POST",
+            f"/api/sessions/{encoded_session_id}/disconnect",
+            payload={},
+        )
+
     def delete_session(self, session_id: str):
         encoded_session_id = parse.quote(session_id, safe="")
         return self._request("DELETE", f"/api/sessions/{encoded_session_id}/delete")
@@ -52,13 +60,24 @@ class MeowClient:
     def get_qr(self, session_id: str):
         response = self.get_session(session_id)
         details = response.get("details") or {}
+        qr_code = self._normalize_qr_code(details.get("qrCode"))
         return {
             "has_qr": details.get("hasQR", False),
-            "qr_code": details.get("qrCode"),
+            "qr_code": qr_code,
             "qr_expires": details.get("qrExpires"),
             "connected": details.get("connected", False),
             "raw": response,
         }
+
+    def _normalize_qr_code(self, qr_code):
+        if not isinstance(qr_code, str):
+            return qr_code
+
+        if qr_code.startswith("data:") and "," in qr_code:
+            _, encoded_data = qr_code.split(",", 1)
+            return encoded_data
+
+        return qr_code
 
     def _request(self, method: str, path: str, *, payload: dict | None = None):
         headers = {

@@ -260,7 +260,7 @@ class WhatsAppSessionService:
         started_at = time.monotonic()
 
         try:
-            remote_payload = client.delete_session(session.session_id)
+            remote_payload = client.disconnect_session(session.session_id)
             duration_ms = self._elapsed_ms(started_at)
             session.status = WhatsAppSessionStatus.DISCONNECTED
             session.last_error = ""

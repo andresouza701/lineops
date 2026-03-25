@@ -413,7 +413,7 @@ class WhatsAppSessionServiceTests(TestCase):
         )
         events = []
         mock_client = MagicMock()
-        mock_client.delete_session.return_value = {"success": True}
+        mock_client.disconnect_session.return_value = {"success": True}
         original_save = WhatsAppSession.save
 
         def save_side_effect(instance, *args, **kwargs):
@@ -1566,6 +1566,44 @@ class MeowClientTests(TestCase):
             json.loads(called_request.data.decode("utf-8")),
             {"session_id": "session_5511999990001"},
         )
+
+    @patch("whatsapp.clients.meow_client.request.urlopen")
+    def test_disconnect_session_posts_expected_payload(self, urlopen):
+        urlopen.return_value = self._mock_response({"success": True})
+        client = MeowClient("http://meow.local")
+
+        response = client.disconnect_session("session_5511999990001")
+
+        self.assertEqual(response["success"], True)
+        called_request = urlopen.call_args.args[0]
+        self.assertEqual(
+            called_request.full_url,
+            "http://meow.local/api/sessions/session_5511999990001/disconnect",
+        )
+        self.assertEqual(called_request.method, "POST")
+        self.assertEqual(json.loads(called_request.data.decode("utf-8")), {})
+
+    @patch("whatsapp.clients.meow_client.request.urlopen")
+    def test_get_qr_normalizes_data_url_prefix(self, urlopen):
+        urlopen.return_value = self._mock_response(
+            {
+                "success": True,
+                "details": {
+                    "hasQR": True,
+                    "qrCode": "data:image/png;base64,base64-qr",
+                    "qrExpires": 123456,
+                    "connected": False,
+                },
+            }
+        )
+        client = MeowClient("http://meow.local")
+
+        response = client.get_qr("session_5511999990001")
+
+        self.assertTrue(response["has_qr"])
+        self.assertEqual(response["qr_code"], "base64-qr")
+        self.assertEqual(response["qr_expires"], 123456)
+        self.assertFalse(response["connected"])
 
     @patch("whatsapp.clients.meow_client.request.urlopen")
     def test_conflict_response_is_mapped(self, urlopen):
