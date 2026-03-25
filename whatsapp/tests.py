@@ -5,6 +5,7 @@ from urllib.error import HTTPError
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
+from django.urls import reverse
 
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
@@ -23,6 +24,7 @@ from whatsapp.services.session_service import (
     WhatsAppSessionNotConfiguredError,
     WhatsAppSessionResult,
     WhatsAppSessionService,
+    WhatsAppSessionServiceError,
 )
 
 
@@ -414,3 +416,238 @@ class MeowClientTests(TestCase):
 
         with self.assertRaises(MeowClientTimeoutError):
             client.health_check()
+
+
+class WhatsAppSessionViewTests(TestCase):
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="admin-whatsapp-view@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.operator = SystemUser.objects.create_user(
+            email="operator-whatsapp-view@test.com",
+            password="123456",
+            role=SystemUser.Role.OPERATOR,
+        )
+        self.meow = MeowInstance.objects.create(
+            name="View Meow",
+            base_url="http://view-meow.local",
+        )
+        self.sim = SIMcard.objects.create(
+            iccid="89000000000000888881",
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.line = PhoneLine.objects.create(
+            phone_number="+5511999990081",
+            sim_card=self.sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        self.session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_+5511999990081",
+            status=WhatsAppSessionStatus.CONNECTING,
+        )
+
+    def _build_result(
+        self,
+        *,
+        status=WhatsAppSessionStatus.CONNECTING,
+        connected=False,
+        qr_code=None,
+        has_qr=False,
+    ):
+        self.session.status = status
+        return WhatsAppSessionResult(
+            session=self.session,
+            status=status,
+            remote_payload={"details": {}},
+            qr_code=qr_code,
+            has_qr=has_qr,
+            connected=connected,
+        )
+
+    def test_status_view_returns_json_for_admin(self):
+        self.client.force_login(self.admin)
+
+        with patch.object(
+            WhatsAppSessionService,
+            "get_status",
+            return_value=self._build_result(
+                status=WhatsAppSessionStatus.CONNECTED,
+                connected=True,
+            ),
+        ):
+            response = self.client.get(
+                reverse("telecom:whatsapp:status", args=[self.line.pk])
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["line_id"], self.line.pk)
+        self.assertEqual(payload["session_id"], self.session.session_id)
+        self.assertEqual(payload["status"], WhatsAppSessionStatus.CONNECTED)
+        self.assertTrue(payload["connected"])
+
+    def test_status_view_returns_configured_false_when_session_is_missing(self):
+        self.client.force_login(self.admin)
+
+        with patch.object(
+            WhatsAppSessionService,
+            "get_status",
+            side_effect=WhatsAppSessionNotConfiguredError("nao configurada"),
+        ):
+            response = self.client.get(
+                reverse("telecom:whatsapp:status", args=[self.line.pk])
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertFalse(payload["configured"])
+        self.assertIsNone(payload["session_id"])
+
+    def test_qr_view_returns_qr_payload(self):
+        self.client.force_login(self.admin)
+
+        with patch.object(
+            WhatsAppSessionService,
+            "get_qr",
+            return_value=self._build_result(
+                status=WhatsAppSessionStatus.QR_PENDING,
+                qr_code="base64-qr",
+                has_qr=True,
+                connected=False,
+            ),
+        ):
+            response = self.client.get(
+                reverse("telecom:whatsapp:qr", args=[self.line.pk])
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["qr_code"], "base64-qr")
+        self.assertTrue(payload["has_qr"])
+
+    def test_qr_view_returns_404_when_session_is_missing(self):
+        self.client.force_login(self.admin)
+
+        with patch.object(
+            WhatsAppSessionService,
+            "get_qr",
+            side_effect=WhatsAppSessionNotConfiguredError("nao configurada"),
+        ):
+            response = self.client.get(
+                reverse("telecom:whatsapp:qr", args=[self.line.pk])
+            )
+
+        self.assertEqual(response.status_code, 404)
+        payload = response.json()
+        self.assertIn("error", payload)
+
+    def test_connect_view_redirects_on_standard_post(self):
+        self.client.force_login(self.admin)
+
+        with patch.object(
+            WhatsAppSessionService,
+            "connect",
+            return_value=self._build_result(),
+        ):
+            response = self.client.post(
+                reverse("telecom:whatsapp:connect", args=[self.line.pk])
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(
+            response,
+            reverse("telecom:phoneline_detail", args=[self.line.pk]),
+            fetch_redirect_response=False,
+        )
+
+    def test_connect_view_returns_json_for_ajax(self):
+        self.client.force_login(self.admin)
+
+        with patch.object(
+            WhatsAppSessionService,
+            "connect",
+            return_value=self._build_result(
+                status=WhatsAppSessionStatus.CONNECTING,
+                connected=False,
+            ),
+        ):
+            response = self.client.post(
+                reverse("telecom:whatsapp:connect", args=[self.line.pk]),
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], WhatsAppSessionStatus.CONNECTING)
+
+    def test_disconnect_view_returns_json_for_ajax(self):
+        self.client.force_login(self.admin)
+
+        with patch.object(
+            WhatsAppSessionService,
+            "disconnect",
+            return_value=self._build_result(
+                status=WhatsAppSessionStatus.DISCONNECTED,
+                connected=False,
+            ),
+        ):
+            response = self.client.post(
+                reverse("telecom:whatsapp:disconnect", args=[self.line.pk]),
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], WhatsAppSessionStatus.DISCONNECTED)
+        self.assertFalse(payload["connected"])
+
+    def test_status_view_returns_502_when_service_fails(self):
+        self.client.force_login(self.admin)
+
+        with patch.object(
+            WhatsAppSessionService,
+            "get_status",
+            side_effect=WhatsAppSessionServiceError("falha meow"),
+        ):
+            response = self.client.get(
+                reverse("telecom:whatsapp:status", args=[self.line.pk])
+            )
+
+        self.assertEqual(response.status_code, 502)
+        payload = response.json()
+        self.assertEqual(payload["error"], "falha meow")
+
+    def test_whatsapp_views_require_admin_role(self):
+        self.client.force_login(self.operator)
+
+        response = self.client.get(
+            reverse("telecom:whatsapp:status", args=[self.line.pk])
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_phoneline_detail_renders_whatsapp_card(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="whatsapp-session-card"', html=False)
+        self.assertContains(
+            response,
+            reverse("telecom:whatsapp:status", args=[self.line.pk]),
+        )
+        self.assertContains(
+            response,
+            reverse("telecom:whatsapp:connect", args=[self.line.pk]),
+        )
+        self.assertContains(response, "Consultar QR")
+        self.assertContains(response, "Conectar")
+        self.assertContains(response, "Desconectar")

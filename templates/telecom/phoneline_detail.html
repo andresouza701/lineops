@@ -150,7 +150,6 @@
     </a>
 </div>
 {% endblock %}
-
 {% block scripts %}
 {{ block.super }}
 <script>
@@ -160,6 +159,7 @@
 
         const statusUrl = card.dataset.statusUrl;
         const qrUrl = card.dataset.qrUrl;
+        const pollIntervalMs = 15000;
 
         const badge = document.getElementById("whatsapp-status-badge");
         const sessionId = document.getElementById("whatsapp-session-id");
@@ -182,6 +182,28 @@
             PENDING_RECONNECT: "text-bg-dark",
         };
 
+        let pollHandle = null;
+        let statusInFlight = false;
+        let qrInFlight = false;
+        let cachedQrCode = null;
+
+        function formatDateTime(value) {
+            if (!value) return "-";
+
+            const parsed = new Date(value);
+            if (Number.isNaN(parsed.getTime())) return value;
+
+            return new Intl.DateTimeFormat("pt-BR", {
+                dateStyle: "short",
+                timeStyle: "short",
+            }).format(parsed);
+        }
+
+        function setButtonsBusy(isBusy) {
+            refreshStatusButton.disabled = isBusy;
+            refreshQrButton.disabled = isBusy;
+        }
+
         function resetBadge(statusDisplay, statusValue) {
             badge.className = "badge";
             badge.classList.add(statusClassMap[statusValue] || "text-bg-secondary");
@@ -192,8 +214,8 @@
             resetBadge(payload.status_display, payload.status);
             sessionId.textContent = payload.session_id || "-";
             meowInstance.textContent = payload.meow_instance || "-";
-            lastSync.textContent = payload.last_sync_at || "-";
-            connectedAt.textContent = payload.connected_at || "-";
+            lastSync.textContent = formatDateTime(payload.last_sync_at);
+            connectedAt.textContent = formatDateTime(payload.connected_at);
 
             if (payload.error || payload.last_error) {
                 lastError.className = "alert alert-danger small mb-3";
@@ -204,8 +226,9 @@
             }
         }
 
-        function renderQr(payload) {
+        function renderQr(payload, { preservePendingQr = false } = {}) {
             if (payload.qr_code) {
+                cachedQrCode = payload.qr_code;
                 qrMeta.textContent = payload.has_qr ? "QR disponivel" : "Sem QR";
                 qrContainer.innerHTML = `
                     <img
@@ -217,6 +240,21 @@
                 `;
                 return;
             }
+
+            if (payload.status === "QR_PENDING" && preservePendingQr && cachedQrCode) {
+                qrMeta.textContent = "QR carregado";
+                qrContainer.innerHTML = `
+                    <img
+                        src="data:image/png;base64,${cachedQrCode}"
+                        alt="QR Code WhatsApp"
+                        class="img-fluid rounded border bg-white p-2"
+                        style="max-height: 220px;"
+                    >
+                `;
+                return;
+            }
+
+            cachedQrCode = null;
 
             if (payload.status === "QR_PENDING") {
                 qrMeta.textContent = "QR pendente";
@@ -256,18 +294,29 @@
             return payload;
         }
 
-        async function loadStatus() {
+        async function loadStatus({ silent = false } = {}) {
+            if (statusInFlight || qrInFlight) return;
+            statusInFlight = true;
+            setButtonsBusy(true);
+
             try {
                 const payload = await fetchPayload(statusUrl);
                 renderSession(payload);
-                renderQr(payload);
+                renderQr(payload, { preservePendingQr: true });
             } catch (error) {
                 lastError.className = "alert alert-danger small mb-3";
                 lastError.textContent = error.message;
+            } finally {
+                statusInFlight = false;
+                if (!qrInFlight) setButtonsBusy(false);
             }
         }
 
         async function loadQr() {
+            if (qrInFlight || statusInFlight) return;
+            qrInFlight = true;
+            setButtonsBusy(true);
+
             try {
                 const payload = await fetchPayload(qrUrl);
                 renderSession(payload);
@@ -275,13 +324,47 @@
             } catch (error) {
                 lastError.className = "alert alert-danger small mb-3";
                 lastError.textContent = error.message;
+            } finally {
+                qrInFlight = false;
+                if (!statusInFlight) setButtonsBusy(false);
             }
         }
 
-        refreshStatusButton.addEventListener("click", loadStatus);
-        refreshQrButton.addEventListener("click", loadQr);
+        function stopPolling() {
+            if (pollHandle) {
+                window.clearInterval(pollHandle);
+                pollHandle = null;
+            }
+        }
 
-        loadStatus();
+        function startPolling() {
+            stopPolling();
+            pollHandle = window.setInterval(() => {
+                if (document.hidden) return;
+                loadStatus({ silent: true });
+            }, pollIntervalMs);
+        }
+
+        refreshStatusButton.addEventListener("click", () => {
+            loadStatus();
+        });
+
+        refreshQrButton.addEventListener("click", () => {
+            loadQr();
+        });
+
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                stopPolling();
+                return;
+            }
+
+            loadStatus({ silent: true });
+            startPolling();
+        });
+
+        loadStatus({ silent: true });
+        startPolling();
     })();
 </script>
 {% endblock %}
