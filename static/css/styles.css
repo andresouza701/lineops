@@ -256,6 +256,48 @@ h1, h2, h3, h4, h5, h6 {
     margin-bottom: 0;
 }
 
+.line-detail-modal-content {
+    background: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.45);
+}
+
+.line-detail-modal-content .modal-header,
+.line-detail-modal-content .modal-footer {
+    border-color: rgba(226, 232, 240, 0.14);
+}
+
+.line-detail-modal-content .modal-title {
+    color: #f8fafc;
+    font-weight: 600;
+}
+
+.line-detail-modal-body {
+    color: #e2e8f0;
+}
+
+.line-detail-modal-body dt {
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.line-detail-modal-body dd {
+    color: #f8fafc;
+}
+
+.line-detail-modal-content .btn-outline-secondary {
+    color: #e2e8f0;
+    border-color: rgba(148, 163, 184, 0.45);
+}
+
+.line-detail-modal-content .btn-outline-secondary:hover,
+.line-detail-modal-content .btn-outline-secondary:focus {
+    color: #ffffff;
+    background: rgba(148, 163, 184, 0.18);
+    border-color: rgba(148, 163, 184, 0.6);
+}
+
 .kpi-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
