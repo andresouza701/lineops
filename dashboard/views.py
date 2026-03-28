@@ -296,6 +296,33 @@ def build_daily_user_action_rows(
     return apply_action_board_visibility_rules(rows, user)
 
 
+def filter_daily_user_action_rows(rows, user_filter="", line_filter=""):
+    normalized_user_filter = user_filter.lower()
+    normalized_line_filter = line_filter.lower()
+
+    filtered_rows = []
+    for row in rows:
+        employee_name = (row["employee"].full_name or "").lower()
+        line_number = row.get("line_number")
+        if line_number is None:
+            allocation = row.get("allocation")
+            if allocation and allocation.phone_line:
+                line_number = allocation.phone_line.phone_number
+            else:
+                line_number = ""
+
+        if normalized_user_filter and normalized_user_filter not in employee_name:
+            continue
+        if normalized_line_filter and normalized_line_filter not in (
+            line_number or ""
+        ).lower():
+            continue
+
+        filtered_rows.append(row)
+
+    return filtered_rows
+
+
 def count_visible_pending_actions(rows):
     return {
         "new_number": sum(
@@ -1229,6 +1256,8 @@ def daily_indicator_edit(request, pk):
 @roles_required(*DASHBOARD_ALLOWED_ROLES)
 def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
     supervisor_filter = (request.GET.get("supervisor") or "").strip()
+    user_filter = (request.GET.get("user") or "").strip()
+    line_filter = (request.GET.get("line") or "").strip()
     employees_qs = get_supervised_employees_queryset(request.user, supervisor_filter)
 
     if request.method == "POST":
@@ -1404,13 +1433,25 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         query = {}
         if supervisor_filter:
             query["supervisor"] = supervisor_filter
-        return redirect(f"{reverse('daily_user_action_board')}?{urlencode(query)}")
+        if user_filter:
+            query["user"] = user_filter
+        if line_filter:
+            query["line"] = line_filter
+        redirect_url = reverse("daily_user_action_board")
+        if query:
+            redirect_url = f"{redirect_url}?{urlencode(query)}"
+        return redirect(redirect_url)
 
     rows = build_daily_user_action_rows(
         employees_qs,
         request.user,
         include_forms=True,
         form_day=timezone.localdate(),
+    )
+    rows = filter_daily_user_action_rows(
+        rows,
+        user_filter=user_filter,
+        line_filter=line_filter,
     )
     action_counts = count_visible_pending_actions(rows)
 
@@ -1419,6 +1460,8 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         "rows": rows,
         "action_counts": action_counts,
         "supervisor_filter": supervisor_filter,
+        "user_filter": user_filter,
+        "line_filter": line_filter,
         "is_supervisor_role": request.user.is_supervisor_role,
         "is_admin_role": (request.user.role or "").lower() == "admin",
     }

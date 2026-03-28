@@ -972,6 +972,97 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertEqual(response.context["action_counts"]["new_number"], 1)
         self.assertEqual(response.context["action_counts"]["reconnect_whatsapp"], 0)
 
+    def test_daily_user_action_board_filters_rows_by_user_name(self):
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+        self.employee_b2c.line_status = Employee.LineStatus.RESTRICTED
+        self.employee_b2c.save(update_fields=["line_status"])
+
+        response = self.client.get(
+            reverse("daily_user_action_board"),
+            {"user": "B2B"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["employee"].id, self.employee_b2b.id)
+        self.assertContains(response, "B2B User")
+        self.assertNotContains(response, "B2C User")
+
+    def test_daily_user_action_board_filters_rows_by_line_number(self):
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+        second_sim = SIMcard.objects.create(
+            iccid="8900000000000001003",
+            carrier="CarrierX",
+        )
+        second_line = PhoneLine.objects.create(
+            phone_number="+5511999999011",
+            sim_card=second_sim,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        second_allocation = LineAllocation.objects.create(
+            employee=self.employee_b2b,
+            phone_line=second_line,
+            allocated_by=self.user,
+            is_active=True,
+        )
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=second_allocation,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+
+        response = self.client.get(
+            reverse("daily_user_action_board"),
+            {"line": "9001"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["allocation"].id, self.line_allocation.id)
+        self.assertContains(response, "+5511999999001")
+        self.assertNotContains(response, "+5511999999011")
+
+    def test_daily_user_action_board_preserves_filters_after_post(self):
+        response = self.client.post(
+            f"{reverse('daily_user_action_board')}?user=B2B&line=9001",
+            data={
+                "day": timezone.localdate().isoformat(),
+                "employee_id": self.employee_b2b.id,
+                "allocation_id": str(self.line_allocation.id),
+                "action_type": DailyUserAction.ActionType.NEW_NUMBER,
+                "note": "Precisa manter o filtro",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("user=B2B", response.url)
+        self.assertIn("line=9001", response.url)
+
     def test_daily_user_action_board_keeps_action_visible_when_simcard_line_is_hidden(self):
         DailyUserAction.objects.create(
             day=timezone.localdate(),

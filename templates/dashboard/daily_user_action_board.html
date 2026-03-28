@@ -50,6 +50,46 @@
 </section>
 
 <section class="surface-card reveal-item">
+    <form method="get" class="row g-3 align-items-end mb-3">
+        {% if supervisor_filter %}
+            <input type="hidden" name="supervisor" value="{{ supervisor_filter }}">
+        {% endif %}
+        <div class="col-lg-5">
+            <label class="form-label mb-1">Usuário</label>
+            <input
+                type="text"
+                name="user"
+                class="form-control"
+                placeholder="Ex.: Joao"
+                value="{{ user_filter }}"
+            >
+        </div>
+        <div class="col-lg-4">
+            <label class="form-label mb-1">Linha</label>
+            <input
+                type="text"
+                name="line"
+                class="form-control"
+                placeholder="Ex.: +5511..."
+                value="{{ line_filter }}"
+            >
+        </div>
+        <div class="col-lg-3 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            {% if supervisor_filter %}
+                <a href="{% url 'daily_user_action_board' %}?supervisor={{ supervisor_filter|urlencode }}" class="btn btn-outline-secondary">Limpar</a>
+            {% else %}
+                <a href="{% url 'daily_user_action_board' %}" class="btn btn-outline-secondary">Limpar</a>
+            {% endif %}
+        </div>
+        {% if supervisor_filter %}
+            <div class="col-12">
+                <p class="text-muted small mb-0">
+                    Escopo atual de supervisor: <span class="metric-mono">{{ supervisor_filter }}</span>
+                </p>
+            </div>
+        {% endif %}
+    </form>
     <div class="table-responsive">
         <table class="table table-striped table-hover align-middle">
             <thead class="table-light">
