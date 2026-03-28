@@ -190,7 +190,7 @@ def get_active_allocations_by_employee(employee_ids):
             phone_line__is_deleted=False,
             phone_line__sim_card__is_deleted=False,
         )
-        .select_related("phone_line")
+        .select_related("phone_line__sim_card")
         .order_by("employee_id", "-allocated_at")
     )
 

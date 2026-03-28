@@ -1063,6 +1063,61 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertIn("user=B2B", response.url)
         self.assertIn("line=9001", response.url)
 
+    def test_daily_user_action_board_renders_line_detail_modal_trigger(self):
+        self.line_allocated.origem = PhoneLine.Origem.SRVMEMU_01
+        self.line_allocated.save(update_fields=["origem"])
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            supervisor=self.user,
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+
+        response = self.client.get(reverse("daily_user_action_board"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="lineDetailModal"', html=False)
+        self.assertContains(
+            response,
+            'data-bs-target="#lineDetailModal"',
+            count=1,
+            html=False,
+        )
+        self.assertContains(
+            response,
+            'data-line-number="+5511999999001"',
+            html=False,
+        )
+        self.assertContains(
+            response,
+            'data-line-iccid="8900000000000001000"',
+            html=False,
+        )
+        self.assertContains(
+            response,
+            'data-line-origin="SRVMEMU-01"',
+            html=False,
+        )
+        self.assertContains(
+            response,
+            'data-line-employee="B2B User"',
+            html=False,
+        )
+        self.assertContains(
+            response,
+            'data-line-carrier="CarrierX"',
+            html=False,
+        )
+        self.assertContains(
+            response,
+            'data-line-status="Ativo"',
+            html=False,
+        )
+
     def test_daily_user_action_board_keeps_action_visible_when_simcard_line_is_hidden(self):
         DailyUserAction.objects.create(
             day=timezone.localdate(),
@@ -1611,3 +1666,46 @@ class ManagerScopeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Usuario Vinculado")
         self.assertNotContains(response, "Usuario Nao Vinculado")
+
+    def test_manager_action_board_renders_line_detail_trigger_for_visible_line(self):
+        sim = SIMcard.objects.create(
+            iccid="8900000000000003003",
+            carrier="CarrierZ",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        line = PhoneLine.objects.create(
+            phone_number="+5511999993003",
+            sim_card=sim,
+            status=PhoneLine.Status.ALLOCATED,
+            origem=PhoneLine.Origem.APARELHO,
+        )
+        LineAllocation.objects.create(
+            employee=self.managed_employee,
+            phone_line=line,
+            allocated_by=self.supervisor,
+            is_active=True,
+        )
+
+        response = self.client.get(reverse("daily_user_action_board"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            'data-line-number="+5511999993003"',
+            html=False,
+        )
+        self.assertContains(
+            response,
+            'data-line-iccid="8900000000000003003"',
+            html=False,
+        )
+        self.assertContains(
+            response,
+            'data-line-origin="APARELHO"',
+            html=False,
+        )
+        self.assertContains(
+            response,
+            'data-line-employee="Usuario Vinculado"',
+            html=False,
+        )

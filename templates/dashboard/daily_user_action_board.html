@@ -115,7 +115,20 @@
                             <td>{{ row.employee.employee_id }}</td>
                             <td>
                                 {% if row.has_line %}
-                                    <span class="badge text-bg-success">{{ row.line_number }}</span>
+                                    <button
+                                        type="button"
+                                        class="btn btn-link p-0 border-0 text-decoration-none align-baseline"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#lineDetailModal"
+                                        data-line-number="{{ row.line_number }}"
+                                        data-line-iccid="{{ row.allocation.phone_line.sim_card.iccid }}"
+                                        data-line-origin="{{ row.allocation.phone_line.get_origem_display|default:'-' }}"
+                                        data-line-employee="{{ row.employee.full_name }}"
+                                        data-line-carrier="{{ row.allocation.phone_line.sim_card.carrier|default:'-' }}"
+                                        data-line-status="{{ row.allocation.get_line_status_display }}"
+                                    >
+                                        <span class="badge text-bg-success">{{ row.line_number }}</span>
+                                    </button>
                                 {% else %}
                                     <span class="badge text-bg-warning">Sem linha</span>
                                 {% endif %}
@@ -159,4 +172,68 @@
         </table>
     </div>
 </section>
+{% endblock %}
+{% block scripts %}
+{{ block.super }}
+<div class="modal fade" id="lineDetailModal" tabindex="-1" aria-labelledby="lineDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="lineDetailModalLabel">Informações da Linha</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Número</dt>
+                    <dd class="col-sm-8" data-line-detail="number">-</dd>
+
+                    <dt class="col-sm-4">ICCID</dt>
+                    <dd class="col-sm-8 metric-mono" data-line-detail="iccid">-</dd>
+
+                    <dt class="col-sm-4">Origem</dt>
+                    <dd class="col-sm-8" data-line-detail="origin">-</dd>
+
+                    <dt class="col-sm-4">Usuário vinculado</dt>
+                    <dd class="col-sm-8" data-line-detail="employee">-</dd>
+
+                    <dt class="col-sm-4">Operadora</dt>
+                    <dd class="col-sm-8" data-line-detail="carrier">-</dd>
+
+                    <dt class="col-sm-4">Status operacional da linha</dt>
+                    <dd class="col-sm-8" data-line-detail="status">-</dd>
+                </dl>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    (() => {
+        const modalEl = document.getElementById('lineDetailModal');
+        if (!modalEl) return;
+
+        modalEl.addEventListener('show.bs.modal', event => {
+            const trigger = event.relatedTarget;
+            if (!trigger) return;
+
+            const details = {
+                number: trigger.getAttribute('data-line-number') || '-',
+                iccid: trigger.getAttribute('data-line-iccid') || '-',
+                origin: trigger.getAttribute('data-line-origin') || '-',
+                employee: trigger.getAttribute('data-line-employee') || '-',
+                carrier: trigger.getAttribute('data-line-carrier') || '-',
+                status: trigger.getAttribute('data-line-status') || '-',
+            };
+
+            Object.entries(details).forEach(([key, value]) => {
+                const target = modalEl.querySelector(`[data-line-detail="${key}"]`);
+                if (target) {
+                    target.textContent = value;
+                }
+            });
+        });
+    })();
+</script>
 {% endblock %}
