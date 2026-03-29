@@ -14,7 +14,7 @@
             {% include "base/messages.html" %}
             {% block content %}{% endblock %}
             <p class="text-center text-white-50 mt-4" style="font-size: 0.9rem;">
-                LineOps · Gerenciamento de telecom e usuários · &copy; {{ current_year }} · <a href="#">Política de Privacidade</a>
+                LineOps · Gerenciamento de telecom e usuários · &copy; {% now "Y" %} · <a href="#">Política de Privacidade</a>
             </p>
         </div>
     </main>

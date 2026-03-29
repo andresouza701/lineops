@@ -34,15 +34,17 @@
                         type="{{ field.field.widget.input_type }}"
                         name="{{ field.html_name }}"
                         id="{{ field.id_for_label }}"
-                        class="form-control form-control-lg login-input bg-light border rounded-3 px-3 py-2 shadow-sm"
+                        class="form-control form-control-lg login-input bg-light border rounded-3 px-3 py-2 shadow-sm{% if field.errors or form.non_field_errors %} is-invalid{% endif %}"
                         placeholder="{{ field.label }}"
                         style="height: 52px;"
                         {% if field.field.widget.input_type != 'password' and field.value %}value="{{ field.value }}"{% endif %}
                         {% if field.field.required %}required{% endif %}
                         {% if field.field.widget.attrs.autocomplete %}autocomplete="{{ field.field.widget.attrs.autocomplete }}"{% endif %}
+                        {% if field.errors or form.non_field_errors %}aria-invalid="true"{% endif %}
+                        {% if field.errors %}aria-describedby="{{ field.id_for_label }}-errors"{% elif form.non_field_errors %}aria-describedby="login-form-errors"{% endif %}
                     >
                     {% if field.errors %}
-                        <div class="text-danger small mt-1">
+                        <div id="{{ field.id_for_label }}-errors" class="invalid-feedback d-block">
                             {{ field.errors|striptags }}
                         </div>
                     {% endif %}
@@ -50,7 +52,7 @@
             {% endfor %}
 
             {% if form.non_field_errors %}
-                <div class="alert alert-danger" role="alert">
+                <div id="login-form-errors" class="alert alert-danger" role="alert" aria-live="assertive">
                     {{ form.non_field_errors|striptags }}
                 </div>
             {% endif %}
