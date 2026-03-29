@@ -11,7 +11,7 @@
                 {% if request.user.role == 'gerente' %}
                     <li class="nav-item">
                         <a class="nav-link {% if current_name == 'manager_dashboard' %}active{% endif %}" href="{% url 'manager_dashboard' %}">
-                            Dash Gerencial
+                            Dashboard Gerencial
                         </a>
                     </li>
                 {% endif %}
@@ -23,7 +23,7 @@
                 {% if request.user.can_access_employee_area %}
                     <li class="nav-item">
                         <a class="nav-link {% if current_ns == 'employees' %}active{% endif %}" href="{% url 'employees:employee_list' %}">
-                            Usuarios
+                            Usuários
                         </a>
                     </li>
                 {% endif %}
