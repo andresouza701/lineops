@@ -1065,7 +1065,8 @@ class DashboardDailyIndicatorsTests(TestCase):
 
     def test_daily_user_action_board_renders_line_detail_modal_trigger(self):
         self.line_allocated.origem = PhoneLine.Origem.SRVMEMU_01
-        self.line_allocated.save(update_fields=["origem"])
+        self.line_allocated.canal = PhoneLine.Canal.WEB
+        self.line_allocated.save(update_fields=["origem", "canal"])
         DailyUserAction.objects.create(
             day=timezone.localdate(),
             employee=self.employee_b2b,
@@ -1104,6 +1105,11 @@ class DashboardDailyIndicatorsTests(TestCase):
         )
         self.assertContains(
             response,
+            'data-line-channel="WEB"',
+            html=False,
+        )
+        self.assertContains(
+            response,
             'data-line-employee="B2B User"',
             html=False,
         )
@@ -1117,6 +1123,9 @@ class DashboardDailyIndicatorsTests(TestCase):
             'data-line-status="Ativo"',
             html=False,
         )
+        self.assertContains(response, "Canal")
+        self.assertContains(response, "Usuário")
+        self.assertContains(response, "Status")
 
     def test_daily_user_action_board_keeps_action_visible_when_simcard_line_is_hidden(self):
         DailyUserAction.objects.create(
@@ -1678,6 +1687,7 @@ class ManagerScopeTests(TestCase):
             sim_card=sim,
             status=PhoneLine.Status.ALLOCATED,
             origem=PhoneLine.Origem.APARELHO,
+            canal=PhoneLine.Canal.MYLOOP,
         )
         LineAllocation.objects.create(
             employee=self.managed_employee,
@@ -1702,6 +1712,11 @@ class ManagerScopeTests(TestCase):
         self.assertContains(
             response,
             'data-line-origin="APARELHO"',
+            html=False,
+        )
+        self.assertContains(
+            response,
+            'data-line-channel="MyLoop"',
             html=False,
         )
         self.assertContains(

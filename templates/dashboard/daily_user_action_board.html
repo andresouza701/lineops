@@ -123,6 +123,7 @@
                                         data-line-number="{{ row.line_number }}"
                                         data-line-iccid="{{ row.allocation.phone_line.sim_card.iccid }}"
                                         data-line-origin="{{ row.allocation.phone_line.get_origem_display|default:'-' }}"
+                                        data-line-channel="{{ row.allocation.phone_line.get_canal_display|default:'-' }}"
                                         data-line-employee="{{ row.employee.full_name }}"
                                         data-line-carrier="{{ row.allocation.phone_line.sim_card.carrier|default:'-' }}"
                                         data-line-status="{{ row.allocation.get_line_status_display }}"
@@ -192,13 +193,16 @@
                     <dt class="col-sm-4">Origem</dt>
                     <dd class="col-sm-8" data-line-detail="origin">-</dd>
 
-                    <dt class="col-sm-4">Usuário vinculado</dt>
+                    <dt class="col-sm-4">Canal</dt>
+                    <dd class="col-sm-8" data-line-detail="channel">-</dd>
+
+                    <dt class="col-sm-4">Usuário</dt>
                     <dd class="col-sm-8" data-line-detail="employee">-</dd>
 
                     <dt class="col-sm-4">Operadora</dt>
                     <dd class="col-sm-8" data-line-detail="carrier">-</dd>
 
-                    <dt class="col-sm-4">Status operacional da linha</dt>
+                    <dt class="col-sm-4">Status</dt>
                     <dd class="col-sm-8" data-line-detail="status">-</dd>
                 </dl>
             </div>
@@ -221,6 +225,7 @@
                 number: trigger.getAttribute('data-line-number') || '-',
                 iccid: trigger.getAttribute('data-line-iccid') || '-',
                 origin: trigger.getAttribute('data-line-origin') || '-',
+                channel: trigger.getAttribute('data-line-channel') || '-',
                 employee: trigger.getAttribute('data-line-employee') || '-',
                 carrier: trigger.getAttribute('data-line-carrier') || '-',
                 status: trigger.getAttribute('data-line-status') || '-',
