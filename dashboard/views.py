@@ -46,6 +46,15 @@ DASHBOARD_ALLOWED_ROLES = (
     SystemUser.Role.SUPER,
     SystemUser.Role.GERENTE,
 )
+SCOPED_DASHBOARD_METRIC_KEYS = (
+    "pessoas_logadas",
+    "perc_sem_whats",
+    "b2b_sem_whats",
+    "b2c_sem_whats",
+    "numeros_entregues",
+    "reconectados",
+    "total_descoberto_dia",
+)
 
 
 def resolve_trend_period(raw_period):
@@ -73,6 +82,14 @@ def get_supervised_employees_queryset(user, supervisor_filter=None):
     if user.role == SystemUser.Role.ADMIN and supervisor_filter:
         employees = employees.filter(corporate_email__icontains=supervisor_filter)
     return employees.order_by("full_name")
+
+
+def uses_scoped_dashboard_metrics(user):
+    return bool(
+        user
+        and getattr(user, "role", None)
+        in {SystemUser.Role.SUPER, SystemUser.Role.GERENTE}
+    )
 
 
 def get_daily_indicators_queryset(user):
@@ -367,8 +384,8 @@ def get_admin_resolved_reconnect_actions_queryset(day, employee_ids=None):
     return queryset.order_by("-updated_at", "-id")
 
 
-def build_admin_resolved_reconnect_numbers_for_day(day):
-    actions = list(get_admin_resolved_reconnect_actions_queryset(day))
+def build_admin_resolved_reconnect_numbers_for_day(day, employee_ids=None):
+    actions = list(get_admin_resolved_reconnect_actions_queryset(day, employee_ids))
     details = []
 
     for action in actions:
@@ -418,12 +435,19 @@ def build_admin_resolved_reconnect_numbers_for_day(day):
     return details
 
 
-def build_reconnected_numbers_for_day(day):
+def build_reconnected_numbers_for_day(day, employee_ids=None):
     start_of_day = timezone.make_aware(datetime.combine(day, time.min))
+    reconnected_allocations = DailyIndicatorService.get_reconnected_allocations_queryset(
+        day
+    )
+    if employee_ids is not None:
+        reconnected_allocations = reconnected_allocations.filter(
+            employee_id__in=employee_ids
+        )
     reconnected_allocations = list(
-        DailyIndicatorService.get_reconnected_allocations_queryset(day)
-        .select_related("employee", "phone_line__sim_card")
-        .order_by("allocated_at")
+        reconnected_allocations.select_related("employee", "phone_line__sim_card").order_by(
+            "allocated_at"
+        )
     )
     reconnected_numbers = [
         {
@@ -439,7 +463,9 @@ def build_reconnected_numbers_for_day(day):
             allocation.allocated_at or start_of_day,
         )
     ]
-    reconnected_numbers.extend(build_admin_resolved_reconnect_numbers_for_day(day))
+    reconnected_numbers.extend(
+        build_admin_resolved_reconnect_numbers_for_day(day, employee_ids)
+    )
     return reconnected_numbers
 
 
@@ -459,6 +485,35 @@ def get_visible_employees_for_day(day):
         end_of_day = timezone.make_aware(datetime.combine(day, time.max))
         return queryset.filter(Q(is_deleted=False) | Q(updated_at__gt=end_of_day))
     return queryset.filter(is_deleted=False)
+
+
+def get_scoped_visible_employees_for_day(day, user=None):
+    employees = get_visible_employees_for_day(day)
+    if uses_scoped_dashboard_metrics(user):
+        employees = user.scope_employee_queryset(employees)
+    return employees
+
+
+def get_active_allocations_for_day(day, employee_ids=None):
+    end_of_day = timezone.make_aware(datetime.combine(day, time.max))
+    allocations = LineAllocation.objects.filter(allocated_at__lte=end_of_day)
+    if is_historical_day(day):
+        allocations = allocations.filter(
+            DailyIndicatorService.build_visible_phone_line_q(
+                end_of_day, prefix="phone_line__"
+            )
+        )
+    else:
+        allocations = allocations.filter(
+            phone_line__is_deleted=False,
+            phone_line__sim_card__is_deleted=False,
+        )
+    allocations = allocations.filter(
+        Q(released_at__isnull=True) | Q(released_at__gt=end_of_day)
+    )
+    if employee_ids is not None:
+        allocations = allocations.filter(employee_id__in=employee_ids)
+    return allocations
 
 
 def get_open_action_for_resolution(employee, allocation_id=None):
@@ -498,7 +553,7 @@ def get_open_action_for_resolution(employee, allocation_id=None):
 
 
 def build_number_details_for_day(
-    day: date, base_lines, allocated_line_ids
+    day: date, base_lines, allocated_line_ids, employee_ids=None
 ) -> tuple[list[str], list[dict], list[dict], list[str]]:
     """Build detailed number allocations for a specific day."""
     start_of_day = timezone.make_aware(datetime.combine(day, time.min))
@@ -508,10 +563,13 @@ def build_number_details_for_day(
         .values_list("phone_number", flat=True)
     )
 
+    delivered_allocations = LineAllocation.objects.filter(allocated_at__date=day)
+    if employee_ids is not None:
+        delivered_allocations = delivered_allocations.filter(employee_id__in=employee_ids)
     delivered_allocations = list(
-        LineAllocation.objects.filter(allocated_at__date=day)
-        .select_related("employee", "phone_line__sim_card")
-        .order_by("allocated_at")
+        delivered_allocations.select_related("employee", "phone_line__sim_card").order_by(
+            "allocated_at"
+        )
     )
     delivered_numbers = [
         {
@@ -528,7 +586,7 @@ def build_number_details_for_day(
         )
     ]
 
-    reconnected_numbers = build_reconnected_numbers_for_day(day)
+    reconnected_numbers = build_reconnected_numbers_for_day(day, employee_ids)
 
     new_lines = list(
         PhoneLine.all_objects.filter(created_at__date=day)
@@ -592,26 +650,23 @@ def build_user_details_for_day(
     return users, logged_users, users_with_line, users_without_line
 
 
-def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
+def build_indicator_for_day(
+    day: date, include_users: bool = False, user=None
+) -> dict:
     """Calculate all indicators for a specific day from database state."""
-    end_of_day = timezone.make_aware(datetime.combine(day, time.max))
-    employees = get_visible_employees_for_day(day)
+    employees = get_scoped_visible_employees_for_day(day, user)
     active_employees = employees.filter(status=Employee.Status.ACTIVE)
+    scoped_employee_ids = (
+        employees.values_list("id", flat=True)
+        if uses_scoped_dashboard_metrics(user)
+        else None
+    )
 
-    active_allocations = LineAllocation.objects.filter(allocated_at__lte=end_of_day)
-    if is_historical_day(day):
-        active_allocations = active_allocations.filter(
-            DailyIndicatorService.build_visible_phone_line_q(
-                end_of_day, prefix="phone_line__"
-            )
-        )
-    else:
-        active_allocations = active_allocations.filter(
-            phone_line__is_deleted=False,
-            phone_line__sim_card__is_deleted=False,
-        )
-    active_allocations = active_allocations.filter(
-        Q(released_at__isnull=True) | Q(released_at__gt=end_of_day)
+    active_allocations = get_active_allocations_for_day(day, scoped_employee_ids)
+    global_active_allocations = (
+        get_active_allocations_for_day(day)
+        if scoped_employee_ids is not None
+        else active_allocations
     )
 
     allocated_employee_ids = active_allocations.values_list(
@@ -626,10 +681,10 @@ def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
     base_lines = get_visible_phone_lines_for_day(day).filter(
         status=PhoneLine.Status.AVAILABLE,
     )
-    allocated_line_ids = active_allocations.values_list(
+    allocated_line_ids = global_active_allocations.values_list(
         "phone_line_id", flat=True
     ).distinct()
-    reconnected_numbers = build_reconnected_numbers_for_day(day)
+    reconnected_numbers = build_reconnected_numbers_for_day(day, scoped_employee_ids)
     sem_whats_portfolios = employees_without_whats.values_list("employee_id", flat=True)
     b2b_sem_whats = 0
     b2c_sem_whats = 0
@@ -641,7 +696,10 @@ def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
             b2c_sem_whats += 1
 
     available_numbers, delivered_numbers, _, new_numbers = build_number_details_for_day(
-        day, base_lines, allocated_line_ids
+        day,
+        base_lines,
+        allocated_line_ids,
+        scoped_employee_ids,
     )
     numeros_disponiveis = len(available_numbers)
     numeros_entregues = len(delivered_numbers)
@@ -676,6 +734,20 @@ def build_indicator_for_day(day: date, include_users: bool = False) -> dict:
     indicator["logged_users"] = logged_users
     indicator["users_with_line"] = users_with_line
     indicator["users_without_line"] = users_without_line
+    return indicator
+
+
+def get_dashboard_indicator_for_user_day(day: date, user, include_users: bool = False):
+    if include_users:
+        return build_indicator_for_day(day, include_users=True, user=user)
+
+    if not uses_scoped_dashboard_metrics(user):
+        return get_dashboard_indicator_for_day(day)
+
+    indicator = get_dashboard_indicator_for_day(day)
+    scoped_indicator = build_indicator_for_day(day, user=user)
+    for key in SCOPED_DASHBOARD_METRIC_KEYS:
+        indicator[key] = scoped_indicator[key]
     return indicator
 
 
@@ -758,8 +830,12 @@ def serialize_daily_indicator(item):
     }
 
 
-def get_daily_indicators_payload(days):
-    daily = DashboardView()._build_daily_indicators(days=days)
+def get_daily_indicators_payload(days, user):
+    today = timezone.localdate()
+    daily = []
+    for offset in range(days - 1, -1, -1):
+        day = today - timedelta(days=offset)
+        daily.append(get_dashboard_indicator_for_user_day(day, user))
     rows = [serialize_daily_indicator(item) for item in daily]
     base = "|".join(
         [",".join(str(row[key]) for key in sorted(row.keys())) for row in rows]
@@ -790,15 +866,18 @@ class DashboardView(AuthenticadView, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         trend_period = self._resolve_trend_period()
+        scoped_active_employees = get_supervised_employees_queryset(self.request.user).filter(
+            status=Employee.Status.ACTIVE,
+            is_deleted=False,
+        )
         context["snapshot_report_date"] = self.request.GET.get(
             "snapshot_report_date", timezone.localdate().isoformat()
         )
-        context["total_employees"] = Employee.objects.filter(
-            status=Employee.Status.ACTIVE
-        ).count()
+        context["total_employees"] = scoped_active_employees.count()
         context["total_lines"] = PhoneLine.objects.filter(is_deleted=False).count()
         context["allocated_lines"] = LineAllocation.objects.filter(
-            is_active=True
+            is_active=True,
+            employee_id__in=scoped_active_employees.values_list("id", flat=True),
         ).count()
         context["available_lines"] = PhoneLine.objects.filter(
             is_deleted=False,
@@ -942,7 +1021,7 @@ class DashboardView(AuthenticadView, TemplateView):
         return indicators
 
     def _build_indicator_for_day(self, day):
-        return get_dashboard_indicator_for_day(day)
+        return get_dashboard_indicator_for_user_day(day, self.request.user)
 
     def _build_status_counts(self):
         sim_counts = defaultdict(int)
@@ -1472,7 +1551,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
 @roles_required(*DASHBOARD_ALLOWED_ROLES)
 def daily_indicators_live(request):
     period = resolve_trend_period(request.GET.get("period", DEFAULT_TREND_PERIOD))
-    rows, fingerprint = get_daily_indicators_payload(days=period)
+    rows, fingerprint = get_daily_indicators_payload(days=period, user=request.user)
     return JsonResponse(
         {
             "period": period,
@@ -1487,7 +1566,7 @@ def daily_indicators_live(request):
 @roles_required(*DASHBOARD_ALLOWED_ROLES)
 def dashboard_daily_snapshot_report(request):
     selected_day = resolve_day(request.GET.get("date"))
-    snapshot = get_or_create_dashboard_snapshot_for_day(selected_day)
+    indicator = get_dashboard_indicator_for_user_day(selected_day, request.user)
 
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     filename = selected_day.strftime("snapshot_diario_%Y%m%d.csv")
@@ -1509,15 +1588,15 @@ def dashboard_daily_snapshot_report(request):
         ],
         [
             selected_day.strftime("%d/%m/%Y"),
-            snapshot.people_logged_in,
-            f"{snapshot.percentage_without_whatsapp:.2f}",
-            snapshot.b2b_without_whatsapp,
-            snapshot.b2c_without_whatsapp,
-            snapshot.numbers_available,
-            snapshot.numbers_delivered,
-            snapshot.numbers_reconnected,
-            snapshot.numbers_new,
-            snapshot.total_uncovered_day,
+            indicator["pessoas_logadas"],
+            f"{indicator['perc_sem_whats']:.2f}",
+            indicator["b2b_sem_whats"],
+            indicator["b2c_sem_whats"],
+            indicator["numeros_disponiveis"],
+            indicator["numeros_entregues"],
+            indicator["reconectados"],
+            indicator["novos"],
+            indicator["total_descoberto_dia"],
         ],
     ]
 
@@ -1536,7 +1615,11 @@ def daily_indicator_day_breakdown(request, day):
     except ValueError as exc:
         raise Http404("Data invalida.") from exc
 
-    indicator = build_indicator_for_day(selected_day, include_users=True)
+    indicator = get_dashboard_indicator_for_user_day(
+        selected_day,
+        request.user,
+        include_users=True,
+    )
     context = {
         "title": f"Detalhes dos Indicadores - {selected_day.strftime('%d/%m/%Y')}",
         "selected_day": selected_day,

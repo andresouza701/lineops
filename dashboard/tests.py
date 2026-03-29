@@ -1525,6 +1525,65 @@ class ManagerScopeTests(TestCase):
             status=Employee.Status.ACTIVE,
         )
 
+    def _create_scoped_dashboard_dataset(self):
+        unmanaged_without_line = Employee.objects.create(
+            full_name="Usuario Sem Escopo",
+            corporate_email=self.other_supervisor.email,
+            manager_email="outro.gerente@test.com",
+            employee_id="Natura",
+            teams="Araquari",
+            status=Employee.Status.ACTIVE,
+        )
+        available_sim = SIMcard.objects.create(
+            iccid="8900000000000003010",
+            carrier="CarrierScope",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        available_line = PhoneLine.objects.create(
+            phone_number="+5511999993010",
+            sim_card=available_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        managed_sim = SIMcard.objects.create(
+            iccid="8900000000000003011",
+            carrier="CarrierScope",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        managed_line = PhoneLine.objects.create(
+            phone_number="+5511999993011",
+            sim_card=managed_sim,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        managed_allocation = LineAllocation.objects.create(
+            employee=self.managed_employee,
+            phone_line=managed_line,
+            allocated_by=self.supervisor,
+            is_active=True,
+        )
+        unmanaged_sim = SIMcard.objects.create(
+            iccid="8900000000000003012",
+            carrier="CarrierScope",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        unmanaged_line = PhoneLine.objects.create(
+            phone_number="+5511999993012",
+            sim_card=unmanaged_sim,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        LineAllocation.objects.create(
+            employee=self.unmanaged_employee,
+            phone_line=unmanaged_line,
+            allocated_by=self.other_supervisor,
+            is_active=True,
+        )
+        return {
+            "available_line": available_line,
+            "managed_line": managed_line,
+            "managed_allocation": managed_allocation,
+            "unmanaged_line": unmanaged_line,
+            "unmanaged_without_line": unmanaged_without_line,
+        }
+
     def test_manager_dashboard_groups_pending_actions_by_supervisor_and_portfolio(self):
         sim = SIMcard.objects.create(
             iccid="8900000000000003001",
@@ -1724,3 +1783,71 @@ class ManagerScopeTests(TestCase):
             'data-line-employee="Usuario Vinculado"',
             html=False,
         )
+
+    def test_manager_dashboard_main_scopes_employee_metrics_and_keeps_inventory_global(
+        self,
+    ):
+        self._create_scoped_dashboard_dataset()
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        latest = response.context["indicadores_diarios"][-1]
+        self.assertEqual(latest["pessoas_logadas"], 1)
+        self.assertEqual(latest["perc_sem_whats"], 0)
+        self.assertEqual(latest["total_descoberto_dia"], 0)
+        self.assertEqual(latest["numeros_entregues"], 1)
+        self.assertEqual(latest["numeros_disponiveis"], 1)
+        self.assertEqual(latest["novos"], 3)
+
+    def test_manager_live_dashboard_payload_scopes_employee_metrics(self):
+        self._create_scoped_dashboard_dataset()
+
+        response = self.client.get(reverse("daily_indicators_live"), {"period": 7})
+
+        self.assertEqual(response.status_code, 200)
+        latest = response.json()["rows"][-1]
+        self.assertEqual(latest["pessoas_logadas"], 1)
+        self.assertEqual(latest["total_descoberto_dia"], 0)
+        self.assertEqual(latest["numeros_entregues"], 1)
+        self.assertEqual(latest["numeros_disponiveis"], 1)
+
+    def test_manager_day_breakdown_scopes_users_and_keeps_inventory_global(self):
+        dataset = self._create_scoped_dashboard_dataset()
+        today_iso = timezone.localdate().strftime("%Y-%m-%d")
+
+        response = self.client.get(
+            reverse("daily_indicator_day_breakdown", kwargs={"day": today_iso})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        indicator = response.context["indicator"]
+        self.assertEqual(indicator["pessoas_logadas"], 1)
+        self.assertEqual(indicator["numeros_entregues"], 1)
+        self.assertEqual(indicator["numeros_disponiveis"], 1)
+        self.assertEqual(len(indicator["users"]), 1)
+        self.assertEqual(len(indicator["users_with_line"]), 1)
+        self.assertEqual(len(indicator["users_without_line"]), 0)
+        self.assertEqual(
+            indicator["delivered_numbers"][0]["numero"],
+            dataset["managed_line"].phone_number,
+        )
+        self.assertContains(response, "Usuario Vinculado")
+        self.assertNotContains(response, "Usuario Nao Vinculado")
+        self.assertNotContains(response, "Usuario Sem Escopo")
+        self.assertContains(response, dataset["available_line"].phone_number)
+
+    def test_supervisor_dashboard_main_scopes_employee_metrics_and_keeps_inventory_global(
+        self,
+    ):
+        self._create_scoped_dashboard_dataset()
+        self.client.force_login(self.supervisor)
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        latest = response.context["indicadores_diarios"][-1]
+        self.assertEqual(latest["pessoas_logadas"], 1)
+        self.assertEqual(latest["total_descoberto_dia"], 0)
+        self.assertEqual(latest["numeros_entregues"], 1)
+        self.assertEqual(latest["numeros_disponiveis"], 1)
