@@ -1,6 +1,8 @@
 from django import forms
 from django.contrib import admin
 
+from core.normalization import normalize_email_address, normalize_full_name
+
 from .models import Employee
 
 
@@ -10,23 +12,25 @@ class EmployeeAdminForm(forms.ModelForm):
         fields = "__all__"
 
     def clean_full_name(self):
-        full_name = (self.cleaned_data.get("full_name") or "").strip()
+        full_name = normalize_full_name(self.cleaned_data.get("full_name"))
         if not full_name:
             return full_name
 
-        duplicate_qs = Employee.all_objects.filter(
-            full_name__iexact=full_name,
-            is_deleted=False,
-        )
-        if self.instance and self.instance.pk:
-            duplicate_qs = duplicate_qs.exclude(pk=self.instance.pk)
-
-        if duplicate_qs.exists():
+        if Employee.has_active_full_name_conflict(
+            full_name,
+            exclude_id=self.instance.pk if self.instance and self.instance.pk else None,
+        ):
             raise forms.ValidationError(
                 "Ja existe um usuario cadastrado com este nome."
             )
 
         return full_name
+
+    def clean_corporate_email(self):
+        return normalize_email_address(self.cleaned_data.get("corporate_email"))
+
+    def clean_manager_email(self):
+        return normalize_email_address(self.cleaned_data.get("manager_email")) or None
 
 
 @admin.register(Employee)
@@ -48,14 +52,9 @@ class EmployeeAdmin(admin.ModelAdmin):
     ordering = ("full_name",)
 
     def get_queryset(self, request):
-        """Filtra employees baseado na role do usuário"""
         queryset = super().get_queryset(request)
-        # SUPER users can only see their own employees
         return request.user.scope_employee_queryset(queryset)
 
-    # Admin delete must respect soft-delete semantics from Employee model/queryset.
-    # The default admin collector checks protected relations as if it were a hard
-    # delete, which blocks valid soft deletions.
     def get_deleted_objects(self, objs, request):
         deleted_objects = [str(obj) for obj in objs]
         model_count = {self.model._meta.verbose_name: len(deleted_objects)}

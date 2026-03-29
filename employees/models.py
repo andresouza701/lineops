@@ -4,6 +4,15 @@ from django.db.models import Q
 from django.db.models.functions import Lower
 from django.utils import timezone
 
+from core.normalization import (
+    collapse_whitespace,
+    normalize_email_address,
+    normalize_full_name,
+    normalize_lookup_key,
+    normalize_portfolio_value,
+    normalize_unit_value,
+)
+
 
 class EmployeeQuerySet(models.QuerySet):
     def delete(self):
@@ -69,6 +78,37 @@ class Employee(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     is_deleted = models.BooleanField(default=False, db_index=True)
+
+    @classmethod
+    def find_active_by_normalized_full_name(cls, full_name, *, exclude_id=None):
+        normalized_name = normalize_lookup_key(full_name)
+        if not normalized_name:
+            return None
+
+        queryset = cls.all_objects.filter(is_deleted=False).only("id", "full_name")
+        if exclude_id is not None:
+            queryset = queryset.exclude(pk=exclude_id)
+
+        for employee in queryset:
+            if normalize_lookup_key(employee.full_name) == normalized_name:
+                return employee
+        return None
+
+    @classmethod
+    def has_active_full_name_conflict(cls, full_name, *, exclude_id=None):
+        return (
+            cls.find_active_by_normalized_full_name(full_name, exclude_id=exclude_id)
+            is not None
+        )
+
+    def save(self, *args, **kwargs):
+        self.full_name = normalize_full_name(self.full_name)
+        self.corporate_email = normalize_email_address(self.corporate_email)
+        self.manager_email = normalize_email_address(self.manager_email) or None
+        self.employee_id = normalize_portfolio_value(self.employee_id)
+        self.teams = normalize_unit_value(self.teams)
+        self.pa = collapse_whitespace(self.pa) or None
+        return super().save(*args, **kwargs)
 
     def delete(self, using=None, keep_parents=False):
         self.is_deleted = True

@@ -2,6 +2,7 @@ from django import forms
 from django.contrib import admin
 from django.db import transaction
 
+from core.normalization import normalize_carrier_name
 from core.validation import normalize_phone_number, validate_phone_number_format
 
 from .models import BlipConfiguration, PhoneLine, SIMcard
@@ -58,6 +59,9 @@ class SIMcardAdminForm(forms.ModelForm):
         if queryset.exists():
             raise forms.ValidationError("Numero de linha ja cadastrado.")
         return phone_number
+
+    def clean_carrier(self):
+        return normalize_carrier_name(self.cleaned_data.get("carrier"))
 
 
 @admin.register(SIMcard)

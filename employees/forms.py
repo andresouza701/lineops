@@ -2,6 +2,7 @@ from django import forms
 from django.apps import apps
 
 from core.constants import B2B_PORTFOLIOS, B2C_PORTFOLIOS
+from core.normalization import normalize_email_address, normalize_full_name
 
 from .models import Employee
 
@@ -30,16 +31,14 @@ class EmployeeForm(forms.ModelForm):
         cleaned_data = super().clean()
         status = cleaned_data.get("status")
         instance = self.instance
-        # Só valida se já existe (edição)
         if instance and instance.pk and status == Employee.Status.INACTIVE:
-            # Verifica se há linha ativa vinculada
             line_allocation_model = apps.get_model("allocations", "LineAllocation")
             has_active_line = line_allocation_model.objects.filter(
                 employee=instance, is_active=True
             ).exists()
             if has_active_line:
                 raise forms.ValidationError(
-                    "Não é permitido inativar um usuário que possui "
+                    "Nao e permitido inativar um usuario que possui "
                     "linha vinculada ativa."
                 )
 
@@ -48,15 +47,14 @@ class EmployeeForm(forms.ModelForm):
         return cleaned_data
 
     def clean_full_name(self):
-        full_name = (self.cleaned_data.get("full_name") or "").strip()
+        full_name = normalize_full_name(self.cleaned_data.get("full_name"))
         if not full_name:
             return full_name
 
-        duplicate_qs = Employee.objects.filter(full_name__iexact=full_name)
-        if self.instance and self.instance.pk:
-            duplicate_qs = duplicate_qs.exclude(pk=self.instance.pk)
-
-        if duplicate_qs.exists():
+        if Employee.has_active_full_name_conflict(
+            full_name,
+            exclude_id=self.instance.pk if self.instance and self.instance.pk else None,
+        ):
             raise forms.ValidationError(
                 "Ja existe um usuario cadastrado com este nome."
             )
@@ -64,14 +62,16 @@ class EmployeeForm(forms.ModelForm):
         return full_name
 
     def clean_corporate_email(self):
-        corporate_email = (self.cleaned_data.get("corporate_email") or "").strip()
+        corporate_email = normalize_email_address(
+            self.cleaned_data.get("corporate_email")
+        )
         allowed_emails = getattr(self, "_allowed_supervisor_emails", [])
         if allowed_emails and corporate_email not in allowed_emails:
             raise forms.ValidationError("Selecione um supervisor valido.")
         return corporate_email
 
     def clean_manager_email(self):
-        manager_email = (self.cleaned_data.get("manager_email") or "").strip()
+        manager_email = normalize_email_address(self.cleaned_data.get("manager_email"))
         allowed_emails = getattr(self, "_allowed_manager_emails", [])
         if allowed_emails and manager_email not in allowed_emails:
             raise forms.ValidationError("Selecione um gerente valido.")
@@ -83,13 +83,16 @@ class EmployeeForm(forms.ModelForm):
         if not self.initial.get("status"):
             self.initial["status"] = Employee.Status.ACTIVE
 
-        # Supervisor dropdown
         from users.models import SystemUser
 
         super_users = SystemUser.objects.filter(role__in=SystemUser.SUPERVISOR_ROLES)
         manager_users = SystemUser.objects.filter(role=SystemUser.Role.GERENTE)
-        self._allowed_supervisor_emails = [user.email for user in super_users]
-        self._allowed_manager_emails = [user.email for user in manager_users]
+        self._allowed_supervisor_emails = [
+            normalize_email_address(user.email) for user in super_users
+        ]
+        self._allowed_manager_emails = [
+            normalize_email_address(user.email) for user in manager_users
+        ]
         supervisor_choices = [
             (email, email) for email in self._allowed_supervisor_emails
         ]
@@ -123,7 +126,6 @@ class EmployeeForm(forms.ModelForm):
             required=True,
         )
 
-        # Unidade dropdown (garante ChoiceField com opções do model)
         unidade_choices = [
             (Employee.UnitChoices.JOINVILLE, "Joinville"),
             (Employee.UnitChoices.ARAQUARI, "Araquari"),

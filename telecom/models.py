@@ -5,6 +5,8 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from core.normalization import normalize_carrier_name
+
 
 class SoftDeleteQuerySet(models.QuerySet):
     def active(self):
@@ -49,6 +51,10 @@ class SIMcard(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     is_deleted = models.BooleanField(default=False, db_index=True)
+
+    def save(self, *args, **kwargs):
+        self.carrier = normalize_carrier_name(self.carrier)
+        return super().save(*args, **kwargs)
 
     @classmethod
     def available_for_line_registration(cls):

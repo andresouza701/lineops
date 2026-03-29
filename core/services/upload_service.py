@@ -8,6 +8,13 @@ from pathlib import Path
 
 from allocations.models import LineAllocation
 from core.exceptions.domain_exceptions import BusinessRuleException
+from core.normalization import (
+    collapse_whitespace,
+    normalize_email_address,
+    normalize_full_name,
+    normalize_portfolio_value,
+    normalize_unit_value,
+)
 from core.services.allocation_service import AllocationService
 from django.db import IntegrityError, transaction
 from django.utils.text import slugify
@@ -182,15 +189,14 @@ def _upsert_employee(row: dict[str, str], summary: UploadSummary) -> None:
         raise ValueError("Coluna obrigatória ausente ou vazia: teams.")
 
     status = _normalize_employee_status(row.get("status"))
-    full_name = row["full_name"]
-    employee_id = row["employee_id"]
+    full_name = normalize_full_name(row["full_name"])
+    employee_id = normalize_portfolio_value(row["employee_id"])
+    teams = normalize_unit_value(teams)
 
     # full_name is the unique key (unique constraint on the model, case-insensitive).
     # employee_id (Carteira) is NOT unique — multiple employees can share the same
     # portfolio, so it must NOT be used as the lookup key.
-    existing = Employee.all_objects.filter(
-        full_name__iexact=full_name, is_deleted=False
-    ).first()
+    existing = Employee.find_active_by_normalized_full_name(full_name)
 
     fields: dict[str, object] = {
         "full_name": full_name,
@@ -199,15 +205,15 @@ def _upsert_employee(row: dict[str, str], summary: UploadSummary) -> None:
         "status": status,
         "is_deleted": False,
     }
-    supervisor_email = row.get("corporate_email") or ""
+    supervisor_email = normalize_email_address(row.get("corporate_email"))
     if supervisor_email:
         fields["corporate_email"] = supervisor_email
 
-    manager_email = row.get("manager_email") or ""
+    manager_email = normalize_email_address(row.get("manager_email"))
     if manager_email:
         fields["manager_email"] = manager_email
 
-    pa = row.get("pa") or ""
+    pa = collapse_whitespace(row.get("pa"))
     if pa:
         fields["pa"] = pa
 
@@ -357,7 +363,7 @@ def _looks_like_phone_number(value: str) -> bool:
 def _resolve_upload_allocation_employee(
     row: dict[str, str], line_status: str
 ) -> Employee | None:
-    employee_name = (row.get("full_name") or "").strip()
+    employee_name = normalize_full_name(row.get("full_name"))
     if not employee_name:
         return None
 
@@ -366,11 +372,9 @@ def _resolve_upload_allocation_employee(
             "Linha vinculada por upload deve usar status ALLOCATED na linha de simcard."
         )
 
-    employee = Employee.objects.filter(
-        full_name__iexact=employee_name,
-        is_deleted=False,
-        status=Employee.Status.ACTIVE,
-    ).first()
+    employee = Employee.find_active_by_normalized_full_name(employee_name)
+    if employee is not None and employee.status != Employee.Status.ACTIVE:
+        employee = None
     if employee is None:
         raise ValueError(
             f"Usuario ativo nao encontrado para vinculacao da linha: {employee_name}."

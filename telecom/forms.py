@@ -3,6 +3,7 @@ from typing import cast
 from django import forms
 from django.apps import apps
 
+from core.normalization import normalize_carrier_name
 from core.services.allocation_service import MAX_ACTIVE_ALLOCATIONS_PER_EMPLOYEE
 from core.validation import (
     normalize_iccid,
@@ -26,6 +27,9 @@ class SIMcardForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["iccid"].widget.attrs.setdefault("class", "form-control")
         self.fields["carrier"].widget.attrs.setdefault("class", "form-control")
+
+    def clean_carrier(self):
+        return normalize_carrier_name(self.cleaned_data.get("carrier"))
 
 
 class SIMcardCreateWithLineForm(SIMcardForm):
@@ -213,6 +217,9 @@ class CombinedSimLineForm(forms.Form):
         if PhoneLine.active_phone_number_conflicts(phone).exists():
             raise forms.ValidationError("Número já cadastrado!")
         return phone
+
+    def clean_carrier(self):
+        return normalize_carrier_name(self.cleaned_data.get("carrier"))
 
 
 class BlipConfigurationForm(forms.ModelForm):

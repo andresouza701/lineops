@@ -2,6 +2,11 @@ from django import forms
 
 from allocations.models import LineAllocation
 from core.constants import B2B_PORTFOLIOS, B2C_PORTFOLIOS
+from core.normalization import (
+    normalize_carrier_name,
+    normalize_email_address,
+    normalize_full_name,
+)
 from core.validation import (
     normalize_iccid,
     normalize_phone_number,
@@ -86,7 +91,7 @@ class CombinedRegistrationForm(forms.Form):
         queryset=PhoneLine.objects.filter(
             is_deleted=False, status=PhoneLine.Status.AVAILABLE
         ),
-        label="Linha disponível",
+        label="Linha disponivel",
         widget=forms.Select(attrs={"class": "form-select"}),
         required=False,
         empty_label="Selecione",
@@ -98,8 +103,12 @@ class CombinedRegistrationForm(forms.Form):
 
         super_users = SystemUser.objects.filter(role__in=SystemUser.SUPERVISOR_ROLES)
         manager_users = SystemUser.objects.filter(role=SystemUser.Role.GERENTE)
-        self.supervisor_emails = [user.email for user in super_users]
-        self.manager_emails = [user.email for user in manager_users]
+        self.supervisor_emails = [
+            normalize_email_address(user.email) for user in super_users
+        ]
+        self.manager_emails = [
+            normalize_email_address(user.email) for user in manager_users
+        ]
         supervisor_choices = [(email, email) for email in self.supervisor_emails]
         manager_choices = [(email, email) for email in self.manager_emails]
         if supervisor_choices:
@@ -129,34 +138,37 @@ class CombinedRegistrationForm(forms.Form):
         if self.cleaned_data.get("line_action") == "new" and phone:
             validate_phone_number_format(phone)
             if PhoneLine.active_phone_number_conflicts(phone).exists():
-                raise forms.ValidationError("Linha já cadastrada.")
+                raise forms.ValidationError("Linha ja cadastrada.")
         return phone
 
     def clean_corporate_email(self):
-        corporate_email = (self.cleaned_data.get("corporate_email") or "").strip()
+        corporate_email = normalize_email_address(
+            self.cleaned_data.get("corporate_email")
+        )
         if self.supervisor_emails and corporate_email not in self.supervisor_emails:
-            raise forms.ValidationError("Selecione um supervisor válido!")
+            raise forms.ValidationError("Selecione um supervisor valido!")
         return corporate_email
 
     def clean_manager_email(self):
-        manager_email = (self.cleaned_data.get("manager_email") or "").strip()
+        manager_email = normalize_email_address(self.cleaned_data.get("manager_email"))
         if self.manager_emails and manager_email not in self.manager_emails:
-            raise forms.ValidationError("Selecione um gerente válido!")
+            raise forms.ValidationError("Selecione um gerente valido!")
         return manager_email
 
     def clean_full_name(self):
-        full_name = (self.cleaned_data.get("full_name") or "").strip()
+        full_name = normalize_full_name(self.cleaned_data.get("full_name"))
         if not full_name:
             return full_name
 
-        if Employee.objects.filter(
-            full_name__iexact=full_name, is_deleted=False
-        ).exists():
+        if Employee.has_active_full_name_conflict(full_name):
             raise forms.ValidationError(
                 "Ja existe um usuario cadastrado com este nome."
             )
 
         return full_name
+
+    def clean_carrier(self):
+        return normalize_carrier_name(self.cleaned_data.get("carrier"))
 
     def clean(self):  # noqa: PLR0912
         cleaned = super().clean()
@@ -172,10 +184,10 @@ class CombinedRegistrationForm(forms.Form):
         if action == "new":
             for field in ["phone_number", "iccid", "carrier"]:
                 if not cleaned.get(field):
-                    self.add_error(field, "Campo obrigatório.")
+                    self.add_error(field, "Campo obrigatorio.")
         elif action == "existing":
             if not cleaned.get("phone_line"):
-                self.add_error("phone_line", "Selecione uma linha disponível.")
+                self.add_error("phone_line", "Selecione uma linha disponivel.")
         elif action == "change_status":
             if not cleaned.get("phone_line_status"):
                 self.add_error("phone_line_status", "Selecione a linha.")
@@ -199,7 +211,7 @@ class TelephonyAssignmentForm(forms.Form):
         label="O que deseja fazer?",
         choices=(
             ("new", "Cadastrar nova linha"),
-            ("existing", "Vincular linha disponível"),
+            ("existing", "Vincular linha disponivel"),
             ("change_status", "Trocar status linha"),
         ),
         initial="new",
@@ -224,7 +236,7 @@ class TelephonyAssignmentForm(forms.Form):
         queryset=PhoneLine.objects.filter(
             is_deleted=False, status=PhoneLine.Status.AVAILABLE
         ),
-        label="Linha disponível",
+        label="Linha disponivel",
         widget=forms.Select(attrs={"class": "form-select"}),
         required=False,
         empty_label="Selecione",
@@ -271,8 +283,11 @@ class TelephonyAssignmentForm(forms.Form):
         if self.cleaned_data.get("line_action") == "new" and phone:
             validate_phone_number_format(phone)
             if PhoneLine.active_phone_number_conflicts(phone).exists():
-                raise forms.ValidationError("Linha já cadastrada!")
+                raise forms.ValidationError("Linha ja cadastrada!")
         return phone
+
+    def clean_carrier(self):
+        return normalize_carrier_name(self.cleaned_data.get("carrier"))
 
     def clean(self):  # noqa: PLR0912
         cleaned = super().clean()
@@ -281,17 +296,17 @@ class TelephonyAssignmentForm(forms.Form):
         if action == "new":
             for field in ["phone_number", "iccid", "carrier", "origem"]:
                 if not cleaned.get(field):
-                    self.add_error(field, "Campo obrigatório!")
+                    self.add_error(field, "Campo obrigatorio!")
             cleaned["phone_line"] = None
             cleaned["status_line"] = ""
             cleaned["phone_line_status"] = None
         elif action == "existing":
             if not cleaned.get("employee"):
-                self.add_error("employee", "Selecione o usuário.")
+                self.add_error("employee", "Selecione o usuario.")
             if not cleaned.get("phone_line"):
-                self.add_error("phone_line", "Selecione uma linha disponível.")
+                self.add_error("phone_line", "Selecione uma linha disponivel.")
             elif cleaned["phone_line"].status != PhoneLine.Status.AVAILABLE:
-                self.add_error("phone_line", "A linha selecionada não está disponível.")
+                self.add_error("phone_line", "A linha selecionada nao esta disponivel.")
 
             cleaned["phone_number"] = cleaned.get("phone_number") or ""
             cleaned["iccid"] = cleaned.get("iccid") or ""
@@ -320,14 +335,14 @@ class TelephonyAssignmentForm(forms.Form):
                     employee_name = (
                         active_allocation.employee.full_name
                         if active_allocation.employee_id
-                        else "Usuário desconhecido!"
+                        else "Usuario desconhecido!"
                     )
                     self.add_error(
                         "status_line",
                         (
-                            f"Libere a linha primeiro e tente novamente!"
+                            "Libere a linha primeiro e tente novamente!"
                             f"Status atual: {phone_line.status}. "
-                            f"Usuário vinculado: {employee_name}. "
+                            f"Usuario vinculado: {employee_name}. "
                         ),
                     )
                 if (
@@ -336,7 +351,7 @@ class TelephonyAssignmentForm(forms.Form):
                 ):
                     self.add_error(
                         "status_line",
-                        "Use o vínculo com usuário para deixar ALLOCATED.",
+                        "Use o vinculo com usuario para deixar ALLOCATED.",
                     )
 
             cleaned["phone_number"] = cleaned.get("phone_number") or ""

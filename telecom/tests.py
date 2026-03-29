@@ -37,6 +37,19 @@ class TelecomAdminRegistrationTest(TestCase):
         self.assertNotIn("is_deleted", form_class.base_fields)
 
 
+class SIMcardNormalizationTest(TestCase):
+    def test_save_normalizes_carrier_name(self):
+        sim_card = SIMcard.objects.create(
+            iccid="8900000000000000001",
+            carrier=" tim ",
+            status=SIMcard.Status.AVAILABLE,
+        )
+
+        sim_card.refresh_from_db()
+
+        self.assertEqual(sim_card.carrier, "TIM")
+
+
 class TelecomAdminDeleteTest(TestCase):
     def setUp(self):
         self.factory = RequestFactory()

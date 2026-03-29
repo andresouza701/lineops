@@ -51,6 +51,26 @@ class EmployeeModelTest(TestCase):
                 status=Employee.Status.ACTIVE,
             )
 
+    def test_save_normalizes_employee_fields(self) -> None:
+        employee = Employee.objects.create(
+            full_name="  mARIA   da   sILVA  ",
+            corporate_email="  SUPERVISOR@LINEOPS.TECH ",
+            manager_email="  GERENTE@LINEOPS.TECH ",
+            employee_id=" viasata ",
+            teams=" joinville ",
+            status=Employee.Status.ACTIVE,
+            pa="  PA   01  ",
+        )
+
+        employee.refresh_from_db()
+
+        self.assertEqual(employee.full_name, "Maria da Silva")
+        self.assertEqual(employee.corporate_email, "supervisor@lineops.tech")
+        self.assertEqual(employee.manager_email, "gerente@lineops.tech")
+        self.assertEqual(employee.employee_id, "ViaSat")
+        self.assertEqual(employee.teams, Employee.UnitChoices.JOINVILLE)
+        self.assertEqual(employee.pa, "PA 01")
+
 
 class EmployeeListViewTest(TestCase):
     def setUp(self) -> None:

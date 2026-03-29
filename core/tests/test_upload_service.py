@@ -295,3 +295,57 @@ class UploadServiceTests(TestCase):
         self.assertIn("status ALLOCATED", summary.errors[0])
         self.assertEqual(LineAllocation.objects.count(), 0)
         self.assertEqual(PhoneLine.objects.count(), 0)
+
+    def test_upload_normalizes_employee_and_simcard_fields(self):
+        csv_content = (
+            "type,full_name,corporate_email,manager_email,employee_id,teams,pa,status,iccid,carrier,phone_number,origem\n"
+            "employee,  mARIA   da   sILVA  ,SUPERVISOR@TEST.COM,GERENTE@TEST.COM,viasata,joinville,  PA   01  ,ativo,,,,\n"
+            "simcard,,,,,,,,8999999999999990001, tim ,+5511999990003,SRVMEMU-01\n"
+        )
+        path = self._write("normalized_values.csv", csv_content)
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(summary.rows_processed, 2)
+        self.assertFalse(summary.errors)
+
+        employee = Employee.objects.get()
+        simcard = SIMcard.objects.get(iccid="8999999999999990001")
+
+        self.assertEqual(employee.full_name, "Maria da Silva")
+        self.assertEqual(employee.corporate_email, "supervisor@test.com")
+        self.assertEqual(employee.manager_email, "gerente@test.com")
+        self.assertEqual(employee.employee_id, "ViaSat")
+        self.assertEqual(employee.teams, "Joinville")
+        self.assertEqual(employee.pa, "PA 01")
+        self.assertEqual(simcard.carrier, "TIM")
+
+    def test_upload_updates_existing_employee_by_normalized_full_name(self):
+        employee = Employee.objects.create(
+            full_name="Ana Paula",
+            corporate_email="supervisor@corp.com",
+            manager_email="gerente@corp.com",
+            employee_id="Ambiental",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        csv_content = (
+            "type,full_name,corporate_email,manager_email,employee_id,teams,pa,status,iccid,carrier,phone_number,origem\n"
+            "employee,  ana   paula  ,SUPERVISOR-2@CORP.COM,GERENTE-2@CORP.COM,viasata,araquari,,inativo,,,,\n"
+        )
+        path = self._write("normalized_lookup.csv", csv_content)
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(summary.rows_processed, 1)
+        self.assertFalse(summary.errors)
+        self.assertEqual(summary.employees_updated, 1)
+        self.assertEqual(Employee.objects.count(), 1)
+
+        employee.refresh_from_db()
+        self.assertEqual(employee.full_name, "Ana Paula")
+        self.assertEqual(employee.corporate_email, "supervisor-2@corp.com")
+        self.assertEqual(employee.manager_email, "gerente-2@corp.com")
+        self.assertEqual(employee.employee_id, "ViaSat")
+        self.assertEqual(employee.teams, "Araquari")
+        self.assertEqual(employee.status, Employee.Status.INACTIVE)
