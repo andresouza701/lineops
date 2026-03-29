@@ -9,11 +9,12 @@ Aplicação Django para gestão de linhas telefônicas, alocações e indicadore
 
 ## Release Notes
 
-- `1.1.0`: veja [docs/release-notes-1.1.0.md](/c:/Users/andre.souza/Desktop/Vscode/brach-lineops/lineops/docs/release-notes-1.1.0.md)
-- `1.0.5`: veja [docs/release-notes-1.0.5.md](/c:/Users/andre.souza/Desktop/Vscode/brach-lineops/lineops/docs/release-notes-1.0.5.md)
-- `1.0.4`: veja [docs/release-notes-1.0.4.md](/c:/Users/andre.souza/Desktop/Vscode/brach-lineops/lineops/docs/release-notes-1.0.4.md)
-- `1.0.3`: veja [docs/release-notes-1.0.3.md](/c:/Users/andre.souza/Desktop/Vscode/brach-lineops/lineops/docs/release-notes-1.0.3.md)
-- `1.0.2`: veja [docs/release-notes-1.0.2.md](/c:/Users/andre.souza/Desktop/Vscode/brach-lineops/lineops/docs/release-notes-1.0.2.md)
+- `1.2.0`: veja [docs/release-notes-1.2.0.md](docs/release-notes-1.2.0.md)
+- `1.1.0`: veja [docs/release-notes-1.1.0.md](docs/release-notes-1.1.0.md)
+- `1.0.5`: veja [docs/release-notes-1.0.5.md](docs/release-notes-1.0.5.md)
+- `1.0.4`: veja [docs/release-notes-1.0.4.md](docs/release-notes-1.0.4.md)
+- `1.0.3`: veja [docs/release-notes-1.0.3.md](docs/release-notes-1.0.3.md)
+- `1.0.2`: veja [docs/release-notes-1.0.2.md](docs/release-notes-1.0.2.md)
 
 ## Variáveis de ambiente
 
