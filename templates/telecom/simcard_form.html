@@ -51,6 +51,14 @@
                     </div>
                 {% endif %}
 
+                {% if form.canal %}
+                    <div class="mb-3">
+                        <label class="form-label">Canal</label>
+                        {{ form.canal }}
+                        {{ form.canal.errors }}
+                    </div>
+                {% endif %}
+
                 {% if object and form.status %}
                     <div class="mb-3">
                         <label class="form-label">Status</label>

@@ -14,6 +14,8 @@ from employees.models import Employee
 
 from .models import BlipConfiguration, PhoneLine, SIMcard
 
+OPTIONAL_SELECT_CHOICES = [("", "---------")]
+
 
 class SIMcardForm(forms.ModelForm):
     class Meta:
@@ -35,7 +37,12 @@ class SIMcardCreateWithLineForm(SIMcardForm):
     )
     origem = forms.ChoiceField(
         label="Origem",
-        choices=PhoneLine.Origem.choices,
+        choices=OPTIONAL_SELECT_CHOICES + list(PhoneLine.Origem.choices),
+        required=False,
+    )
+    canal = forms.ChoiceField(
+        label="Canal",
+        choices=OPTIONAL_SELECT_CHOICES + list(PhoneLine.Canal.choices),
         required=False,
     )
 
@@ -43,6 +50,7 @@ class SIMcardCreateWithLineForm(SIMcardForm):
         super().__init__(*args, **kwargs)
         self.fields["phone_number"].widget.attrs.setdefault("class", "form-control")
         self.fields["origem"].widget.attrs.setdefault("class", "form-select")
+        self.fields["canal"].widget.attrs.setdefault("class", "form-select")
 
     def clean_phone_number(self):
         phone_number = normalize_phone_number(self.cleaned_data.get("phone_number"))
@@ -55,7 +63,7 @@ class SIMcardCreateWithLineForm(SIMcardForm):
 class PhoneLineForm(forms.ModelForm):
     class Meta:
         model = PhoneLine
-        fields = ["phone_number", "sim_card", "origem"]
+        fields = ["phone_number", "sim_card", "origem", "canal"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -73,6 +81,7 @@ class PhoneLineForm(forms.ModelForm):
         self.fields["phone_number"].widget.attrs.setdefault("class", "form-control")
         self.fields["sim_card"].widget.attrs.setdefault("class", "form-select")
         self.fields["origem"].widget.attrs.setdefault("class", "form-select")
+        self.fields["canal"].widget.attrs.setdefault("class", "form-select")
 
     def clean_phone_number(self):
         phone_number = normalize_phone_number(self.cleaned_data.get("phone_number"))
@@ -100,6 +109,7 @@ class PhoneLineForm(forms.ModelForm):
             sim_card=self.cleaned_data["sim_card"],
             status=PhoneLine.Status.AVAILABLE,
             origem=self.cleaned_data.get("origem"),
+            canal=self.cleaned_data.get("canal"),
         )
 
 
@@ -113,7 +123,7 @@ class PhoneLineUpdateForm(PhoneLineForm):
     )
 
     class Meta(PhoneLineForm.Meta):
-        fields = ["phone_number", "sim_card", "status", "origem"]
+        fields = ["phone_number", "sim_card", "status", "origem", "canal"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -125,6 +135,7 @@ class PhoneLineUpdateForm(PhoneLineForm):
             self.fields["phone_number"].disabled = True
             self.fields["sim_card"].disabled = True
             self.fields["origem"].disabled = True
+            self.fields["canal"].disabled = True
 
         employee_field = cast(forms.ModelChoiceField, self.fields["employee"])
         employee_field.queryset = Employee.objects.filter(

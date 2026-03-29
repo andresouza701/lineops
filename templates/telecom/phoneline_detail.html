@@ -33,6 +33,9 @@
             <dt class="col-sm-3">Origem</dt>
             <dd class="col-sm-9">{{ phone_line.get_origem_display|default:"-" }}</dd>
 
+            <dt class="col-sm-3">Canal</dt>
+            <dd class="col-sm-9">{{ phone_line.get_canal_display|default:"-" }}</dd>
+
             <dt class="col-sm-3">Ativada em</dt>
             <dd class="col-sm-9">{{ phone_line.activated_at|date:"d/m/Y H:i"|default:"-" }}</dd>
         </dl>

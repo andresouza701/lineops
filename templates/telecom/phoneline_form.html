@@ -38,6 +38,12 @@
                         {{ form.origem.errors }}
                     </div>
 
+                    <div class="mb-3">
+                        <label class="form-label">Canal</label>
+                        {{ form.canal }}
+                        {{ form.canal.errors }}
+                    </div>
+
                     {% if object %}
                         <div class="mb-3">
                             <label class="form-label">Usuário vinculado</label>
@@ -75,6 +81,8 @@
                         <dd class="col-7">{{ object.sim_card.iccid|default:"-" }}</dd>
                         <dt class="col-5">Operadora</dt>
                         <dd class="col-7">{{ object.sim_card.carrier|default:"-" }}</dd>
+                        <dt class="col-5">Canal</dt>
+                        <dd class="col-7">{{ object.get_canal_display|default:"-" }}</dd>
                         <dt class="col-5">Usuário vinculado</dt>
                         <dd class="col-7">
                             {% if active_allocation %}

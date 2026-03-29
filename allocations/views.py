@@ -144,6 +144,7 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
                         "iccid": form.cleaned_data["iccid"],
                         "carrier": form.cleaned_data["carrier"],
                         "origem": form.cleaned_data["origem"],
+                        "canal": form.cleaned_data["canal"],
                     },
                     employee=form.cleaned_data.get("employee"),
                     actor=request.user,

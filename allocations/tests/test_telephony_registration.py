@@ -79,6 +79,10 @@ class TelephonyRegistrationFlowTests(TestCase):
             (PhoneLine.Origem.BLIP, "Blip"),
             list(form.fields["origem"].choices),
         )
+        self.assertIn(
+            (PhoneLine.Canal.WEB, "WEB"),
+            list(form.fields["canal"].choices),
+        )
 
     def test_new_line_creation_flow_creates_sim_and_line_without_allocation(self):
         response = self.client.post(
@@ -90,6 +94,7 @@ class TelephonyRegistrationFlowTests(TestCase):
                 "iccid": "8900000000000000999",
                 "carrier": "CarrierNew",
                 "origem": PhoneLine.Origem.APARELHO,
+                "canal": PhoneLine.Canal.WEB,
             },
             follow=False,
         )
@@ -98,6 +103,7 @@ class TelephonyRegistrationFlowTests(TestCase):
         line = PhoneLine.objects.get(phone_number="+5511999990999")
         self.assertEqual(line.status, PhoneLine.Status.AVAILABLE)
         self.assertEqual(line.sim_card.iccid, "8900000000000000999")
+        self.assertEqual(line.canal, PhoneLine.Canal.WEB)
         self.assertFalse(LineAllocation.objects.filter(phone_line=line).exists())
 
     def test_new_line_creation_reuses_soft_deleted_phone_number(self):
@@ -123,6 +129,7 @@ class TelephonyRegistrationFlowTests(TestCase):
                 "iccid": "ICCID-REUSE-01",
                 "carrier": "CarrierRecovered",
                 "origem": PhoneLine.Origem.SRVMEMU_01,
+                "canal": PhoneLine.Canal.MYLOOP,
             },
             follow=False,
         )
@@ -132,6 +139,7 @@ class TelephonyRegistrationFlowTests(TestCase):
         self.assertFalse(reused_line.is_deleted)
         self.assertEqual(reused_line.sim_card.iccid, "ICCID-REUSE-01")
         self.assertEqual(reused_line.origem, PhoneLine.Origem.SRVMEMU_01)
+        self.assertEqual(reused_line.canal, PhoneLine.Canal.MYLOOP)
         self.assertEqual(
             PhoneLine.all_objects.filter(phone_number=deleted_line.phone_number).count(),
             1,

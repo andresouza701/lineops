@@ -102,6 +102,10 @@ class PhoneLine(models.Model):
         APARELHO = "APARELHO", "APARELHO"
         PESSOAL = "PESSOAL", "PESSOAL"
 
+    class Canal(models.TextChoices):
+        WEB = "WEB", "WEB"
+        MYLOOP = "MYLOOP", "MyLoop"
+
     phone_number = models.CharField(max_length=20, unique=True)
 
     sim_card = models.OneToOneField(
@@ -114,6 +118,9 @@ class PhoneLine(models.Model):
 
     origem = models.CharField(
         max_length=20, choices=Origem.choices, null=True, blank=True
+    )
+    canal = models.CharField(
+        max_length=20, choices=Canal.choices, null=True, blank=True
     )
 
     activated_at = models.DateTimeField(null=True, blank=True)
@@ -145,7 +152,11 @@ class PhoneLine(models.Model):
         return queryset
 
     @classmethod
-    def create_or_reuse(cls, *, phone_number, sim_card, status, origem=None):
+    def create_or_reuse(
+        cls, *, phone_number, sim_card, status, origem=None, canal=None
+    ):
+        origem = origem or None
+        canal = canal or None
         existing_line = (
             cls.all_objects.select_related("sim_card")
             .filter(phone_number=phone_number)
@@ -158,6 +169,7 @@ class PhoneLine(models.Model):
             existing_line.sim_card = sim_card
             existing_line.status = status
             existing_line.origem = origem
+            existing_line.canal = canal
             existing_line.is_deleted = False
             existing_line.updated_at = timezone.now()
             existing_line.save(
@@ -165,6 +177,7 @@ class PhoneLine(models.Model):
                     "sim_card",
                     "status",
                     "origem",
+                    "canal",
                     "is_deleted",
                     "updated_at",
                 ]
@@ -176,6 +189,7 @@ class PhoneLine(models.Model):
             sim_card=sim_card,
             status=status,
             origem=origem,
+            canal=canal,
         )
 
     def delete(self, using=None, keep_parents=False, released_by=None):

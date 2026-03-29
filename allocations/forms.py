@@ -11,6 +11,7 @@ from employees.models import Employee
 from telecom.models import PhoneLine
 
 ALL_PORTFOLIOS = list(dict.fromkeys(B2B_PORTFOLIOS + B2C_PORTFOLIOS))
+OPTIONAL_SELECT_CHOICES = [("", "---------")]
 
 
 class AllocationForm(forms.Form):
@@ -209,7 +210,13 @@ class TelephonyAssignmentForm(forms.Form):
     carrier = forms.CharField(label="Operadora", max_length=100, required=False)
     origem = forms.ChoiceField(
         label="Origem",
-        choices=PhoneLine.Origem.choices,
+        choices=OPTIONAL_SELECT_CHOICES + list(PhoneLine.Origem.choices),
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    canal = forms.ChoiceField(
+        label="Canal",
+        choices=OPTIONAL_SELECT_CHOICES + list(PhoneLine.Canal.choices),
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
     )
@@ -242,6 +249,7 @@ class TelephonyAssignmentForm(forms.Form):
         for name in ["phone_number", "iccid", "carrier"]:
             self.fields[name].widget.attrs.setdefault("class", "form-control")
         self.fields["origem"].widget.attrs.setdefault("class", "form-select")
+        self.fields["canal"].widget.attrs.setdefault("class", "form-select")
         self.fields["employee"].widget.attrs.setdefault("class", "form-select")
         self.fields["phone_line"].widget.attrs.setdefault("class", "form-select")
         self.fields["line_action"].widget.attrs.setdefault("class", "form-check-input")
@@ -289,6 +297,7 @@ class TelephonyAssignmentForm(forms.Form):
             cleaned["iccid"] = cleaned.get("iccid") or ""
             cleaned["carrier"] = cleaned.get("carrier") or ""
             cleaned["origem"] = cleaned.get("origem") or ""
+            cleaned["canal"] = cleaned.get("canal") or ""
             cleaned["status_line"] = ""
             cleaned["phone_line_status"] = None
         elif action == "change_status":
@@ -334,6 +343,7 @@ class TelephonyAssignmentForm(forms.Form):
             cleaned["iccid"] = cleaned.get("iccid") or ""
             cleaned["carrier"] = cleaned.get("carrier") or ""
             cleaned["origem"] = cleaned.get("origem") or ""
+            cleaned["canal"] = cleaned.get("canal") or ""
             cleaned["phone_line"] = None
             cleaned["employee"] = None
 

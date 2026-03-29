@@ -78,6 +78,7 @@ class TelephonyUseCase:
             sim_card=sim,
             status=PhoneLine.Status.AVAILABLE,
             origem=line_data["origem"],
+            canal=line_data.get("canal"),
         )
 
         logger.info(

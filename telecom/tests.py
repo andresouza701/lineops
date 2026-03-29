@@ -160,6 +160,7 @@ class TelecomAdminDeleteTest(TestCase):
                 "activated_at": "",
                 "phone_number": old_line.phone_number,
                 "origem": PhoneLine.Origem.APARELHO,
+                "canal": PhoneLine.Canal.WEB,
                 "line_status": PhoneLine.Status.AVAILABLE,
             }
         )
@@ -173,6 +174,7 @@ class TelecomAdminDeleteTest(TestCase):
         self.assertEqual(reused_line.sim_card_id, new_sim.pk)
         self.assertEqual(reused_line.phone_number, old_line.phone_number)
         self.assertEqual(reused_line.origem, PhoneLine.Origem.APARELHO)
+        self.assertEqual(reused_line.canal, PhoneLine.Canal.WEB)
 
     def test_simcard_queryset_delete_releases_active_allocation_and_soft_deletes(self):
         sim_card, phone_line, allocation = self._build_sim_with_active_line(5)
@@ -532,12 +534,11 @@ class SIMcardViewsTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertRedirects(response, reverse("telecom:simcard_list"))
         created_sim = SIMcard.objects.get(iccid=payload["iccid"])
-        self.assertTrue(
-            PhoneLine.objects.filter(
-                phone_number=payload["phone_number"],
-                sim_card=created_sim,
-            ).exists()
+        line = PhoneLine.objects.get(
+            phone_number=payload["phone_number"],
+            sim_card=created_sim,
         )
+        self.assertIsNone(line.canal)
 
     def test_simcard_create_view_accepts_textual_iccid(self):
         url = reverse("telecom:simcard_create")
@@ -546,6 +547,7 @@ class SIMcardViewsTest(TestCase):
             "carrier": "CCCC",
             "phone_number": "111111111111",
             "origem": PhoneLine.Origem.SRVMEMU_01,
+            "canal": PhoneLine.Canal.MYLOOP,
         }
 
         response = self.client.post(url, data=payload)
@@ -556,6 +558,7 @@ class SIMcardViewsTest(TestCase):
         line = PhoneLine.objects.get(sim_card=created_sim)
         self.assertEqual(line.phone_number, payload["phone_number"])
         self.assertEqual(line.origem, payload["origem"])
+        self.assertEqual(line.canal, payload["canal"])
 
     def test_simcard_create_view_allows_duplicate_iccid(self):
         url = reverse("telecom:simcard_create")
@@ -635,6 +638,7 @@ class SIMcardViewsTest(TestCase):
                 "carrier": "CarrierNew",
                 "phone_number": old_line.phone_number,
                 "origem": PhoneLine.Origem.APARELHO,
+                "canal": PhoneLine.Canal.WEB,
             },
         )
 
@@ -643,6 +647,7 @@ class SIMcardViewsTest(TestCase):
         self.assertFalse(reused_line.is_deleted)
         self.assertEqual(reused_line.sim_card.iccid, "8900000000000001312")
         self.assertEqual(reused_line.origem, PhoneLine.Origem.APARELHO)
+        self.assertEqual(reused_line.canal, PhoneLine.Canal.WEB)
         self.assertEqual(
             PhoneLine.all_objects.filter(phone_number=old_line.phone_number).count(),
             1,
@@ -669,6 +674,7 @@ class SIMcardViewsTest(TestCase):
                 "carrier": "CarrierRecovered",
                 "phone_number": old_line.phone_number,
                 "origem": PhoneLine.Origem.SRVMEMU_01,
+                "canal": PhoneLine.Canal.MYLOOP,
             },
         )
 
@@ -677,6 +683,7 @@ class SIMcardViewsTest(TestCase):
         self.assertFalse(reused_line.is_deleted)
         self.assertEqual(reused_line.sim_card.iccid, "8900000000000001313")
         self.assertEqual(reused_line.origem, PhoneLine.Origem.SRVMEMU_01)
+        self.assertEqual(reused_line.canal, PhoneLine.Canal.MYLOOP)
 
     def test_simcard_update_view(self):
         url = reverse("telecom:simcard_update", args=[self.sim_available.pk])
@@ -881,17 +888,18 @@ class PhoneLineViewsTest(TestCase):
         payload = {
             "phone_number": "+551199999003",
             "sim_card": new_sim.pk,
+            "canal": PhoneLine.Canal.WEB,
         }
 
         response = self.client.post(url, data=payload)
 
         self.assertEqual(response.status_code, 302)
         self.assertRedirects(response, reverse("telecom:overview"))
-        self.assertTrue(
-            PhoneLine.objects.filter(
-                phone_number=payload["phone_number"], sim_card=new_sim
-            ).exists()
+        line = PhoneLine.objects.get(
+            phone_number=payload["phone_number"],
+            sim_card=new_sim,
         )
+        self.assertEqual(line.canal, PhoneLine.Canal.WEB)
 
     def test_create_view_shows_form_error_when_phone_number_already_exists(self):
         new_sim = SIMcard.objects.create(
@@ -941,6 +949,7 @@ class PhoneLineViewsTest(TestCase):
                 "phone_number": deleted_line.phone_number,
                 "sim_card": recycled_sim.pk,
                 "origem": PhoneLine.Origem.SRVMEMU_01,
+                "canal": PhoneLine.Canal.MYLOOP,
             },
         )
 
@@ -949,6 +958,7 @@ class PhoneLineViewsTest(TestCase):
         self.assertFalse(reused_line.is_deleted)
         self.assertEqual(reused_line.sim_card_id, recycled_sim.pk)
         self.assertEqual(reused_line.origem, PhoneLine.Origem.SRVMEMU_01)
+        self.assertEqual(reused_line.canal, PhoneLine.Canal.MYLOOP)
 
     def test_update_view_changes_phone_number(self):
         url = reverse("telecom:phoneline_update", args=[self.line_available.pk])

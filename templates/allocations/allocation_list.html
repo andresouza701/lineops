@@ -117,6 +117,14 @@
                             <div class="invalid-feedback d-block">{{ telephony_form.origem.errors|striptags }}</div>
                         {% endif %}
                     </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Canal</label>
+                        {{ telephony_form.canal }}
+                        {% if telephony_form.canal.errors %}
+                            <div class="invalid-feedback d-block">{{ telephony_form.canal.errors|striptags }}</div>
+                        {% endif %}
+                    </div>
                 </div>
 
 

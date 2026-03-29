@@ -6,6 +6,8 @@ from core.validation import normalize_phone_number, validate_phone_number_format
 
 from .models import BlipConfiguration, PhoneLine, SIMcard
 
+OPTIONAL_SELECT_CHOICES = [("", "---------")]
+
 
 class SIMcardAdminForm(forms.ModelForm):
     phone_number = forms.CharField(
@@ -16,7 +18,12 @@ class SIMcardAdminForm(forms.ModelForm):
     )
     origem = forms.ChoiceField(
         label="Origem",
-        choices=PhoneLine.Origem.choices,
+        choices=OPTIONAL_SELECT_CHOICES + list(PhoneLine.Origem.choices),
+        required=False,
+    )
+    canal = forms.ChoiceField(
+        label="Canal",
+        choices=OPTIONAL_SELECT_CHOICES + list(PhoneLine.Canal.choices),
         required=False,
     )
     line_status = forms.ChoiceField(
@@ -35,6 +42,7 @@ class SIMcardAdminForm(forms.ModelForm):
         if self.instance and self.instance.pk and hasattr(self.instance, "phone_line"):
             self.fields["phone_number"].initial = self.instance.phone_line.phone_number
             self.fields["origem"].initial = self.instance.phone_line.origem
+            self.fields["canal"].initial = self.instance.phone_line.canal
             self.fields["line_status"].initial = self.instance.phone_line.status
 
     def clean_phone_number(self):
@@ -62,10 +70,17 @@ class SIMcardAdmin(admin.ModelAdmin):
         "phone_number",
         "line_status",
         "origem",
+        "canal",
         "activated_at",
     )
     search_fields = ("iccid", "carrier", "phone_line__phone_number")
-    list_filter = ("status", "carrier", "phone_line__status", "phone_line__origem")
+    list_filter = (
+        "status",
+        "carrier",
+        "phone_line__status",
+        "phone_line__origem",
+        "phone_line__canal",
+    )
 
     @admin.display(description="Linha")
     def phone_number(self, obj):
@@ -80,6 +95,11 @@ class SIMcardAdmin(admin.ModelAdmin):
     def origem(self, obj):
         phone_line = getattr(obj, "phone_line", None)
         return phone_line.get_origem_display() if phone_line and phone_line.origem else "-"
+
+    @admin.display(description="Canal")
+    def canal(self, obj):
+        phone_line = getattr(obj, "phone_line", None)
+        return phone_line.get_canal_display() if phone_line and phone_line.canal else "-"
 
     def _delete_with_related_phone_line(self, request, sim_card):
         sim_card.delete(released_by=request.user)
@@ -106,6 +126,7 @@ class SIMcardAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         phone_number = form.cleaned_data["phone_number"]
         origem = form.cleaned_data.get("origem")
+        canal = form.cleaned_data.get("canal")
         line_status = form.cleaned_data["line_status"]
 
         line = getattr(obj, "phone_line", None)
@@ -117,6 +138,9 @@ class SIMcardAdmin(admin.ModelAdmin):
             if line.origem != origem:
                 line.origem = origem
                 updated_fields.append("origem")
+            if line.canal != canal:
+                line.canal = canal
+                updated_fields.append("canal")
             if line.status != line_status:
                 line.status = line_status
                 updated_fields.append("status")
@@ -129,6 +153,7 @@ class SIMcardAdmin(admin.ModelAdmin):
             sim_card=obj,
             status=line_status,
             origem=origem,
+            canal=canal,
         )
 
     @transaction.atomic

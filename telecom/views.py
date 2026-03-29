@@ -137,11 +137,13 @@ class SIMcardCreateView(RoleRequiredMixin, CreateView):
         self.object = form.save()
         phone_number = form.cleaned_data["phone_number"]
         origem = form.cleaned_data.get("origem")
+        canal = form.cleaned_data.get("canal")
         PhoneLine.create_or_reuse(
             phone_number=phone_number,
             sim_card=self.object,
             status=PhoneLine.Status.AVAILABLE,
             origem=origem,
+            canal=canal,
         )
         messages.success(
             self.request,
