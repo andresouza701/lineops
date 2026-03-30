@@ -7,6 +7,11 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views import View
 from django.views.generic import TemplateView
+from rest_framework import status
+from rest_framework.exceptions import ParseError
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from core.mixins import RoleRequiredMixin
 from telecom.models import PhoneLine
@@ -24,6 +29,7 @@ from whatsapp.services.session_service import (
     WhatsAppSessionServiceError,
 )
 from whatsapp.services.sync_service import WhatsAppSessionSyncService
+from whatsapp.services.webhook_service import MeowWebhookService
 
 
 class WhatsAppPhoneLineMixin(RoleRequiredMixin):
@@ -200,6 +206,42 @@ class WhatsAppSessionDisconnectView(WhatsAppPhoneLineMixin, View):
 
         messages.success(request, "Sessao desconectada com sucesso.")
         return self.redirect_to_line_detail(line)
+
+
+class MeowWebhookView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    service = MeowWebhookService()
+
+    def post(self, request, webhook_token=None, *args, **kwargs):
+        expected_token = (
+            getattr(settings, "WHATSAPP_MEOW_WEBHOOK_TOKEN", "") or ""
+        ).strip()
+        if expected_token and webhook_token != expected_token:
+            return Response(
+                {"detail": "Webhook token invalido."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            payload = request.data
+        except ParseError:
+            return Response(
+                {"detail": "Payload JSON invalido."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not isinstance(payload, dict):
+            return Response(
+                {"detail": "Payload JSON deve ser um objeto."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        result = self.service.process_event(
+            payload,
+            event_type_header=request.headers.get("X-Event-Type"),
+        )
+        return Response(result.body, status=result.status_code)
 
 
 class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):

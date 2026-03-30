@@ -25,6 +25,7 @@ class WhatsAppActionType(models.TextChoices):
     CONNECT_SESSION = "CONNECT_SESSION", "Connect session"
     DELETE_SESSION = "DELETE_SESSION", "Delete session"
     GET_QR = "GET_QR", "Get QR"
+    WEBHOOK_EVENT = "WEBHOOK_EVENT", "Webhook event"
 
 
 class WhatsAppActionStatus(models.TextChoices):

@@ -20,6 +20,7 @@ from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 from whatsapp.admin import MeowInstanceAdmin, WhatsAppSessionAdmin
 from whatsapp.choices import (
+    WhatsAppActionType,
     MeowInstanceHealthStatus,
     WhatsAppSchedulerJobCode,
     WhatsAppSchedulerJobStatus,
@@ -1865,6 +1866,145 @@ class WhatsAppSessionViewTests(TestCase):
         self.assertContains(response, "Consultar QR")
         self.assertContains(response, "Conectar")
         self.assertContains(response, "Desconectar")
+
+
+class MeowWebhookViewTests(TestCase):
+    def setUp(self):
+        self.meow = MeowInstance.objects.create(
+            name="Webhook Meow",
+            base_url="http://webhook-meow.local",
+        )
+        self.sim = SIMcard.objects.create(
+            iccid="89000000000000888001",
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.line = PhoneLine.objects.create(
+            phone_number="+5511999990042",
+            sim_card=self.sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        self.session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_+5511999990042",
+            status=WhatsAppSessionStatus.DISCONNECTED,
+        )
+
+    def _post_json(self, url, payload):
+        return self.client.post(
+            url,
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+    def test_webhook_updates_connected_session_from_direct_event(self):
+        response = self._post_json(
+            reverse("whatsapp_meow_webhook"),
+            {
+                "type": "connection_success",
+                "sessionId": "5511999990042",
+                "timestamp": 1774821020,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, WhatsAppSessionStatus.CONNECTED)
+        self.assertIsNotNone(self.session.connected_at)
+        self.assertIsNotNone(self.session.last_sync_at)
+        audit = WhatsAppActionAudit.objects.get(session=self.session)
+        self.assertEqual(audit.action, WhatsAppActionType.WEBHOOK_EVENT)
+        self.assertTrue(audit.response_payload["processed"])
+
+    @override_settings(WHATSAPP_MEOW_WEBHOOK_TOKEN="segredo-meow")
+    def test_webhook_updates_qr_status_on_tokenized_route(self):
+        response = self._post_json(
+            reverse(
+                "whatsapp_meow_webhook_tokenized",
+                kwargs={"webhook_token": "segredo-meow"},
+            ),
+            {
+                "type": "qr_code",
+                "sessionId": "+5511999990042",
+                "timestamp": 1774821040,
+                "qr_code": "2@AbCdEf",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, WhatsAppSessionStatus.QR_PENDING)
+        self.assertIsNotNone(self.session.qr_last_generated_at)
+
+    @override_settings(WHATSAPP_MEOW_WEBHOOK_TOKEN="segredo-meow")
+    def test_webhook_rejects_request_without_expected_token(self):
+        response = self._post_json(
+            reverse("whatsapp_meow_webhook"),
+            {
+                "type": "connection_success",
+                "sessionId": "5511999990042",
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, WhatsAppSessionStatus.DISCONNECTED)
+
+    def test_webhook_accepts_parallel_payload_without_state_change(self):
+        self.session.status = WhatsAppSessionStatus.CONNECTED
+        self.session.save(update_fields=["status", "updated_at"])
+
+        response = self._post_json(
+            reverse("whatsapp_meow_webhook"),
+            {
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "type": "message_status_update",
+                "payload": {
+                    "sessionId": "5511999990042",
+                    "type": "message_status_update",
+                    "messageKey": {
+                        "remoteJid": "5511999999999@s.whatsapp.net",
+                        "id": "internal-1",
+                        "meta_id": "3EB0123456789ABC",
+                        "fromMe": True,
+                    },
+                    "status": "delivered",
+                    "statusCode": 3,
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 202)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, WhatsAppSessionStatus.CONNECTED)
+        audit = WhatsAppActionAudit.objects.get(session=self.session)
+        self.assertFalse(audit.response_payload["processed"])
+
+    def test_webhook_returns_accepted_when_session_is_missing(self):
+        response = self._post_json(
+            reverse("whatsapp_meow_webhook"),
+            {
+                "type": "connection_closed",
+                "sessionId": "551188887777",
+                "timestamp": 1774821030,
+            },
+        )
+
+        self.assertEqual(response.status_code, 202)
+        payload = response.json()
+        self.assertEqual(payload["reason"], "session_not_found")
+        self.assertEqual(WhatsAppActionAudit.objects.count(), 0)
+
+    def test_webhook_returns_400_for_invalid_json(self):
+        response = self.client.post(
+            reverse("whatsapp_meow_webhook"),
+            data="{invalid",
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Payload JSON invalido.")
 
 
 class WhatsAppOperationsViewTests(TestCase):
