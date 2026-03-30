@@ -30,6 +30,7 @@ from whatsapp.services.session_service import (
 )
 from whatsapp.services.sync_service import WhatsAppSessionSyncService
 from whatsapp.services.webhook_service import MeowWebhookService
+from whatsapp.services.owner_check_service import MeowOwnerCheckService
 
 
 class WhatsAppPhoneLineMixin(RoleRequiredMixin):
@@ -242,6 +243,40 @@ class MeowWebhookView(APIView):
             event_type_header=request.headers.get("X-Event-Type"),
         )
         return Response(result.body, status=result.status_code)
+
+
+class MeowOwnerCheckView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    service = MeowOwnerCheckService()
+
+    def get(self, request, owner_check_token=None, *args, **kwargs):
+        expected_token = (
+            getattr(settings, "WHATSAPP_MEOW_OWNER_CHECK_TOKEN", "") or ""
+        ).strip()
+        if expected_token and owner_check_token != expected_token:
+            return Response(
+                {"detail": "Owner check token invalido."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        phone_number = str(
+            request.query_params.get("number_to_check") or ""
+        ).strip()
+        if not phone_number:
+            return Response(
+                {"detail": "Parametro number_to_check e obrigatorio."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        result = self.service.check_number(phone_number)
+        return Response(
+            {
+                "is_owner": result.is_owner,
+                "stage": result.stage,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):

@@ -8,7 +8,11 @@ from config.views import (
     UploadView,
 )
 from users.views import AdminOnlyView
-from whatsapp.views import MeowWebhookView, WhatsAppOperationsView
+from whatsapp.views import (
+    MeowOwnerCheckView,
+    MeowWebhookView,
+    WhatsAppOperationsView,
+)
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -33,6 +37,16 @@ urlpatterns = [
         "api/whatsapp/meow/webhook/<str:webhook_token>/",
         MeowWebhookView.as_view(),
         name="whatsapp_meow_webhook_tokenized",
+    ),
+    path(
+        "api/whatsapp/meow/check-owner/",
+        MeowOwnerCheckView.as_view(),
+        name="whatsapp_meow_owner_check",
+    ),
+    path(
+        "api/whatsapp/meow/check-owner/<str:owner_check_token>/",
+        MeowOwnerCheckView.as_view(),
+        name="whatsapp_meow_owner_check_tokenized",
     ),
     path("health/", HealthCheckView.as_view(), name="health"),
     path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),

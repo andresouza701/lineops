@@ -2007,6 +2007,91 @@ class MeowWebhookViewTests(TestCase):
         self.assertEqual(response.json()["detail"], "Payload JSON invalido.")
 
 
+class MeowOwnerCheckViewTests(TestCase):
+    def setUp(self):
+        self.sim = SIMcard.objects.create(
+            iccid="89000000000000888002",
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.line = PhoneLine.objects.create(
+            phone_number="+5511999990042",
+            sim_card=self.sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+    def test_owner_check_returns_owner_for_existing_phone_line(self):
+        response = self.client.get(
+            reverse("whatsapp_meow_owner_check"),
+            {"number_to_check": "5511999990042"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "is_owner": True,
+                "stage": "owner",
+            },
+        )
+
+    def test_owner_check_returns_non_owner_when_phone_line_is_missing(self):
+        response = self.client.get(
+            reverse("whatsapp_meow_owner_check"),
+            {"number_to_check": "551188887777"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "is_owner": False,
+                "stage": "non_owner",
+            },
+        )
+
+    def test_owner_check_requires_number_to_check(self):
+        response = self.client.get(reverse("whatsapp_meow_owner_check"))
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["detail"],
+            "Parametro number_to_check e obrigatorio.",
+        )
+
+    @override_settings(WHATSAPP_MEOW_OWNER_CHECK_TOKEN="segredo-owner")
+    def test_owner_check_rejects_request_without_expected_token(self):
+        response = self.client.get(
+            reverse("whatsapp_meow_owner_check"),
+            {"number_to_check": "5511999990042"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(
+            response.json()["detail"],
+            "Owner check token invalido.",
+        )
+
+    @override_settings(WHATSAPP_MEOW_OWNER_CHECK_TOKEN="segredo-owner")
+    def test_owner_check_accepts_tokenized_route(self):
+        response = self.client.get(
+            reverse(
+                "whatsapp_meow_owner_check_tokenized",
+                kwargs={"owner_check_token": "segredo-owner"},
+            ),
+            {"number_to_check": "+55 (11) 99999-0042"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "is_owner": True,
+                "stage": "owner",
+            },
+        )
+
+
 class WhatsAppOperationsViewTests(TestCase):
     def setUp(self):
         self.admin = SystemUser.objects.create_user(
