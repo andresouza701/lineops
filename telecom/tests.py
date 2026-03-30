@@ -174,6 +174,40 @@ class TelecomAdminDeleteTest(TestCase):
         self.assertEqual(reused_line.phone_number, old_line.phone_number)
         self.assertEqual(reused_line.origem, PhoneLine.Origem.APARELHO)
 
+    def test_manager_create_reuses_soft_deleted_phone_line_number(self):
+        old_sim = SIMcard.objects.create(
+            iccid="8900000000000010101",
+            carrier="CarrierLegacy",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        old_line = PhoneLine.objects.create(
+            phone_number="+5511999910101",
+            sim_card=old_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        old_line.delete()
+        old_sim.delete()
+
+        new_sim = SIMcard.objects.create(
+            iccid="8900000000000010102",
+            carrier="CarrierCurrent",
+            status=SIMcard.Status.AVAILABLE,
+        )
+
+        reused_line = PhoneLine.objects.create(
+            phone_number=old_line.phone_number,
+            sim_card=new_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+        self.assertEqual(reused_line.pk, old_line.pk)
+        self.assertFalse(reused_line.is_deleted)
+        self.assertEqual(reused_line.sim_card_id, new_sim.pk)
+        self.assertEqual(
+            PhoneLine.all_objects.filter(phone_number=old_line.phone_number).count(),
+            1,
+        )
+
     def test_simcard_queryset_delete_releases_active_allocation_and_soft_deletes(self):
         sim_card, phone_line, allocation = self._build_sim_with_active_line(5)
 

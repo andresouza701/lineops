@@ -26,6 +26,28 @@ class SoftDeleteManager(models.Manager):
         return SoftDeleteQuerySet(self.model, using=self._db).active()
 
 
+class PhoneLineManager(SoftDeleteManager):
+    def create(self, **kwargs):
+        phone_number = kwargs.get("phone_number")
+        sim_card = kwargs.get("sim_card")
+
+        if phone_number is None or sim_card is None:
+            return super().create(**kwargs)
+
+        try:
+            return self.model.create_or_reuse(
+                phone_number=phone_number,
+                sim_card=sim_card,
+                status=kwargs.get("status"),
+                origem=kwargs.get("origem"),
+                activated_at=kwargs.get("activated_at"),
+            )
+        except ValidationError:
+            # Preserve the previous behavior for active duplicates and let the
+            # database constraint surface the conflict.
+            return super().create(**kwargs)
+
+
 class SIMcard(models.Model):
     objects = SoftDeleteManager()
     all_objects = models.Manager()
@@ -80,7 +102,7 @@ class SIMcard(models.Model):
 
 
 class PhoneLine(models.Model):
-    objects = SoftDeleteManager()
+    objects = PhoneLineManager()
     all_objects = models.Manager()
 
     class Status(models.TextChoices):
@@ -145,7 +167,18 @@ class PhoneLine(models.Model):
         return queryset
 
     @classmethod
-    def create_or_reuse(cls, *, phone_number, sim_card, status, origem=None):
+    def create_or_reuse(
+        cls,
+        *,
+        phone_number,
+        sim_card,
+        status=None,
+        origem=None,
+        activated_at=None,
+    ):
+        if status is None:
+            status = cls._meta.get_field("status").get_default()
+
         existing_line = (
             cls.all_objects.select_related("sim_card")
             .filter(phone_number=phone_number)
@@ -158,6 +191,7 @@ class PhoneLine(models.Model):
             existing_line.sim_card = sim_card
             existing_line.status = status
             existing_line.origem = origem
+            existing_line.activated_at = activated_at
             existing_line.is_deleted = False
             existing_line.updated_at = timezone.now()
             existing_line.save(
@@ -165,17 +199,19 @@ class PhoneLine(models.Model):
                     "sim_card",
                     "status",
                     "origem",
+                    "activated_at",
                     "is_deleted",
                     "updated_at",
                 ]
             )
             return existing_line
 
-        return cls.objects.create(
+        return cls.all_objects.create(
             phone_number=phone_number,
             sim_card=sim_card,
             status=status,
             origem=origem,
+            activated_at=activated_at,
         )
 
     def delete(self, using=None, keep_parents=False, released_by=None):
