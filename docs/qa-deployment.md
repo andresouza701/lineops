@@ -49,7 +49,7 @@ cp .env.qa.example .env.qa
 
 - `SECRET_KEY`
 - `ALLOWED_HOSTS`
-- `CSRF_TRUSTED_ORIGINS`
+- `CSRF_TRUSTED_ORIGINS` com a origem exata usada no navegador, incluindo a porta quando nao for `443`
 - `DB_PASSWORD`
 - `TLS_CERT_PATH`
 - `TLS_KEY_PATH`
@@ -74,4 +74,5 @@ curl -k https://localhost/health/
 - `RUN_MIGRATIONS=1` e `COLLECT_STATIC=1` seguem habilitados no startup do container web.
 - O health check continua público por padrão em QA.
 - `settings_qa.py` mantém o comportamento próximo de produção, mas desabilita HSTS persistente.
+- Como o QA fica exposto em `https://host:18443`, mantenha `CSRF_TRUSTED_ORIGINS` com `:18443` e preserve o `Host` original no proxy.
 - Se o QA ficar atrás de outro proxy ou load balancer, ajuste `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` e os certificados conforme o host real.

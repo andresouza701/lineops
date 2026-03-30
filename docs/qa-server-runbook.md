@@ -144,7 +144,7 @@ DEBUG=False
 SECRET_KEY=<gerar-valor-forte>
 APP_VERSION=1.1.0-qa
 ALLOWED_HOSTS=qa.seu-dominio.com,<IP_DO_SERVIDOR>,localhost,127.0.0.1
-CSRF_TRUSTED_ORIGINS=https://qa.seu-dominio.com
+CSRF_TRUSTED_ORIGINS=https://qa.seu-dominio.com:18443
 DJANGO_SETTINGS_MODULE=config.settings_qa
 USE_X_FORWARDED_PROTO=True
 SECURE_SSL_REDIRECT=True
@@ -189,6 +189,12 @@ Se isso falhar, normalmente é:
 - variável ausente no `.env.qa`
 - caminho inválido de certificado
 - erro de sintaxe no arquivo de ambiente
+
+Importante:
+
+- `CSRF_TRUSTED_ORIGINS` deve usar a origem publica exata do browser.
+- Se o acesso externo for `https://host:18443`, inclua `:18443`.
+- O proxy deve repassar o `Host` original completo para o Django.
 
 ## 12. Subir o stack de QA
 
