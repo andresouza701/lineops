@@ -64,7 +64,15 @@
                     <tbody id="main-table-body">
                         {% for line in initial_lines %}
                             <tr>
-                                <td>{{ line.phone_number }}</td>
+                                <td>
+                                    {% if request.user.role == 'admin' %}
+                                        <a href="{% url 'telecom:phoneline_detail' line.pk %}" class="link-primary text-decoration-none fw-semibold">
+                                            {{ line.phone_number }}
+                                        </a>
+                                    {% else %}
+                                        {{ line.phone_number }}
+                                    {% endif %}
+                                </td>
                                 <td>{{ line.sim_card.iccid }}</td>
                                 <td>{{ line.sim_card.carrier|default:"-" }}</td>
                                 <td>{{ line.get_origem_display|default:"-" }}</td>
@@ -84,6 +92,9 @@
                                 </td>
                                 <td class="text-end">
                                     {% if request.user.role == 'admin' %}
+                                        <a href="{% url 'telecom:phoneline_detail' line.pk %}" class="btn btn-outline-dark btn-sm" aria-label="Detalhes" title="Detalhes">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
                                         <a href="{% url 'telecom:phoneline_update' line.pk %}" class="btn btn-outline-primary btn-sm" aria-label="Editar" title="Editar">
                                             <i class="bi bi-pencil"></i>
                                         </a>
@@ -165,14 +176,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const tr = document.createElement('tr');
         const employeeText = line.employee || '<span class="text-muted">Sem vínculo</span>';
         const isAdmin = {% if request.user.role == 'admin' %}true{% else %}false{% endif %};
+        const phoneNumberHtml = isAdmin
+            ? `<a href="${line.detail_url}" class="link-primary text-decoration-none fw-semibold">${line.phone_number}</a>`
+            : line.phone_number;
         let actionsHtml = '';
         if (isAdmin) {
             actionsHtml = `
+                <a href="${line.detail_url}" class="btn btn-outline-dark btn-sm" aria-label="Detalhes" title="Detalhes"><i class="bi bi-eye"></i></a>
                 <a href="${line.edit_url}" class="btn btn-outline-primary btn-sm" aria-label="Editar" title="Editar"><i class="bi bi-pencil"></i></a>
                 <a href="${line.history_url}" class="btn btn-outline-secondary btn-sm ms-1" aria-label="Historico" title="Historico"><i class="bi bi-clock-history"></i></a>
             `;
         }
-        tr.innerHTML = `<td>${line.phone_number}</td><td>${line.iccid}</td><td>${line.carrier || '-'}</td><td>${line.origem_display || '-'}</td><td>${employeeText}</td><td></td><td class="text-end">${actionsHtml}</td>`;
+        tr.innerHTML = `<td>${phoneNumberHtml}</td><td>${line.iccid}</td><td>${line.carrier || '-'}</td><td>${line.origem_display || '-'}</td><td>${employeeText}</td><td></td><td class="text-end">${actionsHtml}</td>`;
         tr.querySelector('td:nth-child(6)').appendChild(createStatusBadge(line.status, line.status_display));
         return tr;
     }

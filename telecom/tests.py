@@ -883,12 +883,25 @@ class PhoneLineViewsTest(TestCase):
             item for item in payload["data"] if item["id"] == self.line_available.pk
         )
         self.assertEqual(
+            target["detail_url"],
+            reverse("telecom:phoneline_detail", args=[self.line_available.pk]),
+        )
+        self.assertEqual(
             target["edit_url"],
             reverse("telecom:phoneline_update", args=[self.line_available.pk]),
         )
         self.assertEqual(
             target["history_url"],
             reverse("telecom:phoneline_history", args=[self.line_available.pk]),
+        )
+
+    def test_overview_renders_detail_link_for_admin(self):
+        response = self.client.get(reverse("telecom:overview"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            reverse("telecom:phoneline_detail", args=[self.line_available.pk]),
         )
 
     def test_ajax_overview_ignores_invalid_offset_and_limit(self):

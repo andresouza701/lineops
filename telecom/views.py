@@ -519,6 +519,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
             }
 
             if table_type == "main" and is_admin:
+                line_data["detail_url"] = f"/telecom/phonelines/{line.pk}/"
                 line_data["edit_url"] = f"/telecom/phonelines/{line.pk}/update/"
                 line_data["history_url"] = f"/telecom/phonelines/{line.pk}/history/"
 
