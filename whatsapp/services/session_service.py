@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from datetime import timedelta
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
 from telecom.models import PhoneLine
 from whatsapp.choices import (
+    WhatsAppActionStatus,
     WhatsAppActionType,
     WhatsAppSessionStatus,
 )
@@ -222,13 +225,19 @@ class WhatsAppSessionService:
                     has_qr=has_qr,
                     connected=connected,
                 )
-                WhatsAppAuditService.success(
+                if self._should_audit_get_qr_success(
                     session=session,
-                    action=WhatsAppActionType.GET_QR,
-                    request_payload={"session_id": session.session_id},
-                    response_payload=qr_payload,
-                    duration_ms=duration_ms,
-                )
+                    qr_payload=qr_payload,
+                    has_qr=has_qr,
+                    connected=connected,
+                ):
+                    WhatsAppAuditService.success(
+                        session=session,
+                        action=WhatsAppActionType.GET_QR,
+                        request_payload={"session_id": session.session_id},
+                        response_payload=qr_payload,
+                        duration_ms=duration_ms,
+                    )
             return result
         except MeowClientNotFoundError as exc:
             duration_ms = self._elapsed_ms(started_at)
@@ -318,6 +327,44 @@ class WhatsAppSessionService:
 
         raise WhatsAppSessionNotConfiguredError(
             f"Linha {line.phone_number} ainda nao possui sessao WhatsApp."
+        )
+
+    def _should_audit_get_qr_success(
+        self,
+        *,
+        session: WhatsAppSession,
+        qr_payload: dict,
+        has_qr: bool,
+        connected: bool,
+    ) -> bool:
+        if connected or not has_qr:
+            return True
+
+        dedup_seconds = getattr(
+            settings,
+            "WHATSAPP_GET_QR_AUDIT_DEDUP_SECONDS",
+            30,
+        )
+        if dedup_seconds <= 0:
+            return True
+
+        recent_threshold = timezone.now() - timedelta(seconds=dedup_seconds)
+        latest_audit = (
+            session.action_audits.filter(
+                action=WhatsAppActionType.GET_QR,
+                status=WhatsAppActionStatus.SUCCESS,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if latest_audit is None or latest_audit.created_at < recent_threshold:
+            return True
+
+        latest_response = latest_audit.response_payload or {}
+        return not (
+            bool(latest_response.get("has_qr")) == has_qr
+            and bool(latest_response.get("connected")) == connected
+            and latest_response.get("qr_code") == qr_payload.get("qr_code")
         )
 
     def _get_client(self, session: WhatsAppSession) -> MeowClient:

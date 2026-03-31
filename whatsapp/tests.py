@@ -405,6 +405,78 @@ class WhatsAppSessionServiceTests(TestCase):
         self.assertEqual(result.qr_code, "qr-base64")
         self.assertEqual(events, ["save", "audit"])
 
+    def test_get_qr_skips_duplicate_pending_qr_audit_within_dedup_window(self):
+        session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_+5511999990091",
+            status=WhatsAppSessionStatus.QR_PENDING,
+        )
+        WhatsAppActionAudit.objects.create(
+            session=session,
+            action=WhatsAppActionType.GET_QR,
+            status="SUCCESS",
+            response_payload={
+                "has_qr": True,
+                "qr_code": "qr-base64",
+                "connected": False,
+            },
+        )
+        mock_client = MagicMock()
+        mock_client.get_qr.return_value = {
+            "has_qr": True,
+            "qr_code": "qr-base64",
+            "connected": False,
+            "raw": {"details": {"hasQR": True, "connected": False}},
+        }
+
+        with (
+            patch.object(self.service, "_get_client", return_value=mock_client),
+            patch(
+                "whatsapp.services.session_service.WhatsAppAuditService.success"
+            ) as audit_success,
+        ):
+            result = self.service.get_qr(self.line)
+
+        self.assertEqual(result.status, WhatsAppSessionStatus.QR_PENDING)
+        audit_success.assert_not_called()
+
+    def test_get_qr_audits_when_qr_code_changes_within_dedup_window(self):
+        session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_+5511999990091",
+            status=WhatsAppSessionStatus.QR_PENDING,
+        )
+        WhatsAppActionAudit.objects.create(
+            session=session,
+            action=WhatsAppActionType.GET_QR,
+            status="SUCCESS",
+            response_payload={
+                "has_qr": True,
+                "qr_code": "qr-base64-old",
+                "connected": False,
+            },
+        )
+        mock_client = MagicMock()
+        mock_client.get_qr.return_value = {
+            "has_qr": True,
+            "qr_code": "qr-base64-new",
+            "connected": False,
+            "raw": {"details": {"hasQR": True, "connected": False}},
+        }
+
+        with (
+            patch.object(self.service, "_get_client", return_value=mock_client),
+            patch(
+                "whatsapp.services.session_service.WhatsAppAuditService.success"
+            ) as audit_success,
+        ):
+            result = self.service.get_qr(self.line)
+
+        self.assertEqual(result.qr_code, "qr-base64-new")
+        audit_success.assert_called_once()
+
     def test_disconnect_audits_success_after_local_save(self):
         session = WhatsAppSession.objects.create(
             line=self.line,
