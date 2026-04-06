@@ -33,3 +33,7 @@ class MeowClientNotFoundError(MeowClientResponseError):
 
 class MeowClientConflictError(MeowClientResponseError):
     pass
+
+
+class MeowClientServerError(MeowClientResponseError):
+    pass

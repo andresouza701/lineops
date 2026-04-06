@@ -6,7 +6,7 @@ from django.db import transaction
 from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils.dateparse import parse_date
 from django.views.generic import (
     CreateView,
@@ -261,13 +261,55 @@ class PhoneLineListView(StandardPaginationMixin, RoleRequiredMixin, ListView):
 
 
 class PhoneLineDetailView(RoleRequiredMixin, DetailView):
-    allowed_roles = [SystemUser.Role.ADMIN]
+    allowed_roles = [
+        SystemUser.Role.ADMIN,
+        SystemUser.Role.SUPER,
+        SystemUser.Role.GERENTE,
+    ]
     model = PhoneLine
     template_name = "telecom/phoneline_detail.html"
     context_object_name = "phone_line"
 
     def get_queryset(self):
-        return get_visible_phone_lines_queryset(self.request.user)
+        return (
+            get_visible_phone_lines_queryset(self.request.user)
+            .select_related("sim_card", "whatsapp_session__meow_instance")
+            .prefetch_related(
+                Prefetch(
+                    "allocations",
+                    queryset=LineAllocation.objects.filter(is_active=True)
+                    .select_related("employee")
+                    .order_by("-allocated_at"),
+                    to_attr="active_allocations",
+                )
+            )
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        active_allocations = getattr(self.object, "active_allocations", [])
+        context["active_allocation"] = (
+            active_allocations[0] if active_allocations else None
+        )
+        context["can_manage_line"] = (
+            self.request.user.role == SystemUser.Role.ADMIN
+        )
+        context["can_view_history"] = (
+            self.request.user.role == SystemUser.Role.ADMIN
+        )
+        context["can_manage_whatsapp"] = (
+            self.request.user.role == SystemUser.Role.ADMIN
+        )
+        context["back_url"] = (
+            reverse("telecom:overview")
+            if context["can_manage_line"]
+            else reverse("dashboard")
+        )
+        try:
+            context["whatsapp_session"] = self.object.whatsapp_session
+        except PhoneLine.whatsapp_session.RelatedObjectDoesNotExist:
+            context["whatsapp_session"] = None
+        return context
 
 
 class PhoneLineCreateView(RoleRequiredMixin, CreateView):

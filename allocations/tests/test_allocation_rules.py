@@ -104,6 +104,9 @@ class AllocationRulesTestCase(TestCase):
         )
         self.assertEqual(line.status, PhoneLine.Status.AVAILABLE)
         self.assertFalse(WhatsAppSession.objects.filter(line=line).exists())
+        _select_available_instance.assert_called_once_with(
+            allow_above_warning=True
+        )
 
     @patch(
         "core.services.allocation_service.InstanceSelectorService.select_available_instance",
@@ -134,6 +137,32 @@ class AllocationRulesTestCase(TestCase):
         line.refresh_from_db()
         self.assertTrue(allocation.is_active)
         self.assertEqual(line.status, PhoneLine.Status.ALLOCATED)
+
+    def test_allocate_line_allows_new_whatsapp_session_above_warning_below_max(self):
+        meow = MeowInstance.objects.create(
+            name="QA Meow Warning",
+            base_url="http://qa-meow-warning.local",
+            warning_sessions=1,
+            max_sessions=2,
+        )
+        occupied_line = self.lines[1]
+        target_line = self.lines[0]
+        WhatsAppSession.objects.create(
+            line=occupied_line,
+            meow_instance=meow,
+            session_id=f"session_{occupied_line.phone_number}",
+        )
+
+        allocation = AllocationService.allocate_line(
+            employee=self.employee,
+            phone_line=target_line,
+            allocated_by=self.admin,
+        )
+
+        allocation.refresh_from_db()
+        target_line.refresh_from_db()
+        self.assertTrue(allocation.is_active)
+        self.assertEqual(target_line.status, PhoneLine.Status.ALLOCATED)
 
     def test_full_allocation_flow(self):
         line = self.lines[0]

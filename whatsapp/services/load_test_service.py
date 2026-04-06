@@ -34,6 +34,7 @@ class WhatsAppLoadTestRequestResult:
 class WhatsAppLoadTestSummary:
     scenario: str
     label: str
+    scenario_note: str | None
     selected_sessions: int
     concurrency: int
     success_count: int
@@ -48,9 +49,17 @@ class WhatsAppLoadTestService:
     SCENARIO_LABELS = {
         "client_get_session": "Leitura remota via MeowClient.get_session",
         "client_get_qr": "Leitura remota via MeowClient.get_qr",
-        "client_connect_session": "Escrita remota via MeowClient.connect_session",
+        "client_connect_session": (
+            "Sonda de escrita via MeowClient.connect_session"
+        ),
         "service_get_status": "Status ponta a ponta via WhatsAppSessionService.get_status",
         "service_get_qr": "QR ponta a ponta via WhatsAppSessionService.get_qr",
+    }
+    SCENARIO_NOTES = {
+        "client_connect_session": (
+            "Nao valida envio de mensagem; exercita apenas o contrato atual "
+            "de connect_session."
+        )
     }
 
     def list_scenarios(self) -> dict[str, str]:
@@ -189,6 +198,7 @@ class WhatsAppLoadTestService:
         return WhatsAppLoadTestSummary(
             scenario=scenario,
             label=self.SCENARIO_LABELS[scenario],
+            scenario_note=self.SCENARIO_NOTES.get(scenario),
             selected_sessions=selected_sessions,
             concurrency=concurrency,
             success_count=success_count,

@@ -138,7 +138,7 @@ class WhatsAppSessionAdmin(admin.ModelAdmin):
 @admin.register(WhatsAppActionAudit)
 class WhatsAppActionAuditAdmin(admin.ModelAdmin):
     list_display = (
-        "session",
+        "target_reference",
         "action",
         "status",
         "duration_ms",
@@ -146,10 +146,15 @@ class WhatsAppActionAuditAdmin(admin.ModelAdmin):
         "created_at",
     )
     list_filter = ("action", "status")
-    search_fields = ("session__session_id", "session__line__phone_number")
-    autocomplete_fields = ("session", "created_by")
+    search_fields = (
+        "session__session_id",
+        "session__line__phone_number",
+        "meow_instance__name",
+    )
+    autocomplete_fields = ("session", "meow_instance", "created_by")
     readonly_fields = (
         "session",
+        "meow_instance",
         "action",
         "status",
         "request_payload",
@@ -158,6 +163,12 @@ class WhatsAppActionAuditAdmin(admin.ModelAdmin):
         "created_by",
         "created_at",
     )
+
+    @admin.display(description="Contexto")
+    def target_reference(self, obj):
+        if obj.session_id:
+            return obj.session
+        return obj.meow_instance
 
 
 @admin.register(WhatsAppScheduledJob)

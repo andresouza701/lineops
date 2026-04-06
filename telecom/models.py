@@ -1,3 +1,4 @@
+from django.apps import apps
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -150,8 +151,20 @@ class PhoneLine(models.Model):
         queryset = queryset if queryset is not None else cls.objects.all()
         role = (getattr(user, "role", "") or "").lower()
 
-        if role not in {"admin", "dev"}:
-            queryset = queryset.exclude(origem=cls.Origem.BLIP)
+        if role in {"admin", "dev"}:
+            return queryset
+
+        queryset = queryset.exclude(origem=cls.Origem.BLIP)
+
+        if role in {"super", "gerente"}:
+            allocation_model = apps.get_model("allocations", "LineAllocation")
+            employee_ids = user.scope_employee_queryset().values("pk")
+            queryset = queryset.filter(
+                pk__in=allocation_model.objects.filter(
+                    is_active=True,
+                    employee_id__in=employee_ids,
+                ).values("phone_line_id")
+            )
 
         return queryset
 

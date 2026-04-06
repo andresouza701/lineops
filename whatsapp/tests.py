@@ -9,6 +9,7 @@ from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import IntegrityError, transaction
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -20,6 +21,7 @@ from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 from whatsapp.admin import MeowInstanceAdmin, WhatsAppSessionAdmin
 from whatsapp.choices import (
+    WhatsAppActionStatus,
     WhatsAppActionType,
     MeowInstanceHealthStatus,
     WhatsAppSchedulerJobCode,
@@ -28,6 +30,7 @@ from whatsapp.choices import (
 )
 from whatsapp.clients.exceptions import (
     MeowClientConflictError,
+    MeowClientServerError,
     MeowClientTimeoutError,
     MeowClientUnavailableError,
 )
@@ -38,6 +41,7 @@ from whatsapp.models import (
     WhatsAppScheduledJob,
     WhatsAppSession,
 )
+from whatsapp.services.audit_service import WhatsAppAuditService
 from whatsapp.services.capacity_service import MeowCapacityService
 from whatsapp.services.health_service import MeowHealthCheckService
 from whatsapp.services.instance_selector import (
@@ -116,6 +120,46 @@ class WhatsAppModelTests(TestCase):
         self.assertEqual(session.status, WhatsAppSessionStatus.PENDING_NEW_NUMBER)
         self.assertTrue(session.is_active)
 
+    def test_whatsapp_session_requires_unique_line(self):
+        WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_5511999990001",
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                WhatsAppSession.objects.create(
+                    line=self.line,
+                    meow_instance=self.meow,
+                    session_id="session_5511999990002",
+                )
+
+    def test_whatsapp_session_requires_unique_session_id(self):
+        other_sim = SIMcard.objects.create(
+            iccid="89000000000000999902",
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        other_line = PhoneLine.objects.create(
+            phone_number="+5511999990002",
+            sim_card=other_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_5511999990001",
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                WhatsAppSession.objects.create(
+                    line=other_line,
+                    meow_instance=self.meow,
+                    session_id="session_5511999990001",
+                )
+
     def test_action_audit_keeps_created_by(self):
         session = WhatsAppSession.objects.create(
             line=self.line,
@@ -148,6 +192,64 @@ class WhatsAppModelTests(TestCase):
         )
 
         self.assertEqual(audit.duration_ms, 187)
+
+    def test_action_audit_can_be_scoped_to_meow_instance_without_session(self):
+        audit = WhatsAppActionAudit.objects.create(
+            meow_instance=self.meow,
+            action=WhatsAppActionType.HEALTH_CHECK,
+            status=WhatsAppActionStatus.SUCCESS,
+            response_payload={"message": "ok"},
+        )
+
+        self.assertIsNone(audit.session)
+        self.assertEqual(audit.meow_instance, self.meow)
+
+    def test_action_audit_requires_session_or_meow_instance(self):
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                WhatsAppActionAudit.objects.create(
+                    action=WhatsAppActionType.HEALTH_CHECK,
+                    status=WhatsAppActionStatus.SUCCESS,
+                )
+
+
+class WhatsAppAuditServiceTests(TestCase):
+    def setUp(self):
+        self.meow = MeowInstance.objects.create(
+            name="Audit Meow",
+            base_url="http://audit-meow.local",
+        )
+        sim = SIMcard.objects.create(
+            iccid="89000000000000999801",
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        line = PhoneLine.objects.create(
+            phone_number="+5511999998001",
+            sim_card=sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        self.session = WhatsAppSession.objects.create(
+            line=line,
+            meow_instance=self.meow,
+            session_id="session_+5511999998001",
+        )
+
+    def test_success_derives_meow_instance_from_session(self):
+        audit = WhatsAppAuditService.success(
+            session=self.session,
+            action=WhatsAppActionType.GET_SESSION,
+        )
+
+        self.assertEqual(audit.session, self.session)
+        self.assertEqual(audit.meow_instance, self.meow)
+
+    def test_record_requires_context(self):
+        with self.assertRaises(ValueError):
+            WhatsAppAuditService.record(
+                action=WhatsAppActionType.HEALTH_CHECK,
+                status=WhatsAppActionStatus.SUCCESS,
+            )
 
 
 class InstanceSelectorServiceTests(TestCase):
@@ -253,9 +355,43 @@ class WhatsAppSessionServiceTests(TestCase):
 
         session = self.service.get_or_create_session(self.line)
 
+        select_available_instance.assert_called_once_with(
+            allow_above_warning=True
+        )
         self.assertEqual(session.line, self.line)
         self.assertEqual(session.meow_instance, self.meow)
         self.assertEqual(session.session_id, "session_+5511999990091")
+
+    def test_get_or_create_session_can_select_instance_above_warning_below_max(
+        self,
+    ):
+        self.meow.warning_sessions = 1
+        self.meow.max_sessions = 2
+        self.meow.save(update_fields=["warning_sessions", "max_sessions"])
+        occupied_sim = SIMcard.objects.create(
+            iccid="89000000000000999992",
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        occupied_line = PhoneLine.objects.create(
+            phone_number="+5511999990092",
+            sim_card=occupied_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        WhatsAppSession.objects.create(
+            line=occupied_line,
+            meow_instance=self.meow,
+            session_id="session_+5511999990092",
+        )
+
+        session = self.service.get_or_create_session(self.line)
+
+        self.assertEqual(session.line, self.line)
+        self.assertEqual(session.meow_instance, self.meow)
+        self.assertEqual(
+            session.status,
+            WhatsAppSessionStatus.PENDING_NEW_NUMBER,
+        )
 
     def test_get_status_raises_clean_error_when_line_has_no_session(self):
         with self.assertRaises(WhatsAppSessionNotConfiguredError):
@@ -512,6 +648,85 @@ class WhatsAppSessionServiceTests(TestCase):
         self.assertEqual(result.status, WhatsAppSessionStatus.DISCONNECTED)
         self.assertEqual(events, ["save", "audit"])
 
+    @patch(
+        "whatsapp.services.session_service.InstanceSelectorService.select_available_instance"
+    )
+    def test_connect_status_qr_disconnect_cycle_persists_state_and_audits(
+        self,
+        select_available_instance,
+    ):
+        select_available_instance.return_value = self.meow
+        mock_client = MagicMock()
+        mock_client.create_session.return_value = {"details": {"connected": False}}
+        mock_client.get_session.return_value = {
+            "details": {
+                "hasQR": True,
+                "qrCode": "remote-qr",
+                "connected": False,
+            }
+        }
+        mock_client.get_qr.return_value = {
+            "has_qr": True,
+            "qr_code": "base64-qr",
+            "connected": False,
+            "raw": {
+                "details": {
+                    "hasQR": True,
+                    "qrCode": "base64-qr",
+                    "connected": False,
+                }
+            },
+        }
+        mock_client.disconnect_session.return_value = {"success": True}
+
+        with patch.object(self.service, "_get_client", return_value=mock_client):
+            connect_result = self.service.connect(self.line)
+            session = WhatsAppSession.objects.get(line=self.line)
+            self.assertEqual(connect_result.status, WhatsAppSessionStatus.CONNECTING)
+            self.assertEqual(session.session_id, "session_+5511999990091")
+            self.assertEqual(session.status, WhatsAppSessionStatus.CONNECTING)
+            self.assertEqual(session.last_error, "")
+            self.assertIsNotNone(session.last_sync_at)
+
+            status_result = self.service.get_status(self.line)
+            session.refresh_from_db()
+            self.assertEqual(status_result.status, WhatsAppSessionStatus.QR_PENDING)
+            self.assertEqual(session.status, WhatsAppSessionStatus.QR_PENDING)
+            self.assertIsNotNone(session.qr_last_generated_at)
+
+            qr_result = self.service.get_qr(self.line)
+            session.refresh_from_db()
+            self.assertEqual(qr_result.status, WhatsAppSessionStatus.QR_PENDING)
+            self.assertEqual(qr_result.qr_code, "base64-qr")
+            self.assertTrue(qr_result.has_qr)
+            self.assertEqual(session.status, WhatsAppSessionStatus.QR_PENDING)
+
+            disconnect_result = self.service.disconnect(self.line)
+            session.refresh_from_db()
+            self.assertEqual(
+                disconnect_result.status,
+                WhatsAppSessionStatus.DISCONNECTED,
+            )
+            self.assertEqual(session.status, WhatsAppSessionStatus.DISCONNECTED)
+            self.assertEqual(session.last_error, "")
+            self.assertIsNotNone(session.last_sync_at)
+
+        audits = list(
+            WhatsAppActionAudit.objects.order_by("created_at").values_list(
+                "action",
+                "status",
+            )
+        )
+        self.assertEqual(
+            audits,
+            [
+                (WhatsAppActionType.CREATE_SESSION, "SUCCESS"),
+                (WhatsAppActionType.GET_SESSION, "SUCCESS"),
+                (WhatsAppActionType.GET_QR, "SUCCESS"),
+                (WhatsAppActionType.DELETE_SESSION, "SUCCESS"),
+            ],
+        )
+
 
 class WhatsAppProvisioningServiceTests(TestCase):
     def setUp(self):
@@ -701,6 +916,10 @@ class MeowHealthCheckServiceTests(TestCase):
         health_check.return_value = {"success": True, "message": "ok"}
 
         result = self.service.check_instance(self.healthy_instance)
+        audit = WhatsAppActionAudit.objects.get(
+            meow_instance=self.healthy_instance,
+            action=WhatsAppActionType.HEALTH_CHECK,
+        )
 
         self.healthy_instance.refresh_from_db()
         self.assertEqual(
@@ -710,6 +929,10 @@ class MeowHealthCheckServiceTests(TestCase):
         self.assertEqual(result.health_status, MeowInstanceHealthStatus.HEALTHY)
         self.assertEqual(result.detail, "ok")
         self.assertIsNotNone(self.healthy_instance.last_health_check_at)
+        self.assertEqual(audit.status, WhatsAppActionStatus.SUCCESS)
+        self.assertEqual(audit.response_payload["message"], "ok")
+        self.assertIsNone(audit.session)
+        self.assertIsNotNone(audit.duration_ms)
 
     @patch("whatsapp.services.health_service.MeowClient.health_check")
     def test_check_instance_marks_degraded_on_unsuccessful_payload(self, health_check):
@@ -732,6 +955,10 @@ class MeowHealthCheckServiceTests(TestCase):
         health_check.side_effect = MeowClientUnavailableError("sem resposta")
 
         result = self.service.check_instance(self.healthy_instance)
+        audit = WhatsAppActionAudit.objects.get(
+            meow_instance=self.healthy_instance,
+            action=WhatsAppActionType.HEALTH_CHECK,
+        )
 
         self.healthy_instance.refresh_from_db()
         self.assertEqual(
@@ -739,6 +966,8 @@ class MeowHealthCheckServiceTests(TestCase):
             MeowInstanceHealthStatus.UNAVAILABLE,
         )
         self.assertEqual(result.detail, "sem resposta")
+        self.assertEqual(audit.status, WhatsAppActionStatus.FAILURE)
+        self.assertEqual(audit.response_payload["error"], "sem resposta")
 
     @patch("whatsapp.services.health_service.MeowClient.health_check")
     def test_check_instances_skips_inactive_by_default(self, health_check):
@@ -1697,6 +1926,27 @@ class MeowClientTests(TestCase):
         self.assertIn("session already exists", str(exc.exception.detail))
 
     @patch("whatsapp.clients.meow_client.request.urlopen")
+    def test_server_error_response_is_mapped(self, urlopen):
+        error_body = io.BytesIO(b'{"detail":"upstream temporarily unavailable"}')
+        urlopen.side_effect = HTTPError(
+            url="http://meow.local/api/health",
+            code=503,
+            msg="Service Unavailable",
+            hdrs=None,
+            fp=error_body,
+        )
+        client = MeowClient("http://meow.local")
+
+        with self.assertRaises(MeowClientServerError) as exc:
+            client.health_check()
+
+        self.assertEqual(exc.exception.status_code, 503)
+        self.assertIn(
+            "upstream temporarily unavailable",
+            str(exc.exception.detail),
+        )
+
+    @patch("whatsapp.clients.meow_client.request.urlopen")
     def test_timeout_is_mapped(self, urlopen):
         urlopen.side_effect = TimeoutError()
         client = MeowClient("http://meow.local")
@@ -1711,6 +1961,16 @@ class WhatsAppSessionViewTests(TestCase):
             email="admin-whatsapp-view@test.com",
             password="123456",
             role=SystemUser.Role.ADMIN,
+        )
+        self.supervisor = SystemUser.objects.create_user(
+            email="super-whatsapp-view@test.com",
+            password="123456",
+            role=SystemUser.Role.SUPER,
+        )
+        self.manager = SystemUser.objects.create_user(
+            email="manager-whatsapp-view@test.com",
+            password="123456",
+            role=SystemUser.Role.GERENTE,
         )
         self.operator = SystemUser.objects.create_user(
             email="operator-whatsapp-view@test.com",
@@ -1736,6 +1996,60 @@ class WhatsAppSessionViewTests(TestCase):
             meow_instance=self.meow,
             session_id="session_+5511999990081",
             status=WhatsAppSessionStatus.CONNECTING,
+        )
+        self.scoped_employee = Employee.objects.create(
+            full_name="Scoped Employee",
+            corporate_email=self.supervisor.email,
+            manager_email=self.manager.email,
+            employee_id="EMP-WPP-209",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+        scoped_sim = SIMcard.objects.create(
+            iccid="89000000000000888882",
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.scoped_line = PhoneLine.objects.create(
+            phone_number="+5511999990082",
+            sim_card=scoped_sim,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        self.scoped_session = WhatsAppSession.objects.create(
+            line=self.scoped_line,
+            meow_instance=self.meow,
+            session_id="session_+5511999990082",
+            status=WhatsAppSessionStatus.CONNECTED,
+        )
+        LineAllocation.objects.create(
+            employee=self.scoped_employee,
+            phone_line=self.scoped_line,
+            allocated_by=self.admin,
+            is_active=True,
+        )
+        other_employee = Employee.objects.create(
+            full_name="Other Employee",
+            corporate_email="other-supervisor@test.com",
+            manager_email="other-manager@test.com",
+            employee_id="EMP-WPP-209-OTHER",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+        other_sim = SIMcard.objects.create(
+            iccid="89000000000000888883",
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.other_line = PhoneLine.objects.create(
+            phone_number="+5511999990083",
+            sim_card=other_sim,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        LineAllocation.objects.create(
+            employee=other_employee,
+            phone_line=self.other_line,
+            allocated_by=self.admin,
+            is_active=True,
         )
 
     def _build_result(
@@ -1938,6 +2252,68 @@ class WhatsAppSessionViewTests(TestCase):
         self.assertContains(response, "Consultar QR")
         self.assertContains(response, "Conectar")
         self.assertContains(response, "Desconectar")
+
+    def test_supervisor_can_view_whatsapp_summary_without_qr_or_actions(self):
+        self.client.force_login(self.supervisor)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.scoped_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="whatsapp-session-summary"', html=False)
+        self.assertContains(response, self.scoped_session.session_id)
+        self.assertContains(response, self.scoped_session.get_status_display())
+        self.assertContains(
+            response,
+            "QR e acoes tecnicas disponiveis apenas para admin.",
+        )
+        self.assertContains(response, reverse("dashboard"))
+        self.assertNotContains(response, "Consultar QR")
+        self.assertNotContains(response, "Conectar")
+        self.assertNotContains(response, "Desconectar")
+        self.assertNotContains(
+            response,
+            reverse("telecom:whatsapp:status", args=[self.scoped_line.pk]),
+        )
+        self.assertNotContains(
+            response,
+            reverse("telecom:phoneline_update", args=[self.scoped_line.pk]),
+        )
+
+    def test_manager_can_view_whatsapp_summary_for_managed_line(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.scoped_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="whatsapp-session-summary"', html=False)
+        self.assertContains(response, self.scoped_session.session_id)
+        self.assertNotContains(response, "Consultar QR")
+        self.assertNotContains(
+            response,
+            reverse("telecom:whatsapp:status", args=[self.scoped_line.pk]),
+        )
+
+    def test_supervisor_cannot_view_line_outside_scope(self):
+        self.client.force_login(self.supervisor)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.other_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_operator_is_denied_on_phoneline_detail(self):
+        self.client.force_login(self.operator)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.scoped_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 403)
 
 
 class MeowWebhookViewTests(TestCase):
@@ -2695,6 +3071,8 @@ class RunWhatsAppLoadTestCommandTests(TestCase):
     def test_command_prints_summary(self, run_method):
         run_method.return_value = MagicMock(
             label="Leitura remota via MeowClient.get_session",
+            scenario="client_get_session",
+            scenario_note=None,
             selected_sessions=200,
             concurrency=25,
             success_count=200,
@@ -2728,6 +3106,64 @@ class RunWhatsAppLoadTestCommandTests(TestCase):
         self.assertIn("Cenario: Leitura remota via MeowClient.get_session", output)
         self.assertIn("Sessoes selecionadas: 200", output)
         self.assertIn("QA Meow 01", output)
+
+    @patch("whatsapp.management.commands.run_whatsapp_load_test.WhatsAppLoadTestService.run")
+    def test_command_can_write_markdown_report(self, run_method):
+        report_path = Path(__file__).resolve().parent / "_test_whatsapp_load_report.md"
+        self.addCleanup(lambda: report_path.unlink(missing_ok=True))
+        run_method.return_value = MagicMock(
+            label="Sonda de escrita via MeowClient.connect_session",
+            scenario="client_connect_session",
+            scenario_note=(
+                "Nao valida envio de mensagem; exercita apenas o contrato atual "
+                "de connect_session."
+            ),
+            selected_sessions=50,
+            concurrency=10,
+            success_count=49,
+            failure_count=1,
+            average_latency_ms=95,
+            p95_latency_ms=140,
+            instance_summaries=[
+                MagicMock(
+                    instance_name="QA Meow 01",
+                    total_requests=50,
+                    success_count=49,
+                    failure_count=1,
+                )
+            ],
+            failures=[
+                MagicMock(
+                    session_id="session_+5511999990001",
+                    detail="timeout upstream",
+                )
+            ],
+        )
+        stdout = io.StringIO()
+
+        call_command(
+            "run_whatsapp_load_test",
+            scenario="client_connect_session",
+            session_limit=50,
+            min_sessions=50,
+            concurrency=10,
+            connected_only=True,
+            environment_label="qa-ci",
+            notes="janela controlada",
+            report_file=str(report_path),
+            stdout=stdout,
+        )
+
+        self.assertTrue(report_path.exists())
+        report = report_path.read_text(encoding="utf-8")
+        self.assertIn("# Evidencia de Load Test WhatsApp", report)
+        self.assertIn("- Ambiente: qa-ci", report)
+        self.assertIn("- Chave do cenario: `client_connect_session`", report)
+        self.assertIn("Nao valida envio de mensagem", report)
+        self.assertIn("- QA Meow 01: total=50 success=49 failure=1", report)
+        self.assertIn("- session_+5511999990001: timeout upstream", report)
+        self.assertIn("- janela controlada", report)
+        self.assertIn("Relatorio salvo em:", stdout.getvalue())
 
     @patch("whatsapp.management.commands.run_whatsapp_load_test.WhatsAppLoadTestService.run")
     def test_command_raises_command_error_on_invalid_sample(self, run_method):

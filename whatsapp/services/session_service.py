@@ -65,7 +65,9 @@ class WhatsAppSessionService:
         if session:
             return session
 
-        meow_instance = InstanceSelectorService.select_available_instance()
+        meow_instance = InstanceSelectorService.select_available_instance(
+            allow_above_warning=True
+        )
         return WhatsAppSession.objects.create(
             line=line,
             meow_instance=meow_instance,

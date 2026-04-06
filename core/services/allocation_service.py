@@ -33,7 +33,9 @@ class AllocationService:
             return
 
         try:
-            InstanceSelectorService.select_available_instance()
+            InstanceSelectorService.select_available_instance(
+                allow_above_warning=True
+            )
         except NoAvailableMeowInstanceError as exc:
             logger.warning(
                 "Allocation blocked due to unavailable Meow capacity",

@@ -208,8 +208,8 @@ resume sucesso, falha, latencia media, p95 e distribuicao por instancia.
 ### Validar 200 numeros conectados
 
 ```bash
-./scripts/run_qa_manage_command.sh run_whatsapp_load_test --scenario client_get_session --connected-only --session-limit 200 --min-sessions 200 --concurrency 25
-./scripts/run_qa_manage_command.sh run_whatsapp_load_test --scenario service_get_status --connected-only --session-limit 200 --min-sessions 200 --concurrency 20
+./scripts/run_qa_manage_command.sh run_whatsapp_load_test --scenario client_get_session --connected-only --session-limit 200 --min-sessions 200 --concurrency 25 --report-file docs/evidence/whatsapp-load-test-200-get-session.md --environment-label qa
+./scripts/run_qa_manage_command.sh run_whatsapp_load_test --scenario service_get_status --connected-only --session-limit 200 --min-sessions 200 --concurrency 20 --report-file docs/evidence/whatsapp-load-test-200-service-status.md --environment-label qa
 ```
 
 ### Sonda de escrita concorrente no contrato atual
@@ -218,11 +218,35 @@ Como o LineOps ainda nao expoe endpoint de envio de mensagem, a sonda de
 escrita concorrente disponivel hoje usa `client_connect_session`:
 
 ```bash
-./scripts/run_qa_manage_command.sh run_whatsapp_load_test --scenario client_connect_session --connected-only --session-limit 50 --min-sessions 50 --concurrency 10
+./scripts/run_qa_manage_command.sh run_whatsapp_load_test --scenario client_connect_session --connected-only --session-limit 50 --min-sessions 50 --concurrency 10 --report-file docs/evidence/whatsapp-load-test-connect-probe.md --environment-label qa
 ```
 
+Esse cenario nao valida envio de mensagem. Ele apenas exercita, de forma
+concorrente, o contrato atual de `connect_session` exposto pelo `MeowClient`.
+
 Quando o contrato de envio for incorporado ao app, a recomendacao e adicionar
-um novo cenario dedicado ao endpoint real de mensagem.
+um novo cenario dedicado ao endpoint real de mensagem e registrar a evidencia
+em arquivo separado.
+
+### Registrar evidencia da execucao
+
+Quando `--report-file` e informado, o comando gera um Markdown com:
+
+- data/hora da execucao
+- ambiente informado em `--environment-label`
+- cenario e parametros usados
+- sucesso, falha, latencia media e p95
+- distribuicao por instancia
+- falhas amostradas
+- notas livres via `--notes`
+
+Antes de considerar o `WPP-507` encerrado no ambiente alvo, salve pelo menos:
+
+- um relatorio do cenario com `200` sessoes conectadas
+- um relatorio da sonda concorrente de escrita atualmente disponivel
+
+Se o ambiente ainda nao tiver endpoint real de envio, registre isso
+explicitamente no relatorio da sonda.
 
 Se algum comando falhar aqui, nao instale o cron ainda. Corrija o ambiente primeiro.
 

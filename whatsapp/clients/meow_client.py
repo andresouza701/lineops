@@ -8,6 +8,7 @@ from whatsapp.clients.exceptions import (
     MeowClientConflictError,
     MeowClientNotFoundError,
     MeowClientResponseError,
+    MeowClientServerError,
     MeowClientTimeoutError,
     MeowClientUnauthorizedError,
     MeowClientUnavailableError,
@@ -167,6 +168,12 @@ class MeowClient:
             )
         if status_code == HTTP_CONFLICT:
             return MeowClientConflictError(
+                message,
+                status_code=status_code,
+                detail=detail,
+            )
+        if 500 <= status_code <= 599:
+            return MeowClientServerError(
                 message,
                 status_code=status_code,
                 detail=detail,

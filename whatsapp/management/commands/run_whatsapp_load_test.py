@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
 
 from whatsapp.models import WhatsAppSession
 from whatsapp.services.load_test_service import WhatsAppLoadTestService
@@ -42,6 +45,20 @@ class Command(BaseCommand):
             action="store_true",
             help="Usa apenas sessoes locais marcadas como conectadas.",
         )
+        parser.add_argument(
+            "--report-file",
+            help="Caminho opcional para salvar um relatorio Markdown da execucao.",
+        )
+        parser.add_argument(
+            "--environment-label",
+            default="qa",
+            help="Identificador do ambiente registrado no relatorio.",
+        )
+        parser.add_argument(
+            "--notes",
+            default="",
+            help="Observacoes livres para registrar no relatorio.",
+        )
 
     def handle(self, *args, **options):
         queryset = WhatsAppSession.objects.all()
@@ -63,6 +80,8 @@ class Command(BaseCommand):
             raise CommandError(str(exc)) from exc
 
         self.stdout.write(f"Cenario: {summary.label}")
+        if summary.scenario_note:
+            self.stdout.write(f"Observacao: {summary.scenario_note}")
         self.stdout.write(f"Sessoes selecionadas: {summary.selected_sessions}")
         self.stdout.write(f"Concorrencia: {summary.concurrency}")
         self.stdout.write(
@@ -88,3 +107,97 @@ class Command(BaseCommand):
                 self.stdout.write(
                     f"- {failure.session_id}: {failure.detail or 'sem detalhe'}"
                 )
+
+        report_file = options.get("report_file")
+        if report_file:
+            report_path = Path(report_file)
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(
+                self._build_report(
+                    summary=summary,
+                    options=options,
+                ),
+                encoding="utf-8",
+            )
+            self.stdout.write(f"Relatorio salvo em: {report_path}")
+
+    def _build_report(self, *, summary, options) -> str:
+        executed_at = timezone.localtime().strftime("%Y-%m-%d %H:%M:%S %Z")
+        lines = [
+            "# Evidencia de Load Test WhatsApp",
+            "",
+            f"- Executado em: {executed_at}",
+            f"- Ambiente: {options.get('environment_label') or 'qa'}",
+            f"- Cenario: {summary.label}",
+            f"- Chave do cenario: `{summary.scenario}`",
+            f"- Session limit: {options.get('session_limit')}",
+            f"- Min sessions: {options.get('min_sessions')}",
+            f"- Concorrencia: {summary.concurrency}",
+            f"- Connected only: {bool(options.get('connected_only'))}",
+            "",
+            "## Resultado",
+            "",
+            f"- Sessoes selecionadas: {summary.selected_sessions}",
+            f"- Sucesso: {summary.success_count}",
+            f"- Falha: {summary.failure_count}",
+            (
+                "- Latencia media (ms): "
+                f"{summary.average_latency_ms if summary.average_latency_ms is not None else '-'}"
+            ),
+            (
+                "- Latencia p95 (ms): "
+                f"{summary.p95_latency_ms if summary.p95_latency_ms is not None else '-'}"
+            ),
+        ]
+        if summary.scenario_note:
+            lines.extend(
+                [
+                    "",
+                    "## Observacao de Escopo",
+                    "",
+                    f"- {summary.scenario_note}",
+                ]
+            )
+
+        lines.extend(
+            [
+                "",
+                "## Resumo por Instancia",
+                "",
+            ]
+        )
+        for item in summary.instance_summaries:
+            lines.append(
+                (
+                    f"- {item.instance_name}: total={item.total_requests} "
+                    f"success={item.success_count} failure={item.failure_count}"
+                )
+            )
+
+        lines.extend(
+            [
+                "",
+                "## Falhas Amostradas",
+                "",
+            ]
+        )
+        if summary.failures:
+            for failure in summary.failures[:10]:
+                lines.append(
+                    f"- {failure.session_id}: {failure.detail or 'sem detalhe'}"
+                )
+        else:
+            lines.append("- Nenhuma falha amostrada.")
+
+        notes = (options.get("notes") or "").strip()
+        if notes:
+            lines.extend(
+                [
+                    "",
+                    "## Notas",
+                    "",
+                    f"- {notes}",
+                ]
+            )
+
+        return "\n".join(lines) + "\n"

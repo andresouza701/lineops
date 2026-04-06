@@ -96,6 +96,15 @@ class WhatsAppActionAudit(models.Model):
         "whatsapp.WhatsAppSession",
         on_delete=models.CASCADE,
         related_name="action_audits",
+        null=True,
+        blank=True,
+    )
+    meow_instance = models.ForeignKey(
+        "whatsapp.MeowInstance",
+        on_delete=models.PROTECT,
+        related_name="action_audits",
+        null=True,
+        blank=True,
     )
     action = models.CharField(max_length=32, choices=WhatsAppActionType.choices)
     status = models.CharField(max_length=16, choices=WhatsAppActionStatus.choices)
@@ -116,9 +125,25 @@ class WhatsAppActionAudit(models.Model):
             models.Index(fields=["session", "-created_at"]),
             models.Index(fields=["action", "status"]),
         ]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(session__isnull=False)
+                    | models.Q(meow_instance__isnull=False)
+                ),
+                name="whatsapp_audit_has_target",
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.session.session_id} - {self.action} - {self.status}"
+        target = (
+            self.session.session_id
+            if self.session_id
+            else self.meow_instance.name
+            if self.meow_instance_id
+            else "sem-contexto"
+        )
+        return f"{target} - {self.action} - {self.status}"
 
 
 class WhatsAppScheduledJob(models.Model):
