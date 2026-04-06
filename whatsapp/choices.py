@@ -33,6 +33,21 @@ class WhatsAppActionStatus(models.TextChoices):
     FAILURE = "FAILURE", "Failure"
 
 
+class WhatsAppIntegrationJobType(models.TextChoices):
+    CREATE_SESSION = "CREATE_SESSION", "Create session"
+    GENERATE_QR = "GENERATE_QR", "Generate QR"
+    SYNC_STATUS = "SYNC_STATUS", "Sync status"
+    DELETE_SESSION = "DELETE_SESSION", "Delete session"
+
+
+class WhatsAppIntegrationJobStatus(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    RUNNING = "RUNNING", "Running"
+    RETRY = "RETRY", "Retry"
+    SUCCESS = "SUCCESS", "Success"
+    FAILURE = "FAILURE", "Failure"
+
+
 class WhatsAppSchedulerJobCode(models.TextChoices):
     HEALTH_CHECK = "HEALTH_CHECK", "Health check"
     SESSION_SYNC = "SESSION_SYNC", "Session sync"

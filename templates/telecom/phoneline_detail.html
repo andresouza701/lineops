@@ -236,6 +236,7 @@
         const qrContainer = document.getElementById("whatsapp-qr-container");
         const refreshStatusButton = document.getElementById("whatsapp-refresh-status");
         const refreshQrButton = document.getElementById("whatsapp-refresh-qr");
+        const csrfToken = card.querySelector("input[name='csrfmiddlewaretoken']")?.value || "";
 
         const statusClassMap = {
             CONNECTED: "text-bg-success",
@@ -346,9 +347,13 @@
             `;
         }
 
-        async function fetchPayload(url) {
+        async function fetchPayload(url, options = {}) {
             const response = await fetch(url, {
-                headers: { "X-Requested-With": "XMLHttpRequest" },
+                ...options,
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    ...(options.headers || {}),
+                },
             });
             const contentType = response.headers.get("content-type") || "";
 
@@ -388,7 +393,10 @@
             setButtonsBusy(true);
 
             try {
-                const payload = await fetchPayload(qrUrl);
+                const payload = await fetchPayload(qrUrl, {
+                    method: "POST",
+                    headers: csrfToken ? { "X-CSRFToken": csrfToken } : {},
+                });
                 renderSession(payload);
                 renderQr(payload);
             } catch (error) {

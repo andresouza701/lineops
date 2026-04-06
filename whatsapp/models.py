@@ -6,6 +6,8 @@ from whatsapp.choices import (
     MeowInstanceHealthStatus,
     WhatsAppActionStatus,
     WhatsAppActionType,
+    WhatsAppIntegrationJobStatus,
+    WhatsAppIntegrationJobType,
     WhatsAppSchedulerJobCode,
     WhatsAppSchedulerJobStatus,
     WhatsAppSessionStatus,
@@ -72,8 +74,11 @@ class WhatsAppSession(models.Model):
         default=WhatsAppSessionStatus.PENDING_NEW_NUMBER,
         db_index=True,
     )
+    version = models.PositiveIntegerField(default=1)
     connected_at = models.DateTimeField(null=True, blank=True)
+    qr_code = models.TextField(blank=True, default="")
     qr_last_generated_at = models.DateTimeField(null=True, blank=True)
+    qr_expires_at = models.DateTimeField(null=True, blank=True)
     last_sync_at = models.DateTimeField(null=True, blank=True)
     last_error = models.TextField(blank=True)
     is_active = models.BooleanField(default=True, db_index=True)
@@ -89,6 +94,58 @@ class WhatsAppSession(models.Model):
 
     def __str__(self):
         return f"{self.line.phone_number} - {self.status}"
+
+
+class WhatsAppIntegrationJob(models.Model):
+    session = models.ForeignKey(
+        "whatsapp.WhatsAppSession",
+        on_delete=models.CASCADE,
+        related_name="integration_jobs",
+    )
+    job_type = models.CharField(
+        max_length=32,
+        choices=WhatsAppIntegrationJobType.choices,
+        db_index=True,
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=WhatsAppIntegrationJobStatus.choices,
+        default=WhatsAppIntegrationJobStatus.PENDING,
+        db_index=True,
+    )
+    dedupe_key = models.CharField(
+        max_length=128,
+        unique=True,
+        null=True,
+        blank=True,
+    )
+    request_payload = models.JSONField(null=True, blank=True)
+    response_payload = models.JSONField(null=True, blank=True)
+    attempt_count = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField(default=5)
+    available_at = models.DateTimeField(db_index=True)
+    claimed_at = models.DateTimeField(null=True, blank=True)
+    claimed_by = models.CharField(max_length=64, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["available_at", "id"]
+        indexes = [
+            models.Index(fields=["status", "available_at"]),
+            models.Index(fields=["session", "job_type", "status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.session.session_id} - {self.job_type} - {self.status}"
 
 
 class WhatsAppActionAudit(models.Model):
@@ -175,3 +232,19 @@ class WhatsAppScheduledJob(models.Model):
 
     def __str__(self):
         return self.get_job_code_display()
+
+
+class WhatsAppWorkerState(models.Model):
+    worker_code = models.CharField(max_length=64, unique=True)
+    last_heartbeat_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    last_processed_job_at = models.DateTimeField(null=True, blank=True)
+    is_running = models.BooleanField(default=False, db_index=True)
+    last_error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["worker_code"]
+
+    def __str__(self):
+        return self.worker_code

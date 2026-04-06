@@ -4,8 +4,10 @@ from django.db.models import Count, Q
 from whatsapp.models import (
     MeowInstance,
     WhatsAppActionAudit,
+    WhatsAppIntegrationJob,
     WhatsAppScheduledJob,
     WhatsAppSession,
+    WhatsAppWorkerState,
 )
 from whatsapp.services.health_service import MeowHealthCheckService
 from whatsapp.services.reconcile_service import WhatsAppSessionReconcileService
@@ -192,6 +194,61 @@ class WhatsAppScheduledJobAdmin(admin.ModelAdmin):
         "last_started_at",
         "last_finished_at",
         "next_run_at",
+        "created_at",
+        "updated_at",
+    )
+
+
+@admin.register(WhatsAppIntegrationJob)
+class WhatsAppIntegrationJobAdmin(admin.ModelAdmin):
+    list_display = (
+        "session",
+        "job_type",
+        "status",
+        "attempt_count",
+        "available_at",
+        "claimed_by",
+        "finished_at",
+    )
+    list_filter = ("job_type", "status")
+    search_fields = ("session__session_id", "session__line__phone_number")
+    autocomplete_fields = ("session", "created_by")
+    readonly_fields = (
+        "session",
+        "job_type",
+        "status",
+        "dedupe_key",
+        "request_payload",
+        "response_payload",
+        "attempt_count",
+        "max_attempts",
+        "available_at",
+        "claimed_at",
+        "claimed_by",
+        "finished_at",
+        "last_error",
+        "created_by",
+        "created_at",
+        "updated_at",
+    )
+
+
+@admin.register(WhatsAppWorkerState)
+class WhatsAppWorkerStateAdmin(admin.ModelAdmin):
+    list_display = (
+        "worker_code",
+        "is_running",
+        "last_heartbeat_at",
+        "last_processed_job_at",
+        "updated_at",
+    )
+    search_fields = ("worker_code",)
+    readonly_fields = (
+        "worker_code",
+        "is_running",
+        "last_heartbeat_at",
+        "last_processed_job_at",
+        "last_error",
         "created_at",
         "updated_at",
     )

@@ -12,6 +12,7 @@ from whatsapp.views import (
     MeowOwnerCheckView,
     MeowWebhookView,
     WhatsAppOperationsView,
+    WhatsAppWorkerReadinessView,
 )
 
 urlpatterns = [
@@ -49,6 +50,7 @@ urlpatterns = [
         name="whatsapp_meow_owner_check_tokenized",
     ),
     path("health/", HealthCheckView.as_view(), name="health"),
+    path("readiness/", WhatsAppWorkerReadinessView.as_view(), name="readiness"),
     path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("api/admin-only/", AdminOnlyView.as_view(), name="admin_only"),

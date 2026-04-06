@@ -19,6 +19,7 @@ from whatsapp.services.metrics_service import (
     WhatsAppMetricsService,
 )
 from whatsapp.services.provisioning_service import WhatsAppProvisioningService
+from whatsapp.services.integration_job_service import WhatsAppIntegrationJobService
 from whatsapp.services.reconcile_service import (
     WhatsAppSessionReconcileResult,
     WhatsAppSessionReconcileService,
@@ -44,6 +45,10 @@ from whatsapp.services.sync_service import (
     WhatsAppSessionSyncResult,
     WhatsAppSessionSyncService,
 )
+from whatsapp.services.worker_service import (
+    WhatsAppIntegrationWorkerService,
+    WhatsAppWorkerRunSummary,
+)
 
 __all__ = [
     "MeowCapacityService",
@@ -61,6 +66,8 @@ __all__ = [
     "MeowRolloutService",
     "MeowRolloutStage",
     "MeowRolloutSummary",
+    "WhatsAppIntegrationJobService",
+    "WhatsAppIntegrationWorkerService",
     "WhatsAppOpsSchedulerService",
     "WhatsAppSchedulerJobDefinition",
     "WhatsAppSchedulerJobSummary",
@@ -73,6 +80,7 @@ __all__ = [
     "WhatsAppSessionReconcileService",
     "WhatsAppSessionSyncResult",
     "WhatsAppSessionSyncService",
+    "WhatsAppWorkerRunSummary",
     "WhatsAppAuditService",
     "WhatsAppProvisioningService",
 ]

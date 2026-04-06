@@ -29,6 +29,7 @@ from whatsapp.services.session_service import (
     WhatsAppSessionServiceError,
 )
 from whatsapp.services.sync_service import WhatsAppSessionSyncService
+from whatsapp.services.worker_service import WhatsAppIntegrationWorkerService
 from whatsapp.services.webhook_service import MeowWebhookService
 from whatsapp.services.owner_check_service import MeowOwnerCheckService
 
@@ -71,6 +72,7 @@ class WhatsAppPhoneLineMixin(RoleRequiredMixin):
         qr_code: str | None = None,
         has_qr: bool = False,
         connected: bool | None = None,
+        detail: str | None = None,
     ) -> dict:
         return {
             "line_id": line.pk,
@@ -97,9 +99,19 @@ class WhatsAppPhoneLineMixin(RoleRequiredMixin):
                 if session and session.connected_at
                 else None
             ),
+            "qr_expires_at": (
+                session.qr_expires_at.isoformat()
+                if session and session.qr_expires_at
+                else None
+            ),
             "has_qr": has_qr,
             "qr_code": qr_code,
-            "connected": bool(connected) if connected is not None else False,
+            "connected": (
+                bool(connected)
+                if connected is not None
+                else bool(session and session.status == "CONNECTED")
+            ),
+            "detail": detail,
         }
 
 
@@ -108,21 +120,19 @@ class WhatsAppSessionStatusView(WhatsAppPhoneLineMixin, View):
         line = self.get_phone_line()
 
         try:
-            result = self.session_service.get_status(line)
+            result = self.session_service.get_local_status(line)
             payload = self.serialize_session(
                 line,
                 result.session,
+                qr_code=result.qr_code,
+                has_qr=result.has_qr,
                 connected=result.connected,
+                detail=result.detail,
             )
             return JsonResponse(payload)
         except WhatsAppSessionNotConfiguredError:
             payload = self.serialize_session(line, None)
             return JsonResponse(payload)
-        except WhatsAppSessionServiceError as exc:
-            session = self.get_local_session(line)
-            payload = self.serialize_session(line, session)
-            payload["error"] = str(exc)
-            return JsonResponse(payload, status=502)
 
 
 class WhatsAppSessionQRCodeView(WhatsAppPhoneLineMixin, View):
@@ -130,13 +140,36 @@ class WhatsAppSessionQRCodeView(WhatsAppPhoneLineMixin, View):
         line = self.get_phone_line()
 
         try:
-            result = self.session_service.get_qr(line)
+            result = self.session_service.get_local_qr(line)
             payload = self.serialize_session(
                 line,
                 result.session,
                 qr_code=result.qr_code,
                 has_qr=result.has_qr,
                 connected=result.connected,
+                detail=result.detail,
+            )
+            return JsonResponse(payload)
+        except WhatsAppSessionNotConfiguredError as exc:
+            payload = self.serialize_session(line, None)
+            payload["error"] = str(exc)
+            return JsonResponse(payload, status=404)
+
+    def post(self, request, *args, **kwargs):
+        line = self.get_phone_line()
+
+        try:
+            result = self.session_service.request_qr(
+                line,
+                created_by=request.user if request.user.is_authenticated else None,
+            )
+            payload = self.serialize_session(
+                line,
+                result.session,
+                qr_code=result.qr_code,
+                has_qr=result.has_qr,
+                connected=result.connected,
+                detail=result.detail,
             )
             return JsonResponse(payload)
         except WhatsAppSessionNotConfiguredError as exc:
@@ -147,7 +180,7 @@ class WhatsAppSessionQRCodeView(WhatsAppPhoneLineMixin, View):
             session = self.get_local_session(line)
             payload = self.serialize_session(line, session)
             payload["error"] = str(exc)
-            return JsonResponse(payload, status=502)
+            return JsonResponse(payload, status=400)
 
 
 class WhatsAppSessionConnectView(WhatsAppPhoneLineMixin, View):
@@ -155,22 +188,28 @@ class WhatsAppSessionConnectView(WhatsAppPhoneLineMixin, View):
         line = self.get_phone_line()
 
         try:
-            result = self.session_service.connect(line)
+            result = self.session_service.request_connect(
+                line,
+                created_by=request.user if request.user.is_authenticated else None,
+            )
         except WhatsAppSessionServiceError as exc:
             if self.is_ajax():
                 payload = self.serialize_session(line, self.get_local_session(line))
                 payload["error"] = str(exc)
-                return JsonResponse(payload, status=502)
-            messages.error(request, f"Erro ao conectar sessao: {exc}")
+                return JsonResponse(payload, status=400)
+            messages.error(request, f"Nao foi possivel registrar a conexao: {exc}")
             return self.redirect_to_line_detail(line)
         if self.is_ajax():
             payload = self.serialize_session(
                 line,
                 result.session,
+                qr_code=result.qr_code,
+                has_qr=result.has_qr,
                 connected=result.connected,
+                detail=result.detail,
             )
             return JsonResponse(payload)
-        messages.success(request, "Sessao conectada com sucesso.")
+        messages.success(request, result.detail or "Solicitacao de conexao registrada.")
         return self.redirect_to_line_detail(line)
 
 
@@ -179,7 +218,10 @@ class WhatsAppSessionDisconnectView(WhatsAppPhoneLineMixin, View):
         line = self.get_phone_line()
 
         try:
-            result = self.session_service.disconnect(line)
+            result = self.session_service.request_disconnect(
+                line,
+                created_by=request.user if request.user.is_authenticated else None,
+            )
         except WhatsAppSessionNotConfiguredError as exc:
             if self.is_ajax():
                 payload = self.serialize_session(line, None)
@@ -192,21 +234,38 @@ class WhatsAppSessionDisconnectView(WhatsAppPhoneLineMixin, View):
             if self.is_ajax():
                 payload = self.serialize_session(line, self.get_local_session(line))
                 payload["error"] = str(exc)
-                return JsonResponse(payload, status=502)
+                return JsonResponse(payload, status=400)
 
-            messages.error(request, f"Erro ao desconectar sessao: {exc}")
+            messages.error(request, f"Nao foi possivel registrar a desconexao: {exc}")
             return self.redirect_to_line_detail(line)
 
         if self.is_ajax():
             payload = self.serialize_session(
                 line,
                 result.session,
+                qr_code=result.qr_code,
+                has_qr=result.has_qr,
                 connected=result.connected,
+                detail=result.detail,
             )
             return JsonResponse(payload)
 
-        messages.success(request, "Sessao desconectada com sucesso.")
+        messages.success(
+            request,
+            result.detail or "Solicitacao de desconexao registrada.",
+        )
         return self.redirect_to_line_detail(line)
+
+
+class WhatsAppWorkerReadinessView(View):
+    http_method_names = ["get", "head", "options"]
+    service = WhatsAppIntegrationWorkerService()
+
+    def get(self, request, *args, **kwargs):
+        payload, status_code = self.service.build_readiness_payload()
+        response = JsonResponse(payload, status=status_code)
+        response["Cache-Control"] = "no-store"
+        return response
 
 
 class MeowWebhookView(APIView):
