@@ -25,8 +25,12 @@ from whatsapp.models import WhatsAppSession
 from whatsapp.services.audit_service import WhatsAppAuditService
 from whatsapp.services.integration_job_service import WhatsAppIntegrationJobService
 from whatsapp.services.observability_service import emit_integration_log
-from whatsapp.services.instance_selector import InstanceSelectorService
+from whatsapp.services.instance_selector import (
+    InstanceSelectorService,
+    NoAvailableMeowInstanceError,
+)
 from whatsapp.services.state_machine_service import (
+    InvalidWhatsAppSessionTransition,
     WhatsAppSessionStateMachineService,
 )
 
@@ -64,6 +68,18 @@ class WhatsAppSessionService:
     @staticmethod
     def _elapsed_ms(started_at: float) -> int:
         return max(0, int(round((time.monotonic() - started_at) * 1000)))
+
+    @staticmethod
+    def _raise_local_request_error(exc: Exception) -> None:
+        if isinstance(exc, NoAvailableMeowInstanceError):
+            raise WhatsAppSessionServiceError(
+                "Nao ha instancia Meow ativa com capacidade disponivel."
+            ) from exc
+        if isinstance(exc, InvalidWhatsAppSessionTransition):
+            raise WhatsAppSessionServiceError(
+                "A sessao WhatsApp esta em um estado invalido para esta operacao."
+            ) from exc
+        raise exc
 
     def build_session_id(self, line: PhoneLine) -> str:
         return f"session_{line.phone_number}"
@@ -119,46 +135,49 @@ class WhatsAppSessionService:
         created_by=None,
         correlation_id: str = "",
     ) -> WhatsAppSessionResult:
-        session, session_created = self.get_or_create_session_with_created(line)
-        detail = (
-            "Conexao local criada e solicitacao registrada."
-            if session_created
-            else "Sessao local reutilizada."
-        )
-        job = None
-        job_created = None
-        if session.status != WhatsAppSessionStatus.CONNECTED:
-            self.state_machine.mark_session_requested(session)
-            job, job_created = self.job_service.enqueue(
-                session=session,
-                job_type=WhatsAppIntegrationJobType.CREATE_SESSION,
-                created_by=created_by,
-                correlation_id=correlation_id,
-                request_payload={"session_id": session.session_id},
-            )
+        try:
+            session, session_created = self.get_or_create_session_with_created(line)
             detail = (
-                "Solicitacao de conexao registrada."
-                if job_created
-                else "Solicitacao de conexao ja pendente."
+                "Conexao local criada e solicitacao registrada."
+                if session_created
+                else "Sessao local reutilizada."
             )
-        effective_correlation_id = job.correlation_id if job else correlation_id
-        self._record_local_action(
-            session=session,
-            action=WhatsAppActionType.CREATE_SESSION,
-            detail=detail,
-            created_by=created_by,
-            correlation_id=effective_correlation_id,
-            job=job,
-            job_created=job_created,
-        )
-        return self._build_local_result(
-            session,
-            detail=detail,
-            correlation_id=effective_correlation_id,
-            job=job,
-            job_created=job_created,
-            session_created=session_created,
-        )
+            job = None
+            job_created = None
+            if session.status != WhatsAppSessionStatus.CONNECTED:
+                self.state_machine.mark_session_requested(session)
+                job, job_created = self.job_service.enqueue(
+                    session=session,
+                    job_type=WhatsAppIntegrationJobType.CREATE_SESSION,
+                    created_by=created_by,
+                    correlation_id=correlation_id,
+                    request_payload={"session_id": session.session_id},
+                )
+                detail = (
+                    "Solicitacao de conexao registrada."
+                    if job_created
+                    else "Solicitacao de conexao ja pendente."
+                )
+            effective_correlation_id = job.correlation_id if job else correlation_id
+            self._record_local_action(
+                session=session,
+                action=WhatsAppActionType.CREATE_SESSION,
+                detail=detail,
+                created_by=created_by,
+                correlation_id=effective_correlation_id,
+                job=job,
+                job_created=job_created,
+            )
+            return self._build_local_result(
+                session,
+                detail=detail,
+                correlation_id=effective_correlation_id,
+                job=job,
+                job_created=job_created,
+                session_created=session_created,
+            )
+        except (NoAvailableMeowInstanceError, InvalidWhatsAppSessionTransition) as exc:
+            self._raise_local_request_error(exc)
 
     def get_local_status(self, line: PhoneLine) -> WhatsAppSessionResult:
         session = self._require_session(line)
@@ -171,72 +190,75 @@ class WhatsAppSessionService:
         created_by=None,
         correlation_id: str = "",
     ) -> WhatsAppSessionResult:
-        session = self._require_session(line)
-        local_result = self._build_local_result(session)
-        if local_result.has_qr:
-            local_result.detail = "QR local reutilizado."
-            local_result.correlation_id = correlation_id
+        try:
+            session = self._require_session(line)
+            local_result = self._build_local_result(session)
+            if local_result.has_qr:
+                local_result.detail = "QR local reutilizado."
+                local_result.correlation_id = correlation_id
+                self._record_local_action(
+                    session=session,
+                    action=WhatsAppActionType.GET_QR,
+                    detail=local_result.detail,
+                    created_by=created_by,
+                    correlation_id=correlation_id,
+                    response_payload={
+                        "source": "local_cache",
+                        "has_qr": local_result.has_qr,
+                        "connected": local_result.connected,
+                    },
+                )
+                return local_result
+
+            if local_result.connected:
+                local_result.detail = "Sessao ja conectada; QR nao e necessario."
+                local_result.correlation_id = correlation_id
+                self._record_local_action(
+                    session=session,
+                    action=WhatsAppActionType.GET_QR,
+                    detail=local_result.detail,
+                    created_by=created_by,
+                    correlation_id=correlation_id,
+                    response_payload={
+                        "source": "connected_session",
+                        "has_qr": local_result.has_qr,
+                        "connected": local_result.connected,
+                    },
+                )
+                return local_result
+
+            self.state_machine.mark_session_requested(session)
+            job, job_created = self.job_service.enqueue(
+                session=session,
+                job_type=WhatsAppIntegrationJobType.GENERATE_QR,
+                created_by=created_by,
+                correlation_id=correlation_id,
+                request_payload={"session_id": session.session_id},
+            )
+            detail = (
+                "Solicitacao de QR registrada."
+                if job_created
+                else "Solicitacao de QR ja pendente."
+            )
+            effective_correlation_id = job.correlation_id or correlation_id
             self._record_local_action(
                 session=session,
                 action=WhatsAppActionType.GET_QR,
-                detail=local_result.detail,
+                detail=detail,
                 created_by=created_by,
-                correlation_id=correlation_id,
-                response_payload={
-                    "source": "local_cache",
-                    "has_qr": local_result.has_qr,
-                    "connected": local_result.connected,
-                },
+                correlation_id=effective_correlation_id,
+                job=job,
+                job_created=job_created,
             )
-            return local_result
-
-        if local_result.connected:
-            local_result.detail = "Sessao ja conectada; QR nao e necessario."
-            local_result.correlation_id = correlation_id
-            self._record_local_action(
-                session=session,
-                action=WhatsAppActionType.GET_QR,
-                detail=local_result.detail,
-                created_by=created_by,
-                correlation_id=correlation_id,
-                response_payload={
-                    "source": "connected_session",
-                    "has_qr": local_result.has_qr,
-                    "connected": local_result.connected,
-                },
+            return self._build_local_result(
+                session,
+                detail=detail,
+                correlation_id=effective_correlation_id,
+                job=job,
+                job_created=job_created,
             )
-            return local_result
-
-        self.state_machine.mark_session_requested(session)
-        job, job_created = self.job_service.enqueue(
-            session=session,
-            job_type=WhatsAppIntegrationJobType.GENERATE_QR,
-            created_by=created_by,
-            correlation_id=correlation_id,
-            request_payload={"session_id": session.session_id},
-        )
-        detail = (
-            "Solicitacao de QR registrada."
-            if job_created
-            else "Solicitacao de QR ja pendente."
-        )
-        effective_correlation_id = job.correlation_id or correlation_id
-        self._record_local_action(
-            session=session,
-            action=WhatsAppActionType.GET_QR,
-            detail=detail,
-            created_by=created_by,
-            correlation_id=effective_correlation_id,
-            job=job,
-            job_created=job_created,
-        )
-        return self._build_local_result(
-            session,
-            detail=detail,
-            correlation_id=effective_correlation_id,
-            job=job,
-            job_created=job_created,
-        )
+        except InvalidWhatsAppSessionTransition as exc:
+            self._raise_local_request_error(exc)
 
     def get_local_qr(self, line: PhoneLine) -> WhatsAppSessionResult:
         session = self._require_session(line)
@@ -249,37 +271,40 @@ class WhatsAppSessionService:
         created_by=None,
         correlation_id: str = "",
     ) -> WhatsAppSessionResult:
-        session = self._require_session(line)
-        self.state_machine.mark_disconnected(session)
-        job, job_created = self.job_service.enqueue(
-            session=session,
-            job_type=WhatsAppIntegrationJobType.DELETE_SESSION,
-            created_by=created_by,
-            correlation_id=correlation_id,
-            request_payload={"session_id": session.session_id},
-        )
-        detail = (
-            "Solicitacao de desconexao registrada."
-            if job_created
-            else "Solicitacao de desconexao ja pendente."
-        )
-        effective_correlation_id = job.correlation_id or correlation_id
-        self._record_local_action(
-            session=session,
-            action=WhatsAppActionType.DELETE_SESSION,
-            detail=detail,
-            created_by=created_by,
-            correlation_id=effective_correlation_id,
-            job=job,
-            job_created=job_created,
-        )
-        return self._build_local_result(
-            session,
-            detail=detail,
-            correlation_id=effective_correlation_id,
-            job=job,
-            job_created=job_created,
-        )
+        try:
+            session = self._require_session(line)
+            self.state_machine.mark_disconnected(session)
+            job, job_created = self.job_service.enqueue(
+                session=session,
+                job_type=WhatsAppIntegrationJobType.DELETE_SESSION,
+                created_by=created_by,
+                correlation_id=correlation_id,
+                request_payload={"session_id": session.session_id},
+            )
+            detail = (
+                "Solicitacao de desconexao registrada."
+                if job_created
+                else "Solicitacao de desconexao ja pendente."
+            )
+            effective_correlation_id = job.correlation_id or correlation_id
+            self._record_local_action(
+                session=session,
+                action=WhatsAppActionType.DELETE_SESSION,
+                detail=detail,
+                created_by=created_by,
+                correlation_id=effective_correlation_id,
+                job=job,
+                job_created=job_created,
+            )
+            return self._build_local_result(
+                session,
+                detail=detail,
+                correlation_id=effective_correlation_id,
+                job=job,
+                job_created=job_created,
+            )
+        except InvalidWhatsAppSessionTransition as exc:
+            self._raise_local_request_error(exc)
 
     def connect(self, line: PhoneLine, *, correlation_id: str = "") -> WhatsAppSessionResult:
         session = self.get_or_create_session(line)

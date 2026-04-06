@@ -429,6 +429,23 @@ class WhatsAppSessionServiceTests(TestCase):
         self.assertEqual(job.status, WhatsAppIntegrationJobStatus.PENDING)
         self.assertEqual(job.request_payload["session_id"], session.session_id)
 
+    @patch(
+        "whatsapp.services.session_service.InstanceSelectorService.select_available_instance"
+    )
+    def test_request_connect_wraps_capacity_error_as_clean_service_error(
+        self,
+        select_available_instance,
+    ):
+        select_available_instance.side_effect = NoAvailableMeowInstanceError(
+            "sem capacidade"
+        )
+
+        with self.assertRaisesMessage(
+            WhatsAppSessionServiceError,
+            "Nao ha instancia Meow ativa com capacidade disponivel.",
+        ):
+            self.service.request_connect(self.line)
+
     def test_get_local_status_returns_persisted_qr_without_remote_call(self):
         session = WhatsAppSession.objects.create(
             line=self.line,
@@ -504,6 +521,21 @@ class WhatsAppSessionServiceTests(TestCase):
             WhatsAppIntegrationJob.objects.filter(session=session).count(),
             1,
         )
+
+    def test_request_disconnect_wraps_invalid_transition_as_clean_service_error(self):
+        session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_+5511999990091",
+            status=WhatsAppSessionStatus.CONNECTED,
+        )
+        WhatsAppSession.objects.filter(pk=session.pk).update(status="BROKEN")
+
+        with self.assertRaisesMessage(
+            WhatsAppSessionServiceError,
+            "A sessao WhatsApp esta em um estado invalido para esta operacao.",
+        ):
+            self.service.request_disconnect(self.line)
 
     def test_get_or_create_session_recovers_from_integrity_error(self):
         session = WhatsAppSession.objects.create(
@@ -2428,6 +2460,39 @@ class WhatsAppSessionViewTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["status"], WhatsAppSessionStatus.SESSION_REQUESTED)
 
+    @patch(
+        "whatsapp.services.session_service.InstanceSelectorService.select_available_instance"
+    )
+    def test_connect_view_redirects_with_error_when_no_capacity_is_available(
+        self,
+        select_available_instance,
+    ):
+        self.client.force_login(self.admin)
+        select_available_instance.side_effect = NoAvailableMeowInstanceError(
+            "sem capacidade"
+        )
+        fresh_sim = SIMcard.objects.create(
+            iccid="89000000000000888884",
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        fresh_line = PhoneLine.objects.create(
+            phone_number="+5511999990084",
+            sim_card=fresh_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+        response = self.client.post(
+            reverse("telecom:whatsapp:connect", args=[fresh_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(
+            response,
+            reverse("telecom:phoneline_detail", args=[fresh_line.pk]),
+            fetch_redirect_response=False,
+        )
+
     def test_qr_post_view_registers_local_generation_request(self):
         self.client.force_login(self.admin)
 
@@ -2468,6 +2533,21 @@ class WhatsAppSessionViewTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["status"], WhatsAppSessionStatus.DISCONNECTED)
         self.assertFalse(payload["connected"])
+
+    def test_disconnect_view_redirects_with_error_when_session_state_is_invalid(self):
+        self.client.force_login(self.admin)
+        WhatsAppSession.objects.filter(pk=self.session.pk).update(status="BROKEN")
+
+        response = self.client.post(
+            reverse("telecom:whatsapp:disconnect", args=[self.line.pk])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(
+            response,
+            reverse("telecom:phoneline_detail", args=[self.line.pk]),
+            fetch_redirect_response=False,
+        )
 
     def test_status_view_reads_local_state_without_remote_call(self):
         self.client.force_login(self.admin)
