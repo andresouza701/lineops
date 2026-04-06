@@ -140,6 +140,38 @@ class WhatsAppPostgresCriticalPathTests(TransactionTestCase):
         self.assertEqual(job.status, WhatsAppIntegrationJobStatus.RUNNING)
         self.assertIn(job.claimed_by, {"worker-a", "worker-b"})
 
+    def test_parallel_session_creation_does_not_exceed_instance_max_capacity(self):
+        self.meow.warning_sessions = 1
+        self.meow.max_sessions = 1
+        self.meow.save(update_fields=["warning_sessions", "max_sessions", "updated_at"])
+
+        other_sim = SIMcard.objects.create(
+            iccid="89000000000000777002",
+            carrier="Carrier A",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        other_line = PhoneLine.objects.create(
+            phone_number="+5511999997702",
+            sim_card=other_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+
+        def create_session(line_pk):
+            service = WhatsAppSessionService()
+            line = PhoneLine.objects.get(pk=line_pk)
+            return service.get_or_create_session(line).pk
+
+        values, errors = self._threaded_call(
+            create_session,
+            self.line.pk,
+            other_line.pk,
+        )
+
+        self.assertEqual(len(values), 1)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("Nenhuma instancia Meow ativa e com capacidade disponivel.", errors[0])
+        self.assertEqual(WhatsAppSession.objects.filter(meow_instance=self.meow).count(), 1)
+
     def test_parallel_workers_do_not_process_same_job_twice(self):
         session = WhatsAppSession.objects.create(
             line=self.line,

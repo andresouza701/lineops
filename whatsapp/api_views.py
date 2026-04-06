@@ -264,13 +264,14 @@ class WhatsAppIntegrationGenerateQrApiView(WhatsAppIntegrationApiMixin, APIView)
         )
         effective_correlation_id = result.correlation_id or correlation_id
         has_local_qr = bool(result.has_qr and result.qr_code)
+        queued = result.job_id is not None
         emit_integration_log(
             "whatsapp.api.generate_qr",
             correlation_id=effective_correlation_id,
             session_pk=session.pk,
             session_id=session.session_id,
             has_local_qr=has_local_qr,
-            queued=not has_local_qr,
+            queued=queued,
             user_id=request.user.pk,
         )
         return self.build_response(
@@ -282,9 +283,7 @@ class WhatsAppIntegrationGenerateQrApiView(WhatsAppIntegrationApiMixin, APIView)
                 result=result,
             ),
             correlation_id=effective_correlation_id,
-            status_code=(
-                status.HTTP_200_OK if has_local_qr else status.HTTP_202_ACCEPTED
-            ),
+            status_code=status.HTTP_202_ACCEPTED if queued else status.HTTP_200_OK,
         )
 
 

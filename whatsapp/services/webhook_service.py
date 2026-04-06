@@ -23,6 +23,12 @@ class MeowWebhookProcessResult:
     body: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class StatefulWebhookApplyResult:
+    processed: bool
+    detail: str
+
+
 class MeowWebhookService:
     STATEFUL_EVENTS = {
         "connection_success",
@@ -124,7 +130,7 @@ class MeowWebhookService:
             )
 
         with transaction.atomic():
-            self._apply_stateful_event(
+            apply_result = self._apply_stateful_event(
                 session=session,
                 payload=payload,
                 event_type=event_type,
@@ -134,8 +140,20 @@ class MeowWebhookService:
                 session=session,
                 payload=payload,
                 event_type=event_type,
-                processed=True,
-                detail="session_updated",
+                processed=apply_result.processed,
+                detail=apply_result.detail,
+            )
+        if not apply_result.processed:
+            return MeowWebhookProcessResult(
+                status_code=202,
+                body={
+                    "accepted": True,
+                    "processed": False,
+                    "event_type": event_type,
+                    "session_id": session.session_id,
+                    "line_id": session.line_id,
+                    "reason": apply_result.detail,
+                },
             )
         return MeowWebhookProcessResult(
             status_code=200,
@@ -232,7 +250,7 @@ class MeowWebhookService:
         payload: dict[str, Any],
         event_type: str,
         event_payload: dict[str, Any],
-    ) -> None:
+    ) -> StatefulWebhookApplyResult:
         received_at = timezone.now()
         event_time = self._coerce_event_time(
             event_payload.get("timestamp") or payload.get("timestamp")
@@ -246,16 +264,38 @@ class MeowWebhookService:
 
         if event_type == "connection_success":
             self.state_machine.mark_connected(session, occurred_at=event_time)
+            return StatefulWebhookApplyResult(
+                processed=True,
+                detail="session_updated",
+            )
         elif event_type == "qr_code":
+            normalized_qr_code = str(qr_code or "").strip()
+            if not normalized_qr_code:
+                logger.warning(
+                    "Evento qr_code ignorado por payload sem QR valido.",
+                    extra={"session_id": session.session_id},
+                )
+                return StatefulWebhookApplyResult(
+                    processed=False,
+                    detail="invalid_qr_payload",
+                )
             self.state_machine.mark_qr_available(
                 session,
-                qr_code=str(qr_code or ""),
+                qr_code=normalized_qr_code,
                 occurred_at=event_time,
+            )
+            return StatefulWebhookApplyResult(
+                processed=True,
+                detail="session_updated",
             )
         elif event_type == "reconnection_attempt":
             self.state_machine.mark_session_requested(
                 session,
                 occurred_at=received_at,
+            )
+            return StatefulWebhookApplyResult(
+                processed=True,
+                detail="session_updated",
             )
         elif event_type in {"connection_closed", "ban_cooldown_ended"}:
             self.state_machine.mark_disconnected(
@@ -266,6 +306,10 @@ class MeowWebhookService:
                 ),
                 occurred_at=received_at,
             )
+            return StatefulWebhookApplyResult(
+                processed=True,
+                detail="session_updated",
+            )
         else:
             self.state_machine.mark_failed(
                 session,
@@ -274,6 +318,10 @@ class MeowWebhookService:
                     event_payload=event_payload,
                 ),
                 occurred_at=received_at,
+            )
+            return StatefulWebhookApplyResult(
+                processed=True,
+                detail="session_updated",
             )
 
     def _build_error_detail(

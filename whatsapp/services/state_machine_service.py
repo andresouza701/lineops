@@ -115,6 +115,9 @@ class WhatsAppSessionStateMachineService:
         qr_expires_at=None,
         occurred_at=None,
     ) -> WhatsAppSession:
+        normalized_qr_code = str(qr_code or "").strip()
+        if not normalized_qr_code:
+            raise ValueError("QR code nao pode ser vazio para QR_AVAILABLE.")
         occurred_at = occurred_at or timezone.now()
         qr_expires_at = qr_expires_at or self._build_fallback_qr_expiration(
             occurred_at
@@ -123,7 +126,7 @@ class WhatsAppSessionStateMachineService:
             session,
             WhatsAppSessionStatus.QR_AVAILABLE,
             occurred_at=occurred_at,
-            qr_code=qr_code or "",
+            qr_code=normalized_qr_code,
             qr_generated_at=occurred_at,
             qr_expires_at=qr_expires_at,
             last_error="",

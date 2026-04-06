@@ -86,7 +86,8 @@ class WhatsAppSessionService:
             return session, False
 
         meow_instance = InstanceSelectorService.select_available_instance(
-            allow_above_warning=True
+            allow_above_warning=True,
+            lock_instances=True,
         )
         try:
             with transaction.atomic():
@@ -172,7 +173,7 @@ class WhatsAppSessionService:
     ) -> WhatsAppSessionResult:
         session = self._require_session(line)
         local_result = self._build_local_result(session)
-        if local_result.has_qr or local_result.connected:
+        if local_result.has_qr:
             local_result.detail = "QR local reutilizado."
             local_result.correlation_id = correlation_id
             self._record_local_action(
@@ -183,6 +184,23 @@ class WhatsAppSessionService:
                 correlation_id=correlation_id,
                 response_payload={
                     "source": "local_cache",
+                    "has_qr": local_result.has_qr,
+                    "connected": local_result.connected,
+                },
+            )
+            return local_result
+
+        if local_result.connected:
+            local_result.detail = "Sessao ja conectada; QR nao e necessario."
+            local_result.correlation_id = correlation_id
+            self._record_local_action(
+                session=session,
+                action=WhatsAppActionType.GET_QR,
+                detail=local_result.detail,
+                created_by=created_by,
+                correlation_id=correlation_id,
+                response_payload={
+                    "source": "connected_session",
                     "has_qr": local_result.has_qr,
                     "connected": local_result.connected,
                 },

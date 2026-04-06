@@ -368,7 +368,8 @@ class WhatsAppSessionServiceTests(TestCase):
         session = self.service.get_or_create_session(self.line)
 
         select_available_instance.assert_called_once_with(
-            allow_above_warning=True
+            allow_above_warning=True,
+            lock_instances=True,
         )
         self.assertEqual(session.line, self.line)
         self.assertEqual(session.meow_instance, self.meow)
@@ -462,6 +463,22 @@ class WhatsAppSessionServiceTests(TestCase):
             WhatsAppIntegrationJob.objects.filter(session=session).count(),
             0,
         )
+
+    def test_request_qr_returns_local_noop_for_connected_session_without_enqueuing(self):
+        session = WhatsAppSession.objects.create(
+            line=self.line,
+            meow_instance=self.meow,
+            session_id="session_+5511999990091",
+            status=WhatsAppSessionStatus.CONNECTED,
+        )
+
+        result = self.service.request_qr(self.line)
+
+        self.assertEqual(result.status, WhatsAppSessionStatus.CONNECTED)
+        self.assertFalse(result.has_qr)
+        self.assertFalse(result.qr_code)
+        self.assertEqual(result.detail, "Sessao ja conectada; QR nao e necessario.")
+        self.assertFalse(WhatsAppIntegrationJob.objects.filter(session=session).exists())
 
     def test_request_disconnect_is_idempotent_and_enqueues_cleanup_job(self):
         session = WhatsAppSession.objects.create(
@@ -938,6 +955,13 @@ class WhatsAppSessionStateMachineServiceTests(TestCase):
         )
         self.session.refresh_from_db()
         self.assertEqual(self.session.status, WhatsAppSessionStatus.WAITING_SCAN)
+
+    def test_mark_qr_available_rejects_empty_qr_code(self):
+        with self.assertRaisesMessage(
+            ValueError,
+            "QR code nao pode ser vazio para QR_AVAILABLE.",
+        ):
+            self.service.mark_qr_available(self.session, qr_code="")
 
     def test_invalid_transition_is_rejected(self):
         self.service.mark_connected(self.session)
@@ -2752,6 +2776,35 @@ class WhatsAppIntegrationApiViewTests(TestCase):
         self.assertEqual(job.correlation_id, "corr-qr-async-001")
         self.assertEqual(payload["job"]["id"], job.pk)
 
+    def test_generate_qr_endpoint_returns_200_for_connected_session_without_job(self):
+        self.session.status = WhatsAppSessionStatus.CONNECTED
+        self.session.qr_code = ""
+        self.session.qr_expires_at = None
+        self.session.save(
+            update_fields=["status", "qr_code", "qr_expires_at", "updated_at"]
+        )
+
+        response = self.client.post(
+            reverse("whatsapp_api:generate_qr", args=[self.session.pk]),
+            data={},
+            format="json",
+            HTTP_X_CORRELATION_ID="corr-qr-connected-001",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], WhatsAppSessionStatus.CONNECTED)
+        self.assertEqual(payload["detail"], "Sessao ja conectada; QR nao e necessario.")
+        self.assertFalse(payload["has_qr"])
+        self.assertNotIn("job", payload)
+        self.assertNotIn("qr_code", payload)
+        self.assertFalse(
+            WhatsAppIntegrationJob.objects.filter(
+                session=self.session,
+                job_type=WhatsAppIntegrationJobType.GENERATE_QR,
+            ).exists()
+        )
+
     def test_delete_session_endpoint_returns_202_and_enqueues_cleanup(self):
         self.session.status = WhatsAppSessionStatus.CONNECTED
         self.session.qr_code = "base64-local-api"
@@ -2857,6 +2910,25 @@ class MeowWebhookViewTests(TestCase):
         self.session.refresh_from_db()
         self.assertEqual(self.session.status, WhatsAppSessionStatus.QR_AVAILABLE)
         self.assertIsNotNone(self.session.qr_last_generated_at)
+
+    def test_webhook_ignores_qr_event_without_valid_qr_payload(self):
+        response = self._post_json(
+            reverse("whatsapp_meow_webhook"),
+            {
+                "type": "qr_code",
+                "sessionId": "+5511999990042",
+                "timestamp": 1774821040,
+                "qr_code": "   ",
+            },
+        )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json()["reason"], "invalid_qr_payload")
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.status, WhatsAppSessionStatus.DISCONNECTED)
+        audit = WhatsAppActionAudit.objects.get(session=self.session)
+        self.assertFalse(audit.response_payload["processed"])
+        self.assertEqual(audit.response_payload["detail"], "invalid_qr_payload")
 
     @override_settings(WHATSAPP_MEOW_WEBHOOK_TOKEN="segredo-meow")
     def test_webhook_rejects_request_without_expected_token(self):
