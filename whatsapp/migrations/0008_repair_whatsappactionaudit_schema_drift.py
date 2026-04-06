@@ -30,19 +30,14 @@ def repair_whatsappactionaudit_schema(apps, schema_editor):
         columns = _get_columns(connection, table_name)
 
     session_column = columns.get("session_id")
-    session_field = audit_model._meta.get_field("session")
     if session_column is not None and getattr(session_column, "null_ok", None) is False:
-        old_session_field = session_field.clone()
-        old_session_field.set_attributes_from_name(session_field.name)
-        old_session_field.model = audit_model
-        old_session_field.null = False
-        old_session_field.blank = False
-        schema_editor.alter_field(
-            audit_model,
-            old_session_field,
-            session_field,
-            strict=False,
-        )
+        if connection.vendor == "postgresql":
+            schema_editor.execute(
+                "ALTER TABLE {table} ALTER COLUMN {column} DROP NOT NULL".format(
+                    table=schema_editor.quote_name(table_name),
+                    column=schema_editor.quote_name("session_id"),
+                )
+            )
 
     for audit in audit_model.objects.filter(
         session__isnull=False,
