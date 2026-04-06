@@ -68,6 +68,24 @@ class WhatsAppPhoneLineMixin(RoleRequiredMixin):
     def redirect_to_line_detail(self, line: PhoneLine):
         return redirect("telecom:phoneline_detail", pk=line.pk)
 
+    def log_unexpected_phone_line_error(
+        self,
+        *,
+        action: str,
+        line: PhoneLine,
+        exc: Exception,
+    ) -> None:
+        logger.exception(
+            "Unexpected WhatsApp phone line view error",
+            extra={
+                "action": action,
+                "line_id": line.pk,
+                "phone_number": line.phone_number,
+                "user_id": getattr(self.request.user, "pk", None),
+                "exception_type": type(exc).__name__,
+            },
+        )
+
     def serialize_session(
         self,
         line: PhoneLine,
@@ -203,6 +221,21 @@ class WhatsAppSessionConnectView(WhatsAppPhoneLineMixin, View):
                 return JsonResponse(payload, status=400)
             messages.error(request, f"Nao foi possivel registrar a conexao: {exc}")
             return self.redirect_to_line_detail(line)
+        except Exception as exc:  # noqa: BLE001
+            self.log_unexpected_phone_line_error(
+                action="connect",
+                line=line,
+                exc=exc,
+            )
+            if self.is_ajax():
+                payload = self.serialize_session(line, self.get_local_session(line))
+                payload["error"] = "Falha inesperada ao registrar a conexao."
+                return JsonResponse(payload, status=503)
+            messages.error(
+                request,
+                "Nao foi possivel registrar a conexao devido a uma falha interna.",
+            )
+            return self.redirect_to_line_detail(line)
         if self.is_ajax():
             payload = self.serialize_session(
                 line,
@@ -241,6 +274,22 @@ class WhatsAppSessionDisconnectView(WhatsAppPhoneLineMixin, View):
                 return JsonResponse(payload, status=400)
 
             messages.error(request, f"Nao foi possivel registrar a desconexao: {exc}")
+            return self.redirect_to_line_detail(line)
+        except Exception as exc:  # noqa: BLE001
+            self.log_unexpected_phone_line_error(
+                action="disconnect",
+                line=line,
+                exc=exc,
+            )
+            if self.is_ajax():
+                payload = self.serialize_session(line, self.get_local_session(line))
+                payload["error"] = "Falha inesperada ao registrar a desconexao."
+                return JsonResponse(payload, status=503)
+
+            messages.error(
+                request,
+                "Nao foi possivel registrar a desconexao devido a uma falha interna.",
+            )
             return self.redirect_to_line_detail(line)
 
         if self.is_ajax():

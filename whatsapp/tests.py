@@ -2460,6 +2460,25 @@ class WhatsAppSessionViewTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["status"], WhatsAppSessionStatus.SESSION_REQUESTED)
 
+    def test_connect_view_redirects_instead_of_500_on_unexpected_error(self):
+        self.client.force_login(self.admin)
+
+        with patch.object(
+            WhatsAppSessionService,
+            "request_connect",
+            side_effect=RuntimeError("boom connect"),
+        ):
+            response = self.client.post(
+                reverse("telecom:whatsapp:connect", args=[self.line.pk])
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(
+            response,
+            reverse("telecom:phoneline_detail", args=[self.line.pk]),
+            fetch_redirect_response=False,
+        )
+
     @patch(
         "whatsapp.services.session_service.InstanceSelectorService.select_available_instance"
     )
@@ -2533,6 +2552,25 @@ class WhatsAppSessionViewTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["status"], WhatsAppSessionStatus.DISCONNECTED)
         self.assertFalse(payload["connected"])
+
+    def test_disconnect_view_redirects_instead_of_500_on_unexpected_error(self):
+        self.client.force_login(self.admin)
+
+        with patch.object(
+            WhatsAppSessionService,
+            "request_disconnect",
+            side_effect=RuntimeError("boom disconnect"),
+        ):
+            response = self.client.post(
+                reverse("telecom:whatsapp:disconnect", args=[self.line.pk])
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(
+            response,
+            reverse("telecom:phoneline_detail", args=[self.line.pk]),
+            fetch_redirect_response=False,
+        )
 
     def test_disconnect_view_redirects_with_error_when_session_state_is_invalid(self):
         self.client.force_login(self.admin)
