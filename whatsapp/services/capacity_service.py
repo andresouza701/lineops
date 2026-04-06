@@ -50,10 +50,10 @@ class MeowCapacityService:
                 filter=Q(
                     whatsapp_sessions__is_active=True,
                     whatsapp_sessions__status__in=[
-                        WhatsAppSessionStatus.PENDING_NEW_NUMBER,
-                        WhatsAppSessionStatus.PENDING_RECONNECT,
-                        WhatsAppSessionStatus.CONNECTING,
-                        WhatsAppSessionStatus.QR_PENDING,
+                        WhatsAppSessionStatus.NEW,
+                        WhatsAppSessionStatus.SESSION_REQUESTED,
+                        WhatsAppSessionStatus.QR_AVAILABLE,
+                        WhatsAppSessionStatus.WAITING_SCAN,
                     ],
                 ),
             ),
@@ -62,7 +62,8 @@ class MeowCapacityService:
                 filter=Q(
                     whatsapp_sessions__is_active=True,
                     whatsapp_sessions__status__in=[
-                        WhatsAppSessionStatus.ERROR,
+                        WhatsAppSessionStatus.FAILED,
+                        WhatsAppSessionStatus.EXPIRED,
                         WhatsAppSessionStatus.DISCONNECTED,
                     ],
                 ),

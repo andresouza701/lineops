@@ -84,6 +84,20 @@ curl -k https://localhost/health/
 docker compose exec web python manage.py migrate
 ```
 
+## Testes
+
+Fluxo local padrÃ£o com SQLite:
+
+```bash
+python manage.py test
+```
+
+Trilha crÃ­tica do WhatsApp em PostgreSQL:
+
+```bash
+docker compose exec web python manage.py test whatsapp.test_postgres --settings=config.settings_test_postgres --verbosity 1
+```
+
 ## Criar superusuário
 
 ```bash

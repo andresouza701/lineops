@@ -12,6 +12,7 @@ from whatsapp.choices import WhatsAppSessionStatus
 from whatsapp.models import WhatsAppSession
 from whatsapp.services.instance_selector import NoAvailableMeowInstanceError
 from whatsapp.services.session_service import WhatsAppSessionService
+from whatsapp.services.state_machine_service import WhatsAppSessionStateMachineService
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 class WhatsAppProvisioningService:
     def __init__(self, session_service: WhatsAppSessionService | None = None):
         self.session_service = session_service or WhatsAppSessionService()
+        self.state_machine = WhatsAppSessionStateMachineService()
 
     @transaction.atomic
     def mark_allocation_pending(
@@ -27,13 +29,19 @@ class WhatsAppProvisioningService:
         allocation: LineAllocation,
         actor,
     ):
-        target_status, action_type, note = self._resolve_pending_context(allocation)
+        is_first_allocation, action_type, note = self._resolve_pending_context(
+            allocation
+        )
         session = self._get_existing_session(allocation.phone_line)
         if session is None:
             session, note = self._try_create_session(allocation.phone_line, note=note)
 
-        if session is not None:
-            self._set_session_pending(session, target_status)
+        if (
+            session is not None
+            and is_first_allocation
+            and session.status != WhatsAppSessionStatus.CONNECTED
+        ):
+            self.state_machine.mark_new(session)
 
         action = self._upsert_daily_action(
             employee=allocation.employee,
@@ -76,13 +84,13 @@ class WhatsAppProvisioningService:
     def _resolve_pending_context(self, allocation: LineAllocation):
         if self._is_first_allocation_for_line(allocation):
             return (
-                WhatsAppSessionStatus.PENDING_NEW_NUMBER,
+                True,
                 DailyUserAction.ActionType.NEW_NUMBER,
                 "Linha alocada; pendente de conexao inicial do WhatsApp.",
             )
 
         return (
-            WhatsAppSessionStatus.PENDING_RECONNECT,
+            False,
             DailyUserAction.ActionType.RECONNECT_WHATSAPP,
             "Linha realocada; validar ou reconectar sessao do WhatsApp.",
         )
@@ -117,19 +125,6 @@ class WhatsAppProvisioningService:
             LineAllocation.objects.filter(phone_line=allocation.phone_line)
             .exclude(pk=allocation.pk)
             .exists()
-        )
-
-    def _set_session_pending(self, session: WhatsAppSession, status: str) -> None:
-        session.status = status
-        session.last_error = ""
-        session.last_sync_at = timezone.now()
-        session.save(
-            update_fields=[
-                "status",
-                "last_error",
-                "last_sync_at",
-                "updated_at",
-            ]
         )
 
     def _upsert_daily_action(

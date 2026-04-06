@@ -71,7 +71,7 @@ class WhatsAppSession(models.Model):
     status = models.CharField(
         max_length=32,
         choices=WhatsAppSessionStatus.choices,
-        default=WhatsAppSessionStatus.PENDING_NEW_NUMBER,
+        default=WhatsAppSessionStatus.NEW,
         db_index=True,
     )
     version = models.PositiveIntegerField(default=1)
@@ -119,6 +119,7 @@ class WhatsAppIntegrationJob(models.Model):
         null=True,
         blank=True,
     )
+    correlation_id = models.CharField(max_length=64, blank=True, db_index=True)
     request_payload = models.JSONField(null=True, blank=True)
     response_payload = models.JSONField(null=True, blank=True)
     attempt_count = models.PositiveSmallIntegerField(default=0)
@@ -165,6 +166,7 @@ class WhatsAppActionAudit(models.Model):
     )
     action = models.CharField(max_length=32, choices=WhatsAppActionType.choices)
     status = models.CharField(max_length=16, choices=WhatsAppActionStatus.choices)
+    correlation_id = models.CharField(max_length=64, blank=True, db_index=True)
     request_payload = models.JSONField(null=True, blank=True)
     response_payload = models.JSONField(null=True, blank=True)
     duration_ms = models.PositiveIntegerField(null=True, blank=True)

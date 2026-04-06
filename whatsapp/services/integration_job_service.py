@@ -70,6 +70,7 @@ class WhatsAppIntegrationJobService:
         session: WhatsAppSession,
         job_type: str,
         created_by=None,
+        correlation_id: str = "",
         request_payload: dict | None = None,
         available_at=None,
         max_attempts: int | None = None,
@@ -88,6 +89,9 @@ class WhatsAppIntegrationJobService:
         )
         if existing:
             update_fields = []
+            if correlation_id and not existing.correlation_id:
+                existing.correlation_id = correlation_id
+                update_fields.append("correlation_id")
             if request_payload is not None and existing.request_payload != request_payload:
                 existing.request_payload = request_payload
                 update_fields.append("request_payload")
@@ -100,6 +104,7 @@ class WhatsAppIntegrationJobService:
 
         defaults = {
             "status": WhatsAppIntegrationJobStatus.PENDING,
+            "correlation_id": correlation_id,
             "request_payload": request_payload,
             "available_at": available_at,
             "max_attempts": max_attempts,
@@ -123,6 +128,9 @@ class WhatsAppIntegrationJobService:
             )
             if existing is None:
                 raise
+            if correlation_id and not existing.correlation_id:
+                existing.correlation_id = correlation_id
+                existing.save(update_fields=["correlation_id", "updated_at"])
             return existing, False
 
     def claim_due_jobs(
@@ -249,6 +257,7 @@ class WhatsAppIntegrationJobService:
         session: WhatsAppSession,
         available_at=None,
         created_by=None,
+        correlation_id: str = "",
     ) -> tuple[WhatsAppIntegrationJob, bool]:
         if available_at is None:
             available_at = timezone.now() + timedelta(
@@ -258,6 +267,7 @@ class WhatsAppIntegrationJobService:
             session=session,
             job_type=WhatsAppIntegrationJobType.SYNC_STATUS,
             created_by=created_by,
+            correlation_id=correlation_id,
             request_payload={"session_id": session.session_id},
             available_at=available_at,
         )

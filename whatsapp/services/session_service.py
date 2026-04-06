@@ -24,7 +24,11 @@ from whatsapp.clients.meow_client import MeowClient
 from whatsapp.models import WhatsAppSession
 from whatsapp.services.audit_service import WhatsAppAuditService
 from whatsapp.services.integration_job_service import WhatsAppIntegrationJobService
+from whatsapp.services.observability_service import emit_integration_log
 from whatsapp.services.instance_selector import InstanceSelectorService
+from whatsapp.services.state_machine_service import (
+    WhatsAppSessionStateMachineService,
+)
 
 
 class WhatsAppSessionServiceError(Exception):
@@ -44,11 +48,18 @@ class WhatsAppSessionResult:
     has_qr: bool = False
     connected: bool = False
     detail: str | None = None
+    correlation_id: str = ""
+    job_id: int | None = None
+    job_status: str | None = None
+    job_created: bool | None = None
+    job_available_at: datetime | None = None
+    session_created: bool | None = None
 
 
 class WhatsAppSessionService:
     def __init__(self):
         self.job_service = WhatsAppIntegrationJobService()
+        self.state_machine = WhatsAppSessionStateMachineService()
 
     @staticmethod
     def _elapsed_ms(started_at: float) -> int:
@@ -65,83 +76,148 @@ class WhatsAppSessionService:
         )
 
     @transaction.atomic
-    def get_or_create_session(self, line: PhoneLine) -> WhatsAppSession:
+    def get_or_create_session_with_created(
+        self,
+        line: PhoneLine,
+    ) -> tuple[WhatsAppSession, bool]:
         locked_line = PhoneLine.objects.select_for_update().get(pk=line.pk)
         session = self._get_existing_session(locked_line)
         if session:
-            return session
+            return session, False
 
         meow_instance = InstanceSelectorService.select_available_instance(
             allow_above_warning=True
         )
         try:
             with transaction.atomic():
-                return WhatsAppSession.objects.create(
-                    line=locked_line,
-                    meow_instance=meow_instance,
-                    session_id=self.build_session_id(locked_line),
-                    status=WhatsAppSessionStatus.PENDING_NEW_NUMBER,
-                    is_active=True,
+                return (
+                    WhatsAppSession.objects.create(
+                        line=locked_line,
+                        meow_instance=meow_instance,
+                        session_id=self.build_session_id(locked_line),
+                        status=WhatsAppSessionStatus.NEW,
+                        is_active=True,
+                    ),
+                    True,
                 )
         except IntegrityError:
             return (
                 WhatsAppSession.objects.select_related("meow_instance")
-                .get(line=locked_line)
+                .get(line=locked_line),
+                False,
             )
 
-    def request_connect(self, line: PhoneLine, *, created_by=None) -> WhatsAppSessionResult:
-        session = self.get_or_create_session(line)
-        detail = "Sessao local reutilizada."
+    def get_or_create_session(self, line: PhoneLine) -> WhatsAppSession:
+        session, _ = self.get_or_create_session_with_created(line)
+        return session
+
+    def request_connect(
+        self,
+        line: PhoneLine,
+        *,
+        created_by=None,
+        correlation_id: str = "",
+    ) -> WhatsAppSessionResult:
+        session, session_created = self.get_or_create_session_with_created(line)
+        detail = (
+            "Conexao local criada e solicitacao registrada."
+            if session_created
+            else "Sessao local reutilizada."
+        )
+        job = None
+        job_created = None
         if session.status != WhatsAppSessionStatus.CONNECTED:
-            self._mark_connecting(session)
-            _, created = self.job_service.enqueue(
+            self.state_machine.mark_session_requested(session)
+            job, job_created = self.job_service.enqueue(
                 session=session,
                 job_type=WhatsAppIntegrationJobType.CREATE_SESSION,
                 created_by=created_by,
+                correlation_id=correlation_id,
                 request_payload={"session_id": session.session_id},
             )
             detail = (
                 "Solicitacao de conexao registrada."
-                if created
+                if job_created
                 else "Solicitacao de conexao ja pendente."
             )
-        return self._build_local_result(session, detail=detail)
+        effective_correlation_id = job.correlation_id if job else correlation_id
+        self._record_local_action(
+            session=session,
+            action=WhatsAppActionType.CREATE_SESSION,
+            detail=detail,
+            created_by=created_by,
+            correlation_id=effective_correlation_id,
+            job=job,
+            job_created=job_created,
+        )
+        return self._build_local_result(
+            session,
+            detail=detail,
+            correlation_id=effective_correlation_id,
+            job=job,
+            job_created=job_created,
+            session_created=session_created,
+        )
 
     def get_local_status(self, line: PhoneLine) -> WhatsAppSessionResult:
         session = self._require_session(line)
         return self._build_local_result(session)
 
-    def request_qr(self, line: PhoneLine, *, created_by=None) -> WhatsAppSessionResult:
+    def request_qr(
+        self,
+        line: PhoneLine,
+        *,
+        created_by=None,
+        correlation_id: str = "",
+    ) -> WhatsAppSessionResult:
         session = self._require_session(line)
         local_result = self._build_local_result(session)
         if local_result.has_qr or local_result.connected:
             local_result.detail = "QR local reutilizado."
+            local_result.correlation_id = correlation_id
+            self._record_local_action(
+                session=session,
+                action=WhatsAppActionType.GET_QR,
+                detail=local_result.detail,
+                created_by=created_by,
+                correlation_id=correlation_id,
+                response_payload={
+                    "source": "local_cache",
+                    "has_qr": local_result.has_qr,
+                    "connected": local_result.connected,
+                },
+            )
             return local_result
 
-        session.status = WhatsAppSessionStatus.QR_PENDING
-        session.last_error = ""
-        session.last_sync_at = timezone.now()
-        self._persist_session(
-            session,
-            [
-                "status",
-                "last_error",
-                "last_sync_at",
-            ],
-        )
-        _, created = self.job_service.enqueue(
+        self.state_machine.mark_session_requested(session)
+        job, job_created = self.job_service.enqueue(
             session=session,
             job_type=WhatsAppIntegrationJobType.GENERATE_QR,
             created_by=created_by,
+            correlation_id=correlation_id,
             request_payload={"session_id": session.session_id},
+        )
+        detail = (
+            "Solicitacao de QR registrada."
+            if job_created
+            else "Solicitacao de QR ja pendente."
+        )
+        effective_correlation_id = job.correlation_id or correlation_id
+        self._record_local_action(
+            session=session,
+            action=WhatsAppActionType.GET_QR,
+            detail=detail,
+            created_by=created_by,
+            correlation_id=effective_correlation_id,
+            job=job,
+            job_created=job_created,
         )
         return self._build_local_result(
             session,
-            detail=(
-                "Solicitacao de QR registrada."
-                if created
-                else "Solicitacao de QR ja pendente."
-            ),
+            detail=detail,
+            correlation_id=effective_correlation_id,
+            job=job,
+            job_created=job_created,
         )
 
     def get_local_qr(self, line: PhoneLine) -> WhatsAppSessionResult:
@@ -153,31 +229,47 @@ class WhatsAppSessionService:
         line: PhoneLine,
         *,
         created_by=None,
+        correlation_id: str = "",
     ) -> WhatsAppSessionResult:
         session = self._require_session(line)
-        self._mark_disconnected(session)
-        _, created = self.job_service.enqueue(
+        self.state_machine.mark_disconnected(session)
+        job, job_created = self.job_service.enqueue(
             session=session,
             job_type=WhatsAppIntegrationJobType.DELETE_SESSION,
             created_by=created_by,
+            correlation_id=correlation_id,
             request_payload={"session_id": session.session_id},
+        )
+        detail = (
+            "Solicitacao de desconexao registrada."
+            if job_created
+            else "Solicitacao de desconexao ja pendente."
+        )
+        effective_correlation_id = job.correlation_id or correlation_id
+        self._record_local_action(
+            session=session,
+            action=WhatsAppActionType.DELETE_SESSION,
+            detail=detail,
+            created_by=created_by,
+            correlation_id=effective_correlation_id,
+            job=job,
+            job_created=job_created,
         )
         return self._build_local_result(
             session,
-            detail=(
-                "Solicitacao de desconexao registrada."
-                if created
-                else "Solicitacao de desconexao ja pendente."
-            ),
+            detail=detail,
+            correlation_id=effective_correlation_id,
+            job=job,
+            job_created=job_created,
         )
 
-    def connect(self, line: PhoneLine) -> WhatsAppSessionResult:
+    def connect(self, line: PhoneLine, *, correlation_id: str = "") -> WhatsAppSessionResult:
         session = self.get_or_create_session(line)
         client = self._get_client(session)
         request_payload = {"session_id": session.session_id}
         audit_action = WhatsAppActionType.CREATE_SESSION
 
-        self._mark_connecting(session)
+        self.state_machine.mark_session_requested(session)
 
         started_at = time.monotonic()
         try:
@@ -191,40 +283,65 @@ class WhatsAppSessionService:
                 result = self._sync_from_remote(
                     session,
                     remote_payload=remote_payload,
-                    default_status=WhatsAppSessionStatus.CONNECTING,
+                    default_status=WhatsAppSessionStatus.SESSION_REQUESTED,
                 )
                 WhatsAppAuditService.success(
                     session=session,
                     action=audit_action,
+                    correlation_id=correlation_id,
                     request_payload=request_payload,
                     response_payload=remote_payload,
                     duration_ms=duration_ms,
                 )
+            result.correlation_id = correlation_id
+            emit_integration_log(
+                "whatsapp.remote.connect.success",
+                correlation_id=correlation_id,
+                session_id=session.session_id,
+                session_pk=session.pk,
+                status=result.status,
+            )
             return result
         except MeowClientNotFoundError as exc:
             duration_ms = self._elapsed_ms(started_at)
-            self._mark_error(session, str(exc))
+            self.state_machine.mark_failed(session, error_message=str(exc))
             WhatsAppAuditService.failure(
                 session=session,
                 action=audit_action,
+                correlation_id=correlation_id,
                 request_payload=request_payload,
                 response_payload={"error": str(exc)},
                 duration_ms=duration_ms,
+            )
+            emit_integration_log(
+                "whatsapp.remote.connect.failure",
+                correlation_id=correlation_id,
+                session_id=session.session_id,
+                session_pk=session.pk,
+                error=str(exc),
             )
             raise WhatsAppSessionServiceError(str(exc)) from exc
         except MeowClientError as exc:
             duration_ms = self._elapsed_ms(started_at)
-            self._mark_error(session, str(exc))
+            self.state_machine.mark_failed(session, error_message=str(exc))
             WhatsAppAuditService.failure(
                 session=session,
                 action=audit_action,
+                correlation_id=correlation_id,
                 request_payload=request_payload,
                 response_payload={"error": str(exc)},
                 duration_ms=duration_ms,
             )
+            emit_integration_log(
+                "whatsapp.remote.connect.failure",
+                correlation_id=correlation_id,
+                session_id=session.session_id,
+                session_pk=session.pk,
+                error=str(exc),
+            )
             raise WhatsAppSessionServiceError(str(exc)) from exc
 
-    def get_status(self, line: PhoneLine) -> WhatsAppSessionResult:
+    def get_status(self, line: PhoneLine, *, correlation_id: str = "") -> WhatsAppSessionResult:
         session = self._require_session(line)
         client = self._get_client(session)
         started_at = time.monotonic()
@@ -240,15 +357,17 @@ class WhatsAppSessionService:
                 WhatsAppAuditService.success(
                     session=session,
                     action=WhatsAppActionType.GET_SESSION,
+                    correlation_id=correlation_id,
                     request_payload=request_payload,
                     response_payload=remote_payload,
                     duration_ms=duration_ms,
                 )
+            result.correlation_id = correlation_id
             return result
         except MeowClientNotFoundError as exc:
             duration_ms = self._elapsed_ms(started_at)
             with transaction.atomic():
-                self._mark_disconnected(session)
+                self.state_machine.mark_disconnected(session)
                 result = self._build_local_result(
                     session,
                     detail="Sessao ausente no Meow; estado local convergiu para desconectado.",
@@ -256,6 +375,7 @@ class WhatsAppSessionService:
                 WhatsAppAuditService.success(
                     session=session,
                     action=WhatsAppActionType.GET_SESSION,
+                    correlation_id=correlation_id,
                     request_payload={"session_id": session.session_id},
                     response_payload={
                         "detail": "Sessao nao encontrada no Meow.",
@@ -263,20 +383,22 @@ class WhatsAppSessionService:
                     },
                     duration_ms=duration_ms,
                 )
+            result.correlation_id = correlation_id
             return result
         except MeowClientError as exc:
             duration_ms = self._elapsed_ms(started_at)
-            self._mark_error(session, str(exc))
+            self.state_machine.mark_failed(session, error_message=str(exc))
             WhatsAppAuditService.failure(
                 session=session,
                 action=WhatsAppActionType.GET_SESSION,
+                correlation_id=correlation_id,
                 request_payload={"session_id": session.session_id},
                 response_payload={"error": str(exc)},
                 duration_ms=duration_ms,
             )
             raise WhatsAppSessionServiceError(str(exc)) from exc
 
-    def get_qr(self, line: PhoneLine) -> WhatsAppSessionResult:
+    def get_qr(self, line: PhoneLine, *, correlation_id: str = "") -> WhatsAppSessionResult:
         session = self._require_session(line)
         client = self._get_client(session)
         started_at = time.monotonic()
@@ -285,51 +407,26 @@ class WhatsAppSessionService:
             qr_payload = client.get_qr(session.session_id)
             duration_ms = self._elapsed_ms(started_at)
             now = timezone.now()
-            has_qr = bool(qr_payload.get("qr_code"))
+            has_qr = bool(qr_payload.get("has_qr") and qr_payload.get("qr_code"))
             connected = bool(qr_payload.get("connected"))
             qr_code = qr_payload.get("qr_code")
             qr_expires_at = self._resolve_qr_expires_at(
                 qr_payload.get("qr_expires"),
                 now=now,
             )
-
-            if connected:
-                session.status = WhatsAppSessionStatus.CONNECTED
-                session.connected_at = session.connected_at or now
-                session.qr_code = ""
-                session.qr_expires_at = None
-            elif has_qr:
-                session.status = WhatsAppSessionStatus.QR_PENDING
-                session.qr_code = qr_code or ""
-                session.qr_last_generated_at = now
-                session.qr_expires_at = qr_expires_at
-            else:
-                session.status = WhatsAppSessionStatus.CONNECTING
-                session.qr_code = ""
-                session.qr_expires_at = None
-
-            session.last_error = ""
-            session.last_sync_at = now
             with transaction.atomic():
-                self._persist_session(
+                self.state_machine.apply_remote_snapshot(
                     session,
-                    [
-                        "status",
-                        "connected_at",
-                        "qr_code",
-                        "qr_last_generated_at",
-                        "qr_expires_at",
-                        "last_error",
-                        "last_sync_at",
-                    ],
-                )
-                result = WhatsAppSessionResult(
-                    session=session,
-                    status=session.status,
-                    remote_payload=qr_payload.get("raw", {}),
-                    qr_code=qr_code,
-                    has_qr=has_qr,
                     connected=connected,
+                    has_qr=has_qr,
+                    qr_code=qr_code,
+                    qr_expires_at=qr_expires_at,
+                    occurred_at=now,
+                    requested_status=WhatsAppSessionStatus.SESSION_REQUESTED,
+                )
+                result = self._build_result_from_remote_payload(
+                    session,
+                    remote_payload=qr_payload.get("raw", {}),
                 )
                 if self._should_audit_get_qr_success(
                     session=session,
@@ -340,15 +437,17 @@ class WhatsAppSessionService:
                     WhatsAppAuditService.success(
                         session=session,
                         action=WhatsAppActionType.GET_QR,
+                        correlation_id=correlation_id,
                         request_payload={"session_id": session.session_id},
                         response_payload=qr_payload,
                         duration_ms=duration_ms,
                     )
+            result.correlation_id = correlation_id
             return result
         except MeowClientNotFoundError as exc:
             duration_ms = self._elapsed_ms(started_at)
             with transaction.atomic():
-                self._mark_disconnected(session)
+                self.state_machine.mark_disconnected(session)
                 result = self._build_local_result(
                     session,
                     detail="Sessao ausente no Meow; QR local invalidado.",
@@ -356,6 +455,7 @@ class WhatsAppSessionService:
                 WhatsAppAuditService.success(
                     session=session,
                     action=WhatsAppActionType.GET_QR,
+                    correlation_id=correlation_id,
                     request_payload={"session_id": session.session_id},
                     response_payload={
                         "detail": "Sessao nao encontrada no Meow.",
@@ -363,20 +463,27 @@ class WhatsAppSessionService:
                     },
                     duration_ms=duration_ms,
                 )
+            result.correlation_id = correlation_id
             return result
         except MeowClientError as exc:
             duration_ms = self._elapsed_ms(started_at)
-            self._mark_error(session, str(exc))
+            self.state_machine.mark_failed(session, error_message=str(exc))
             WhatsAppAuditService.failure(
                 session=session,
                 action=WhatsAppActionType.GET_QR,
+                correlation_id=correlation_id,
                 request_payload={"session_id": session.session_id},
                 response_payload={"error": str(exc)},
                 duration_ms=duration_ms,
             )
             raise WhatsAppSessionServiceError(str(exc)) from exc
 
-    def disconnect(self, line: PhoneLine) -> WhatsAppSessionResult:
+    def disconnect(
+        self,
+        line: PhoneLine,
+        *,
+        correlation_id: str = "",
+    ) -> WhatsAppSessionResult:
         session = self._require_session(line)
         client = self._get_client(session)
         started_at = time.monotonic()
@@ -384,8 +491,8 @@ class WhatsAppSessionService:
         try:
             remote_payload = client.disconnect_session(session.session_id)
             duration_ms = self._elapsed_ms(started_at)
-            self._mark_disconnected(session)
             with transaction.atomic():
+                self.state_machine.mark_disconnected(session)
                 result = WhatsAppSessionResult(
                     session=session,
                     status=session.status,
@@ -395,15 +502,17 @@ class WhatsAppSessionService:
                 WhatsAppAuditService.success(
                     session=session,
                     action=WhatsAppActionType.DELETE_SESSION,
+                    correlation_id=correlation_id,
                     request_payload={"session_id": session.session_id},
                     response_payload=remote_payload,
                     duration_ms=duration_ms,
                 )
+            result.correlation_id = correlation_id
             return result
         except MeowClientNotFoundError as exc:
             duration_ms = self._elapsed_ms(started_at)
             with transaction.atomic():
-                self._mark_disconnected(session)
+                self.state_machine.mark_disconnected(session)
                 result = self._build_local_result(
                     session,
                     detail="Sessao ausente no Meow; desconexao convergiu localmente.",
@@ -411,6 +520,7 @@ class WhatsAppSessionService:
                 WhatsAppAuditService.success(
                     session=session,
                     action=WhatsAppActionType.DELETE_SESSION,
+                    correlation_id=correlation_id,
                     request_payload={"session_id": session.session_id},
                     response_payload={
                         "detail": "Sessao nao encontrada no Meow.",
@@ -418,13 +528,15 @@ class WhatsAppSessionService:
                     },
                     duration_ms=duration_ms,
                 )
+            result.correlation_id = correlation_id
             return result
         except MeowClientError as exc:
             duration_ms = self._elapsed_ms(started_at)
-            self._mark_error(session, str(exc))
+            self.state_machine.mark_failed(session, error_message=str(exc))
             WhatsAppAuditService.failure(
                 session=session,
                 action=WhatsAppActionType.DELETE_SESSION,
+                correlation_id=correlation_id,
                 request_payload={"session_id": session.session_id},
                 response_payload={"error": str(exc)},
                 duration_ms=duration_ms,
@@ -485,11 +597,59 @@ class WhatsAppSessionService:
             )
         return MeowClient(session.meow_instance.base_url)
 
+    def _record_local_action(
+        self,
+        *,
+        session: WhatsAppSession,
+        action: str,
+        detail: str,
+        created_by=None,
+        correlation_id: str = "",
+        job=None,
+        job_created: bool | None = None,
+        response_payload: dict | None = None,
+    ) -> None:
+        payload = response_payload or {
+            "source": "local_request",
+            "detail": detail,
+        }
+        if job is not None:
+            payload = {
+                **payload,
+                "job_id": job.pk,
+                "job_type": job.job_type,
+                "job_status": job.status,
+                "job_created": job_created,
+            }
+        WhatsAppAuditService.success(
+            session=session,
+            action=action,
+            correlation_id=correlation_id,
+            request_payload={"session_id": session.session_id},
+            response_payload=payload,
+            created_by=created_by,
+        )
+        if correlation_id:
+            emit_integration_log(
+                "whatsapp.local.request.accepted",
+                correlation_id=correlation_id,
+                session_id=session.session_id,
+                session_pk=session.pk,
+                action=action,
+                detail=detail,
+                job_id=job.pk if job is not None else None,
+                job_created=job_created,
+            )
+
     def _build_local_result(
         self,
         session: WhatsAppSession,
         *,
         detail: str | None = None,
+        correlation_id: str = "",
+        job=None,
+        job_created: bool | None = None,
+        session_created: bool | None = None,
     ) -> WhatsAppSessionResult:
         qr_code = self._get_valid_qr_code(session)
         return WhatsAppSessionResult(
@@ -500,6 +660,12 @@ class WhatsAppSessionService:
             has_qr=bool(qr_code),
             connected=session.status == WhatsAppSessionStatus.CONNECTED,
             detail=detail,
+            correlation_id=correlation_id,
+            job_id=job.pk if job is not None else None,
+            job_status=job.status if job is not None else None,
+            job_created=job_created,
+            job_available_at=job.available_at if job is not None else None,
+            session_created=session_created,
         )
 
     def _get_valid_qr_code(self, session: WhatsAppSession) -> str | None:
@@ -531,59 +697,6 @@ class WhatsAppSessionService:
             )
         )
 
-    def _persist_session(
-        self,
-        session: WhatsAppSession,
-        update_fields: list[str],
-    ) -> None:
-        session.version += 1
-        session.save(update_fields=[*update_fields, "version", "updated_at"])
-
-    def _mark_connecting(self, session: WhatsAppSession) -> None:
-        session.status = WhatsAppSessionStatus.CONNECTING
-        session.last_error = ""
-        session.last_sync_at = timezone.now()
-        self._persist_session(
-            session,
-            [
-                "status",
-                "last_error",
-                "last_sync_at",
-            ],
-        )
-
-    def _mark_error(
-        self, session: WhatsAppSession, error_message: str
-    ) -> None:  # noqa: E501
-        session.status = WhatsAppSessionStatus.ERROR
-        session.last_error = error_message
-        session.last_sync_at = timezone.now()
-        self._persist_session(
-            session,
-            [
-                "status",
-                "last_error",
-                "last_sync_at",
-            ],
-        )
-
-    def _mark_disconnected(self, session: WhatsAppSession) -> None:
-        session.status = WhatsAppSessionStatus.DISCONNECTED
-        session.last_error = ""
-        session.last_sync_at = timezone.now()
-        session.qr_code = ""
-        session.qr_expires_at = None
-        self._persist_session(
-            session,
-            [
-                "status",
-                "last_error",
-                "last_sync_at",
-                "qr_code",
-                "qr_expires_at",
-            ],
-        )
-
     def _sync_from_remote(
         self,
         session: WhatsAppSession,
@@ -605,43 +718,32 @@ class WhatsAppSessionService:
             details.get("qrExpires"),
             now=now,
         )
-
-        if connected:
-            session.status = WhatsAppSessionStatus.CONNECTED
-            session.connected_at = session.connected_at or now
-            session.qr_code = ""
-            session.qr_expires_at = None
-        elif has_qr:
-            session.status = WhatsAppSessionStatus.QR_PENDING
-            session.qr_code = qr_code or ""
-            session.qr_last_generated_at = now
-            session.qr_expires_at = qr_expires_at
-        else:
-            session.status = (
-                default_status or WhatsAppSessionStatus.DISCONNECTED
-            )  # noqa: E501
-            session.qr_code = ""
-            session.qr_expires_at = None
-
-        session.last_error = ""
-        session.last_sync_at = now
-        self._persist_session(
+        self.state_machine.apply_remote_snapshot(
             session,
-            [
-                "status",
-                "connected_at",
-                "qr_code",
-                "qr_last_generated_at",
-                "qr_expires_at",
-                "last_error",
-                "last_sync_at",
-            ],
+            connected=connected,
+            has_qr=has_qr,
+            qr_code=qr_code,
+            qr_expires_at=qr_expires_at,
+            occurred_at=now,
+            requested_status=default_status,
         )
+        return self._build_result_from_remote_payload(
+            session,
+            remote_payload=remote_payload,
+        )
+
+    def _build_result_from_remote_payload(
+        self,
+        session: WhatsAppSession,
+        *,
+        remote_payload: dict,
+    ) -> WhatsAppSessionResult:
+        qr_code = self._get_valid_qr_code(session)
         return WhatsAppSessionResult(
             session=session,
             status=session.status,
             remote_payload=remote_payload,
             qr_code=qr_code,
-            has_qr=has_qr,
-            connected=connected,
+            has_qr=bool(qr_code),
+            connected=session.status == WhatsAppSessionStatus.CONNECTED,
         )

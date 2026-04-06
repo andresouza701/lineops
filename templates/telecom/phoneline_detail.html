@@ -240,12 +240,13 @@
 
         const statusClassMap = {
             CONNECTED: "text-bg-success",
-            QR_PENDING: "text-bg-warning",
-            CONNECTING: "text-bg-info",
+            QR_AVAILABLE: "text-bg-warning",
+            WAITING_SCAN: "text-bg-info",
+            SESSION_REQUESTED: "text-bg-info",
             DISCONNECTED: "text-bg-secondary",
-            ERROR: "text-bg-danger",
-            PENDING_NEW_NUMBER: "text-bg-dark",
-            PENDING_RECONNECT: "text-bg-dark",
+            FAILED: "text-bg-danger",
+            EXPIRED: "text-bg-warning",
+            NEW: "text-bg-dark",
         };
 
         let pollHandle = null;
@@ -312,7 +313,11 @@
                 return;
             }
 
-            if (payload.status === "QR_PENDING" && preservePendingQr && cachedQrCode) {
+            if (
+                ["QR_AVAILABLE", "WAITING_SCAN"].includes(payload.status)
+                && preservePendingQr
+                && cachedQrCode
+            ) {
                 qrMeta.textContent = "QR carregado";
                 qrContainer.innerHTML = `
                     <img
@@ -327,11 +332,41 @@
 
             cachedQrCode = null;
 
-            if (payload.status === "QR_PENDING") {
-                qrMeta.textContent = "QR pendente";
+            if (payload.status === "QR_AVAILABLE") {
+                qrMeta.textContent = "QR disponivel";
                 qrContainer.innerHTML = `
                     <span class="text-muted small">
-                        O QR ainda nao foi carregado. Clique em "Consultar QR" para atualizar.
+                        O QR foi solicitado e sera exibido assim que estiver persistido localmente.
+                    </span>
+                `;
+                return;
+            }
+
+            if (payload.status === "WAITING_SCAN") {
+                qrMeta.textContent = "Aguardando leitura";
+                qrContainer.innerHTML = `
+                    <span class="text-muted small">
+                        O ultimo QR continua aguardando leitura pelo aparelho.
+                    </span>
+                `;
+                return;
+            }
+
+            if (payload.status === "SESSION_REQUESTED") {
+                qrMeta.textContent = "QR solicitado";
+                qrContainer.innerHTML = `
+                    <span class="text-muted small">
+                        A sessao foi solicitada e o worker ainda esta aguardando retorno do Meow.
+                    </span>
+                `;
+                return;
+            }
+
+            if (payload.status === "EXPIRED") {
+                qrMeta.textContent = "QR expirado";
+                qrContainer.innerHTML = `
+                    <span class="text-muted small">
+                        O QR anterior expirou. Gere um novo QR para continuar.
                     </span>
                 `;
                 return;

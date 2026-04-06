@@ -11,13 +11,14 @@ class DashboardWhatsAppService:
         DailyUserAction.ActionType.RECONNECT_WHATSAPP,
     }
     PENDING_SESSION_STATUSES = [
-        WhatsAppSessionStatus.PENDING_NEW_NUMBER,
-        WhatsAppSessionStatus.PENDING_RECONNECT,
-        WhatsAppSessionStatus.CONNECTING,
-        WhatsAppSessionStatus.QR_PENDING,
+        WhatsAppSessionStatus.NEW,
+        WhatsAppSessionStatus.SESSION_REQUESTED,
+        WhatsAppSessionStatus.QR_AVAILABLE,
+        WhatsAppSessionStatus.WAITING_SCAN,
     ]
     DEGRADED_SESSION_STATUSES = [
-        WhatsAppSessionStatus.ERROR,
+        WhatsAppSessionStatus.FAILED,
+        WhatsAppSessionStatus.EXPIRED,
         WhatsAppSessionStatus.DISCONNECTED,
     ]
 

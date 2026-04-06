@@ -49,6 +49,10 @@ urlpatterns = [
         MeowOwnerCheckView.as_view(),
         name="whatsapp_meow_owner_check_tokenized",
     ),
+    path(
+        "api/integrations/whatsapp/",
+        include(("whatsapp.api_urls", "whatsapp_api"), namespace="whatsapp_api"),
+    ),
     path("health/", HealthCheckView.as_view(), name="health"),
     path("readiness/", WhatsAppWorkerReadinessView.as_view(), name="readiness"),
     path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),

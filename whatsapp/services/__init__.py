@@ -41,6 +41,10 @@ from whatsapp.services.session_service import (
     WhatsAppSessionService,
     WhatsAppSessionServiceError,
 )
+from whatsapp.services.state_machine_service import (
+    InvalidWhatsAppSessionTransition,
+    WhatsAppSessionStateMachineService,
+)
 from whatsapp.services.sync_service import (
     WhatsAppSessionSyncResult,
     WhatsAppSessionSyncService,
@@ -76,6 +80,8 @@ __all__ = [
     "WhatsAppSessionService",
     "WhatsAppSessionResult",
     "WhatsAppSessionServiceError",
+    "WhatsAppSessionStateMachineService",
+    "InvalidWhatsAppSessionTransition",
     "WhatsAppSessionReconcileResult",
     "WhatsAppSessionReconcileService",
     "WhatsAppSessionSyncResult",

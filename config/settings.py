@@ -123,16 +123,22 @@ DATABASES = {
     }
 }
 
+DB_TEST_NAME = env("DB_TEST_NAME", default="")
+if DB_TEST_NAME:
+    DATABASES["default"]["TEST"] = {"NAME": DB_TEST_NAME}
+
 if APP_ENV == "prod" and not DATABASES["default"]["PASSWORD"]:
     raise ImproperlyConfigured("DB_PASSWORD deve ser definido em produção.")
 
-if len(sys.argv) > 1 and sys.argv[1] == "test":
+USE_SQLITE_TEST_DB = env.bool("USE_SQLITE_TEST_DB", default=True)
+
+if len(sys.argv) > 1 and sys.argv[1] == "test" and USE_SQLITE_TEST_DB:
     DATABASES["default"] = {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": os.path.join(BASE_DIR, "test_db.sqlite3"),
     }
 
-if "pytest" in sys.modules:
+if "pytest" in sys.modules and USE_SQLITE_TEST_DB:
     DATABASES["default"] = {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": os.path.join(BASE_DIR, "test_db.sqlite3"),

@@ -9,9 +9,10 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from whatsapp.choices import WhatsAppActionType, WhatsAppSessionStatus
+from whatsapp.choices import WhatsAppActionType
 from whatsapp.models import WhatsAppSession
 from whatsapp.services.audit_service import WhatsAppAuditService
+from whatsapp.services.state_machine_service import WhatsAppSessionStateMachineService
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,9 @@ class MeowWebhookService:
         "user-event",
     }
     SUPPORTED_EVENTS = STATEFUL_EVENTS | ACCEPTED_NO_STATE_CHANGE_EVENTS
+
+    def __init__(self):
+        self.state_machine = WhatsAppSessionStateMachineService()
 
     def process_event(
         self,
@@ -233,36 +237,44 @@ class MeowWebhookService:
         event_time = self._coerce_event_time(
             event_payload.get("timestamp") or payload.get("timestamp")
         )
-        update_fields = ["status", "last_error", "last_sync_at", "updated_at"]
+        qr_code = (
+            event_payload.get("qr_code")
+            or event_payload.get("qrCode")
+            or payload.get("qr_code")
+            or payload.get("qrCode")
+        )
 
         if event_type == "connection_success":
-            session.status = WhatsAppSessionStatus.CONNECTED
-            session.connected_at = session.connected_at or event_time
-            session.last_error = ""
-            update_fields.append("connected_at")
+            self.state_machine.mark_connected(session, occurred_at=event_time)
         elif event_type == "qr_code":
-            session.status = WhatsAppSessionStatus.QR_PENDING
-            session.qr_last_generated_at = event_time
-            session.last_error = ""
-            update_fields.append("qr_last_generated_at")
+            self.state_machine.mark_qr_available(
+                session,
+                qr_code=str(qr_code or ""),
+                occurred_at=event_time,
+            )
         elif event_type == "reconnection_attempt":
-            session.status = WhatsAppSessionStatus.CONNECTING
-            session.last_error = ""
+            self.state_machine.mark_session_requested(
+                session,
+                occurred_at=received_at,
+            )
         elif event_type in {"connection_closed", "ban_cooldown_ended"}:
-            session.status = WhatsAppSessionStatus.DISCONNECTED
-            session.last_error = self._build_error_detail(
-                event_type=event_type,
-                event_payload=event_payload,
+            self.state_machine.mark_disconnected(
+                session,
+                detail=self._build_error_detail(
+                    event_type=event_type,
+                    event_payload=event_payload,
+                ),
+                occurred_at=received_at,
             )
         else:
-            session.status = WhatsAppSessionStatus.ERROR
-            session.last_error = self._build_error_detail(
-                event_type=event_type,
-                event_payload=event_payload,
+            self.state_machine.mark_failed(
+                session,
+                error_message=self._build_error_detail(
+                    event_type=event_type,
+                    event_payload=event_payload,
+                ),
+                occurred_at=received_at,
             )
-
-        session.last_sync_at = received_at
-        session.save(update_fields=update_fields)
 
     def _build_error_detail(
         self, *, event_type: str, event_payload: dict[str, Any]

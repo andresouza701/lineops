@@ -9,13 +9,14 @@ class MeowInstanceHealthStatus(models.TextChoices):
 
 
 class WhatsAppSessionStatus(models.TextChoices):
-    PENDING_NEW_NUMBER = "PENDING_NEW_NUMBER", "Novo numero"
-    PENDING_RECONNECT = "PENDING_RECONNECT", "Reconectar WhatsApp"
-    CONNECTING = "CONNECTING", "Conectando"
-    QR_PENDING = "QR_PENDING", "QR pendente"
+    NEW = "NEW", "Nova"
+    SESSION_REQUESTED = "SESSION_REQUESTED", "Sessao solicitada"
+    QR_AVAILABLE = "QR_AVAILABLE", "QR disponivel"
+    WAITING_SCAN = "WAITING_SCAN", "Aguardando leitura"
     CONNECTED = "CONNECTED", "Conectado"
+    FAILED = "FAILED", "Falha"
+    EXPIRED = "EXPIRED", "Expirado"
     DISCONNECTED = "DISCONNECTED", "Desconectado"
-    ERROR = "ERROR", "Erro"
 
 
 class WhatsAppActionType(models.TextChoices):

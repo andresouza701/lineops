@@ -90,9 +90,11 @@ class AllocationConcurrencyTest(Transaction):
 
         session = WhatsAppSession.objects.get(line=self.line)
         self.assertEqual(session.meow_instance, self.meow)
-        self.assertEqual(session.status, WhatsAppSessionStatus.PENDING_NEW_NUMBER)
+        self.assertEqual(session.status, WhatsAppSessionStatus.NEW)
 
         action = DailyUserAction.objects.get(allocation_id=successful_allocations[0])
         self.assertEqual(action.action_type, DailyUserAction.ActionType.NEW_NUMBER)
         self.assertFalse(action.is_resolved)
         self.assertEqual(WhatsAppSession.objects.filter(line=self.line).count(), 1)
+
+

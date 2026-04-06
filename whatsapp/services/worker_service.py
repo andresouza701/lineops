@@ -9,6 +9,7 @@ from django.utils import timezone
 from whatsapp.choices import WhatsAppIntegrationJobType, WhatsAppSessionStatus
 from whatsapp.models import WhatsAppIntegrationJob, WhatsAppWorkerState
 from whatsapp.services.integration_job_service import WhatsAppIntegrationJobService
+from whatsapp.services.observability_service import emit_integration_log
 from whatsapp.services.session_service import WhatsAppSessionService
 
 
@@ -54,13 +55,37 @@ class WhatsAppIntegrationWorkerService:
 
         for job in claimed_jobs:
             try:
+                if job.correlation_id:
+                    emit_integration_log(
+                        "whatsapp.worker.job.started",
+                        correlation_id=job.correlation_id,
+                        job_id=job.pk,
+                        job_type=job.job_type,
+                        session_id=job.session.session_id,
+                        session_pk=job.session.pk,
+                        worker_code=worker_code,
+                    )
                 result = self._run_job(job)
                 self.job_service.mark_success(
                     job,
                     response_payload=result.remote_payload,
                 )
                 if self._should_enqueue_status_poll(job, result.status):
-                    self.job_service.enqueue_status_poll(session=job.session)
+                    self.job_service.enqueue_status_poll(
+                        session=job.session,
+                        correlation_id=job.correlation_id,
+                    )
+                if job.correlation_id:
+                    emit_integration_log(
+                        "whatsapp.worker.job.succeeded",
+                        correlation_id=job.correlation_id,
+                        job_id=job.pk,
+                        job_type=job.job_type,
+                        session_id=job.session.session_id,
+                        session_pk=job.session.pk,
+                        status=result.status,
+                        worker_code=worker_code,
+                    )
                 processed_jobs += 1
                 self._touch_worker(
                     worker_code,
@@ -74,6 +99,17 @@ class WhatsAppIntegrationWorkerService:
                     error_message=str(exc),
                     response_payload={"error": str(exc)},
                 )
+                if job.correlation_id:
+                    emit_integration_log(
+                        "whatsapp.worker.job.failed",
+                        correlation_id=job.correlation_id,
+                        job_id=job.pk,
+                        job_type=job.job_type,
+                        session_id=job.session.session_id,
+                        session_pk=job.session.pk,
+                        error=str(exc),
+                        worker_code=worker_code,
+                    )
                 failed_jobs += 1
                 last_error = str(exc)
                 self._touch_worker(
@@ -123,21 +159,34 @@ class WhatsAppIntegrationWorkerService:
     def _run_job(self, job: WhatsAppIntegrationJob):
         line = job.session.line
         if job.job_type == WhatsAppIntegrationJobType.CREATE_SESSION:
-            return self.session_service.connect(line)
+            return self.session_service.connect(
+                line,
+                correlation_id=job.correlation_id,
+            )
         if job.job_type == WhatsAppIntegrationJobType.GENERATE_QR:
-            return self.session_service.get_qr(line)
+            return self.session_service.get_qr(
+                line,
+                correlation_id=job.correlation_id,
+            )
         if job.job_type == WhatsAppIntegrationJobType.SYNC_STATUS:
-            return self.session_service.get_status(line)
+            return self.session_service.get_status(
+                line,
+                correlation_id=job.correlation_id,
+            )
         if job.job_type == WhatsAppIntegrationJobType.DELETE_SESSION:
-            return self.session_service.disconnect(line)
+            return self.session_service.disconnect(
+                line,
+                correlation_id=job.correlation_id,
+            )
         raise ValueError(f"Job WhatsApp desconhecido: {job.job_type}")
 
     def _should_enqueue_status_poll(self, job: WhatsAppIntegrationJob, status: str) -> bool:
         if job.job_type == WhatsAppIntegrationJobType.DELETE_SESSION:
             return False
         return status in {
-            WhatsAppSessionStatus.CONNECTING,
-            WhatsAppSessionStatus.QR_PENDING,
+            WhatsAppSessionStatus.SESSION_REQUESTED,
+            WhatsAppSessionStatus.QR_AVAILABLE,
+            WhatsAppSessionStatus.WAITING_SCAN,
         }
 
     def _touch_worker(
