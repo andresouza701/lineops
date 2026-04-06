@@ -66,6 +66,36 @@ services:
       timeout: 10s
       retries: 5
 
+  worker:
+    build: .
+    container_name: lineops-worker-qa
+    restart: unless-stopped
+    env_file:
+      - .env.qa
+    environment:
+      APP_ENV: prod
+      DEBUG: "False"
+      DJANGO_SETTINGS_MODULE: config.settings_qa
+      USE_X_FORWARDED_PROTO: "1"
+      RUN_MIGRATIONS: "0"
+      COLLECT_STATIC: "0"
+      WAIT_FOR_DB: "1"
+    command:
+      [
+        "python",
+        "manage.py",
+        "run_whatsapp_integration_worker",
+        "--worker-code",
+        "default",
+        "--limit",
+        "10"
+      ]
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+
   nginx:
     image: nginx:1.27-alpine
     container_name: lineops-nginx-qa
