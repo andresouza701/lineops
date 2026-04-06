@@ -1,3 +1,5 @@
+from unittest.mock import PropertyMock, patch
+
 from django.contrib import admin
 from django.test import RequestFactory
 from django.test import TestCase
@@ -10,6 +12,8 @@ from core.services.allocation_service import AllocationService
 from employees.models import Employee
 from telecom.forms import BlipConfigurationForm
 from telecom.models import BlipConfiguration, PhoneLine, PhoneLineHistory, SIMcard
+from telecom.views import PhoneLineDetailView
+from whatsapp.models import MeowInstance, WhatsAppSession
 from users.models import SystemUser
 
 
@@ -819,6 +823,10 @@ class PhoneLineViewsTest(TestCase):
             sim_card=self.sim_other,
             status=PhoneLine.Status.ALLOCATED,
         )
+        self.meow = MeowInstance.objects.create(
+            name="Detail Meow",
+            base_url="http://detail-meow.local",
+        )
         self.blip_sim = SIMcard.objects.create(
             iccid="8900000000000000515",
             carrier="CarrierBlip",
@@ -903,6 +911,45 @@ class PhoneLineViewsTest(TestCase):
             response,
             reverse("telecom:phoneline_detail", args=[self.line_available.pk]),
         )
+
+    def test_detail_view_renders_when_whatsapp_session_context_resolution_fails(self):
+        with patch(
+            "telecom.views.PhoneLineDetailView._get_whatsapp_session_context",
+            side_effect=RuntimeError("contexto quebrado"),
+        ):
+            response = self.client.get(
+                reverse("telecom:phoneline_detail", args=[self.line_available.pk])
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.line_available.phone_number)
+
+    def test_detail_view_uses_fallback_whatsapp_session_when_reverse_lookup_breaks(self):
+        session = WhatsAppSession.objects.create(
+            line=self.line_available,
+            meow_instance=self.meow,
+            session_id="session_+551199999001",
+            status="CONNECTED",
+        )
+        view = PhoneLineDetailView()
+        view.object = PhoneLine.objects.get(pk=self.line_available.pk)
+
+        with (
+            patch.object(
+                PhoneLine,
+                "whatsapp_session",
+                new_callable=PropertyMock,
+                side_effect=WhatsAppSession.MultipleObjectsReturned,
+            ),
+            patch(
+                "telecom.views.PhoneLineDetailView._get_fallback_whatsapp_session",
+                return_value=session,
+            ) as fallback_method,
+        ):
+            resolved_session = view._get_whatsapp_session_context()
+
+        self.assertEqual(resolved_session, session)
+        fallback_method.assert_called_once()
 
     def test_ajax_overview_ignores_invalid_offset_and_limit(self):
         url = reverse("telecom:overview")

@@ -1,4 +1,5 @@
 import csv
+import logging
 
 from django import forms
 from django.contrib import messages
@@ -23,6 +24,7 @@ from core.mixins import RoleRequiredMixin, StandardPaginationMixin
 from core.services.allocation_service import AllocationService
 from core.validation import parse_non_negative_int
 from users.models import SystemUser
+from whatsapp.models import WhatsAppSession
 
 from .forms import (
     BlipConfigurationForm,
@@ -31,6 +33,8 @@ from .forms import (
     SIMcardCreateWithLineForm,
 )
 from .models import BlipConfiguration, PhoneLine, PhoneLineHistory, SIMcard
+
+logger = logging.getLogger(__name__)
 
 
 def get_visible_phone_lines_queryset(user=None):
@@ -306,10 +310,50 @@ class PhoneLineDetailView(RoleRequiredMixin, DetailView):
             else reverse("dashboard")
         )
         try:
-            context["whatsapp_session"] = self.object.whatsapp_session
-        except PhoneLine.whatsapp_session.RelatedObjectDoesNotExist:
+            context["whatsapp_session"] = self._get_whatsapp_session_context()
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "Phone line detail could not resolve WhatsApp session context",
+                extra={
+                    "phone_line_id": self.object.pk,
+                    "user_id": getattr(self.request.user, "pk", None),
+                },
+            )
             context["whatsapp_session"] = None
         return context
+
+    def _get_whatsapp_session_context(self):
+        try:
+            return self.object.whatsapp_session
+        except WhatsAppSession.DoesNotExist:
+            return None
+        except WhatsAppSession.MultipleObjectsReturned:
+            logger.warning(
+                "Phone line detail found multiple WhatsApp sessions; falling back to first",
+                extra={"phone_line_id": self.object.pk},
+            )
+            return self._get_fallback_whatsapp_session()
+        except Exception:
+            logger.exception(
+                "Phone line detail reverse WhatsApp session lookup failed",
+                extra={"phone_line_id": self.object.pk},
+            )
+            return self._get_fallback_whatsapp_session()
+
+    def _get_fallback_whatsapp_session(self):
+        try:
+            return (
+                WhatsAppSession.objects.select_related("meow_instance")
+                .filter(line=self.object)
+                .order_by("pk")
+                .first()
+            )
+        except Exception:
+            logger.exception(
+                "Phone line detail fallback WhatsApp session lookup failed",
+                extra={"phone_line_id": self.object.pk},
+            )
+            return None
 
 
 class PhoneLineCreateView(RoleRequiredMixin, CreateView):
