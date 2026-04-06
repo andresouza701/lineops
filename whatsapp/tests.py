@@ -3366,6 +3366,31 @@ class WhatsAppOperationsViewTests(TestCase):
         )
         self.assertTrue(service.check_instances.call_args.kwargs["include_inactive"])
 
+    @patch("whatsapp.views.MeowHealthCheckService")
+    def test_operations_view_post_handles_health_check_failure_without_500(
+        self,
+        service_class,
+    ):
+        service = service_class.return_value
+        service.check_instances.side_effect = RuntimeError("meow offline")
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("whatsapp_operations"),
+            {"action": "check_health"},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        messages_list = [str(message) for message in response.context["messages"]]
+        self.assertTrue(
+            any(
+                "Nao foi possivel executar a acao operacional: meow offline"
+                in message
+                for message in messages_list
+            )
+        )
+
     @patch("whatsapp.views.WhatsAppSessionSyncService")
     def test_operations_view_post_runs_sync_for_selected_instance(self, service_class):
         service = service_class.return_value
@@ -3387,6 +3412,31 @@ class WhatsAppOperationsViewTests(TestCase):
             [self.problem_session.pk],
         )
         self.assertTrue(service.sync_sessions.call_args.kwargs["include_inactive"])
+
+    @patch("whatsapp.views.WhatsAppSessionSyncService")
+    def test_operations_view_post_handles_sync_failure_without_500(
+        self,
+        service_class,
+    ):
+        service = service_class.return_value
+        service.sync_sessions.side_effect = RuntimeError("sync quebrou")
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("whatsapp_operations"),
+            {"action": "sync_sessions"},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        messages_list = [str(message) for message in response.context["messages"]]
+        self.assertTrue(
+            any(
+                "Nao foi possivel executar a acao operacional: sync quebrou"
+                in message
+                for message in messages_list
+            )
+        )
 
     @patch("whatsapp.views.WhatsAppSessionSyncService")
     def test_operations_view_post_runs_sync_for_selected_session(self, service_class):

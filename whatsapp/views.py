@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from django.conf import settings
 from django.contrib import messages
 from django.http import JsonResponse
@@ -32,6 +34,8 @@ from whatsapp.services.sync_service import WhatsAppSessionSyncService
 from whatsapp.services.worker_service import WhatsAppIntegrationWorkerService
 from whatsapp.services.webhook_service import MeowWebhookService
 from whatsapp.services.owner_check_service import MeowOwnerCheckService
+
+logger = logging.getLogger(__name__)
 
 
 class WhatsAppPhoneLineMixin(RoleRequiredMixin):
@@ -396,16 +400,31 @@ class WhatsAppOperationsView(RoleRequiredMixin, TemplateView):
         selected_session = self._get_selected_session(request.POST)
         action = (request.POST.get("action") or "").strip()
 
-        if action == "check_health":
-            self._run_health_check(selected_instance)
-        elif action == "sync_sessions":
-            self._run_session_sync(selected_instance)
-        elif action == "sync_session":
-            self._run_single_session_sync(selected_session)
-        elif action == "reconcile_sessions":
-            self._run_session_reconcile(selected_instance)
-        else:
-            messages.error(request, "Acao operacional invalida.")
+        try:
+            if action == "check_health":
+                self._run_health_check(selected_instance)
+            elif action == "sync_sessions":
+                self._run_session_sync(selected_instance)
+            elif action == "sync_session":
+                self._run_single_session_sync(selected_session)
+            elif action == "reconcile_sessions":
+                self._run_session_reconcile(selected_instance)
+            else:
+                messages.error(request, "Acao operacional invalida.")
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(
+                "WhatsApp operations action failed",
+                extra={
+                    "action": action,
+                    "instance_id": getattr(selected_instance, "pk", None),
+                    "session_pk": getattr(selected_session, "pk", None),
+                    "user_id": getattr(request.user, "pk", None),
+                },
+            )
+            messages.error(
+                request,
+                f"Nao foi possivel executar a acao operacional: {exc}",
+            )
 
         return redirect(
             self._build_operations_url(selected_instance, selected_issue_code)
