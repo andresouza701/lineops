@@ -58,6 +58,11 @@ cp .env.prod.example .env.prod
 - `TLS_CERT_PATH`
 - `TLS_KEY_PATH`
 
+Exemplo para este ambiente:
+
+- `ALLOWED_HOSTS=lineops.somosglobal.com.br`
+- `CSRF_TRUSTED_ORIGINS=https://lineops.somosglobal.com.br`
+
 3. Suba os serviços de produção:
 
 ```bash
@@ -76,6 +81,7 @@ curl -k https://localhost/health/
 
 - O container web executa automaticamente `migrate` e `collectstatic` no startup.
 - O compose de produção sobe Nginx com TLS em `80/443` e redireciona HTTP para HTTPS.
+- O Nginx de produção está configurado para responder ao host `lineops.somosglobal.com.br`.
 - Configure `TLS_CERT_PATH` e `TLS_KEY_PATH` para apontar para os certificados válidos no host.
 - Mantenha `USE_X_FORWARDED_PROTO=True` para o Django reconhecer requisições HTTPS via proxy.
 - O banco em produção usa volume nomeado `lineops_postgres_data_prod`.
