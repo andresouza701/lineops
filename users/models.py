@@ -1,5 +1,6 @@
 from django.apps import apps
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -36,11 +37,13 @@ class SystemUser(AbstractUser):
         ADMIN = "admin", "Admin"
         DEV = "dev", "Dev"
         SUPER = "super", "Super"
+        BACKOFFICE = "backoffice", "Backoffice"
         GERENTE = "gerente", "Gerente"
         OPERATOR = "operator", "Operator"
 
     SUPERVISOR_ROLES = (Role.SUPER,)
-    EMPLOYEE_ACCESS_ROLES = (Role.ADMIN, Role.SUPER, Role.GERENTE)
+    SUPERVISOR_SCOPE_ROLES = (Role.SUPER, Role.BACKOFFICE)
+    EMPLOYEE_ACCESS_ROLES = (Role.ADMIN, Role.SUPER, Role.BACKOFFICE, Role.GERENTE)
 
     username = None
     email = models.EmailField(unique=True)
@@ -49,6 +52,12 @@ class SystemUser(AbstractUser):
         blank=True,
         null=True,
         verbose_name="Gerente vinculado",
+    )
+    supervisor_email = models.EmailField(
+        max_length=254,
+        blank=True,
+        null=True,
+        verbose_name="Supervisor vinculado",
     )
 
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.OPERATOR)
@@ -61,9 +70,33 @@ class SystemUser(AbstractUser):
     def __str__(self):
         return f"{self.email} - {self.role}"
 
+    def clean(self):
+        super().clean()
+
+        if self.role != self.Role.BACKOFFICE:
+            return
+
+        supervisor_email = (self.supervisor_email or "").strip()
+        if not supervisor_email:
+            raise ValidationError(
+                {"supervisor_email": "Backoffice precisa de supervisor vinculado."}
+            )
+
+        if not self.__class__.objects.filter(
+            email__iexact=supervisor_email,
+            role=self.Role.SUPER,
+        ).exists():
+            raise ValidationError(
+                {"supervisor_email": "Selecione um supervisor valido para o backoffice."}
+            )
+
     @property
     def is_supervisor_role(self):
         return self.role in self.SUPERVISOR_ROLES
+
+    @property
+    def is_backoffice_role(self):
+        return self.role == self.Role.BACKOFFICE
 
     @property
     def is_manager_role(self):
@@ -72,6 +105,23 @@ class SystemUser(AbstractUser):
     @property
     def can_access_employee_area(self):
         return self.role in self.EMPLOYEE_ACCESS_ROLES
+
+    def get_effective_supervisor_email(self):
+        if self.role == self.Role.SUPER:
+            return self.email
+        if self.role == self.Role.BACKOFFICE:
+            return (self.supervisor_email or "").strip()
+        return ""
+
+    def get_effective_supervisor_user(self):
+        if self.role == self.Role.SUPER:
+            return self
+
+        supervisor_email = self.get_effective_supervisor_email()
+        if not supervisor_email:
+            return None
+
+        return self.__class__.objects.filter(email__iexact=supervisor_email).first()
 
     def get_managed_supervisor_emails(self):
         employee_model = apps.get_model("employees", "Employee")
@@ -93,8 +143,11 @@ class SystemUser(AbstractUser):
         employee_model = apps.get_model("employees", "Employee")
         queryset = queryset if queryset is not None else employee_model.objects.all()
 
-        if self.role == self.Role.SUPER:
-            return queryset.filter(corporate_email__iexact=self.email)
+        if self.role in self.SUPERVISOR_SCOPE_ROLES:
+            supervisor_email = self.get_effective_supervisor_email()
+            if not supervisor_email:
+                return queryset.none()
+            return queryset.filter(corporate_email__iexact=supervisor_email)
         if self.role == self.Role.GERENTE:
             managed_supervisors = self.get_managed_supervisor_emails()
             return queryset.filter(

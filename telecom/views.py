@@ -263,7 +263,12 @@ class PhoneLineListView(StandardPaginationMixin, RoleRequiredMixin, ListView):
 
 
 class PhoneLineDetailView(RoleRequiredMixin, DetailView):
-    allowed_roles = [SystemUser.Role.ADMIN]
+    allowed_roles = [
+        SystemUser.Role.ADMIN,
+        SystemUser.Role.SUPER,
+        SystemUser.Role.BACKOFFICE,
+        SystemUser.Role.GERENTE,
+    ]
     model = PhoneLine
     template_name = "telecom/phoneline_detail.html"
     context_object_name = "phone_line"

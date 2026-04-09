@@ -44,6 +44,7 @@ ALLOWED_TREND_PERIODS = (7, 15, 30)
 DASHBOARD_ALLOWED_ROLES = (
     SystemUser.Role.ADMIN,
     SystemUser.Role.SUPER,
+    SystemUser.Role.BACKOFFICE,
     SystemUser.Role.GERENTE,
 )
 SCOPED_DASHBOARD_METRIC_KEYS = (
@@ -94,10 +95,12 @@ def uses_scoped_dashboard_metrics(user):
 
 def get_daily_indicators_queryset(user):
     indicators = DailyIndicator.objects.all()
-    if user.role == SystemUser.Role.SUPER:
-        indicators = indicators.filter(
-            Q(supervisor__iexact=user.email) | Q(created_by=user) | Q(updated_by=user)
-        )
+    if user.role in SystemUser.SUPERVISOR_SCOPE_ROLES:
+        supervisor_email = user.get_effective_supervisor_email()
+        query = Q(created_by=user) | Q(updated_by=user)
+        if supervisor_email:
+            query |= Q(supervisor__iexact=supervisor_email)
+        indicators = indicators.filter(query)
     elif user.role == SystemUser.Role.GERENTE:
         supervisor_emails = user.get_managed_supervisor_emails()
         indicators = indicators.filter(
@@ -1443,6 +1446,22 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                             ),
                         )
                 else:
+                    effective_supervisor = request.user.get_effective_supervisor_user()
+                    if (
+                        request.user.role == SystemUser.Role.BACKOFFICE
+                        and effective_supervisor is None
+                    ):
+                        messages.error(
+                            request,
+                            "Backoffice sem supervisor vinculado nao pode criar acoes.",
+                        )
+                        query = {}
+                        if supervisor_filter:
+                            query["supervisor"] = supervisor_filter
+                        return redirect(
+                            f"{reverse('daily_user_action_board')}?{urlencode(query)}"
+                        )
+
                     allocation_obj = None
                     if allocation_id:
                         allocation_obj = LineAllocation.objects.filter(
@@ -1468,7 +1487,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                     action, created = DailyUserAction.objects.update_or_create(
                         **update_or_create_filter,
                         defaults={
-                            "supervisor": request.user,
+                            "supervisor": effective_supervisor or request.user,
                             "action_type": action_type,
                             "note": note,
                             "updated_by": request.user,

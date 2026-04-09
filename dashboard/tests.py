@@ -1851,3 +1851,85 @@ class ManagerScopeTests(TestCase):
         self.assertEqual(latest["total_descoberto_dia"], 0)
         self.assertEqual(latest["numeros_entregues"], 1)
         self.assertEqual(latest["numeros_disponiveis"], 1)
+
+
+class BackofficeScopeTests(TestCase):
+    def setUp(self):
+        self.manager = SystemUser.objects.create_user(
+            email="gerente.backoffice@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.GERENTE,
+        )
+        self.supervisor = SystemUser.objects.create_user(
+            email="super.backoffice@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.SUPER,
+            manager_email="gerente.backoffice@test.com",
+        )
+        self.backoffice = SystemUser.objects.create_user(
+            email="backoffice.scope@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.BACKOFFICE,
+            supervisor_email="super.backoffice@test.com",
+        )
+        self.other_supervisor = SystemUser.objects.create_user(
+            email="super.outro.backoffice@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.SUPER,
+        )
+        self.managed_employee = Employee.objects.create(
+            full_name="Negociador do Supervisor",
+            corporate_email=self.supervisor.email,
+            employee_id="Ambiental",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        self.unmanaged_employee = Employee.objects.create(
+            full_name="Negociador de Outro Supervisor",
+            corporate_email=self.other_supervisor.email,
+            employee_id="Natura",
+            teams="Araquari",
+            status=Employee.Status.ACTIVE,
+        )
+
+    def test_backoffice_action_board_only_shows_employees_from_linked_supervisor(self):
+        self.client.force_login(self.backoffice)
+
+        response = self.client.get(reverse("daily_user_action_board"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Negociador do Supervisor")
+        self.assertNotContains(response, "Negociador de Outro Supervisor")
+
+    def test_backoffice_action_is_saved_under_linked_supervisor_scope(self):
+        self.client.force_login(self.backoffice)
+
+        response = self.client.post(
+            reverse("daily_user_action_board"),
+            data={
+                "day": timezone.localdate().isoformat(),
+                "employee_id": self.managed_employee.id,
+                "action_type": DailyUserAction.ActionType.NEW_NUMBER,
+                "note": "Aguardando linha",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        action = DailyUserAction.objects.get(
+            day=timezone.localdate(),
+            employee=self.managed_employee,
+        )
+        self.assertEqual(action.supervisor, self.supervisor)
+        self.assertEqual(action.created_by, self.backoffice)
+        self.assertEqual(action.updated_by, self.backoffice)
+
+        self.client.force_login(self.manager)
+        manager_response = self.client.get(reverse("manager_dashboard"))
+
+        self.assertEqual(manager_response.status_code, 200)
+        row = next(
+            item
+            for item in manager_response.context["supervisor_dashboards"][0]["rows"]
+            if item["portfolio"] == "Ambiental"
+        )
+        self.assertEqual(row["new_number_count"], 1)

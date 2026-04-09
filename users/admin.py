@@ -7,7 +7,14 @@ from .models import SystemUser
 @admin.register(SystemUser)
 class SystemUserAdmin(UserAdmin):
     model = SystemUser
-    list_display = ("email", "role", "manager_email", "is_staff", "is_active")
+    list_display = (
+        "email",
+        "role",
+        "manager_email",
+        "supervisor_email",
+        "is_staff",
+        "is_active",
+    )
     ordering = ("email",)
     list_filter = ("role", "is_staff", "is_active")
 
@@ -21,6 +28,7 @@ class SystemUserAdmin(UserAdmin):
                     "is_active",
                     "role",
                     "manager_email",
+                    "supervisor_email",
                     "is_superuser",
                 )
             },
@@ -33,7 +41,14 @@ class SystemUserAdmin(UserAdmin):
             None,
             {
                 "classes": ("wide",),
-                "fields": ("email", "password1", "password2", "role", "manager_email"),
+                "fields": (
+                    "email",
+                    "password1",
+                    "password2",
+                    "role",
+                    "manager_email",
+                    "supervisor_email",
+                ),
             },
         ),
     )

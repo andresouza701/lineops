@@ -1266,3 +1266,94 @@ class BlipConfigurationViewsTest(TestCase):
         self.assertEqual(len(configurations), 1)
         self.assertEqual(configurations[0].pk, target.pk)
 
+
+class BackofficePhoneLineVisibilityTests(TestCase):
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="admin.backoffice.line@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.supervisor = SystemUser.objects.create_user(
+            email="super.line@test.com",
+            password="123456",
+            role=SystemUser.Role.SUPER,
+        )
+        self.backoffice = SystemUser.objects.create_user(
+            email="backoffice.line@test.com",
+            password="123456",
+            role=SystemUser.Role.BACKOFFICE,
+            supervisor_email="super.line@test.com",
+        )
+        self.other_supervisor = SystemUser.objects.create_user(
+            email="other.super.line@test.com",
+            password="123456",
+            role=SystemUser.Role.SUPER,
+        )
+        self.managed_employee = Employee.objects.create(
+            full_name="Usuario Vinculado",
+            corporate_email=self.supervisor.email,
+            employee_id="Ambiental",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        self.unmanaged_employee = Employee.objects.create(
+            full_name="Usuario Nao Vinculado",
+            corporate_email=self.other_supervisor.email,
+            employee_id="Natura",
+            teams="Araquari",
+            status=Employee.Status.ACTIVE,
+        )
+
+        managed_sim = SIMcard.objects.create(
+            iccid="8900000000000099001",
+            carrier="CarrierBackoffice",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        unmanaged_sim = SIMcard.objects.create(
+            iccid="8900000000000099002",
+            carrier="CarrierBackoffice",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.managed_line = PhoneLine.objects.create(
+            phone_number="+5511999999901",
+            sim_card=managed_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        self.unmanaged_line = PhoneLine.objects.create(
+            phone_number="+5511999999902",
+            sim_card=unmanaged_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        AllocationService.allocate_line(
+            employee=self.managed_employee,
+            phone_line=self.managed_line,
+            allocated_by=self.admin,
+        )
+        AllocationService.allocate_line(
+            employee=self.unmanaged_employee,
+            phone_line=self.unmanaged_line,
+            allocated_by=self.admin,
+        )
+
+    def test_backoffice_visible_to_user_only_returns_linked_supervisor_lines(self):
+        visible_lines = PhoneLine.visible_to_user(self.backoffice).values_list(
+            "pk", flat=True
+        )
+
+        self.assertIn(self.managed_line.pk, visible_lines)
+        self.assertNotIn(self.unmanaged_line.pk, visible_lines)
+
+    def test_backoffice_can_access_linked_phone_line_detail_only(self):
+        self.client.force_login(self.backoffice)
+
+        allowed_response = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.managed_line.pk])
+        )
+        denied_response = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.unmanaged_line.pk])
+        )
+
+        self.assertEqual(allowed_response.status_code, 200)
+        self.assertEqual(denied_response.status_code, 404)
+

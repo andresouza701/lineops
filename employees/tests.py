@@ -90,6 +90,12 @@ class EmployeeListViewTest(TestCase):
             role=SystemUser.Role.SUPER,
             manager_email="gerente@test.com",
         )
+        self.backoffice = SystemUser.objects.create_user(
+            email="backoffice@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.BACKOFFICE,
+            supervisor_email="super@test.com",
+        )
         self.manager = SystemUser.objects.create_user(
             email="gerente@test.com",
             password="StrongPass123",
@@ -193,6 +199,30 @@ class EmployeeListViewTest(TestCase):
             reverse("employees:employee_update", args=[self.supervisor_employee.pk])
         )
         self.assertEqual(response.status_code, 200)
+
+    def test_backoffice_can_access_employee_list_with_linked_supervisor_scope(self):
+        self.client.force_login(self.backoffice)
+        response = self.client.get(reverse("employees:employee_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Usuario do Super")
+        self.assertContains(response, "Usuario do Gerente")
+        self.assertNotContains(response, "Usuario de Outro Super")
+
+    def test_backoffice_can_access_employee_update(self):
+        self.client.force_login(self.backoffice)
+        response = self.client.get(
+            reverse("employees:employee_update", args=[self.supervisor_employee.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_backoffice_cannot_access_unrelated_employee_update(self):
+        self.client.force_login(self.backoffice)
+        response = self.client.get(
+            reverse(
+                "employees:employee_update", args=[self.unrelated_manager_employee.pk]
+            )
+        )
+        self.assertEqual(response.status_code, 404)
 
     def test_manager_can_access_employee_list(self) -> None:
         self.client.force_login(self.manager)
