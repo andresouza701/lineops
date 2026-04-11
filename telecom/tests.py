@@ -879,6 +879,36 @@ class PhoneLineViewsTest(TestCase):
             reverse("telecom:phoneline_history", args=[self.line_available.pk]),
         )
 
+    @override_settings(RECONNECT_ENABLED=True)
+    def test_overview_shows_reconnect_button_when_feature_enabled(self):
+        response = self.client.get(reverse("telecom:overview"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Reconnect")
+        self.assertContains(
+            response,
+            f'{reverse("telecom:phoneline_detail", args=[self.line_available.pk])}#reconnect-whatsapp',
+            html=False,
+        )
+
+    @override_settings(RECONNECT_ENABLED=True)
+    def test_ajax_overview_returns_reconnect_url_when_feature_enabled(self):
+        response = self.client.get(
+            reverse("telecom:overview"),
+            {"table": "main", "offset": 0, "limit": 10},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        target = next(
+            item for item in payload["data"] if item["id"] == self.line_available.pk
+        )
+        self.assertEqual(
+            target["reconnect_url"],
+            f'{reverse("telecom:phoneline_detail", args=[self.line_available.pk])}#reconnect-whatsapp',
+        )
+
     def test_ajax_overview_ignores_invalid_offset_and_limit(self):
         url = reverse("telecom:overview")
         response = self.client.get(

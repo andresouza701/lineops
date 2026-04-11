@@ -63,6 +63,10 @@ def empty_reconnect_payload():
     }
 
 
+def build_reconnect_detail_url(phone_line_id: int) -> str:
+    return f'{reverse("telecom:phoneline_detail", args=[phone_line_id])}#reconnect-whatsapp'
+
+
 def get_visible_phone_lines_queryset(user=None):
     queryset = PhoneLine.objects.filter(
         is_deleted=False,
@@ -646,6 +650,8 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
             if table_type == "main" and is_admin:
                 line_data["edit_url"] = f"/telecom/phonelines/{line.pk}/update/"
                 line_data["history_url"] = f"/telecom/phonelines/{line.pk}/history/"
+                if settings.RECONNECT_ENABLED:
+                    line_data["reconnect_url"] = build_reconnect_detail_url(line.pk)
 
             data.append(line_data)
 
@@ -701,6 +707,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         context["line_filter"] = line_filter
         context["status_filter"] = status_filter
         context["status_choices"] = PhoneLine.Status.choices
+        context["reconnect_enabled"] = settings.RECONNECT_ENABLED
 
         # Segunda tabela: Ações recentes
         search_query = self.request.GET.get("search", "").strip()
