@@ -1,12 +1,13 @@
 import csv
 
 from django import forms
+from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils.dateparse import parse_date
 from django.views.generic import (
     CreateView,
@@ -31,6 +32,35 @@ from .forms import (
     SIMcardCreateWithLineForm,
 )
 from .models import BlipConfiguration, PhoneLine, PhoneLineHistory, SIMcard
+from .services.reconnect_service import build_default_reconnect_service
+
+
+RECONNECT_ALLOWED_ROLES = [
+    SystemUser.Role.ADMIN,
+    SystemUser.Role.SUPER,
+    SystemUser.Role.BACKOFFICE,
+    SystemUser.Role.GERENTE,
+]
+
+
+def get_reconnect_service():
+    return build_default_reconnect_service()
+
+
+def empty_reconnect_payload():
+    return {
+        "session_id": None,
+        "status": None,
+        "attempt": 0,
+        "connection_mode": None,
+        "qr_image_base64": None,
+        "qr_image_mime_type": None,
+        "qr_image_data_url": None,
+        "can_show_qr_code": False,
+        "can_submit_code": False,
+        "can_cancel": False,
+        "is_terminal": False,
+    }
 
 
 def get_visible_phone_lines_queryset(user=None):
@@ -263,18 +293,105 @@ class PhoneLineListView(StandardPaginationMixin, RoleRequiredMixin, ListView):
 
 
 class PhoneLineDetailView(RoleRequiredMixin, DetailView):
-    allowed_roles = [
-        SystemUser.Role.ADMIN,
-        SystemUser.Role.SUPER,
-        SystemUser.Role.BACKOFFICE,
-        SystemUser.Role.GERENTE,
-    ]
+    allowed_roles = RECONNECT_ALLOWED_ROLES
     model = PhoneLine
     template_name = "telecom/phoneline_detail.html"
     context_object_name = "phone_line"
 
     def get_queryset(self):
         return get_visible_phone_lines_queryset(self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["reconnect_enabled"] = settings.RECONNECT_ENABLED
+        context["reconnect_poll_interval_ms"] = settings.RECONNECT_POLL_INTERVAL_MS
+        if settings.RECONNECT_ENABLED:
+            context["reconnect_status_url"] = reverse(
+                "telecom:phoneline_reconnect_status",
+                args=[self.object.pk],
+            )
+            context["reconnect_start_url"] = reverse(
+                "telecom:phoneline_reconnect_start",
+                args=[self.object.pk],
+            )
+            context["reconnect_submit_code_url"] = reverse(
+                "telecom:phoneline_reconnect_submit_code",
+                args=[self.object.pk],
+            )
+            context["reconnect_cancel_url"] = reverse(
+                "telecom:phoneline_reconnect_cancel",
+                args=[self.object.pk],
+            )
+        return context
+
+
+class PhoneLineReconnectBaseView(RoleRequiredMixin, View):
+    allowed_roles = RECONNECT_ALLOWED_ROLES
+
+    def get_phone_line(self):
+        return get_object_or_404(
+            get_visible_phone_lines_queryset(self.request.user),
+            pk=self.kwargs["pk"],
+        )
+
+    def get_service(self):
+        if not settings.RECONNECT_ENABLED:
+            raise BusinessRuleException("Reconexao via Mongo nao esta habilitada.")
+        return get_reconnect_service()
+
+
+class PhoneLineReconnectStatusView(PhoneLineReconnectBaseView):
+    def get(self, request, *args, **kwargs):
+        phone_line = self.get_phone_line()
+        session_id = request.GET.get("session_id", "").strip()
+        try:
+            payload = self.get_service().get_status_for_line(
+                phone_line,
+                session_id=session_id,
+            )
+        except BusinessRuleException as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+        return JsonResponse(payload or empty_reconnect_payload())
+
+
+class PhoneLineReconnectStartView(PhoneLineReconnectBaseView):
+    def post(self, request, *args, **kwargs):
+        phone_line = self.get_phone_line()
+        try:
+            payload = self.get_service().start_for_line(phone_line)
+        except BusinessRuleException as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+        return JsonResponse(payload)
+
+
+class PhoneLineReconnectSubmitCodeView(PhoneLineReconnectBaseView):
+    def post(self, request, *args, **kwargs):
+        phone_line = self.get_phone_line()
+        session_id = request.POST.get("session_id", "").strip()
+        pair_code = request.POST.get("pair_code", "").strip()
+        try:
+            payload = self.get_service().submit_code_for_line(
+                phone_line,
+                session_id=session_id,
+                pair_code=pair_code,
+            )
+        except BusinessRuleException as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+        return JsonResponse(payload)
+
+
+class PhoneLineReconnectCancelView(PhoneLineReconnectBaseView):
+    def post(self, request, *args, **kwargs):
+        phone_line = self.get_phone_line()
+        session_id = request.POST.get("session_id", "").strip()
+        try:
+            payload = self.get_service().cancel_for_line(
+                phone_line,
+                session_id=session_id,
+            )
+        except BusinessRuleException as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+        return JsonResponse(payload)
 
 
 class PhoneLineCreateView(RoleRequiredMixin, CreateView):
@@ -523,6 +640,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
                 "employee": employee_name,
                 "status": line.status,
                 "status_display": line.get_status_display(),
+                "detail_url": f"/telecom/phonelines/{line.pk}/",
             }
 
             if table_type == "main" and is_admin:

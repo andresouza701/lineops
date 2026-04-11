@@ -6,6 +6,10 @@ from .views import (
     BlipConfigurationUpdateView,
     ExportPhoneLinesCSVView,
     PhoneLineCreateView,
+    PhoneLineReconnectCancelView,
+    PhoneLineReconnectStartView,
+    PhoneLineReconnectStatusView,
+    PhoneLineReconnectSubmitCodeView,
     PhoneLineDeleteView,
     PhoneLineDetailView,
     PhoneLineHistoryView,
@@ -39,6 +43,26 @@ urlpatterns = [
     path("phonelines/create/", PhoneLineCreateView.as_view(), name="phoneline_create"),
     path(
         "phonelines/<int:pk>/", PhoneLineDetailView.as_view(), name="phoneline_detail"
+    ),
+    path(
+        "phonelines/<int:pk>/reconnect/status/",
+        PhoneLineReconnectStatusView.as_view(),
+        name="phoneline_reconnect_status",
+    ),
+    path(
+        "phonelines/<int:pk>/reconnect/start/",
+        PhoneLineReconnectStartView.as_view(),
+        name="phoneline_reconnect_start",
+    ),
+    path(
+        "phonelines/<int:pk>/reconnect/code/",
+        PhoneLineReconnectSubmitCodeView.as_view(),
+        name="phoneline_reconnect_submit_code",
+    ),
+    path(
+        "phonelines/<int:pk>/reconnect/cancel/",
+        PhoneLineReconnectCancelView.as_view(),
+        name="phoneline_reconnect_cancel",
     ),
     path(
         "phonelines/<int:pk>/update/",

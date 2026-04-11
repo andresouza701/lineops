@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import json
 import os
 import sys
 from datetime import timedelta
@@ -217,6 +218,27 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
 LOGIN_URL = "/accounts/login/"
 HEALTHCHECK_REQUIRE_AUTH = env.bool("HEALTHCHECK_REQUIRE_AUTH", default=False)
+RECONNECT_ENABLED = env.bool("RECONNECT_ENABLED", default=False)
+RECONNECT_MONGO_URI = env("RECONNECT_MONGO_URI", default="")
+RECONNECT_MONGO_DATABASE = env("RECONNECT_MONGO_DATABASE", default="RPA")
+RECONNECT_MONGO_COLLECTION = env(
+    "RECONNECT_MONGO_COLLECTION", default="reconnect_sessions"
+)
+RECONNECT_POLL_INTERVAL_MS = env.int("RECONNECT_POLL_INTERVAL_MS", default=1000)
+
+try:
+    RECONNECT_TARGET_SERVER_BY_ORIGEM = json.loads(
+        env("RECONNECT_TARGET_SERVER_MAP", default="{}")
+    )
+except json.JSONDecodeError as exc:
+    raise ImproperlyConfigured(
+        "RECONNECT_TARGET_SERVER_MAP deve ser um JSON valido."
+    ) from exc
+
+if RECONNECT_ENABLED and not RECONNECT_MONGO_URI:
+    raise ImproperlyConfigured(
+        "RECONNECT_MONGO_URI deve ser definido quando RECONNECT_ENABLED=True."
+    )
 
 CSRF_TRUSTED_ORIGINS = [
     "http://10.81.234.24",

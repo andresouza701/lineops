@@ -1,0 +1,259 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Any
+from uuid import uuid4
+
+from django.utils import timezone
+
+from core.exceptions.domain_exceptions import BusinessRuleException
+from telecom.exceptions import ActiveReconnectSessionConflict
+from telecom.models import PhoneLine
+
+TERMINAL_RECONNECT_STATUSES = {"CONNECTED", "FAILED", "CANCELLED"}
+WAITING_FOR_CODE_STATUS = "WAITING_FOR_CODE"
+WAITING_FOR_QR_SCAN_STATUS = "WAITING_FOR_QR_SCAN"
+ELIGIBLE_RECONNECT_ORIGENS = {
+    PhoneLine.Origem.SRVMEMU_01,
+    PhoneLine.Origem.SRVMEMU_02,
+    PhoneLine.Origem.SRVMEMU_03,
+    PhoneLine.Origem.SRVMEMU_04,
+    PhoneLine.Origem.SRVMEMU_05,
+    PhoneLine.Origem.SRVMEMU_06,
+}
+
+def _format_datetime(value: Any) -> Any:
+    if isinstance(value, datetime):
+        rendered = value.astimezone(UTC).isoformat()
+        return rendered.replace("+00:00", "Z")
+    return value
+
+
+def _render_qr_data_url(mime_type: Any, base64_payload: Any) -> str | None:
+    normalized_mime_type = str(mime_type or "").strip() or "image/png"
+    normalized_base64 = str(base64_payload or "").strip()
+    if not normalized_base64:
+        return None
+    return f"data:{normalized_mime_type};base64,{normalized_base64}"
+
+
+class ReconnectService:
+    def __init__(self, *, repository, target_server_by_origem: dict[str, str]):
+        self.repository = repository
+        self.target_server_by_origem = target_server_by_origem
+
+    def start_for_line(self, phone_line: PhoneLine) -> dict[str, Any]:
+        self._ensure_line_is_eligible_for_reconnect(phone_line)
+        normalized_phone = self._normalize_phone_number(phone_line.phone_number)
+        active_session = self.repository.find_active_session_by_phone(normalized_phone)
+        if active_session:
+            return self._serialize_session(active_session)
+        self._ensure_active_session_unique_index()
+
+        now = timezone.now()
+        document = {
+            "_id": f"manual_reconnect_{uuid4().hex}",
+            "phone_number": normalized_phone,
+            "vm_name": self._resolve_vm_name(phone_line),
+            "target_server": self._resolve_target_server(phone_line),
+            "assigned_server": None,
+            "status": "QUEUED",
+            "attempt": 0,
+            "active_lock": True,
+            "device_name": self._resolve_device_name(phone_line),
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        try:
+            created = self.repository.create_session(document)
+        except ActiveReconnectSessionConflict:
+            active_session = self.repository.find_active_session_by_phone(normalized_phone)
+            if active_session:
+                return self._serialize_session(active_session)
+            raise
+        return self._serialize_session(created)
+
+    def get_active_for_line(self, phone_line: PhoneLine) -> dict[str, Any] | None:
+        return self.get_status_for_line(phone_line)
+
+    def get_status_for_line(
+        self,
+        phone_line: PhoneLine,
+        *,
+        session_id: str = "",
+    ) -> dict[str, Any] | None:
+        normalized_phone = self._normalize_phone_number(phone_line.phone_number)
+        normalized_session_id = (session_id or "").strip()
+        if normalized_session_id:
+            session = self.repository.get_session(normalized_session_id)
+            if session:
+                if session.get("phone_number") != normalized_phone:
+                    raise BusinessRuleException(
+                        "Sessao de reconexao nao pertence a esta linha."
+                    )
+                return self._serialize_session(session)
+
+        active_session = self.repository.find_active_session_by_phone(normalized_phone)
+        if not active_session:
+            return None
+        return self._serialize_session(active_session)
+
+    def submit_code_for_line(
+        self,
+        phone_line: PhoneLine,
+        *,
+        session_id: str,
+        pair_code: str,
+    ) -> dict[str, Any]:
+        session = self._require_session_for_line(phone_line, session_id)
+        normalized_code = (pair_code or "").strip().upper()
+        if not normalized_code:
+            raise BusinessRuleException("Informe um codigo de conexao valido.")
+
+        if session.get("status") != WAITING_FOR_CODE_STATUS:
+            result = self._serialize_session(session)
+            result["code_accepted"] = False
+            return result
+
+        modified = self.repository.submit_pair_code(
+            session_id=session_id,
+            attempt=session.get("attempt", 0),
+            pair_code=normalized_code,
+            submitted_at=timezone.now(),
+        )
+        latest = self.repository.get_session(session_id) or session
+        result = self._serialize_session(latest)
+        result["code_accepted"] = bool(modified)
+        return result
+
+    def cancel_for_line(self, phone_line: PhoneLine, *, session_id: str) -> dict[str, Any]:
+        session = self._require_session_for_line(phone_line, session_id)
+        modified = self.repository.cancel_session(
+            session_id=session_id,
+            requested_at=timezone.now(),
+        )
+        latest = self.repository.get_session(session_id) or session
+        result = self._serialize_session(latest)
+        result["cancel_requested"] = bool(modified)
+        return result
+
+    def _require_session_for_line(
+        self,
+        phone_line: PhoneLine,
+        session_id: str,
+    ) -> dict[str, Any]:
+        if not session_id:
+            raise BusinessRuleException("Sessao de reconexao nao informada.")
+
+        session = self.repository.get_session(session_id)
+        if not session:
+            raise BusinessRuleException("Sessao de reconexao nao encontrada.")
+
+        normalized_phone = self._normalize_phone_number(phone_line.phone_number)
+        if session.get("phone_number") != normalized_phone:
+            raise BusinessRuleException("Sessao de reconexao nao pertence a esta linha.")
+        return session
+
+    def _ensure_line_is_eligible_for_reconnect(self, phone_line: PhoneLine) -> None:
+        if phone_line.origem not in ELIGIBLE_RECONNECT_ORIGENS:
+            raise BusinessRuleException(
+                "A linha precisa ter origem SRVMEMU para iniciar a reconexao."
+            )
+
+    def _ensure_active_session_unique_index(self) -> None:
+        if not hasattr(self.repository, "has_active_session_unique_index"):
+            return
+        if not self.repository.has_active_session_unique_index():
+            raise BusinessRuleException(
+                "A collection de reconexao precisa do indice unico parcial por "
+                "phone_number com active_lock=true antes de iniciar novas sessoes."
+            )
+
+    def _resolve_target_server(self, phone_line: PhoneLine) -> str:
+        origem = phone_line.origem or ""
+        target_server = self.target_server_by_origem.get(origem, "").strip()
+        if not target_server:
+            raise BusinessRuleException(
+                "A linha nao possui mapeamento de servidor para reconexao."
+            )
+        return target_server
+
+    def _resolve_vm_name(self, phone_line: PhoneLine) -> str:
+        return self._normalize_phone_number(phone_line.phone_number)
+
+    def _resolve_device_name(self, phone_line: PhoneLine) -> str:
+        active_allocation = (
+            phone_line.allocations.filter(is_active=True)
+            .select_related("employee")
+            .first()
+        )
+        raw_device_name = (
+            active_allocation.employee.full_name
+            if active_allocation and active_allocation.employee
+            else self._normalize_phone_number(phone_line.phone_number)
+        )
+        return raw_device_name[:50]
+
+    def _normalize_phone_number(self, phone_number: str) -> str:
+        return "".join(character for character in (phone_number or "") if character.isdigit())
+
+    def _serialize_session(self, document: dict[str, Any]) -> dict[str, Any]:
+        raw_qr_base64 = str(document.get("qr_image_base64") or "").strip()
+        payload = {
+            "session_id": document.get("_id"),
+            "status": document.get("status"),
+            "attempt": document.get("attempt", 0),
+            "assigned_server": document.get("assigned_server"),
+            "error_code": document.get("error_code"),
+            "error_message": document.get("error_message"),
+            "session_deadline_at": _format_datetime(document.get("session_deadline_at")),
+            "worker_heartbeat_at": _format_datetime(document.get("worker_heartbeat_at")),
+            "account_state": document.get("account_state"),
+            "needs_it_action": document.get("needs_it_action"),
+            "needs_it_reason": document.get("needs_it_reason"),
+            "restriction_seconds_remaining": document.get(
+                "restriction_seconds_remaining"
+            ),
+            "restriction_until": _format_datetime(document.get("restriction_until")),
+            "device_name": document.get("device_name"),
+            "connection_mode": document.get("connection_mode"),
+            "qr_image_base64": None,
+            "qr_image_mime_type": document.get("qr_image_mime_type"),
+            "qr_image_updated_at": _format_datetime(document.get("qr_image_updated_at")),
+            "last_pair_code": document.get("last_pair_code"),
+            "last_pair_code_attempt": document.get("last_pair_code_attempt"),
+            "last_pair_code_submitted_at": _format_datetime(
+                document.get("last_pair_code_submitted_at")
+            ),
+            "last_pair_code_consumed_at": _format_datetime(
+                document.get("last_pair_code_consumed_at")
+            ),
+            "phone_number": document.get("phone_number"),
+            "vm_name": document.get("vm_name"),
+            "target_server": document.get("target_server"),
+            "is_terminal": document.get("status") in TERMINAL_RECONNECT_STATUSES,
+            "can_submit_code": document.get("status") == WAITING_FOR_CODE_STATUS,
+            "can_cancel": document.get("status") not in TERMINAL_RECONNECT_STATUSES,
+        }
+        payload["qr_image_data_url"] = _render_qr_data_url(
+            payload.get("qr_image_mime_type"),
+            raw_qr_base64,
+        )
+        payload["can_show_qr_code"] = (
+            document.get("status") == WAITING_FOR_QR_SCAN_STATUS
+            and bool(payload["qr_image_data_url"])
+        )
+        return payload
+
+
+def build_default_reconnect_service() -> ReconnectService:
+    from django.conf import settings
+
+    from telecom.repositories.reconnect_sessions import MongoReconnectSessionRepository
+
+    repository = MongoReconnectSessionRepository.from_settings()
+    return ReconnectService(
+        repository=repository,
+        target_server_by_origem=settings.RECONNECT_TARGET_SERVER_BY_ORIGEM,
+    )

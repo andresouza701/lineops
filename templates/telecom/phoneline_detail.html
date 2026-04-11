@@ -47,4 +47,333 @@
         Ver histórico
     </a>
 </div>
+
+{% if reconnect_enabled %}
+<div
+    class="card shadow-sm border-0 mt-4"
+    data-reconnect-root
+    data-status-url="{{ reconnect_status_url }}"
+    data-start-url="{{ reconnect_start_url }}"
+    data-submit-code-url="{{ reconnect_submit_code_url }}"
+    data-cancel-url="{{ reconnect_cancel_url }}"
+    data-csrf-token="{{ csrf_token }}"
+    data-poll-interval-ms="{{ reconnect_poll_interval_ms }}"
+>
+    <div class="card-body">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-3">
+            <div>
+                <h3 class="h5 mb-1">Reconexao WhatsApp</h3>
+                <p class="text-muted mb-0">LineOps registra a intencao, acompanha a sessao e envia o codigo para o mesmo documento do Mongo.</p>
+            </div>
+            <span class="badge bg-secondary" data-reconnect-status-badge>Sem sessao ativa</span>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-12 col-lg-7">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Sessao</dt>
+                    <dd class="col-sm-8" data-reconnect-session-id>-</dd>
+
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8" data-reconnect-status-label>Sem sessao ativa</dd>
+
+                    <dt class="col-sm-4">Tentativa</dt>
+                    <dd class="col-sm-8" data-reconnect-attempt>-</dd>
+
+                    <dt class="col-sm-4">Servidor</dt>
+                    <dd class="col-sm-8" data-reconnect-assigned-server>-</dd>
+
+                    <dt class="col-sm-4">Prazo do codigo</dt>
+                    <dd class="col-sm-8" data-reconnect-deadline>-</dd>
+
+                    <dt class="col-sm-4">Estado da conta</dt>
+                    <dd class="col-sm-8" data-reconnect-account-state>-</dd>
+
+                    <dt class="col-sm-4">Acao de TI</dt>
+                    <dd class="col-sm-8" data-reconnect-needs-it-action>-</dd>
+
+                    <dt class="col-sm-4">Motivo TI</dt>
+                    <dd class="col-sm-8" data-reconnect-needs-it-reason>-</dd>
+                </dl>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                <div class="alert alert-danger d-none mb-2" data-reconnect-error></div>
+                <div class="alert alert-info d-none mb-0" data-reconnect-hint></div>
+                <div class="mt-3 d-none" data-reconnect-qr-card>
+                    <p class="fw-semibold mb-2">QR de conexao</p>
+                    <img
+                        src=""
+                        alt="QR de conexao do WhatsApp"
+                        class="img-fluid rounded border"
+                        data-reconnect-qr-image
+                    >
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mt-3">
+            <button type="button" class="btn btn-primary" data-reconnect-start>Iniciar reconexao</button>
+            <button type="button" class="btn btn-outline-danger d-none" data-reconnect-cancel>Cancelar sessao</button>
+        </div>
+
+        <form class="row g-2 mt-3 d-none" data-reconnect-code-form>
+            <div class="col-12 col-md-6">
+                <label class="form-label mb-1" for="pair-code-input">Codigo de conexao</label>
+                <input id="pair-code-input" type="text" class="form-control" maxlength="32" placeholder="Ex.: XBGWR7V6" data-reconnect-code-input>
+            </div>
+            <div class="col-12 col-md-auto align-self-end">
+                <button type="submit" class="btn btn-success">Enviar codigo</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const root = document.querySelector('[data-reconnect-root]');
+    if (!root) return;
+
+    const statusBadge = root.querySelector('[data-reconnect-status-badge]');
+    const sessionIdEl = root.querySelector('[data-reconnect-session-id]');
+    const statusLabelEl = root.querySelector('[data-reconnect-status-label]');
+    const attemptEl = root.querySelector('[data-reconnect-attempt]');
+    const assignedServerEl = root.querySelector('[data-reconnect-assigned-server]');
+    const deadlineEl = root.querySelector('[data-reconnect-deadline]');
+    const accountStateEl = root.querySelector('[data-reconnect-account-state]');
+    const needsItActionEl = root.querySelector('[data-reconnect-needs-it-action]');
+    const needsItReasonEl = root.querySelector('[data-reconnect-needs-it-reason]');
+    const errorEl = root.querySelector('[data-reconnect-error]');
+    const hintEl = root.querySelector('[data-reconnect-hint]');
+    const qrCardEl = root.querySelector('[data-reconnect-qr-card]');
+    const qrImageEl = root.querySelector('[data-reconnect-qr-image]');
+    const startButton = root.querySelector('[data-reconnect-start]');
+    const cancelButton = root.querySelector('[data-reconnect-cancel]');
+    const codeForm = root.querySelector('[data-reconnect-code-form]');
+    const codeInput = root.querySelector('[data-reconnect-code-input]');
+    const csrfToken = root.dataset.csrfToken;
+    const pollIntervalMs = Number(root.dataset.pollIntervalMs || 1000);
+    let pollHandle = null;
+    let currentSessionId = null;
+
+    function setBadge(status) {
+        statusBadge.className = 'badge';
+        if (!status) {
+            statusBadge.classList.add('bg-secondary');
+            statusBadge.textContent = 'Sem sessao ativa';
+            return;
+        }
+        const mapping = {
+            QUEUED: 'bg-secondary',
+            EMULATOR_STARTING: 'bg-info',
+            WAITING_FOR_CODE: 'bg-warning text-dark',
+            WAITING_FOR_QR_SCAN: 'bg-warning text-dark',
+            SUBMITTING_CODE: 'bg-primary',
+            CONNECTED: 'bg-success',
+            FAILED: 'bg-danger',
+            CANCELLED: 'bg-dark'
+        };
+        statusBadge.className = `badge ${mapping[status] || 'bg-secondary'}`;
+        statusBadge.textContent = status;
+    }
+
+    function formatBooleanLabel(value) {
+        if (value === true) return 'Sim';
+        if (value === false) return 'Nao';
+        return '-';
+    }
+
+    function renderEmpty() {
+        currentSessionId = null;
+        setBadge(null);
+        sessionIdEl.textContent = '-';
+        statusLabelEl.textContent = 'Sem sessao ativa';
+        attemptEl.textContent = '-';
+        assignedServerEl.textContent = '-';
+        deadlineEl.textContent = '-';
+        accountStateEl.textContent = '-';
+        needsItActionEl.textContent = '-';
+        needsItReasonEl.textContent = '-';
+        errorEl.classList.add('d-none');
+        errorEl.textContent = '';
+        hintEl.classList.add('d-none');
+        hintEl.textContent = '';
+        qrCardEl.classList.add('d-none');
+        qrImageEl.removeAttribute('src');
+        startButton.classList.remove('d-none');
+        cancelButton.classList.add('d-none');
+        codeForm.classList.add('d-none');
+    }
+
+    function renderPayload(payload) {
+        if (!payload || !payload.session_id) {
+            renderEmpty();
+            return;
+        }
+
+        currentSessionId = payload.session_id;
+        setBadge(payload.status);
+        sessionIdEl.textContent = payload.session_id || '-';
+        statusLabelEl.textContent = payload.status || '-';
+        attemptEl.textContent = payload.attempt ?? '-';
+        assignedServerEl.textContent = payload.assigned_server || '-';
+        deadlineEl.textContent = payload.session_deadline_at || '-';
+        accountStateEl.textContent = payload.account_state || '-';
+        needsItActionEl.textContent = formatBooleanLabel(payload.needs_it_action);
+        needsItReasonEl.textContent = payload.needs_it_reason || '-';
+
+        if (payload.error_message || payload.error_code) {
+            errorEl.classList.remove('d-none');
+            errorEl.textContent = payload.error_message || payload.error_code;
+        } else {
+            errorEl.classList.add('d-none');
+            errorEl.textContent = '';
+        }
+
+        if (payload.status === 'WAITING_FOR_CODE') {
+            hintEl.classList.remove('d-none');
+            hintEl.textContent = 'WhatsApp pronto para receber o codigo. Informe o codigo de conexao abaixo.';
+        } else if (payload.status === 'WAITING_FOR_QR_SCAN') {
+            hintEl.classList.remove('d-none');
+            hintEl.textContent = 'WhatsApp gerou um QR de conexao. Escaneie o QR com o aparelho principal e acompanhe a evolucao desta sessao.';
+        } else if (payload.status === 'SUBMITTING_CODE') {
+            hintEl.classList.remove('d-none');
+            hintEl.textContent = 'O codigo ja foi lido pelo RPA e esta sendo processado no emulador.';
+        } else if (payload.status === 'CONNECTED') {
+            hintEl.classList.remove('d-none');
+            hintEl.textContent = 'Reconexao finalizada com sucesso.';
+        } else if (payload.status === 'FAILED') {
+            hintEl.classList.remove('d-none');
+            if (payload.needs_it_action) {
+                hintEl.textContent = 'A sessao terminou com falha e requer acao do time de TI.';
+            } else if (payload.account_state) {
+                hintEl.textContent = `A sessao terminou com falha no estado ${payload.account_state}. Confira os detalhes acima.`;
+            } else {
+                hintEl.textContent = 'A sessao terminou com falha. Confira os detalhes acima.';
+            }
+        } else if (payload.status === 'CANCELLED') {
+            hintEl.classList.remove('d-none');
+            hintEl.textContent = 'A sessao foi cancelada.';
+        } else {
+            hintEl.classList.add('d-none');
+            hintEl.textContent = '';
+        }
+
+        if (payload.can_show_qr_code && payload.qr_image_data_url) {
+            qrCardEl.classList.remove('d-none');
+            qrImageEl.src = payload.qr_image_data_url;
+        } else {
+            qrCardEl.classList.add('d-none');
+            qrImageEl.removeAttribute('src');
+        }
+
+        if (payload.is_terminal) {
+            startButton.classList.remove('d-none');
+        } else {
+            startButton.classList.add('d-none');
+        }
+        cancelButton.classList.toggle('d-none', !payload.can_cancel);
+        codeForm.classList.toggle('d-none', !payload.can_submit_code);
+    }
+
+    async function requestJson(url, options = {}) {
+        const response = await fetch(url, options);
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload.error || 'Erro ao processar reconexao.');
+        }
+        return payload;
+    }
+
+    async function refreshStatus() {
+        try {
+            const statusUrl = new URL(root.dataset.statusUrl, window.location.origin);
+            if (currentSessionId) {
+                statusUrl.searchParams.set('session_id', currentSessionId);
+            }
+            const payload = await requestJson(statusUrl.toString());
+            renderPayload(payload);
+            schedulePolling(payload);
+        } catch (error) {
+            errorEl.classList.remove('d-none');
+            errorEl.textContent = error.message;
+        }
+    }
+
+    function schedulePolling(payload) {
+        if (pollHandle) {
+            window.clearTimeout(pollHandle);
+            pollHandle = null;
+        }
+        if (payload && payload.session_id && !payload.is_terminal) {
+            pollHandle = window.setTimeout(refreshStatus, pollIntervalMs);
+        }
+    }
+
+    startButton.addEventListener('click', async function () {
+        try {
+            const payload = await requestJson(root.dataset.startUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            });
+            renderPayload(payload);
+            schedulePolling(payload);
+        } catch (error) {
+            errorEl.classList.remove('d-none');
+            errorEl.textContent = error.message;
+        }
+    });
+
+    cancelButton.addEventListener('click', async function () {
+        if (!currentSessionId) return;
+        const body = new URLSearchParams({ session_id: currentSessionId });
+        try {
+            const payload = await requestJson(root.dataset.cancelUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                },
+                body
+            });
+            renderPayload(payload);
+            schedulePolling(payload);
+        } catch (error) {
+            errorEl.classList.remove('d-none');
+            errorEl.textContent = error.message;
+        }
+    });
+
+    codeForm.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        if (!currentSessionId) return;
+        const body = new URLSearchParams({
+            session_id: currentSessionId,
+            pair_code: codeInput.value
+        });
+        try {
+            const payload = await requestJson(root.dataset.submitCodeUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                },
+                body
+            });
+            codeInput.value = '';
+            renderPayload(payload);
+            schedulePolling(payload);
+        } catch (error) {
+            errorEl.classList.remove('d-none');
+            errorEl.textContent = error.message;
+        }
+    });
+
+    renderEmpty();
+    refreshStatus();
+});
+</script>
+{% endif %}
 {% endblock %}

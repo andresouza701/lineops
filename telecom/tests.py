@@ -1,11 +1,13 @@
 from django.contrib import admin
 from django.test import RequestFactory
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from unittest.mock import patch
 
 from allocations.forms import TelephonyAssignmentForm
 from core.current_user import clear_current_user, set_current_user
+from core.exceptions.domain_exceptions import BusinessRuleException
 from core.services.allocation_service import AllocationService
 from employees.models import Employee
 from telecom.forms import BlipConfigurationForm
@@ -1357,3 +1359,589 @@ class BackofficePhoneLineVisibilityTests(TestCase):
         self.assertEqual(allowed_response.status_code, 200)
         self.assertEqual(denied_response.status_code, 404)
 
+
+class FakeReconnectRepository:
+    def __init__(self):
+        self.created_documents = []
+        self.submit_calls = []
+        self.cancel_calls = []
+        self.active_by_phone = {}
+        self.by_id = {}
+        self.submit_modified = True
+        self.cancel_modified = True
+        self.active_session_unique_index_present = True
+
+    def find_active_session_by_phone(self, phone_number):
+        return self.active_by_phone.get(phone_number)
+
+    def create_session(self, document):
+        created = dict(document)
+        self.created_documents.append(created)
+        self.by_id[created["_id"]] = created
+        self.active_by_phone[created["phone_number"]] = created
+        return created
+
+    def has_active_session_unique_index(self):
+        return self.active_session_unique_index_present
+
+    def get_session(self, session_id):
+        return self.by_id.get(session_id)
+
+    def submit_pair_code(self, *, session_id, attempt, pair_code, submitted_at):
+        self.submit_calls.append(
+            {
+                "session_id": session_id,
+                "attempt": attempt,
+                "pair_code": pair_code,
+                "submitted_at": submitted_at,
+            }
+        )
+        return self.submit_modified
+
+    def cancel_session(self, *, session_id, requested_at):
+        self.cancel_calls.append(
+            {
+                "session_id": session_id,
+                "requested_at": requested_at,
+            }
+        )
+        return self.cancel_modified
+
+
+class ReconnectServiceTests(TestCase):
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="reconnect.admin@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.employee = Employee.objects.create(
+            full_name="Rafael Gomes",
+            corporate_email="rafael.gomes@test.com",
+            employee_id="EMP-RECON-1",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        self.sim = SIMcard.objects.create(
+            iccid="8900000000000008801",
+            carrier="CarrierReconnect",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.line = PhoneLine.objects.create(
+            phone_number="+5511999991000",
+            sim_card=self.sim,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_01,
+            canal=PhoneLine.Canal.WEB,
+        )
+        AllocationService.allocate_line(
+            employee=self.employee,
+            phone_line=self.line,
+            allocated_by=self.admin,
+        )
+
+    def test_start_for_line_builds_initial_document_from_line_context(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        session = service.start_for_line(self.line)
+
+        self.assertEqual(session["status"], "QUEUED")
+        self.assertEqual(len(repository.created_documents), 1)
+        created = repository.created_documents[0]
+        self.assertTrue(created["_id"].startswith("manual_reconnect_"))
+        self.assertEqual(created["phone_number"], "5511999991000")
+        self.assertEqual(created["vm_name"], "5511999991000")
+        self.assertEqual(created["target_server"], "rafael")
+        self.assertEqual(created["assigned_server"], None)
+        self.assertEqual(created["attempt"], 0)
+        self.assertTrue(created["active_lock"])
+        self.assertEqual(created["device_name"], "Rafael Gomes")
+
+    def test_start_for_line_reuses_existing_active_session(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.active_by_phone["5511999991000"] = {
+            "_id": "sess-001",
+            "phone_number": "5511999991000",
+            "status": "WAITING_FOR_CODE",
+            "attempt": 2,
+            "device_name": "Rafael Gomes",
+        }
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        session = service.start_for_line(self.line)
+
+        self.assertEqual(session["session_id"], "sess-001")
+        self.assertEqual(session["status"], "WAITING_FOR_CODE")
+        self.assertEqual(repository.created_documents, [])
+
+    def test_submit_code_uppercases_and_uses_current_attempt(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.by_id["sess-002"] = {
+            "_id": "sess-002",
+            "phone_number": "5511999991000",
+            "status": "WAITING_FOR_CODE",
+            "attempt": 2,
+            "device_name": "Rafael Gomes",
+        }
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        result = service.submit_code_for_line(
+            self.line,
+            session_id="sess-002",
+            pair_code="ab12cd34",
+        )
+
+        self.assertTrue(result["code_accepted"])
+        self.assertEqual(repository.submit_calls[0]["pair_code"], "AB12CD34")
+        self.assertEqual(repository.submit_calls[0]["attempt"], 2)
+
+    def test_submit_code_returns_current_session_when_repository_does_not_modify(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.submit_modified = False
+        repository.by_id["sess-003"] = {
+            "_id": "sess-003",
+            "phone_number": "5511999991000",
+            "status": "WAITING_FOR_CODE",
+            "attempt": 3,
+            "error_code": "pair_code_rejected",
+            "error_message": "Codigo expirado.",
+            "device_name": "Rafael Gomes",
+        }
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        result = service.submit_code_for_line(
+            self.line,
+            session_id="sess-003",
+            pair_code="xyzz9999",
+        )
+
+        self.assertFalse(result["code_accepted"])
+        self.assertEqual(result["status"], "WAITING_FOR_CODE")
+        self.assertEqual(result["attempt"], 3)
+        self.assertEqual(result["error_code"], "pair_code_rejected")
+
+    def test_start_for_line_blocks_origin_without_target_server_mapping(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        self.line.origem = PhoneLine.Origem.APARELHO
+        self.line.save(update_fields=["origem"])
+        repository = FakeReconnectRepository()
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        with self.assertRaises(BusinessRuleException):
+            service.start_for_line(self.line)
+
+    def test_start_for_line_blocks_ineligible_origin_even_when_mapped(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        self.line.origem = PhoneLine.Origem.APARELHO
+        self.line.save(update_fields=["origem"])
+        repository = FakeReconnectRepository()
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={
+                PhoneLine.Origem.SRVMEMU_01: "rafael",
+                PhoneLine.Origem.APARELHO: "srv-aparelho",
+            },
+        )
+
+        with self.assertRaises(BusinessRuleException):
+            service.start_for_line(self.line)
+
+        self.assertEqual(repository.created_documents, [])
+
+    def test_start_for_line_blocks_when_active_session_unique_index_is_missing(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.active_session_unique_index_present = False
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        with self.assertRaises(BusinessRuleException):
+            service.start_for_line(self.line)
+
+        self.assertEqual(repository.created_documents, [])
+
+    def test_get_status_for_line_returns_terminal_session_by_id_when_not_active(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.by_id["sess-terminal-001"] = {
+            "_id": "sess-terminal-001",
+            "phone_number": "5511999991000",
+            "status": "CONNECTED",
+            "attempt": 1,
+            "connection_mode": "QR_CODE",
+            "device_name": "Rafael Gomes",
+        }
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        payload = service.get_status_for_line(
+            self.line,
+            session_id="sess-terminal-001",
+        )
+
+        self.assertEqual(payload["session_id"], "sess-terminal-001")
+        self.assertEqual(payload["status"], "CONNECTED")
+        self.assertTrue(payload["is_terminal"])
+
+    def test_serialize_session_exposes_qr_payload_when_waiting_for_qr_scan(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        payload = service._serialize_session(
+            {
+                "_id": "sess-qr-001",
+                "phone_number": "5511999991000",
+                "status": "WAITING_FOR_QR_SCAN",
+                "attempt": 0,
+                "connection_mode": "QR_CODE",
+                "qr_image_base64": "abc123",
+                "qr_image_mime_type": "image/png",
+            }
+        )
+
+        self.assertEqual(payload["status"], "WAITING_FOR_QR_SCAN")
+        self.assertEqual(payload["connection_mode"], "QR_CODE")
+        self.assertIsNone(payload["qr_image_base64"])
+        self.assertEqual(payload["qr_image_mime_type"], "image/png")
+        self.assertEqual(
+            payload["qr_image_data_url"],
+            "data:image/png;base64,abc123",
+        )
+        self.assertTrue(payload["can_show_qr_code"])
+        self.assertFalse(payload["can_submit_code"])
+
+
+class FakeReconnectWebService:
+    def __init__(self):
+        self.start_calls = []
+        self.status_calls = []
+        self.code_calls = []
+        self.cancel_calls = []
+
+    def start_for_line(self, line):
+        self.start_calls.append(line.pk)
+        return {
+            "session_id": "sess-web-1",
+            "status": "QUEUED",
+            "attempt": 0,
+            "can_submit_code": False,
+            "can_cancel": True,
+            "is_terminal": False,
+        }
+
+    def get_status_for_line(self, line, *, session_id=""):
+        self.status_calls.append((line.pk, session_id))
+        return {
+            "session_id": "sess-web-1",
+            "status": "WAITING_FOR_CODE",
+            "attempt": 1,
+            "can_submit_code": True,
+            "can_cancel": True,
+            "is_terminal": False,
+        }
+
+    def submit_code_for_line(self, line, *, session_id, pair_code):
+        self.code_calls.append((line.pk, session_id, pair_code))
+        return {
+            "session_id": session_id,
+            "status": "SUBMITTING_CODE",
+            "attempt": 1,
+            "code_accepted": True,
+            "can_submit_code": False,
+            "can_cancel": True,
+            "is_terminal": False,
+        }
+
+    def cancel_for_line(self, line, *, session_id):
+        self.cancel_calls.append((line.pk, session_id))
+        return {
+            "session_id": session_id,
+            "status": "CANCELLED",
+            "attempt": 1,
+            "can_submit_code": False,
+            "can_cancel": False,
+            "is_terminal": True,
+        }
+
+
+@override_settings(RECONNECT_ENABLED=True)
+class PhoneLineReconnectViewsTests(TestCase):
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="admin.reconnect.view@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.supervisor = SystemUser.objects.create_user(
+            email="super.reconnect.view@test.com",
+            password="123456",
+            role=SystemUser.Role.SUPER,
+        )
+        self.backoffice = SystemUser.objects.create_user(
+            email="backoffice.reconnect.view@test.com",
+            password="123456",
+            role=SystemUser.Role.BACKOFFICE,
+            supervisor_email="super.reconnect.view@test.com",
+        )
+        self.other_supervisor = SystemUser.objects.create_user(
+            email="other.super.reconnect.view@test.com",
+            password="123456",
+            role=SystemUser.Role.SUPER,
+        )
+        self.managed_employee = Employee.objects.create(
+            full_name="Usuario Gerenciado",
+            corporate_email=self.supervisor.email,
+            employee_id="EMP-RECON-V1",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        self.unmanaged_employee = Employee.objects.create(
+            full_name="Usuario Nao Gerenciado",
+            corporate_email=self.other_supervisor.email,
+            employee_id="EMP-RECON-V2",
+            teams="Araquari",
+            status=Employee.Status.ACTIVE,
+        )
+        self.managed_sim = SIMcard.objects.create(
+            iccid="8900000000000088001",
+            carrier="CarrierView",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.unmanaged_sim = SIMcard.objects.create(
+            iccid="8900000000000088002",
+            carrier="CarrierView",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.managed_line = PhoneLine.objects.create(
+            phone_number="+5511999992001",
+            sim_card=self.managed_sim,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_01,
+        )
+        self.unmanaged_line = PhoneLine.objects.create(
+            phone_number="+5511999992002",
+            sim_card=self.unmanaged_sim,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_01,
+        )
+        AllocationService.allocate_line(
+            employee=self.managed_employee,
+            phone_line=self.managed_line,
+            allocated_by=self.admin,
+        )
+        AllocationService.allocate_line(
+            employee=self.unmanaged_employee,
+            phone_line=self.unmanaged_line,
+            allocated_by=self.admin,
+        )
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_detail_view_shows_reconnect_section_when_feature_enabled(
+        self, mocked_service
+    ):
+        mocked_service.return_value = FakeReconnectWebService()
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.managed_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Reconexao WhatsApp")
+        self.assertContains(response, 'data-reconnect-root')
+        self.assertContains(response, "Estado da conta")
+        self.assertContains(response, "Acao de TI")
+        self.assertContains(response, "Motivo TI")
+        self.assertContains(response, "QR de conexao")
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_start_endpoint_returns_session_payload(self, mocked_service):
+        service = FakeReconnectWebService()
+        mocked_service.return_value = service
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("telecom:phoneline_reconnect_start", args=[self.managed_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], "QUEUED")
+        self.assertEqual(payload["session_id"], "sess-web-1")
+        self.assertEqual(service.start_calls, [self.managed_line.pk])
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_status_endpoint_returns_active_session_payload(self, mocked_service):
+        service = FakeReconnectWebService()
+        mocked_service.return_value = service
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_reconnect_status", args=[self.managed_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], "WAITING_FOR_CODE")
+        self.assertTrue(payload["can_submit_code"])
+        self.assertEqual(service.status_calls, [(self.managed_line.pk, "")])
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_status_endpoint_reuses_session_id_to_fetch_terminal_payload(
+        self, mocked_service
+    ):
+        class FakeTerminalReconnectWebService(FakeReconnectWebService):
+            def get_status_for_line(self, line, *, session_id=""):
+                self.status_calls.append((line.pk, session_id))
+                return {
+                    "session_id": session_id,
+                    "status": "CONNECTED",
+                    "attempt": 1,
+                    "connection_mode": "QR_CODE",
+                    "can_show_qr_code": False,
+                    "can_submit_code": False,
+                    "can_cancel": False,
+                    "is_terminal": True,
+                }
+
+        service = FakeTerminalReconnectWebService()
+        mocked_service.return_value = service
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_reconnect_status", args=[self.managed_line.pk]),
+            data={"session_id": "sess-web-terminal-1"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["session_id"], "sess-web-terminal-1")
+        self.assertEqual(payload["status"], "CONNECTED")
+        self.assertTrue(payload["is_terminal"])
+        self.assertEqual(
+            service.status_calls,
+            [(self.managed_line.pk, "sess-web-terminal-1")],
+        )
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_status_endpoint_returns_qr_payload_when_waiting_for_qr_scan(
+        self, mocked_service
+    ):
+        class FakeQrReconnectWebService(FakeReconnectWebService):
+            def get_status_for_line(self, line, *, session_id=""):
+                self.status_calls.append((line.pk, session_id))
+                return {
+                    "session_id": "sess-web-qr-1",
+                    "status": "WAITING_FOR_QR_SCAN",
+                    "attempt": 0,
+                    "connection_mode": "QR_CODE",
+                    "qr_image_base64": None,
+                    "qr_image_mime_type": "image/png",
+                    "qr_image_data_url": "data:image/png;base64,abc123",
+                    "can_show_qr_code": True,
+                    "can_submit_code": False,
+                    "can_cancel": True,
+                    "is_terminal": False,
+                }
+
+        service = FakeQrReconnectWebService()
+        mocked_service.return_value = service
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_reconnect_status", args=[self.managed_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], "WAITING_FOR_QR_SCAN")
+        self.assertEqual(payload["connection_mode"], "QR_CODE")
+        self.assertTrue(payload["can_show_qr_code"])
+        self.assertEqual(payload["qr_image_data_url"], "data:image/png;base64,abc123")
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_submit_code_endpoint_passes_code_to_service(self, mocked_service):
+        service = FakeReconnectWebService()
+        mocked_service.return_value = service
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("telecom:phoneline_reconnect_submit_code", args=[self.managed_line.pk]),
+            data={"session_id": "sess-web-1", "pair_code": "ab12cd34"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], "SUBMITTING_CODE")
+        self.assertTrue(payload["code_accepted"])
+        self.assertEqual(
+            service.code_calls,
+            [(self.managed_line.pk, "sess-web-1", "ab12cd34")],
+        )
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_cancel_endpoint_passes_session_to_service(self, mocked_service):
+        service = FakeReconnectWebService()
+        mocked_service.return_value = service
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("telecom:phoneline_reconnect_cancel", args=[self.managed_line.pk]),
+            data={"session_id": "sess-web-1"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], "CANCELLED")
+        self.assertEqual(
+            service.cancel_calls,
+            [(self.managed_line.pk, "sess-web-1")],
+        )
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_backoffice_cannot_operate_on_unmanaged_line(self, mocked_service):
+        mocked_service.return_value = FakeReconnectWebService()
+        self.client.force_login(self.backoffice)
+
+        response = self.client.post(
+            reverse("telecom:phoneline_reconnect_start", args=[self.unmanaged_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 404)
