@@ -71,6 +71,19 @@ class EmployeeModelTest(TestCase):
         self.assertEqual(employee.teams, Employee.UnitChoices.JOINVILLE)
         self.assertEqual(employee.pa, "PA 01")
 
+    def test_save_preserves_uppercase_business_tokens_in_full_name(self) -> None:
+        employee = Employee.objects.create(
+            full_name="  deleted   b2c   user  ",
+            corporate_email="deleted.b2c@lineops.tech",
+            employee_id="EMP-1003",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+
+        employee.refresh_from_db()
+
+        self.assertEqual(employee.full_name, "Deleted B2C User")
+
 
 class EmployeeListViewTest(TestCase):
     def setUp(self) -> None:

@@ -80,7 +80,7 @@ def _normalize_name_token(token: str) -> str:
     apostrophe_parts = token.split("'")
     normalized_parts = []
     for part in apostrophe_parts:
-        hyphen_parts = [piece.capitalize() for piece in part.split("-") if piece]
+        hyphen_parts = [_normalize_label_piece(piece) for piece in part.split("-") if piece]
         normalized_parts.append("-".join(hyphen_parts))
     return "'".join(normalized_parts)
 
