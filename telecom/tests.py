@@ -1435,6 +1435,31 @@ class FakeReconnectRepository:
                 "requested_at": requested_at,
             }
         )
+        session = self.by_id.get(session_id)
+        if not session:
+            return False
+
+        if session.get("status") == "QUEUED" and session.get("active_lock", True):
+            session.update(
+                {
+                    "status": "CANCELLED",
+                    "cancel_requested_at": requested_at,
+                    "finished_at": requested_at,
+                    "active_lock": False,
+                    "worker_heartbeat_at": requested_at,
+                    "updated_at": requested_at,
+                    "error_code": "cancel_requested",
+                    "error_message": "Sessao cancelada pela plataforma",
+                }
+            )
+            phone_number = session.get("phone_number")
+            if phone_number and self.active_by_phone.get(phone_number) is session:
+                self.active_by_phone.pop(phone_number, None)
+            return True
+
+        if self.cancel_modified:
+            session["cancel_requested_at"] = requested_at
+            session["updated_at"] = requested_at
         return self.cancel_modified
 
 
@@ -1676,6 +1701,61 @@ class ReconnectServiceTests(TestCase):
         )
         self.assertTrue(payload["can_show_qr_code"])
         self.assertFalse(payload["can_submit_code"])
+
+    def test_cancel_for_line_immediately_finishes_queued_session(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.by_id["sess-queue-001"] = {
+            "_id": "sess-queue-001",
+            "phone_number": "5511999991000",
+            "status": "QUEUED",
+            "attempt": 0,
+            "active_lock": True,
+        }
+        repository.active_by_phone["5511999991000"] = repository.by_id["sess-queue-001"]
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        result = service.cancel_for_line(
+            self.line,
+            session_id="sess-queue-001",
+        )
+
+        self.assertTrue(result["cancel_requested"])
+        self.assertEqual(result["status"], "CANCELLED")
+        self.assertTrue(result["is_terminal"])
+        self.assertFalse(result["can_cancel"])
+
+    def test_serialize_session_marks_cancel_requested_before_terminal_state(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        payload = service._serialize_session(
+            {
+                "_id": "sess-cancel-001",
+                "phone_number": "5511999991000",
+                "status": "WAITING_FOR_QR_SCAN",
+                "attempt": 1,
+                "cancel_requested_at": timezone.now(),
+                "qr_image_base64": "abc123",
+                "qr_image_mime_type": "image/png",
+            }
+        )
+
+        self.assertEqual(payload["status"], "CANCEL_REQUESTED")
+        self.assertFalse(payload["is_terminal"])
+        self.assertFalse(payload["can_cancel"])
+        self.assertFalse(payload["can_submit_code"])
+        self.assertFalse(payload["can_show_qr_code"])
+        self.assertTrue(payload["cancel_requested"])
 
 
 class FakeReconnectWebService:

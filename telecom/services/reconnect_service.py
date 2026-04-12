@@ -13,6 +13,7 @@ from telecom.models import PhoneLine
 TERMINAL_RECONNECT_STATUSES = {"CONNECTED", "FAILED", "CANCELLED"}
 WAITING_FOR_CODE_STATUS = "WAITING_FOR_CODE"
 WAITING_FOR_QR_SCAN_STATUS = "WAITING_FOR_QR_SCAN"
+CANCEL_REQUESTED_STATUS = "CANCEL_REQUESTED"
 ELIGIBLE_RECONNECT_ORIGENS = {
     PhoneLine.Origem.SRVMEMU_01,
     PhoneLine.Origem.SRVMEMU_02,
@@ -200,15 +201,23 @@ class ReconnectService:
 
     def _serialize_session(self, document: dict[str, Any]) -> dict[str, Any]:
         raw_qr_base64 = str(document.get("qr_image_base64") or "").strip()
+        raw_status = document.get("status")
+        cancel_requested = bool(document.get("cancel_requested_at")) and (
+            raw_status not in TERMINAL_RECONNECT_STATUSES
+        )
+        serialized_status = CANCEL_REQUESTED_STATUS if cancel_requested else raw_status
         payload = {
             "session_id": document.get("_id"),
-            "status": document.get("status"),
+            "status": serialized_status,
+            "raw_status": raw_status,
             "attempt": document.get("attempt", 0),
             "assigned_server": document.get("assigned_server"),
             "error_code": document.get("error_code"),
             "error_message": document.get("error_message"),
             "session_deadline_at": _format_datetime(document.get("session_deadline_at")),
             "worker_heartbeat_at": _format_datetime(document.get("worker_heartbeat_at")),
+            "cancel_requested": cancel_requested,
+            "cancel_requested_at": _format_datetime(document.get("cancel_requested_at")),
             "account_state": document.get("account_state"),
             "needs_it_action": document.get("needs_it_action"),
             "needs_it_reason": document.get("needs_it_reason"),
@@ -232,16 +241,17 @@ class ReconnectService:
             "phone_number": document.get("phone_number"),
             "vm_name": document.get("vm_name"),
             "target_server": document.get("target_server"),
-            "is_terminal": document.get("status") in TERMINAL_RECONNECT_STATUSES,
-            "can_submit_code": document.get("status") == WAITING_FOR_CODE_STATUS,
-            "can_cancel": document.get("status") not in TERMINAL_RECONNECT_STATUSES,
+            "is_terminal": raw_status in TERMINAL_RECONNECT_STATUSES,
+            "can_submit_code": raw_status == WAITING_FOR_CODE_STATUS and not cancel_requested,
+            "can_cancel": raw_status not in TERMINAL_RECONNECT_STATUSES and not cancel_requested,
         }
         payload["qr_image_data_url"] = _render_qr_data_url(
             payload.get("qr_image_mime_type"),
             raw_qr_base64,
         )
         payload["can_show_qr_code"] = (
-            document.get("status") == WAITING_FOR_QR_SCAN_STATUS
+            raw_status == WAITING_FOR_QR_SCAN_STATUS
+            and not cancel_requested
             and bool(payload["qr_image_data_url"])
         )
         return payload

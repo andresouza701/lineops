@@ -166,6 +166,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         const mapping = {
             QUEUED: 'bg-secondary',
+            CANCEL_REQUESTED: 'bg-dark',
             EMULATOR_STARTING: 'bg-info',
             WAITING_FOR_CODE: 'bg-warning text-dark',
             WAITING_FOR_QR_SCAN: 'bg-warning text-dark',
@@ -252,6 +253,9 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 hintEl.textContent = 'A sessao terminou com falha. Confira os detalhes acima.';
             }
+        } else if (payload.status === 'CANCEL_REQUESTED') {
+            hintEl.classList.remove('d-none');
+            hintEl.textContent = 'Cancelamento solicitado. O RPA encerrara a sessao em andamento e atualizara o status final em seguida.';
         } else if (payload.status === 'CANCELLED') {
             hintEl.classList.remove('d-none');
             hintEl.textContent = 'A sessao foi cancelada.';

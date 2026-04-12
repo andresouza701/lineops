@@ -87,6 +87,28 @@ class MongoReconnectSessionRepository:
         return result.modified_count > 0
 
     def cancel_session(self, *, session_id: str, requested_at):
+        queued_result = self.collection.update_one(
+            {
+                "_id": session_id,
+                "status": "QUEUED",
+                "active_lock": True,
+            },
+            {
+                "$set": {
+                    "status": "CANCELLED",
+                    "cancel_requested_at": requested_at,
+                    "finished_at": requested_at,
+                    "active_lock": False,
+                    "worker_heartbeat_at": requested_at,
+                    "updated_at": requested_at,
+                    "error_code": "cancel_requested",
+                    "error_message": "Sessao cancelada pela plataforma",
+                }
+            },
+        )
+        if queued_result.modified_count > 0:
+            return True
+
         result = self.collection.update_one(
             {
                 "_id": session_id,
