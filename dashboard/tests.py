@@ -1246,8 +1246,9 @@ class DashboardDailyIndicatorsTests(TestCase):
         board_response = self.client.get(reverse("daily_user_action_board"))
 
         self.assertEqual(board_response.status_code, 200)
-        self.assertContains(board_response, "Em verificacao por")
+        self.assertContains(board_response, "Resp. Técnico")
         self.assertContains(board_response, self.user.email)
+        self.assertNotContains(board_response, dataset["supervisor"].email)
 
     def test_daily_user_action_board_hides_admin_verifier_without_admin_history(self):
         dataset = self._create_supervisor_scoped_pending_action_dataset()
@@ -1256,7 +1257,7 @@ class DashboardDailyIndicatorsTests(TestCase):
         response = self.client.get(reverse("daily_user_action_board"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "Em verificacao por")
+        self.assertContains(response, "Resp. Técnico")
         self.assertNotContains(response, self.user.email)
 
     def test_daily_user_action_board_updates_employee_line_status_without_allocation(

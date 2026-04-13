@@ -96,7 +96,7 @@
                 <tr>
                     <th>PA</th>
                     <th>Usuário</th>
-                    <th>Supervisor</th>
+                    <th>Resp. Técnico</th>
                     <th>Unidade</th>
                     <th>Carteira</th>
                     <th>Linha ativa</th>
@@ -110,7 +110,13 @@
                         <tr>
                             <td>{{ row.employee.pa|default:"-" }}</td>
                             <td>{{ row.employee.full_name }}</td>
-                            <td>{{ row.employee.corporate_email }}</td>
+                            <td>
+                                {% if row.line_status_changed_by_admin %}
+                                    <span class="metric-mono">{{ row.line_status_changed_by_admin }}</span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
                             <td>{{ row.employee.teams }}</td>
                             <td>{{ row.employee.employee_id }}</td>
                             <td>
@@ -150,12 +156,6 @@
                                                 {{ row.employee.get_line_status_display }}
                                             {% endif %}
                                         </span>
-                                        {% if row.line_status_changed_by_admin %}
-                                            <div class="small text-muted mt-1">
-                                                Em verificacao por
-                                                <span class="metric-mono">{{ row.line_status_changed_by_admin }}</span>
-                                            </div>
-                                        {% endif %}
                                     {% endif %}
                                 </td>
                                 <td style="min-width: 650px;">
