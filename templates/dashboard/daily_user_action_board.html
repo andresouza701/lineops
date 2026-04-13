@@ -74,6 +74,18 @@
                 value="{{ line_filter }}"
             >
         </div>
+        {% if is_admin_role %}
+            <div class="col-12 col-md-5 col-lg-4 col-xl-3">
+                <label class="form-label mb-1">Resp. Técnico</label>
+                <input
+                    type="text"
+                    name="technical"
+                    class="form-control"
+                    placeholder="Ex.: admin@empresa.com"
+                    value="{{ technical_filter }}"
+                >
+            </div>
+        {% endif %}
         <div class="col-12 col-md-auto d-flex justify-content-md-end gap-2">
             <button type="submit" class="btn btn-primary">Filtrar</button>
             {% if supervisor_filter %}

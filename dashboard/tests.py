@@ -1306,6 +1306,96 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertContains(board_response, self.user.email)
         self.assertNotContains(board_response, dataset["supervisor"].email)
 
+    def test_daily_user_action_board_allows_admin_filter_by_technical_responsible(self):
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee_b2b,
+            allocation=self.line_allocation,
+            supervisor=self.user,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            note="Primeira triagem",
+            created_by=self.user,
+            updated_by=self.user,
+            is_resolved=False,
+        )
+        self.client.post(
+            reverse("daily_user_action_board"),
+            data={
+                "day": timezone.localdate().isoformat(),
+                "employee_id": self.employee_b2b.id,
+                "allocation_id": str(self.line_allocation.id),
+                "line_status": LineAllocation.LineStatus.RESTRICTED,
+                "action_type": DailyUserAction.ActionType.NEW_NUMBER,
+                "note": "Primeira triagem",
+            },
+        )
+
+        other_admin = SystemUser.objects.create_user(
+            email="technical.admin@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.ADMIN,
+        )
+        employee = Employee.objects.create(
+            full_name="Second Pending User",
+            corporate_email="second.pending@test.com",
+            employee_id="Carteira Y",
+            teams="Curitiba",
+            status=Employee.Status.ACTIVE,
+        )
+        sim_card = SIMcard.objects.create(
+            iccid="8900000000000001777",
+            carrier="CarrierTwo",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        phone_line = PhoneLine.objects.create(
+            phone_number="+5511999991777",
+            sim_card=sim_card,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        allocation = LineAllocation.objects.create(
+            employee=employee,
+            phone_line=phone_line,
+            allocated_by=other_admin,
+            is_active=True,
+        )
+        DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=employee,
+            allocation=allocation,
+            supervisor=other_admin,
+            action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+            note="Segunda triagem",
+            created_by=other_admin,
+            updated_by=other_admin,
+            is_resolved=False,
+        )
+
+        self.client.force_login(other_admin)
+        self.client.post(
+            reverse("daily_user_action_board"),
+            data={
+                "day": timezone.localdate().isoformat(),
+                "employee_id": employee.id,
+                "allocation_id": str(allocation.id),
+                "line_status": LineAllocation.LineStatus.RESTRICTED,
+                "action_type": DailyUserAction.ActionType.RECONNECT_WHATSAPP,
+                "note": "Segunda triagem",
+            },
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("daily_user_action_board"),
+            {"technical": self.user.email},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="technical"', html=False)
+        self.assertContains(response, self.employee_b2b.full_name)
+        self.assertNotContains(response, employee.full_name)
+        self.assertEqual(len(response.context["rows"]), 1)
+        self.assertEqual(response.context["rows"][0]["employee"].id, self.employee_b2b.id)
+
     def test_daily_user_action_board_hides_admin_verifier_without_admin_history(self):
         dataset = self._create_supervisor_scoped_pending_action_dataset()
 
@@ -1315,6 +1405,32 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Resp. Técnico")
         self.assertNotContains(response, self.user.email)
+
+    def test_daily_user_action_board_hides_technical_filter_for_non_admin_roles(self):
+        dataset = self._create_supervisor_scoped_pending_action_dataset()
+
+        self.client.post(
+            reverse("daily_user_action_board"),
+            data={
+                "day": timezone.localdate().isoformat(),
+                "employee_id": dataset["employee"].id,
+                "allocation_id": str(dataset["allocation"].id),
+                "line_status": LineAllocation.LineStatus.RESTRICTED,
+                "action_type": dataset["action"].action_type,
+                "note": dataset["action"].note,
+            },
+        )
+
+        self.client.force_login(dataset["supervisor"])
+        response = self.client.get(
+            reverse("daily_user_action_board"),
+            {"technical": self.user.email},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'name="technical"', html=False)
+        self.assertContains(response, dataset["employee"].full_name)
+        self.assertEqual(len(response.context["rows"]), 1)
 
     def test_daily_user_action_board_updates_employee_line_status_without_allocation(
         self,

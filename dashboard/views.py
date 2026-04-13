@@ -425,13 +425,20 @@ def build_daily_user_action_rows(
     return apply_action_board_visibility_rules(rows, user)
 
 
-def filter_daily_user_action_rows(rows, user_filter="", line_filter=""):
+def filter_daily_user_action_rows(
+    rows,
+    user_filter="",
+    line_filter="",
+    technical_filter="",
+):
     normalized_user_filter = user_filter.lower()
     normalized_line_filter = line_filter.lower()
+    normalized_technical_filter = technical_filter.lower()
 
     filtered_rows = []
     for row in rows:
         employee_name = (row["employee"].full_name or "").lower()
+        technical_responsible = (row.get("line_status_changed_by_admin") or "").lower()
         line_number = row.get("line_number")
         if line_number is None:
             allocation = row.get("allocation")
@@ -445,6 +452,11 @@ def filter_daily_user_action_rows(rows, user_filter="", line_filter=""):
         if normalized_line_filter and normalized_line_filter not in (
             line_number or ""
         ).lower():
+            continue
+        if (
+            normalized_technical_filter
+            and normalized_technical_filter not in technical_responsible
+        ):
             continue
 
         filtered_rows.append(row)
@@ -1449,6 +1461,10 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
     supervisor_filter = (request.GET.get("supervisor") or "").strip()
     user_filter = (request.GET.get("user") or "").strip()
     line_filter = (request.GET.get("line") or "").strip()
+    is_admin_role = request.user.role == SystemUser.Role.ADMIN
+    technical_filter = (
+        (request.GET.get("technical") or "").strip() if is_admin_role else ""
+    )
     employees_qs = get_supervised_employees_queryset(request.user, supervisor_filter)
 
     if request.method == "POST":
@@ -1656,6 +1672,8 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
             query["user"] = user_filter
         if line_filter:
             query["line"] = line_filter
+        if technical_filter:
+            query["technical"] = technical_filter
         redirect_url = reverse("daily_user_action_board")
         if query:
             redirect_url = f"{redirect_url}?{urlencode(query)}"
@@ -1671,6 +1689,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         rows,
         user_filter=user_filter,
         line_filter=line_filter,
+        technical_filter=technical_filter,
     )
     action_counts = count_visible_pending_actions(rows)
 
@@ -1681,8 +1700,9 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         "supervisor_filter": supervisor_filter,
         "user_filter": user_filter,
         "line_filter": line_filter,
+        "technical_filter": technical_filter,
         "is_supervisor_role": request.user.is_supervisor_role,
-        "is_admin_role": (request.user.role or "").lower() == "admin",
+        "is_admin_role": is_admin_role,
     }
     return render(request, "dashboard/daily_user_action_board.html", context)
 
