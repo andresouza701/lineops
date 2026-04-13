@@ -89,7 +89,11 @@ def uses_scoped_dashboard_metrics(user):
     return bool(
         user
         and getattr(user, "role", None)
-        in {SystemUser.Role.SUPER, SystemUser.Role.GERENTE}
+        in {
+            SystemUser.Role.SUPER,
+            SystemUser.Role.BACKOFFICE,
+            SystemUser.Role.GERENTE,
+        }
     )
 
 

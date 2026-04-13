@@ -1892,6 +1892,63 @@ class BackofficeScopeTests(TestCase):
             status=Employee.Status.ACTIVE,
         )
 
+    def _create_scoped_dashboard_dataset(self):
+        unmanaged_without_line = Employee.objects.create(
+            full_name="Usuario Sem Escopo",
+            corporate_email=self.other_supervisor.email,
+            employee_id="Natura",
+            teams="Araquari",
+            status=Employee.Status.ACTIVE,
+        )
+        available_sim = SIMcard.objects.create(
+            iccid="8900000000000004010",
+            carrier="CarrierBackoffice",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        available_line = PhoneLine.objects.create(
+            phone_number="+5511999994010",
+            sim_card=available_sim,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        managed_sim = SIMcard.objects.create(
+            iccid="8900000000000004011",
+            carrier="CarrierBackoffice",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        managed_line = PhoneLine.objects.create(
+            phone_number="+5511999994011",
+            sim_card=managed_sim,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        LineAllocation.objects.create(
+            employee=self.managed_employee,
+            phone_line=managed_line,
+            allocated_by=self.supervisor,
+            is_active=True,
+        )
+        unmanaged_sim = SIMcard.objects.create(
+            iccid="8900000000000004012",
+            carrier="CarrierBackoffice",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        unmanaged_line = PhoneLine.objects.create(
+            phone_number="+5511999994012",
+            sim_card=unmanaged_sim,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        LineAllocation.objects.create(
+            employee=self.unmanaged_employee,
+            phone_line=unmanaged_line,
+            allocated_by=self.other_supervisor,
+            is_active=True,
+        )
+        return {
+            "available_line": available_line,
+            "managed_line": managed_line,
+            "unmanaged_line": unmanaged_line,
+            "unmanaged_without_line": unmanaged_without_line,
+        }
+
     def test_backoffice_action_board_only_shows_employees_from_linked_supervisor(self):
         self.client.force_login(self.backoffice)
 
@@ -1933,3 +1990,16 @@ class BackofficeScopeTests(TestCase):
             if item["portfolio"] == "Ambiental"
         )
         self.assertEqual(row["new_number_count"], 1)
+
+    def test_backoffice_dashboard_main_scopes_employee_metrics_like_supervisor(self):
+        self._create_scoped_dashboard_dataset()
+        self.client.force_login(self.backoffice)
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        latest = response.context["indicadores_diarios"][-1]
+        self.assertEqual(latest["pessoas_logadas"], 1)
+        self.assertEqual(latest["total_descoberto_dia"], 0)
+        self.assertEqual(latest["numeros_entregues"], 1)
+        self.assertEqual(latest["numeros_disponiveis"], 1)

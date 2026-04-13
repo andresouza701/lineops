@@ -1022,6 +1022,33 @@ class PhoneLineViewsTest(TestCase):
         self.assertEqual(self.line_available.sim_card_id, self.sim_available.pk)
         self.assertEqual(self.line_available.status, PhoneLine.Status.SUSPENDED)
 
+    def test_update_view_keeps_canal_editable_for_admin(self):
+        self.line_available.canal = PhoneLine.Canal.WEB
+        self.line_available.save(update_fields=["canal"])
+
+        response = self.client.get(
+            reverse("telecom:phoneline_update", args=[self.line_available.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["form"].fields["canal"].disabled)
+
+    def test_update_view_persists_canal_changes_for_admin(self):
+        url = reverse("telecom:phoneline_update", args=[self.line_available.pk])
+        payload = {
+            "phone_number": self.line_available.phone_number,
+            "sim_card": self.line_available.sim_card.pk,
+            "status": PhoneLine.Status.AVAILABLE,
+            "canal": PhoneLine.Canal.MYLOOP,
+        }
+
+        response = self.client.post(url, data=payload)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse("telecom:overview"))
+        self.line_available.refresh_from_db()
+        self.assertEqual(self.line_available.canal, PhoneLine.Canal.MYLOOP)
+
     def test_update_view_shows_business_error_when_employee_has_four_lines(self):
         employee = Employee.objects.create(
             full_name="TESTE1",

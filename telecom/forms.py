@@ -139,7 +139,6 @@ class PhoneLineUpdateForm(PhoneLineForm):
             self.fields["phone_number"].disabled = True
             self.fields["sim_card"].disabled = True
             self.fields["origem"].disabled = True
-            self.fields["canal"].disabled = True
 
         employee_field = cast(forms.ModelChoiceField, self.fields["employee"])
         employee_field.queryset = Employee.objects.filter(
