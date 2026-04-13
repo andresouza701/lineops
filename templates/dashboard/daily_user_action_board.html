@@ -150,6 +150,12 @@
                                                 {{ row.employee.get_line_status_display }}
                                             {% endif %}
                                         </span>
+                                        {% if row.line_status_changed_by_admin %}
+                                            <div class="small text-muted mt-1">
+                                                Em verificacao por
+                                                <span class="metric-mono">{{ row.line_status_changed_by_admin }}</span>
+                                            </div>
+                                        {% endif %}
                                     {% endif %}
                                 </td>
                                 <td style="min-width: 650px;">

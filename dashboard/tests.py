@@ -59,6 +59,53 @@ class DashboardDailyIndicatorsTests(TestCase):
             is_active=True,
         )
 
+    def _create_supervisor_scoped_pending_action_dataset(self):
+        supervisor = SystemUser.objects.create_user(
+            email="supervisor.pending@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.SUPER,
+        )
+        employee = Employee.objects.create(
+            full_name="Scoped Pending User",
+            corporate_email=supervisor.email,
+            employee_id="Carteira X",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        sim_card = SIMcard.objects.create(
+            iccid="8900000000000001999",
+            carrier="CarrierScoped",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        phone_line = PhoneLine.objects.create(
+            phone_number="+5511999991999",
+            sim_card=sim_card,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        allocation = LineAllocation.objects.create(
+            employee=employee,
+            phone_line=phone_line,
+            allocated_by=self.user,
+            is_active=True,
+        )
+        action = DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=employee,
+            allocation=allocation,
+            supervisor=supervisor,
+            action_type=DailyUserAction.ActionType.NEW_NUMBER,
+            note="Aguardando triagem",
+            created_by=supervisor,
+            updated_by=supervisor,
+            is_resolved=False,
+        )
+        return {
+            "supervisor": supervisor,
+            "employee": employee,
+            "allocation": allocation,
+            "action": action,
+        }
+
     def test_dashboard_shows_required_daily_columns(self):
         response = self.client.get(reverse("dashboard"))
         self.assertEqual(response.status_code, 200)
@@ -1177,6 +1224,40 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertIsNotNone(history)
         self.assertIn("Status da linha", history.old_value or "")
         self.assertIn("Status da linha", history.new_value or "")
+
+    def test_daily_user_action_board_shows_admin_verifier_for_non_admin_roles(self):
+        dataset = self._create_supervisor_scoped_pending_action_dataset()
+
+        response = self.client.post(
+            reverse("daily_user_action_board"),
+            data={
+                "day": timezone.localdate().isoformat(),
+                "employee_id": dataset["employee"].id,
+                "allocation_id": str(dataset["allocation"].id),
+                "line_status": LineAllocation.LineStatus.RESTRICTED,
+                "action_type": dataset["action"].action_type,
+                "note": dataset["action"].note,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        self.client.force_login(dataset["supervisor"])
+        board_response = self.client.get(reverse("daily_user_action_board"))
+
+        self.assertEqual(board_response.status_code, 200)
+        self.assertContains(board_response, "Em verificacao por")
+        self.assertContains(board_response, self.user.email)
+
+    def test_daily_user_action_board_hides_admin_verifier_without_admin_history(self):
+        dataset = self._create_supervisor_scoped_pending_action_dataset()
+
+        self.client.force_login(dataset["supervisor"])
+        response = self.client.get(reverse("daily_user_action_board"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Em verificacao por")
+        self.assertNotContains(response, self.user.email)
 
     def test_daily_user_action_board_updates_employee_line_status_without_allocation(
         self,
