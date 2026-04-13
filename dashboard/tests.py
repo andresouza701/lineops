@@ -1260,6 +1260,27 @@ class DashboardDailyIndicatorsTests(TestCase):
             timezone.localtime(history.changed_at).strftime("%d/%m/%Y %H:%M"),
         )
 
+    def test_daily_user_action_board_renders_requested_column_order(self):
+        response = self.client.get(reverse("daily_user_action_board"))
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+
+        expected_headers = [
+            "PA",
+            "Usuário",
+            "Carteira",
+            "Resp. Técnico",
+            "Últ.alt.status",
+            "Linha ativa",
+            "Status da linha",
+            "Ação",
+            "Observação",
+        ]
+
+        header_positions = [content.index(f"<th>{header}</th>") for header in expected_headers]
+        self.assertEqual(header_positions, sorted(header_positions))
+
     def test_daily_user_action_board_shows_admin_verifier_for_non_admin_roles(self):
         dataset = self._create_supervisor_scoped_pending_action_dataset()
 

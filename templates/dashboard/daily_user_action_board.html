@@ -96,12 +96,13 @@
                 <tr>
                     <th>PA</th>
                     <th>Usuário</th>
-                    <th>Resp. Técnico</th>
-                    <th>Últ. alt. status</th>
                     <th>Carteira</th>
+                    <th>Resp. Técnico</th>
+                    <th>Últ.alt.status</th>
                     <th>Linha ativa</th>
                     <th>Status da linha</th>
-                    <th>Atualizar ação</th>
+                    <th>Ação</th>
+                    <th>Observação</th>
                 </tr>
             </thead>
             <tbody>
@@ -110,6 +111,7 @@
                         <tr>
                             <td>{{ row.employee.pa|default:"-" }}</td>
                             <td>{{ row.employee.full_name }}</td>
+                            <td>{{ row.employee.employee_id }}</td>
                             <td>
                                 {% if row.line_status_changed_by_admin %}
                                     <span class="metric-mono">{{ row.line_status_changed_by_admin }}</span>
@@ -124,7 +126,6 @@
                                     -
                                 {% endif %}
                             </td>
-                            <td>{{ row.employee.employee_id }}</td>
                             <td>
                                 {% if row.has_line %}
                                     <button
@@ -164,9 +165,9 @@
                                         </span>
                                     {% endif %}
                                 </td>
-                                <td style="min-width: 650px;">
+                                <td style="min-width: 220px;">{{ row.form.action_type }}</td>
+                                <td style="min-width: 430px;">
                                     <div class="d-flex gap-2 align-items-center">
-                                        <div style="min-width: 220px;">{{ row.form.action_type }}</div>
                                         <div class="flex-fill">{{ row.form.note }}</div>
                                         <button type="submit" class="btn btn-sm btn-primary">Enviar</button>
                                     </div>
@@ -176,7 +177,7 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="8" class="text-center text-muted py-4">
+                        <td colspan="9" class="text-center text-muted py-4">
                             Nenhum usuário encontrado para este filtro.
                         </td>
                     </tr>
