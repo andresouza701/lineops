@@ -224,7 +224,7 @@ class DashboardDailySnapshot(models.Model):
         verbose_name = "Snapshot Diário do Dashboard"
         verbose_name_plural = "Snapshots Diários do Dashboard"
         indexes = [
-            models.Index(fields=["-date"]),
+            models.Index(fields=["-date"], name="dashboard_d_date_1cf480_idx"),
         ]
 
     def __str__(self):
