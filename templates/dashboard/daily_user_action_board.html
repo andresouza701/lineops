@@ -97,7 +97,7 @@
                     <th>PA</th>
                     <th>Usuário</th>
                     <th>Resp. Técnico</th>
-                    <th>Unidade</th>
+                    <th>Últ. alt. status</th>
                     <th>Carteira</th>
                     <th>Linha ativa</th>
                     <th>Status da linha</th>
@@ -117,7 +117,13 @@
                                     -
                                 {% endif %}
                             </td>
-                            <td>{{ row.employee.teams }}</td>
+                            <td>
+                                {% if row.line_status_changed_at %}
+                                    <span class="metric-mono">{{ row.line_status_changed_at|date:"d/m/Y H:i" }}</span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
                             <td>{{ row.employee.employee_id }}</td>
                             <td>
                                 {% if row.has_line %}

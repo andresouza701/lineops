@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from allocations.models import LineAllocation
 from core.services.daily_indicator_service import DailyIndicatorService
-from employees.models import Employee
+from employees.models import Employee, EmployeeHistory
 from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
 
@@ -1225,6 +1225,41 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertIn("Status da linha", history.old_value or "")
         self.assertIn("Status da linha", history.new_value or "")
 
+    def test_daily_user_action_board_shows_last_line_status_change_timestamp(self):
+        self.client.post(
+            reverse("daily_user_action_board"),
+            data={
+                "day": timezone.localdate().isoformat(),
+                "employee_id": self.employee_b2b.id,
+                "allocation_id": str(self.line_allocation.id),
+                "line_status": LineAllocation.LineStatus.RESTRICTED,
+                "action_type": "",
+                "note": "",
+            },
+        )
+
+        history = PhoneLineHistory.objects.filter(
+            phone_line=self.line_allocated,
+            action=PhoneLineHistory.ActionType.STATUS_CHANGED,
+        ).first()
+        self.assertIsNotNone(history)
+
+        response = self.client.get(reverse("daily_user_action_board"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Últ. alt. status")
+        matching_row = next(
+            row
+            for row in response.context["rows"]
+            if row["employee"].id == self.employee_b2b.id
+            and row["allocation"].id == self.line_allocation.id
+        )
+        self.assertEqual(matching_row["line_status_changed_at"], history.changed_at)
+        self.assertContains(
+            response,
+            timezone.localtime(history.changed_at).strftime("%d/%m/%Y %H:%M"),
+        )
+
     def test_daily_user_action_board_shows_admin_verifier_for_non_admin_roles(self):
         dataset = self._create_supervisor_scoped_pending_action_dataset()
 
@@ -1279,6 +1314,26 @@ class DashboardDailyIndicatorsTests(TestCase):
 
         self.employee_b2c.refresh_from_db()
         self.assertEqual(self.employee_b2c.line_status, Employee.LineStatus.RESTRICTED)
+
+        history = EmployeeHistory.objects.filter(
+            employee=self.employee_b2c,
+            action=EmployeeHistory.ActionType.STATUS_CHANGED,
+        ).first()
+        self.assertIsNotNone(history)
+
+        board_response = self.client.get(reverse("daily_user_action_board"))
+
+        self.assertEqual(board_response.status_code, 200)
+        matching_row = next(
+            row
+            for row in board_response.context["rows"]
+            if row["employee"].id == self.employee_b2c.id
+        )
+        self.assertEqual(matching_row["line_status_changed_at"], history.changed_at)
+        self.assertContains(
+            board_response,
+            timezone.localtime(history.changed_at).strftime("%d/%m/%Y %H:%M"),
+        )
 
     def test_daily_user_action_board_logs_daily_action_change_in_history(self):
         response = self.client.post(

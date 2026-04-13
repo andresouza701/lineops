@@ -22,7 +22,7 @@ from core.constants import (
 )
 from core.mixins import AuthenticadView, RoleRequiredMixin, roles_required
 from core.services.daily_indicator_service import DailyIndicatorService
-from employees.models import Employee
+from employees.models import Employee, EmployeeHistory
 from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
 
@@ -246,6 +246,44 @@ def get_latest_admin_status_history_by_phone_line(phone_line_ids):
     return latest_by_phone_line
 
 
+def get_latest_status_history_by_phone_line(phone_line_ids):
+    if not phone_line_ids:
+        return {}
+
+    histories = (
+        PhoneLineHistory.objects.filter(
+            phone_line_id__in=phone_line_ids,
+            action=PhoneLineHistory.ActionType.STATUS_CHANGED,
+        )
+        .order_by("phone_line_id", "-changed_at", "-id")
+    )
+
+    latest_by_phone_line = {}
+    for history in histories:
+        if history.phone_line_id not in latest_by_phone_line:
+            latest_by_phone_line[history.phone_line_id] = history
+    return latest_by_phone_line
+
+
+def get_latest_status_history_by_employee(employee_ids):
+    if not employee_ids:
+        return {}
+
+    histories = (
+        EmployeeHistory.objects.filter(
+            employee_id__in=employee_ids,
+            action=EmployeeHistory.ActionType.STATUS_CHANGED,
+        )
+        .order_by("employee_id", "-changed_at", "-id")
+    )
+
+    latest_by_employee = {}
+    for history in histories:
+        if history.employee_id not in latest_by_employee:
+            latest_by_employee[history.employee_id] = history
+    return latest_by_employee
+
+
 def get_user_display_name(user):
     if not user:
         return ""
@@ -294,6 +332,12 @@ def build_daily_user_action_rows(
     latest_admin_status_history_by_phone_line = get_latest_admin_status_history_by_phone_line(
         visible_phone_line_ids
     )
+    latest_status_history_by_phone_line = get_latest_status_history_by_phone_line(
+        visible_phone_line_ids
+    )
+    latest_status_history_by_employee = get_latest_status_history_by_employee(
+        employee_ids
+    )
     form_day = form_day or timezone.localdate()
 
     rows = []
@@ -325,6 +369,13 @@ def build_daily_user_action_rows(
                             None,
                         )
                     ),
+                    "line_status_changed_at": getattr(
+                        latest_status_history_by_phone_line.get(
+                            allocation.phone_line_id
+                        ),
+                        "changed_at",
+                        None,
+                    ),
                 }
                 if include_forms:
                     row["line_number"] = allocation.phone_line.phone_number
@@ -351,6 +402,11 @@ def build_daily_user_action_rows(
             "has_line": False,
             "action": action,
             "line_status_changed_by_admin": "",
+            "line_status_changed_at": getattr(
+                latest_status_history_by_employee.get(employee.id),
+                "changed_at",
+                None,
+            ),
         }
         if include_forms:
             row["line_number"] = None
@@ -1442,8 +1498,20 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                                     ),
                                 )
                         elif employee.line_status != line_status:
+                            old_line_status = employee.get_line_status_display()
                             employee.line_status = line_status
                             employee.save(update_fields=["line_status"])
+                            EmployeeHistory.objects.create(
+                                employee=employee,
+                                action=EmployeeHistory.ActionType.STATUS_CHANGED,
+                                old_value=old_line_status,
+                                new_value=employee.get_line_status_display(),
+                                changed_by=request.user,
+                                description=(
+                                    "Status da linha do usuario alterado em "
+                                    "Ações do Dia"
+                                ),
+                            )
                             messages.success(
                                 request,
                                 (
