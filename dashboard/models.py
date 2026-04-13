@@ -105,6 +105,7 @@ class DailyUserAction(models.Model):
     class ActionType(models.TextChoices):
         NEW_NUMBER = "new_number", "Número novo"
         RECONNECT_WHATSAPP = "reconnect_whatsapp", "Reconectar WhatsApp"
+        PENDING = "pending", "PendÃªncia"
 
     day = models.DateField(db_index=True, default=timezone.now, verbose_name="Dia")
     employee = models.ForeignKey(

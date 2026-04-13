@@ -167,6 +167,18 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertIn("Camila", supervisor_html_b2c)
         self.assertIn("Natura", portfolio_html_b2c)
 
+    def test_daily_indicator_form_sorts_supervisor_and_portfolio_choices(self):
+        form_b2c = DailyIndicatorForm(initial={"segment": "B2C"})
+
+        self.assertEqual(
+            [label for _value, label in form_b2c.fields["supervisor"].choices],
+            ["Selecione", "Alex", "Camila", "Leonardo"],
+        )
+        self.assertEqual(
+            [label for _value, label in form_b2c.fields["portfolio"].choices],
+            ["Selecione", "Ambiental", "Natura", "Opera", "Valid", "ViaSat"],
+        )
+
     def test_live_daily_indicators_endpoint_returns_payload(self):
         response = self.client.get(reverse("daily_indicators_live"), {"period": 7})
         self.assertEqual(response.status_code, 200)
@@ -923,6 +935,32 @@ class DashboardDailyIndicatorsTests(TestCase):
         )
         self.assertEqual(action.action_type, DailyUserAction.ActionType.NEW_NUMBER)
         self.assertEqual(action.note, "Sem linha para iniciar contato")
+
+    def test_daily_user_action_board_shows_pending_as_action_option(self):
+        response = self.client.get(reverse("daily_user_action_board"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Pendência")
+        self.assertContains(response, 'value="pending"', html=False)
+
+    def test_daily_user_action_board_allows_marking_pending_action(self):
+        response = self.client.post(
+            reverse("daily_user_action_board"),
+            data={
+                "day": timezone.localdate().isoformat(),
+                "employee_id": self.employee_b2c.id,
+                "action_type": DailyUserAction.ActionType.PENDING,
+                "note": "Aguardando validacao",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+
+        action = DailyUserAction.objects.get(
+            day=timezone.localdate(),
+            employee=self.employee_b2c,
+        )
+        self.assertEqual(action.action_type, DailyUserAction.ActionType.PENDING)
+        self.assertEqual(action.note, "Aguardando validacao")
 
     def test_daily_user_action_board_removes_action_when_blank(self):
         DailyUserAction.objects.create(

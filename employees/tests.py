@@ -431,6 +431,45 @@ class EmployeeHistoryAuditTest(TestCase):
 
 
 class EmployeeFormPortfolioChoicesTest(TestCase):
+    def test_form_sorts_supervisor_manager_and_portfolio_choices_alphabetically(
+        self,
+    ) -> None:
+        SystemUser.objects.create_user(
+            email="zeta.super@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.SUPER,
+        )
+        SystemUser.objects.create_user(
+            email="alpha.super@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.SUPER,
+        )
+        SystemUser.objects.create_user(
+            email="zeta.manager@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.GERENTE,
+        )
+        SystemUser.objects.create_user(
+            email="alpha.manager@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.GERENTE,
+        )
+
+        form = EmployeeForm()
+
+        self.assertEqual(
+            [value for value, _label in form.fields["corporate_email"].widget.choices],
+            ["alpha.super@test.com", "zeta.super@test.com"],
+        )
+        self.assertEqual(
+            [value for value, _label in form.fields["manager_email"].widget.choices],
+            ["alpha.manager@test.com", "zeta.manager@test.com"],
+        )
+        self.assertEqual(
+            [label for _value, label in form.fields["employee_id"].choices],
+            sorted([label for _value, label in form.fields["employee_id"].choices]),
+        )
+
     def test_form_shows_manager_choices_when_manager_users_exist(self) -> None:
         SystemUser.objects.create_user(
             email="gerente.form@test.com",

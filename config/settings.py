@@ -30,7 +30,7 @@ if ENV_FILE.exists():
     environ.Env.read_env(ENV_FILE)
 
 APP_ENV = env("APP_ENV", default="dev")
-APP_VERSION = env("APP_VERSION", default="1.2.1")
+APP_VERSION = env("APP_VERSION", default="1.3.0")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/

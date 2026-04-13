@@ -14,6 +14,10 @@ from .models import DailyIndicator
 MAX_PEOPLE_LOGGED_IN = 5000
 
 
+def sort_choice_pairs(choices):
+    return sorted(choices, key=lambda item: str(item[1]).casefold())
+
+
 class DailyIndicatorForm(forms.ModelForm):
     segment = forms.ChoiceField(
         choices=DailyIndicator.SEGMENT_CHOICES,
@@ -65,11 +69,11 @@ class DailyIndicatorForm(forms.ModelForm):
         segment = self.data.get("segment") or self.initial.get("segment", "B2B")
 
         if segment == "B2B":
-            supervisors = B2B_SUPERVISORS
-            portfolios = B2B_PORTFOLIOS
+            supervisors = sort_choice_pairs(B2B_SUPERVISORS)
+            portfolios = sort_choice_pairs(B2B_PORTFOLIOS)
         else:
-            supervisors = B2C_SUPERVISORS
-            portfolios = B2C_PORTFOLIOS
+            supervisors = sort_choice_pairs(B2C_SUPERVISORS)
+            portfolios = sort_choice_pairs(B2C_PORTFOLIOS)
 
         self.fields["supervisor"].choices = [("", "Selecione")] + supervisors
         self.fields["portfolio"].choices = [("", "Selecione")] + portfolios
@@ -179,6 +183,7 @@ class DailyUserActionForm(forms.Form):
         ("", "Sem ação"),
         ("new_number", "Número novo"),
         ("reconnect_whatsapp", "Reconectar WhatsApp"),
+        ("pending", "PendÃªncia"),
     ]
 
     day = forms.DateField(widget=forms.HiddenInput())
