@@ -15,7 +15,11 @@ from core.validation import (
 from employees.models import Employee
 from telecom.models import PhoneLine
 
-ALL_PORTFOLIOS = list(dict.fromkeys(B2B_PORTFOLIOS + B2C_PORTFOLIOS))
+def sort_choice_pairs(choices):
+    return sorted(list(dict.fromkeys(choices)), key=lambda item: str(item[1]).casefold())
+
+
+ALL_PORTFOLIOS = sort_choice_pairs(B2B_PORTFOLIOS + B2C_PORTFOLIOS)
 OPTIONAL_SELECT_CHOICES = [("", "---------")]
 
 
@@ -103,12 +107,12 @@ class CombinedRegistrationForm(forms.Form):
 
         super_users = SystemUser.objects.filter(role__in=SystemUser.SUPERVISOR_ROLES)
         manager_users = SystemUser.objects.filter(role=SystemUser.Role.GERENTE)
-        self.supervisor_emails = [
-            normalize_email_address(user.email) for user in super_users
-        ]
-        self.manager_emails = [
-            normalize_email_address(user.email) for user in manager_users
-        ]
+        self.supervisor_emails = sorted(
+            [normalize_email_address(user.email) for user in super_users]
+        )
+        self.manager_emails = sorted(
+            [normalize_email_address(user.email) for user in manager_users]
+        )
         supervisor_choices = [(email, email) for email in self.supervisor_emails]
         manager_choices = [(email, email) for email in self.manager_emails]
         if supervisor_choices:

@@ -1,7 +1,7 @@
 import re
 from datetime import datetime, time, timedelta
 
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -11,12 +11,14 @@ from employees.models import Employee, EmployeeHistory
 from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
 
+from . import views as dashboard_views
 from .forms import DailyIndicatorForm
 from .models import DashboardDailySnapshot, DailyUserAction
 
 
 class DashboardDailyIndicatorsTests(TestCase):
     def setUp(self):
+        self.factory = RequestFactory()
         self.user = SystemUser.objects.create_user(
             email="dashboard@test.com",
             password="StrongPass123",
@@ -177,6 +179,35 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertEqual(
             [label for _value, label in form_b2c.fields["portfolio"].choices],
             ["Selecione", "Ambiental", "Natura", "Opera", "Valid", "ViaSat"],
+        )
+
+    def test_daily_indicator_entry_view_context_sorts_json_choice_lists(self):
+        request = self.factory.get(reverse("daily_indicator_entry"))
+        request.user = self.user
+
+        response = dashboard_views.daily_indicator_entry(request)
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertLess(
+            content.index('"Alex"'),
+            content.index('"Camila"'),
+        )
+        self.assertLess(
+            content.index('"Camila"'),
+            content.index('"Leonardo"'),
+        )
+        self.assertLess(
+            content.index('"Ambiental"'),
+            content.index('"Natura"'),
+        )
+        self.assertLess(
+            content.index('"Opera"'),
+            content.index('"Valid"'),
+        )
+        self.assertLess(
+            content.index('"Valid"'),
+            content.index('"ViaSat"'),
         )
 
     def test_live_daily_indicators_endpoint_returns_payload(self):

@@ -32,6 +32,7 @@ from .forms import (
     DailyIndicatorFilterForm,
     DailyIndicatorForm,
     DailyUserActionForm,
+    sort_choice_pairs,
 )
 from .models import DashboardDailySnapshot, DailyIndicator, DailyUserAction
 
@@ -1330,10 +1331,10 @@ def daily_indicator_entry(request):
     context = {
         "form": form,
         "title": "Registrar Indicador Diário",
-        "b2b_supervisors": B2B_SUPERVISORS,
-        "b2b_portfolios": B2B_PORTFOLIOS,
-        "b2c_supervisors": B2C_SUPERVISORS,
-        "b2c_portfolios": B2C_PORTFOLIOS,
+        "b2b_supervisors": sort_choice_pairs(B2B_SUPERVISORS),
+        "b2b_portfolios": sort_choice_pairs(B2B_PORTFOLIOS),
+        "b2c_supervisors": sort_choice_pairs(B2C_SUPERVISORS),
+        "b2c_portfolios": sort_choice_pairs(B2C_PORTFOLIOS),
     }
     return render(request, "dashboard/daily_indicator_form.html", context)
 
@@ -1447,10 +1448,10 @@ def daily_indicator_edit(request, pk):
         "form": form,
         "indicator": indicator,
         "title": f"Editar Indicador - {indicator.supervisor}",
-        "b2b_supervisors": B2B_SUPERVISORS,
-        "b2b_portfolios": B2B_PORTFOLIOS,
-        "b2c_supervisors": B2C_SUPERVISORS,
-        "b2c_portfolios": B2C_PORTFOLIOS,
+        "b2b_supervisors": sort_choice_pairs(B2B_SUPERVISORS),
+        "b2b_portfolios": sort_choice_pairs(B2B_PORTFOLIOS),
+        "b2c_supervisors": sort_choice_pairs(B2C_SUPERVISORS),
+        "b2c_portfolios": sort_choice_pairs(B2C_PORTFOLIOS),
     }
     return render(request, "dashboard/daily_indicator_form.html", context)
 

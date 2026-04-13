@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from allocations.models import LineAllocation
-from allocations.forms import TelephonyAssignmentForm
+from allocations.forms import CombinedRegistrationForm, TelephonyAssignmentForm
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
@@ -82,6 +82,53 @@ class TelephonyRegistrationFlowTests(TestCase):
         self.assertIn(
             (PhoneLine.Canal.WEB, "WEB"),
             list(form.fields["canal"].choices),
+        )
+
+    def test_combined_registration_form_sorts_supervisor_manager_and_portfolio_choices(
+        self,
+    ):
+        SystemUser.objects.create_user(
+            email="zeta.supervisor@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.SUPER,
+        )
+        SystemUser.objects.create_user(
+            email="alpha.supervisor@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.SUPER,
+        )
+        SystemUser.objects.create_user(
+            email="zeta.manager@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.GERENTE,
+        )
+        SystemUser.objects.create_user(
+            email="alpha.manager@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.GERENTE,
+        )
+
+        form = CombinedRegistrationForm()
+
+        self.assertEqual(
+            [value for value, _label in form.fields["corporate_email"].widget.choices],
+            [
+                "alpha.supervisor@test.com",
+                "supervisor@test.com",
+                "zeta.supervisor@test.com",
+            ],
+        )
+        self.assertEqual(
+            [value for value, _label in form.fields["manager_email"].widget.choices],
+            [
+                "alpha.manager@test.com",
+                "gerente@test.com",
+                "zeta.manager@test.com",
+            ],
+        )
+        self.assertEqual(
+            [label for _value, label in form.fields["employee_id"].choices],
+            sorted([label for _value, label in form.fields["employee_id"].choices]),
         )
 
     def test_new_line_creation_flow_creates_sim_and_line_without_allocation(self):
