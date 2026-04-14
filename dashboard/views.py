@@ -34,6 +34,8 @@ from .forms import (
     DailyUserActionForm,
     sort_choice_pairs,
 )
+from pendencies.models import AllocationPendency
+
 from .models import DashboardDailySnapshot, DailyIndicator, DailyUserAction
 
 PERCENT_CRITICAL_THRESHOLD = 20
@@ -294,19 +296,47 @@ def get_user_display_name(user):
     return user.email or ""
 
 
+def get_pendencies_by_key(employee_ids, allocation_ids):
+    """
+    Carrega todos os registros AllocationPendency relevantes em batch.
+    Retorna um dict com chave (employee_id, allocation_id_or_None) → pendency.
+    """
+    qs = AllocationPendency.objects.filter(
+        employee_id__in=employee_ids,
+    ).select_related("technical_responsible")
+    result = {}
+    for p in qs:
+        key = (p.employee_id, p.allocation_id)
+        result[key] = p
+    return result
+
+
+def _pendency_technical_name(pendency):
+    if not pendency or not pendency.technical_responsible:
+        return ""
+    tech = pendency.technical_responsible
+    return tech.get_full_name().strip() or tech.email or ""
+
+
 def should_hide_row_for_admin(row):
     action = row.get("action")
+    pendency = row.get("pendency")
     allocation = row.get("allocation")
+
+    has_open_pendency = pendency and pendency.is_open
+
     if allocation:
-        return (
+        line_is_clean = (
             allocation.line_status == LineAllocation.LineStatus.ACTIVE
             and (not action or not action.action_type)
         )
+        return line_is_clean and not has_open_pendency
 
-    return (
+    employee_is_clean = (
         row["employee"].line_status == Employee.LineStatus.ACTIVE
         and (not action or not action.action_type)
     )
+    return employee_is_clean and not has_open_pendency
 
 
 def apply_action_board_visibility_rules(rows, user):
@@ -339,6 +369,12 @@ def build_daily_user_action_rows(
     latest_status_history_by_employee = get_latest_status_history_by_employee(
         employee_ids
     )
+    all_allocation_ids = [
+        allocation.id
+        for allocations in allocations_by_employee.values()
+        for allocation in allocations
+    ]
+    pendencies_by_key = get_pendencies_by_key(employee_ids, all_allocation_ids)
     form_day = form_day or timezone.localdate()
 
     rows = []
@@ -356,18 +392,26 @@ def build_daily_user_action_rows(
                     == DailyUserAction.ActionType.RECONNECT_WHATSAPP
                 ):
                     action = employee_level_action
+                pendency = pendencies_by_key.get(
+                    (employee.id, allocation.id)
+                )
                 row = {
                     "employee": employee,
                     "allocation": allocation,
                     "has_line": True,
                     "action": action,
-                    "line_status_changed_by_admin": get_user_display_name(
-                        getattr(
-                            latest_admin_status_history_by_phone_line.get(
-                                allocation.phone_line_id
-                            ),
-                            "changed_by",
-                            None,
+                    "pendency": pendency,
+                    "line_number": allocation.phone_line.phone_number,
+                    "line_status_changed_by_admin": (
+                        _pendency_technical_name(pendency)
+                        or get_user_display_name(
+                            getattr(
+                                latest_admin_status_history_by_phone_line.get(
+                                    allocation.phone_line_id
+                                ),
+                                "changed_by",
+                                None,
+                            )
                         )
                     ),
                     "line_status_changed_at": getattr(
@@ -379,7 +423,6 @@ def build_daily_user_action_rows(
                     ),
                 }
                 if include_forms:
-                    row["line_number"] = allocation.phone_line.phone_number
                     row["form"] = DailyUserActionForm(
                         initial={
                             "day": form_day,
@@ -397,12 +440,15 @@ def build_daily_user_action_rows(
         if not action:
             action = latest_action_by_employee.get(employee.id)
 
+        pendency = pendencies_by_key.get((employee.id, None))
         row = {
             "employee": employee,
             "allocation": None,
             "has_line": False,
             "action": action,
-            "line_status_changed_by_admin": "",
+            "pendency": pendency,
+            "line_number": None,
+            "line_status_changed_by_admin": _pendency_technical_name(pendency),
             "line_status_changed_at": getattr(
                 latest_status_history_by_employee.get(employee.id),
                 "changed_at",
@@ -410,7 +456,6 @@ def build_daily_user_action_rows(
             ),
         }
         if include_forms:
-            row["line_number"] = None
             row["form"] = DailyUserActionForm(
                 initial={
                     "day": form_day,
@@ -439,14 +484,9 @@ def filter_daily_user_action_rows(
     filtered_rows = []
     for row in rows:
         employee_name = (row["employee"].full_name or "").lower()
-        technical_responsible = (row.get("line_status_changed_by_admin") or "").lower()
-        line_number = row.get("line_number")
-        if line_number is None:
-            allocation = row.get("allocation")
-            if allocation and allocation.phone_line:
-                line_number = allocation.phone_line.phone_number
-            else:
-                line_number = ""
+        pendency = row.get("pendency")
+        technical_responsible = _pendency_technical_name(pendency).lower()
+        line_number = row.get("line_number") or ""
 
         if normalized_user_filter and normalized_user_filter not in employee_name:
             continue
@@ -470,15 +510,16 @@ def count_visible_pending_actions(rows):
         "new_number": sum(
             1
             for row in rows
-            if row.get("action")
-            and row["action"].action_type == DailyUserAction.ActionType.NEW_NUMBER
+            if row.get("pendency")
+            and row["pendency"].action
+            == AllocationPendency.ActionType.NEW_NUMBER
         ),
         "reconnect_whatsapp": sum(
             1
             for row in rows
-            if row.get("action")
-            and row["action"].action_type
-            == DailyUserAction.ActionType.RECONNECT_WHATSAPP
+            if row.get("pendency")
+            and row["pendency"].action
+            == AllocationPendency.ActionType.RECONNECT_WHATSAPP
         ),
     }
 

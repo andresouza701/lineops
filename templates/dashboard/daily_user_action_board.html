@@ -114,7 +114,7 @@
                     <th>Linha ativa</th>
                     <th>Status da linha</th>
                     <th>Ação</th>
-                    <th>Observação</th>
+                    <th class="text-center">Status Pendência</th>
                 </tr>
             </thead>
             <tbody>
@@ -159,32 +159,45 @@
                                     <span class="badge text-bg-warning">Sem linha</span>
                                 {% endif %}
                             </td>
-                            <form method="post" class="contents">
-                                {% csrf_token %}
-                                {{ row.form.day }}
-                                {{ row.form.employee_id }}
-                                {{ row.form.allocation_id }}
-                                <td>
-                                    {% if is_admin_role %}
-                                        {{ row.form.line_status }}
+                            <td>
+                                <span class="badge bg-secondary">
+                                    {% if row.allocation %}
+                                        {{ row.allocation.get_line_status_display }}
                                     {% else %}
-                                        <span class="badge bg-secondary">
-                                            {% if row.allocation %}
-                                                {{ row.allocation.get_line_status_display }}
-                                            {% else %}
-                                                {{ row.employee.get_line_status_display }}
-                                            {% endif %}
-                                        </span>
+                                        {{ row.employee.get_line_status_display }}
                                     {% endif %}
-                                </td>
-                                <td style="min-width: 220px;">{{ row.form.action_type }}</td>
-                                <td style="min-width: 430px;">
-                                    <div class="d-flex gap-2 align-items-center">
-                                        <div class="flex-fill">{{ row.form.note }}</div>
-                                        <button type="submit" class="btn btn-sm btn-primary">Enviar</button>
-                                    </div>
-                                </td>
-                            </form>
+                                </span>
+                            </td>
+                            <td>
+                                {% if row.action %}
+                                    <span class="badge bg-primary">{{ row.action.get_action_type_display }}</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if row.pendency and row.pendency.is_open %}
+                                    <button
+                                        type="button"
+                                        class="btn btn-warning btn-sm pendency-btn"
+                                        title="Ver pendência"
+                                        data-employee-id="{{ row.employee.pk }}"
+                                        data-allocation-id="{{ row.allocation.pk|default:'' }}"
+                                    >
+                                        <i class="bi bi-exclamation-triangle-fill"></i>
+                                    </button>
+                                {% else %}
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-secondary btn-sm pendency-btn"
+                                        title="Abrir painel de pendência"
+                                        data-employee-id="{{ row.employee.pk }}"
+                                        data-allocation-id="{{ row.allocation.pk|default:'' }}"
+                                    >
+                                        <i class="bi bi-exclamation-circle"></i>
+                                    </button>
+                                {% endif %}
+                            </td>
                         </tr>
                     {% endfor %}
                 {% else %}
@@ -199,8 +212,11 @@
     </div>
 </section>
 {% endblock %}
+
 {% block scripts %}
 {{ block.super }}
+
+{# ── Modal: detalhe da linha (existente) ── #}
 <div class="modal fade" id="lineDetailModal" tabindex="-1" aria-labelledby="lineDetailModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content line-detail-modal-content">
@@ -211,22 +227,16 @@
                 <dl class="row mb-0">
                     <dt class="col-sm-4">Número</dt>
                     <dd class="col-sm-8" data-line-detail="number">-</dd>
-
                     <dt class="col-sm-4">ICCID</dt>
                     <dd class="col-sm-8 metric-mono" data-line-detail="iccid">-</dd>
-
                     <dt class="col-sm-4">Origem</dt>
                     <dd class="col-sm-8" data-line-detail="origin">-</dd>
-
                     <dt class="col-sm-4">Canal</dt>
                     <dd class="col-sm-8" data-line-detail="channel">-</dd>
-
                     <dt class="col-sm-4">Usuário</dt>
                     <dd class="col-sm-8" data-line-detail="employee">-</dd>
-
                     <dt class="col-sm-4">Operadora</dt>
                     <dd class="col-sm-8" data-line-detail="carrier">-</dd>
-
                     <dt class="col-sm-4">Status</dt>
                     <dd class="col-sm-8" data-line-detail="status">-</dd>
                 </dl>
@@ -237,32 +247,415 @@
         </div>
     </div>
 </div>
-<script>
-    (() => {
-        const modalEl = document.getElementById('lineDetailModal');
-        if (!modalEl) return;
 
-        modalEl.addEventListener('show.bs.modal', event => {
+{# ── Modal: Status Pendência ── #}
+<div class="modal fade" id="pendencyModal" tabindex="-1" aria-labelledby="pendencyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pendencyModalLabel">Status Pendência</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body" id="pendencyModalBody">
+                <div class="text-center py-4" id="pendencyLoading">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                    <span class="ms-2 text-muted">Carregando...</span>
+                </div>
+                <div id="pendencyContent" style="display:none;">
+                    <input type="hidden" id="pendencyId">
+                    <div class="row g-3">
+                        {# ── Informações read-only ── #}
+                        <div class="col-sm-6">
+                            <label class="form-label fw-semibold mb-1">PA</label>
+                            <p class="mb-0 form-control-plaintext" id="pendencyPA">-</p>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-semibold mb-1">Usuário</label>
+                            <p class="mb-0 form-control-plaintext" id="pendencyUsuario">-</p>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-semibold mb-1">Carteira</label>
+                            <p class="mb-0 form-control-plaintext" id="pendencyCarteira">-</p>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-semibold mb-1">Supervisor</label>
+                            <p class="mb-0 form-control-plaintext" id="pendencySupervisor">-</p>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-semibold mb-1">Linha</label>
+                            <p class="mb-0 form-control-plaintext metric-mono" id="pendencyLinha">-</p>
+                        </div>
+
+                        <div class="col-12"><hr class="my-1"></div>
+
+                        {# ── Status da Linha ── #}
+                        <div class="col-sm-6">
+                            <label class="form-label fw-semibold mb-1">Status da Linha</label>
+                            <div id="pendencyLineStatusAdmin" style="display:none;">
+                                <select class="form-select form-select-sm" id="pendencyLineStatus"></select>
+                            </div>
+                            <p class="mb-0 form-control-plaintext" id="pendencyLineStatusReadonly" style="display:none;"></p>
+                        </div>
+
+                        {# ── Ação ── #}
+                        <div class="col-sm-6">
+                            <label class="form-label fw-semibold mb-1">Ação</label>
+                            <div id="pendencyActionAdmin" style="display:none;">
+                                <select class="form-select form-select-sm" id="pendencyAction"></select>
+                            </div>
+                            <div id="pendencyActionNonAdmin" style="display:none;">
+                                <select class="form-select form-select-sm" id="pendencyActionSubmit"></select>
+                            </div>
+                            <p class="mb-0 form-control-plaintext" id="pendencyActionReadonly" style="display:none;"></p>
+                        </div>
+
+                        {# ── Observação ── #}
+                        <div class="col-12">
+                            <label class="form-label fw-semibold mb-1">Observação <small class="text-muted">(máx. 350 caracteres)</small></label>
+                            <textarea
+                                class="form-control form-control-sm"
+                                id="pendencyObservation"
+                                rows="3"
+                                maxlength="350"
+                                placeholder="Observação opcional..."
+                            ></textarea>
+                        </div>
+
+                        {# ── Responsável Técnico ── #}
+                        <div class="col-12">
+                            <label class="form-label fw-semibold mb-1">Responsável Técnico</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <span id="pendencyTechName" class="text-muted fst-italic">Não atribuído</span>
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-outline-primary"
+                                    id="pendencyClaimBtn"
+                                    style="display:none;"
+                                    title="Assumir como responsável técnico"
+                                >
+                                    ✋ Assumir
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="col-12"><hr class="my-1"></div>
+
+                        {# ── Timestamps ── #}
+                        <div class="col-sm-4">
+                            <label class="form-label fw-semibold mb-1">Últ. alt. ação</label>
+                            <p class="mb-0 form-control-plaintext metric-mono" id="pendencyLastChanged">-</p>
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label fw-semibold mb-1">Envio da pendência</label>
+                            <p class="mb-0 form-control-plaintext metric-mono" id="pendencySubmitted">-</p>
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label fw-semibold mb-1">Resolução</label>
+                            <p class="mb-0 form-control-plaintext metric-mono" id="pendencyResolved">-</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" id="pendencyModalFooter" style="display:none;">
+                <span id="pendencySaveStatus" class="text-muted small me-auto"></span>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" id="pendencySaveBtn">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    'use strict';
+
+    const IS_ADMIN = {% if is_admin_role %}true{% else %}false{% endif %};
+    const DETAIL_URL = "{% url 'pendencies:detail' %}";
+    const UPDATE_URL = "{% url 'pendencies:update' %}";
+    const CLAIM_URL  = "{% url 'pendencies:claim' %}";
+    const CSRF_TOKEN = "{{ csrf_token }}";
+
+    // ── Linha-detail modal (inalterado) ──────────────────────────────
+    const lineModalEl = document.getElementById('lineDetailModal');
+    if (lineModalEl) {
+        lineModalEl.addEventListener('show.bs.modal', event => {
             const trigger = event.relatedTarget;
             if (!trigger) return;
-
             const details = {
-                number: trigger.getAttribute('data-line-number') || '-',
-                iccid: trigger.getAttribute('data-line-iccid') || '-',
-                origin: trigger.getAttribute('data-line-origin') || '-',
-                channel: trigger.getAttribute('data-line-channel') || '-',
+                number:   trigger.getAttribute('data-line-number')   || '-',
+                iccid:    trigger.getAttribute('data-line-iccid')    || '-',
+                origin:   trigger.getAttribute('data-line-origin')   || '-',
+                channel:  trigger.getAttribute('data-line-channel')  || '-',
                 employee: trigger.getAttribute('data-line-employee') || '-',
-                carrier: trigger.getAttribute('data-line-carrier') || '-',
-                status: trigger.getAttribute('data-line-status') || '-',
+                carrier:  trigger.getAttribute('data-line-carrier')  || '-',
+                status:   trigger.getAttribute('data-line-status')   || '-',
             };
-
             Object.entries(details).forEach(([key, value]) => {
-                const target = modalEl.querySelector(`[data-line-detail="${key}"]`);
-                if (target) {
-                    target.textContent = value;
-                }
+                const target = lineModalEl.querySelector(`[data-line-detail="${key}"]`);
+                if (target) target.textContent = value;
             });
         });
-    })();
+    }
+
+    // ── Pendency modal ───────────────────────────────────────────────
+    const pendencyModalEl = document.getElementById('pendencyModal');
+    if (!pendencyModalEl) return;
+
+    // Elementos do modal
+    const loadingEl     = document.getElementById('pendencyLoading');
+    const contentEl     = document.getElementById('pendencyContent');
+    const footerEl      = document.getElementById('pendencyModalFooter');
+    const saveStatusEl  = document.getElementById('pendencySaveStatus');
+    const saveBtn       = document.getElementById('pendencySaveBtn');
+    const claimBtn      = document.getElementById('pendencyClaimBtn');
+
+    let currentPendencyId   = null;
+    let currentEmployeeId   = null;
+    let currentAllocationId = null;
+
+    function showLoading() {
+        loadingEl.style.display = '';
+        contentEl.style.display = 'none';
+        footerEl.style.display  = 'none';
+    }
+
+    function showContent() {
+        loadingEl.style.display = 'none';
+        contentEl.style.display = '';
+        footerEl.style.display  = '';
+    }
+
+    function setText(id, value) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value || '-';
+    }
+
+    function populateSelect(selectEl, choices, currentValue) {
+        selectEl.innerHTML = '';
+        choices.forEach(({ value, label }) => {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = label;
+            if (value === currentValue) opt.selected = true;
+            selectEl.appendChild(opt);
+        });
+    }
+
+    function renderModal(data) {
+        currentPendencyId = data.id;
+
+        // Read-only fields
+        setText('pendencyPA',        data.pa);
+        setText('pendencyUsuario',   data.usuario);
+        setText('pendencyCarteira',  data.carteira);
+        setText('pendencySupervisor', data.supervisor);
+        setText('pendencyLinha',     data.linha);
+
+        // Status da Linha
+        const lineStatusAdmin    = document.getElementById('pendencyLineStatusAdmin');
+        const lineStatusReadonly = document.getElementById('pendencyLineStatusReadonly');
+        const lineStatusSelect   = document.getElementById('pendencyLineStatus');
+        if (IS_ADMIN) {
+            lineStatusAdmin.style.display    = '';
+            lineStatusReadonly.style.display = 'none';
+            populateSelect(lineStatusSelect, data.line_status_choices, data.line_status);
+        } else {
+            lineStatusAdmin.style.display    = 'none';
+            lineStatusReadonly.style.display = '';
+            lineStatusReadonly.textContent   = data.line_status_display || '-';
+        }
+
+        // Ação
+        const actionAdminEl    = document.getElementById('pendencyActionAdmin');
+        const actionNonAdminEl = document.getElementById('pendencyActionNonAdmin');
+        const actionReadonlyEl = document.getElementById('pendencyActionReadonly');
+        const actionSelect     = document.getElementById('pendencyAction');
+        const actionSubmitSel  = document.getElementById('pendencyActionSubmit');
+
+        if (IS_ADMIN) {
+            actionAdminEl.style.display    = '';
+            actionNonAdminEl.style.display = 'none';
+            actionReadonlyEl.style.display = 'none';
+            populateSelect(actionSelect, data.action_choices, data.action);
+        } else {
+            // non-admin pode submeter (escolher != no_action) mas não resolver
+            const submittableChoices = data.action_choices.filter(
+                c => c.value !== 'no_action'
+            );
+            if (submittableChoices.length > 0) {
+                actionNonAdminEl.style.display = '';
+                actionAdminEl.style.display    = 'none';
+                actionReadonlyEl.style.display = 'none';
+                populateSelect(actionSubmitSel, submittableChoices, data.action);
+            } else {
+                actionNonAdminEl.style.display = 'none';
+                actionAdminEl.style.display    = 'none';
+                actionReadonlyEl.style.display = '';
+                actionReadonlyEl.textContent   = data.action_display || '-';
+            }
+        }
+
+        // Observação
+        document.getElementById('pendencyObservation').value = data.observation || '';
+
+        // Responsável técnico
+        const techNameEl = document.getElementById('pendencyTechName');
+        if (data.technical_responsible_name) {
+            techNameEl.textContent  = data.technical_responsible_name;
+            techNameEl.classList.remove('text-muted', 'fst-italic');
+        } else {
+            techNameEl.textContent  = 'Não atribuído';
+            techNameEl.classList.add('text-muted', 'fst-italic');
+        }
+        if (IS_ADMIN) {
+            claimBtn.style.display = '';
+        }
+
+        // Timestamps
+        setText('pendencyLastChanged', data.last_action_changed_at);
+        setText('pendencySubmitted',   data.pendency_submitted_at);
+        setText('pendencyResolved',    data.resolved_at);
+
+        saveStatusEl.textContent = '';
+        showContent();
+    }
+
+    async function loadPendency(employeeId, allocationId) {
+        showLoading();
+        currentEmployeeId   = employeeId;
+        currentAllocationId = allocationId;
+
+        const params = new URLSearchParams({ employee_id: employeeId });
+        if (allocationId) params.append('allocation_id', allocationId);
+
+        try {
+            const resp = await fetch(`${DETAIL_URL}?${params}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            if (!resp.ok) throw new Error('Erro ao carregar pendência.');
+            const data = await resp.json();
+            renderModal(data);
+        } catch (err) {
+            loadingEl.innerHTML = `<span class="text-danger">${err.message}</span>`;
+        }
+    }
+
+    async function savePendency() {
+        saveBtn.disabled = true;
+        saveStatusEl.textContent = 'Salvando...';
+
+        const actionAdminEl    = document.getElementById('pendencyActionAdmin');
+        const actionNonAdminEl = document.getElementById('pendencyActionNonAdmin');
+        let actionValue = '';
+
+        if (IS_ADMIN && actionAdminEl.style.display !== 'none') {
+            actionValue = document.getElementById('pendencyAction').value;
+        } else if (actionNonAdminEl.style.display !== 'none') {
+            actionValue = document.getElementById('pendencyActionSubmit').value;
+        }
+
+        const lineStatusEl = document.getElementById('pendencyLineStatus');
+
+        const payload = {
+            pendency_id:  currentPendencyId,
+            action:       actionValue,
+            observation:  document.getElementById('pendencyObservation').value,
+            line_status:  IS_ADMIN ? lineStatusEl.value : '',
+        };
+
+        try {
+            const resp = await fetch(UPDATE_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type':     'application/json',
+                    'X-CSRFToken':      CSRF_TOKEN,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(payload),
+            });
+            const data = await resp.json();
+            if (!resp.ok || data.errors) {
+                const msg = data.errors ? data.errors.join(', ') : (data.error || 'Erro ao salvar.');
+                saveStatusEl.textContent = msg;
+                saveStatusEl.className   = 'text-danger small me-auto';
+            } else {
+                renderModal(data);
+                saveStatusEl.textContent = 'Salvo com sucesso.';
+                saveStatusEl.className   = 'text-success small me-auto';
+                // Atualiza o botão na tabela sem recarregar a página
+                updateTableButton(
+                    currentEmployeeId,
+                    currentAllocationId,
+                    data.action !== 'no_action'
+                );
+            }
+        } catch (err) {
+            saveStatusEl.textContent = err.message;
+            saveStatusEl.className   = 'text-danger small me-auto';
+        } finally {
+            saveBtn.disabled = false;
+        }
+    }
+
+    async function claimPendency() {
+        claimBtn.disabled = true;
+        try {
+            const resp = await fetch(CLAIM_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type':     'application/json',
+                    'X-CSRFToken':      CSRF_TOKEN,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ pendency_id: currentPendencyId }),
+            });
+            const data = await resp.json();
+            if (resp.ok && data.ok) {
+                renderModal(data);
+                saveStatusEl.textContent = 'Responsável técnico atribuído.';
+                saveStatusEl.className   = 'text-success small me-auto';
+            } else {
+                saveStatusEl.textContent = data.error || 'Erro ao assumir responsabilidade.';
+                saveStatusEl.className   = 'text-danger small me-auto';
+            }
+        } catch (err) {
+            saveStatusEl.textContent = err.message;
+            saveStatusEl.className   = 'text-danger small me-auto';
+        } finally {
+            claimBtn.disabled = false;
+        }
+    }
+
+    function updateTableButton(employeeId, allocationId, isOpen) {
+        // Atualiza visualmente o botão na linha da tabela
+        const btn = document.querySelector(
+            `.pendency-btn[data-employee-id="${employeeId}"][data-allocation-id="${allocationId}"]`
+        );
+        if (!btn) return;
+        if (isOpen) {
+            btn.className = 'btn btn-warning btn-sm pendency-btn';
+            btn.title = 'Ver pendência';
+            btn.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>';
+        } else {
+            btn.className = 'btn btn-outline-secondary btn-sm pendency-btn';
+            btn.title = 'Abrir painel de pendência';
+            btn.innerHTML = '<i class="bi bi-exclamation-circle"></i>';
+        }
+    }
+
+    // ── Event listeners ──────────────────────────────────────────────
+    document.addEventListener('click', e => {
+        const btn = e.target.closest('.pendency-btn');
+        if (!btn) return;
+        const employeeId   = btn.getAttribute('data-employee-id');
+        const allocationId = btn.getAttribute('data-allocation-id') || '';
+        const modal = bootstrap.Modal.getOrCreate(pendencyModalEl);
+        modal.show();
+        loadPendency(employeeId, allocationId);
+    });
+
+    saveBtn.addEventListener('click', savePendency);
+    claimBtn.addEventListener('click', claimPendency);
+})();
 </script>
 {% endblock %}

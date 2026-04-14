@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     "telecom",
     "dashboard",
     "allocations",
+    "pendencies",
 ]
 
 MIDDLEWARE = [

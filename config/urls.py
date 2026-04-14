@@ -17,6 +17,7 @@ urlpatterns = [
     path("employees/", include("employees.urls")),
     path("telecom/", include("telecom.urls")),
     path("allocations/", include("allocations.urls")),
+    path("pendencies/", include("pendencies.urls")),
     path("upload/", UploadView.as_view(), name="upload"),
     path("health/", HealthCheckView.as_view(), name="health"),
     path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
