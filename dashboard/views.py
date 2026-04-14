@@ -247,6 +247,43 @@ def get_latest_admin_status_history_by_phone_line(phone_line_ids):
     return latest_by_phone_line
 
 
+def get_latest_status_history_by_phone_line(phone_line_ids):
+    if not phone_line_ids:
+        return {}
+
+    histories = (
+        PhoneLineHistory.objects.filter(
+            phone_line_id__in=phone_line_ids,
+            action=PhoneLineHistory.ActionType.STATUS_CHANGED,
+        )
+        .order_by("phone_line_id", "-changed_at", "-id")
+    )
+
+    latest_by_phone_line = {}
+    for history in histories:
+        if history.phone_line_id not in latest_by_phone_line:
+            latest_by_phone_line[history.phone_line_id] = history
+    return latest_by_phone_line
+
+
+def get_latest_status_history_by_employee(employee_ids):
+    if not employee_ids:
+        return {}
+
+    histories = (
+        EmployeeHistory.objects.filter(
+            employee_id__in=employee_ids,
+            action=EmployeeHistory.ActionType.STATUS_CHANGED,
+        )
+        .order_by("employee_id", "-changed_at", "-id")
+    )
+
+    latest_by_employee = {}
+    for history in histories:
+        if history.employee_id not in latest_by_employee:
+            latest_by_employee[history.employee_id] = history
+    return latest_by_employee
+
 
 def get_user_display_name(user):
     if not user:
@@ -296,6 +333,12 @@ def build_daily_user_action_rows(
     latest_admin_status_history_by_phone_line = get_latest_admin_status_history_by_phone_line(
         visible_phone_line_ids
     )
+    latest_status_history_by_phone_line = get_latest_status_history_by_phone_line(
+        visible_phone_line_ids
+    )
+    latest_status_history_by_employee = get_latest_status_history_by_employee(
+        employee_ids
+    )
     form_day = form_day or timezone.localdate()
 
     rows = []
@@ -327,7 +370,13 @@ def build_daily_user_action_rows(
                             None,
                         )
                     ),
-                    "line_status_changed_at": getattr(action, "updated_at", None),
+                    "line_status_changed_at": getattr(
+                        latest_status_history_by_phone_line.get(
+                            allocation.phone_line_id
+                        ),
+                        "changed_at",
+                        None,
+                    ),
                 }
                 if include_forms:
                     row["line_number"] = allocation.phone_line.phone_number
@@ -354,7 +403,11 @@ def build_daily_user_action_rows(
             "has_line": False,
             "action": action,
             "line_status_changed_by_admin": "",
-            "line_status_changed_at": getattr(action, "updated_at", None),
+            "line_status_changed_at": getattr(
+                latest_status_history_by_employee.get(employee.id),
+                "changed_at",
+                None,
+            ),
         }
         if include_forms:
             row["line_number"] = None
