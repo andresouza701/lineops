@@ -81,6 +81,9 @@
                     <dt class="col-sm-4">Tentativa</dt>
                     <dd class="col-sm-8" data-reconnect-attempt>-</dd>
 
+                    <dt class="col-sm-4">Dispositivo</dt>
+                    <dd class="col-sm-8" data-reconnect-device-name>-</dd>
+
                     <dt class="col-sm-4">Servidor</dt>
                     <dd class="col-sm-8" data-reconnect-assigned-server>-</dd>
 
@@ -89,6 +92,9 @@
 
                     <dt class="col-sm-4">Estado da conta</dt>
                     <dd class="col-sm-8" data-reconnect-account-state>-</dd>
+
+                    <dt class="col-sm-4 d-none" data-reconnect-restriction-row>Restricao ate</dt>
+                    <dd class="col-sm-8 d-none" data-reconnect-restriction-row data-reconnect-restriction-until>-</dd>
 
                     <dt class="col-sm-4">Acao de TI</dt>
                     <dd class="col-sm-8" data-reconnect-needs-it-action>-</dd>
@@ -142,8 +148,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const assignedServerEl = root.querySelector('[data-reconnect-assigned-server]');
     const deadlineEl = root.querySelector('[data-reconnect-deadline]');
     const accountStateEl = root.querySelector('[data-reconnect-account-state]');
+    const restrictionRowEls = root.querySelectorAll('[data-reconnect-restriction-row]');
+    const restrictionUntilEl = root.querySelector('[data-reconnect-restriction-until]');
     const needsItActionEl = root.querySelector('[data-reconnect-needs-it-action]');
     const needsItReasonEl = root.querySelector('[data-reconnect-needs-it-reason]');
+    const deviceNameEl = root.querySelector('[data-reconnect-device-name]');
     const errorEl = root.querySelector('[data-reconnect-error]');
     const hintEl = root.querySelector('[data-reconnect-hint]');
     const qrCardEl = root.querySelector('[data-reconnect-qr-card]');
@@ -191,9 +200,12 @@ document.addEventListener('DOMContentLoaded', function () {
         sessionIdEl.textContent = '-';
         statusLabelEl.textContent = 'Sem sessao ativa';
         attemptEl.textContent = '-';
+        deviceNameEl.textContent = '-';
         assignedServerEl.textContent = '-';
         deadlineEl.textContent = '-';
         accountStateEl.textContent = '-';
+        restrictionRowEls.forEach(el => el.classList.add('d-none'));
+        restrictionUntilEl.textContent = '-';
         needsItActionEl.textContent = '-';
         needsItReasonEl.textContent = '-';
         errorEl.classList.add('d-none');
@@ -218,9 +230,19 @@ document.addEventListener('DOMContentLoaded', function () {
         sessionIdEl.textContent = payload.session_id || '-';
         statusLabelEl.textContent = payload.status || '-';
         attemptEl.textContent = payload.attempt ?? '-';
+        deviceNameEl.textContent = payload.device_name || '-';
         assignedServerEl.textContent = payload.assigned_server || '-';
         deadlineEl.textContent = payload.session_deadline_at || '-';
         accountStateEl.textContent = payload.account_state || '-';
+
+        if (payload.account_state === 'RESTRICTED' && payload.restriction_until) {
+            restrictionRowEls.forEach(el => el.classList.remove('d-none'));
+            restrictionUntilEl.textContent = payload.restriction_until;
+        } else {
+            restrictionRowEls.forEach(el => el.classList.add('d-none'));
+            restrictionUntilEl.textContent = '-';
+        }
+
         needsItActionEl.textContent = formatBooleanLabel(payload.needs_it_action);
         needsItReasonEl.textContent = payload.needs_it_reason || '-';
 

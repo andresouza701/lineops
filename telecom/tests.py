@@ -1473,7 +1473,6 @@ class FakeReconnectRepository:
                     "cancel_requested_at": requested_at,
                     "finished_at": requested_at,
                     "active_lock": False,
-                    "worker_heartbeat_at": requested_at,
                     "updated_at": requested_at,
                     "error_code": "cancel_requested",
                     "error_message": "Sessao cancelada pela plataforma",
