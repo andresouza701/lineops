@@ -649,7 +649,7 @@
         if (!btn) return;
         const employeeId   = btn.getAttribute('data-employee-id');
         const allocationId = btn.getAttribute('data-allocation-id') || '';
-        const modal = bootstrap.Modal.getOrCreate(pendencyModalEl);
+        const modal = bootstrap.Modal.getOrCreateInstance(pendencyModalEl);
         modal.show();
         loadPendency(employeeId, allocationId);
     });
