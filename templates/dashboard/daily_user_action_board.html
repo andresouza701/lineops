@@ -120,11 +120,11 @@
             <tbody>
                 {% if rows %}
                     {% for row in rows %}
-                        <tr>
+                        <tr data-employee-id="{{ row.employee.pk }}" data-allocation-id="{{ row.allocation.pk|default:'' }}">
                             <td>{{ row.employee.pa|default:"-" }}</td>
                             <td>{{ row.employee.full_name }}</td>
                             <td>{{ row.employee.employee_id }}</td>
-                            <td>
+                            <td class="js-tech-responsible">
                                 {% if row.line_status_changed_by_admin %}
                                     <span class="metric-mono">{{ row.line_status_changed_by_admin }}</span>
                                 {% else %}
@@ -159,7 +159,7 @@
                                     <span class="badge text-bg-warning">Sem linha</span>
                                 {% endif %}
                             </td>
-                            <td>
+                            <td class="js-line-status">
                                 <span class="badge bg-secondary">
                                     {% if row.allocation %}
                                         {{ row.allocation.get_line_status_display }}
@@ -168,9 +168,9 @@
                                     {% endif %}
                                 </span>
                             </td>
-                            <td>
-                                {% if row.action %}
-                                    <span class="badge bg-primary">{{ row.action.get_action_type_display }}</span>
+                            <td class="js-action">
+                                {% if row.pendency and row.pendency.is_open %}
+                                    <span class="badge bg-primary">{{ row.pendency.get_action_display }}</span>
                                 {% else %}
                                     <span class="text-muted">-</span>
                                 {% endif %}
@@ -582,12 +582,8 @@
                 renderModal(data);
                 saveStatusEl.textContent = 'Salvo com sucesso.';
                 saveStatusEl.className   = 'text-success small me-auto';
-                // Atualiza o botão na tabela sem recarregar a página
-                updateTableButton(
-                    currentEmployeeId,
-                    currentAllocationId,
-                    data.action !== 'no_action'
-                );
+                // Atualiza células da tabela sem recarregar a página
+                updateTableRow(currentEmployeeId, currentAllocationId, data);
             }
         } catch (err) {
             saveStatusEl.textContent = err.message;
@@ -612,6 +608,7 @@
             const data = await resp.json();
             if (resp.ok && data.ok) {
                 renderModal(data);
+                updateTableRow(currentEmployeeId, currentAllocationId, data);
                 saveStatusEl.textContent = 'Responsável técnico atribuído.';
                 saveStatusEl.className   = 'text-success small me-auto';
             } else {
@@ -626,20 +623,59 @@
         }
     }
 
-    function updateTableButton(employeeId, allocationId, isOpen) {
-        // Atualiza visualmente o botão na linha da tabela
-        const btn = document.querySelector(
-            `.pendency-btn[data-employee-id="${employeeId}"][data-allocation-id="${allocationId}"]`
+    function updateTableRow(employeeId, allocationId, data) {
+        const row = document.querySelector(
+            `tr[data-employee-id="${employeeId}"][data-allocation-id="${allocationId}"]`
         );
-        if (!btn) return;
-        if (isOpen) {
-            btn.className = 'btn btn-warning btn-sm pendency-btn';
-            btn.title = 'Ver pendência';
-            btn.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>';
-        } else {
-            btn.className = 'btn btn-outline-secondary btn-sm pendency-btn';
-            btn.title = 'Abrir painel de pendência';
-            btn.innerHTML = '<i class="bi bi-exclamation-circle"></i>';
+        if (!row) return;
+
+        const isOpen = data.action && data.action !== 'no_action';
+
+        // --- Resp. Técnico ---
+        const techTd = row.querySelector('.js-tech-responsible');
+        if (techTd) {
+            if (data.technical_responsible_name) {
+                techTd.innerHTML = `<span class="metric-mono">${data.technical_responsible_name}</span>`;
+            } else {
+                techTd.textContent = '-';
+            }
+        }
+
+        // --- Status da linha ---
+        const lineStatusTd = row.querySelector('.js-line-status');
+        if (lineStatusTd) {
+            lineStatusTd.innerHTML = `<span class="badge bg-secondary">${data.line_status_display}</span>`;
+        }
+
+        // --- Ação ---
+        const actionTd = row.querySelector('.js-action');
+        if (actionTd) {
+            if (isOpen) {
+                actionTd.innerHTML = `<span class="badge bg-primary">${data.action_display}</span>`;
+            } else {
+                actionTd.innerHTML = '<span class="text-muted">-</span>';
+            }
+        }
+
+        // --- Botão Status Pendência ---
+        const btn = row.querySelector('.pendency-btn');
+        if (btn) {
+            if (isOpen) {
+                btn.className = 'btn btn-warning btn-sm pendency-btn';
+                btn.title = 'Ver pendência';
+                btn.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>';
+            } else {
+                btn.className = 'btn btn-outline-secondary btn-sm pendency-btn';
+                btn.title = 'Abrir painel de pendência';
+                btn.innerHTML = '<i class="bi bi-exclamation-circle"></i>';
+            }
+        }
+
+        // --- Admin: remove linha quando ACTIVE + NO_ACTION ---
+        if (IS_ADMIN && !isOpen && data.line_status === 'active') {
+            row.style.transition = 'opacity 0.3s';
+            row.style.opacity = '0';
+            setTimeout(() => row.remove(), 320);
         }
     }
 

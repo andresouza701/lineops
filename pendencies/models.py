@@ -118,8 +118,9 @@ class AllocationPendency(models.Model):
 
         Regras:
         - Qualquer role pode definir action para valor != no_action → pendency_submitted_at
-        - Somente admin pode definir action para no_action → resolved_at
         - Admin atualizar action (qualquer valor) → last_action_changed_at
+        - resolved_at é setado na view após verificar a condição combinada
+          (action == NO_ACTION E line_status == ACTIVE)
         """
         if now is None:
             now = timezone.now()
@@ -131,14 +132,12 @@ class AllocationPendency(models.Model):
         is_now_no_action = new_action == self.ActionType.NO_ACTION
 
         if not is_now_no_action and was_no_action:
-            # Pendência submetida (qualquer role pode acionar)
+            # Reabertura: registra envio e limpa resolução anterior
             self.pendency_submitted_at = now
+            self.resolved_at = None
 
         if actor_role == "admin":
             self.last_action_changed_at = now
-            if is_now_no_action and not was_no_action:
-                # Admin resolveu a pendência
-                self.resolved_at = now
 
     def record_line_status_change(self, now=None):
         """Admin alterou Status da Linha → atualiza last_action_changed_at."""

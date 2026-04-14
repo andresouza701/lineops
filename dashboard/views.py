@@ -319,24 +319,29 @@ def _pendency_technical_name(pendency):
 
 
 def should_hide_row_for_admin(row):
-    action = row.get("action")
+    """
+    Esconde linha do admin quando:
+      - Status da Linha == ACTIVE
+      - AllocationPendency.action == NO_ACTION (ou sem pendência registrada)
+    """
     pendency = row.get("pendency")
     allocation = row.get("allocation")
 
-    has_open_pendency = pendency and pendency.is_open
+    pendency_no_action = (
+        not pendency
+        or pendency.action == AllocationPendency.ActionType.NO_ACTION
+    )
 
     if allocation:
-        line_is_clean = (
+        return (
             allocation.line_status == LineAllocation.LineStatus.ACTIVE
-            and (not action or not action.action_type)
+            and pendency_no_action
         )
-        return line_is_clean and not has_open_pendency
 
-    employee_is_clean = (
+    return (
         row["employee"].line_status == Employee.LineStatus.ACTIVE
-        and (not action or not action.action_type)
+        and pendency_no_action
     )
-    return employee_is_clean and not has_open_pendency
 
 
 def apply_action_board_visibility_rules(rows, user):
