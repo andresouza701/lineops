@@ -21,19 +21,27 @@ class Command(BaseCommand):
         from telecom.repositories.reconnect_sessions import MongoReconnectSessionRepository
 
         repo = MongoReconnectSessionRepository.from_settings()
-        collection = repo.collection
+        collection_path = (
+            f"{settings.RECONNECT_MONGO_DATABASE}.{settings.RECONNECT_MONGO_COLLECTION}"
+        )
 
-        index_name = collection.create_index(
+        if repo.has_active_session_unique_index():
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Indice ja existe na collection: {collection_path}"
+                )
+            )
+            return
+
+        index_name = repo.collection.create_index(
             [("phone_number", 1)],
             unique=True,
             partialFilterExpression={"active_lock": True},
-            name="phone_number_active_lock_unique",
         )
 
         self.stdout.write(
             self.style.SUCCESS(
                 f"Indice criado com sucesso: {index_name}\n"
-                "Collection: "
-                f"{settings.RECONNECT_MONGO_DATABASE}.{settings.RECONNECT_MONGO_COLLECTION}"
+                f"Collection: {collection_path}"
             )
         )
