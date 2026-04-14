@@ -1170,3 +1170,89 @@ textarea:disabled {
         display: none;
     }
 }
+
+/* ── Modal de Pendência ─────────────────────────────────────────── */
+.pendency-modal-content {
+    background: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid rgba(37, 99, 235, 0.35);
+    box-shadow: 0 24px 60px rgba(2, 6, 23, 0.55);
+}
+
+.pendency-modal-content .modal-header,
+.pendency-modal-content .modal-footer {
+    border-color: rgba(226, 232, 240, 0.12);
+    background: rgba(15, 23, 42, 0.6);
+}
+
+.pendency-modal-content .modal-title {
+    color: #f8fafc;
+    font-weight: 600;
+}
+
+.pendency-modal-content .btn-close {
+    filter: invert(1) grayscale(100%) brightness(0.8);
+}
+
+.pendency-modal-content hr {
+    border-color: rgba(226, 232, 240, 0.1);
+    opacity: 1;
+}
+
+/* Labels */
+.pendency-modal-content .form-label {
+    color: #94a3b8;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Texto read-only */
+.pendency-modal-content .form-control-plaintext {
+    color: #f8fafc;
+    font-size: 0.95rem;
+    padding-top: 0.2rem;
+    padding-bottom: 0.2rem;
+}
+
+/* Inputs e selects */
+.pendency-modal-content .form-control,
+.pendency-modal-content .form-select {
+    background: rgba(2, 6, 23, 0.55);
+    color: #e2e8f0;
+    border-color: rgba(148, 163, 184, 0.25);
+    box-shadow: none;
+}
+
+.pendency-modal-content .form-control:focus,
+.pendency-modal-content .form-select:focus {
+    background: rgba(2, 6, 23, 0.7);
+    color: #f8fafc;
+    border-color: rgba(37, 99, 235, 0.8);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.pendency-modal-content .form-control::placeholder {
+    color: #64748b;
+}
+
+/* Opções do select */
+.pendency-modal-content .form-select option {
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+/* Responsável técnico */
+.pendency-modal-content #pendencyTechName {
+    font-size: 0.95rem;
+}
+
+/* Status de salvamento */
+.pendency-modal-content #pendencySaveStatus {
+    font-size: 0.82rem;
+}
+
+/* Timestamps */
+.pendency-modal-content .metric-mono {
+    color: #7dd3fc;
+}
