@@ -42,7 +42,7 @@ O LineOps nao abre MEmu e nao interage diretamente com o WhatsApp.
 ### Aplicacao
 
 - build de QA publicada com a implementacao da reconexao
-- dependencia `pymongo==4.14.1` disponivel no ambiente
+- dependencia `pymongo==4.10.1` disponivel no ambiente
 - migracoes aplicadas
 - assets publicados com `collectstatic`
 - aplicacao reiniciada apos configuracao das variaveis
@@ -302,8 +302,10 @@ db.reconnect_sessions.find(
 
 Resultado esperado:
 
-- `cancel_requested_at` preenchido
-- o RPA conclui a sessao como `CANCELLED`, se respeitar essa marcacao
+- se a sessao ainda estiver em `QUEUED`, o LineOps pode encerrar imediatamente em `CANCELLED`
+- se a sessao ja estiver em andamento, `cancel_requested_at` fica preenchido e a UI passa a exibir `CANCEL_REQUESTED`
+- com o RPA novo, a sessao deve evoluir depois para `CANCELLED`
+- com RPA antigo, a sessao pode permanecer em `CANCEL_REQUESTED` ate encerramento manual no Mongo
 
 ## Evidencias minimas para aceite
 
@@ -382,6 +384,6 @@ Verificar:
 
 ## Riscos residuais
 
-- o comportamento exato de `CANCELLED` depende de o RPA respeitar `cancel_requested_at`
+- para sessoes ja em andamento, o comportamento final de `CANCELLED` depende de o RPA respeitar `cancel_requested_at`
 - a garantia forte contra sessao ativa duplicada para o mesmo telefone depende de o indice unico parcial estar presente e saudavel no Mongo do ambiente
 - o `target_server` precisa refletir o mapeamento real dos servidores de QA

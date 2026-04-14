@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
                 choices=[
                     ("new_number", "NÃºmero novo"),
                     ("reconnect_whatsapp", "Reconectar WhatsApp"),
-                    ("pending", "PendÃªncia"),
+                    ("pending", "Pendência"),
                 ],
                 max_length=30,
                 verbose_name="Tipo de aÃ§Ã£o",

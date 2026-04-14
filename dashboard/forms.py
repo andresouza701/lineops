@@ -183,7 +183,7 @@ class DailyUserActionForm(forms.Form):
         ("", "Sem ação"),
         ("new_number", "Número novo"),
         ("reconnect_whatsapp", "Reconectar WhatsApp"),
-        ("pending", "PendÃªncia"),
+        ("pending", "Pendência"),
     ]
 
     day = forms.DateField(widget=forms.HiddenInput())

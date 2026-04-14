@@ -92,6 +92,7 @@ O usuario podera:
 - O cliente web fara polling de `1s` enquanto houver sessao conhecida nao terminal.
 - Enquanto a UI ainda nao conhecer um `session_id`, ela pode descobrir a sessao atual da linha pela busca de sessao ativa por telefone.
 - Depois que a UI conhecer um `session_id`, ela deve continuar consultando esse identificador para nao perder estados terminais que forem gravados de forma assincrona pelo RPA.
+- Se a sessao receber `cancel_requested_at` mas ainda nao tiver ficado terminal, a UI pode representar esse estado como `CANCEL_REQUESTED` para deixar explicito que o pedido de cancelamento foi aceito e ainda depende do RPA.
 - Estados terminais:
   - `CONNECTED`
   - `FAILED`
@@ -184,4 +185,6 @@ concorrencia inconsistente.
 - o polling preserva o ultimo estado da sessao quando a UI ja conhece o `session_id`
 - o codigo e salvo corretamente com `attempt` e historico `last_pair_code*`
 - o usuario consegue cancelar uma sessao nao terminal
+- se a sessao ainda estiver `QUEUED`, o LineOps consegue encerra-la imediatamente em `CANCELLED`
+- se a sessao ja estiver em andamento, a UI mostra `CANCEL_REQUESTED` ate o RPA concluir o encerramento
 - o fluxo nao altera `PhoneLine.status`

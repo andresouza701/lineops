@@ -21,7 +21,9 @@ Fluxo:
 7. O RPA consome o codigo, envia para o WhatsApp e muda a sessao para `SUBMITTING_CODE`.
 8. Se tudo der certo, o RPA finaliza em `CONNECTED`.
 9. Se houver falha, timeout, restricao, restauracao ou banimento, o RPA finaliza em `FAILED`.
-10. Se a plataforma cancelar, o RPA finaliza em `CANCELLED`.
+10. Se a plataforma cancelar:
+   - uma sessao ainda em `QUEUED` pode ser finalizada imediatamente pela propria plataforma em `CANCELLED`
+   - uma sessao ja em andamento depende do RPA para finalizar em `CANCELLED`
 
 ## Banco e collection
 
@@ -355,6 +357,15 @@ Quando o RPA perceber isso, ele finaliza em:
 
 - `status = CANCELLED`
 - `error_code = cancel_requested`
+
+### Comportamento adicional da plataforma
+
+O LineOps possui uma regra local para evitar sessao presa em fila:
+
+- se a sessao ainda estiver em `QUEUED`, a propria plataforma pode finalizar imediatamente em `CANCELLED`
+- se a sessao ja estiver em andamento, a plataforma serializa o estado web como `CANCEL_REQUESTED` ate o RPA concluir o encerramento
+
+`CANCEL_REQUESTED` e um estado de payload web do LineOps, nao um status persistido do contrato Mongo.
 
 ## Casos especiais detectados pelo RPA
 

@@ -17,6 +17,15 @@ Aplicação Django para gestão de linhas telefônicas, alocações e indicadore
 - `1.0.3`: veja [docs/release-notes-1.0.3.md](docs/release-notes-1.0.3.md)
 - `1.0.2`: veja [docs/release-notes-1.0.2.md](docs/release-notes-1.0.2.md)
 
+## Reconnect WhatsApp
+
+Documentacao disponivel em:
+
+- [docs/PLATFORM_WEB_RECONNECT_OPERATOR_GUIDE.md](docs/PLATFORM_WEB_RECONNECT_OPERATOR_GUIDE.md)
+- [docs/PLATFORM_WEB_RECONNECT_CONTRACT.md](docs/PLATFORM_WEB_RECONNECT_CONTRACT.md)
+- [docs/PLATFORM_WEB_RECONNECT_IMPLEMENTATION_SPEC.md](docs/PLATFORM_WEB_RECONNECT_IMPLEMENTATION_SPEC.md)
+- [docs/PLATFORM_WEB_RECONNECT_QA_RUNBOOK.md](docs/PLATFORM_WEB_RECONNECT_QA_RUNBOOK.md)
+
 ## Variáveis de ambiente
 
 Crie o arquivo `.env` a partir do exemplo:
