@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from django.conf import settings
@@ -13,6 +14,8 @@ from config.forms import UploadForm
 from core.mixins import AuthenticadView, RoleRequiredMixin
 from core.services.upload_service import process_upload_file
 from users.models import SystemUser
+
+logger = logging.getLogger(__name__)
 
 
 class DashboardView(AuthenticadView, TemplateView):
@@ -39,11 +42,15 @@ class UploadView(RoleRequiredMixin, FormView):
 
     def form_valid(self, form):
         uploaded_file = form.cleaned_data["file"]
-        saved_path = self._persist_file(uploaded_file)
         try:
+            saved_path = self._persist_file(uploaded_file)
             summary = process_upload_file(saved_path)
         except ValueError as exc:
             messages.error(self.request, str(exc))
+            return self.render_to_response(self.get_context_data(form=form))
+        except Exception as exc:
+            logger.exception("Unexpected error processing upload file")
+            messages.error(self.request, f"Erro inesperado ao processar o arquivo: {exc}")
             return self.render_to_response(self.get_context_data(form=form))
 
         self._notify(summary, saved_path.name)

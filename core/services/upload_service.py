@@ -171,12 +171,12 @@ def _ingest_rows(rows: Iterable[dict[str, str]]) -> UploadSummary:
             summary.rows_processed += 1
         except (ValueError, IntegrityError) as exc:
             summary.errors.append(f"Linha {index}: {exc}")
-        except Exception:
+        except Exception as exc:
             logger.exception(
                 "Unexpected failure while processing upload row",
                 extra={"row_index": index},
             )
-            raise
+            summary.errors.append(f"Linha {index}: Erro inesperado - {exc}")
 
     return summary
 
