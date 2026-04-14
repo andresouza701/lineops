@@ -131,7 +131,7 @@
                                     -
                                 {% endif %}
                             </td>
-                            <td>
+                            <td class="js-last-changed">
                                 {% if row.line_status_changed_at %}
                                     <span class="metric-mono">{{ row.line_status_changed_at|date:"d/m/Y H:i" }}</span>
                                 {% else %}
@@ -325,7 +325,7 @@
                         <div class="col-12">
                             <label class="form-label fw-semibold mb-1">Responsável Técnico</label>
                             <div class="d-flex align-items-center gap-2">
-                                <span id="pendencyTechName" class="text-muted fst-italic">Não atribuído</span>
+                                <span id="pendencyTechName" class="text-muted">-</span>
                                 <button
                                     type="button"
                                     class="btn btn-sm btn-outline-primary"
@@ -500,13 +500,9 @@
 
         // Responsável técnico
         const techNameEl = document.getElementById('pendencyTechName');
-        if (data.technical_responsible_name) {
-            techNameEl.textContent  = data.technical_responsible_name;
-            techNameEl.classList.remove('text-muted', 'fst-italic');
-        } else {
-            techNameEl.textContent  = 'Não atribuído';
-            techNameEl.classList.add('text-muted', 'fst-italic');
-        }
+        techNameEl.textContent = data.technical_responsible_name || '-';
+        techNameEl.classList.toggle('text-muted', !data.technical_responsible_name);
+        techNameEl.classList.remove('fst-italic');
         if (IS_ADMIN) {
             claimBtn.style.display = '';
         }
@@ -638,6 +634,16 @@
                 techTd.innerHTML = `<span class="metric-mono">${data.technical_responsible_name}</span>`;
             } else {
                 techTd.textContent = '-';
+            }
+        }
+
+        // --- Últ.alt.status ---
+        const lastChangedTd = row.querySelector('.js-last-changed');
+        if (lastChangedTd) {
+            if (data.last_action_changed_at) {
+                lastChangedTd.innerHTML = `<span class="metric-mono">${data.last_action_changed_at}</span>`;
+            } else {
+                lastChangedTd.textContent = '-';
             }
         }
 
