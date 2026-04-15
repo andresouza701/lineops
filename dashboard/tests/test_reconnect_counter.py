@@ -139,6 +139,66 @@ class LastSubmittedActionModelTest(TestCase):
         # block does NOT run
         self.assertIsNone(self.pendency.last_submitted_action)
 
+    def test_resolved_at_set_on_resolution(self):
+        """Admin resolving a pendency (→ NO_ACTION) must set resolved_at."""
+        self.pendency.record_action_change(
+            AllocationPendency.ActionType.RECONNECT_WHATSAPP,
+            actor_role="super",
+        )
+        self.assertIsNone(self.pendency.resolved_at)
+        self.pendency.record_action_change(
+            AllocationPendency.ActionType.NO_ACTION,
+            actor_role="admin",
+        )
+        self.assertIsNotNone(self.pendency.resolved_at)
+
+    def test_resolved_at_cleared_on_reopen(self):
+        """Reopening a resolved pendency must clear resolved_at."""
+        self.pendency.record_action_change(
+            AllocationPendency.ActionType.RECONNECT_WHATSAPP,
+            actor_role="super",
+        )
+        self.pendency.record_action_change(
+            AllocationPendency.ActionType.NO_ACTION,
+            actor_role="admin",
+        )
+        self.assertIsNotNone(self.pendency.resolved_at)
+        self.pendency.record_action_change(
+            AllocationPendency.ActionType.NEW_NUMBER,
+            actor_role="super",
+        )
+        self.assertIsNone(self.pendency.resolved_at)
+
+    def test_last_submitted_action_backfilled_on_resolution_when_null(self):
+        """When last_submitted_action is NULL (old pendency), resolving must
+        backfill it with the action that was active before NO_ACTION."""
+        # Simulate a pre-fix pendency: has an open action but no last_submitted_action
+        self.pendency.action = AllocationPendency.ActionType.RECONNECT_WHATSAPP
+        self.pendency.last_submitted_action = None
+        self.pendency.record_action_change(
+            AllocationPendency.ActionType.NO_ACTION,
+            actor_role="admin",
+        )
+        self.assertEqual(
+            self.pendency.last_submitted_action,
+            AllocationPendency.ActionType.RECONNECT_WHATSAPP,
+        )
+
+    def test_last_submitted_action_not_overwritten_on_resolution_when_set(self):
+        """When last_submitted_action is already set, resolving must not change it."""
+        self.pendency.record_action_change(
+            AllocationPendency.ActionType.RECONNECT_WHATSAPP,
+            actor_role="super",
+        )
+        self.pendency.record_action_change(
+            AllocationPendency.ActionType.NO_ACTION,
+            actor_role="admin",
+        )
+        self.assertEqual(
+            self.pendency.last_submitted_action,
+            AllocationPendency.ActionType.RECONNECT_WHATSAPP,
+        )
+
 
 class BuildPendencyResolvedReconnectTest(TestCase):
     """

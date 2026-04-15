@@ -220,22 +220,6 @@ class PendencyUpdateView(RoleRequiredMixin, View):
                     pendency.record_line_status_change(now=now)
                     update_fields.append("last_action_changed_at")
 
-        # --- resolved_at: condição combinada (admin + ACTIVE + NO_ACTION) ---
-        if is_admin:
-            allocation_after = pendency.allocation
-            if allocation_after:
-                final_line_status = allocation_after.line_status
-            else:
-                final_line_status = pendency.employee.line_status
-
-            is_resolved_state = (
-                pendency.action == AllocationPendency.ActionType.NO_ACTION
-                and final_line_status == "active"
-            )
-            if is_resolved_state and pendency.resolved_at != now:
-                pendency.resolved_at = now
-                update_fields.append("resolved_at")
-
         # --- Salva pendência ---
         if update_fields:
             pendency.updated_by = request.user
