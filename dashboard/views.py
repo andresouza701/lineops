@@ -931,7 +931,14 @@ def build_indicator_for_day(
 ) -> dict:
     """Calculate all indicators for a specific day from database state."""
     employees = get_scoped_visible_employees_for_day(day, user)
-    active_employees = employees.filter(status=Employee.Status.ACTIVE)
+    # Para dias históricos não há rastreamento de status, então qualquer
+    # employee que existia naquele dia é tratado como ativo — evita que
+    # inativações posteriores apaguem dados históricos do breakdown e dos
+    # indicadores agregados. Para o dia atual, mantém o filtro real.
+    if is_historical_day(day):
+        active_employees = employees
+    else:
+        active_employees = employees.filter(status=Employee.Status.ACTIVE)
     scoped_employee_ids = (
         employees.values_list("id", flat=True)
         if uses_scoped_dashboard_metrics(user)
@@ -984,7 +991,7 @@ def build_indicator_for_day(
 
     indicator = {
         "data": day,
-        "pessoas_logadas": employees.filter(status=Employee.Status.ACTIVE).count(),
+        "pessoas_logadas": active_employees.count(),
         "perc_sem_whats": perc_sem_whats,
         "b2b_sem_whats": b2b_sem_whats,
         "b2c_sem_whats": b2c_sem_whats,
