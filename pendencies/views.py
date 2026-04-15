@@ -1,19 +1,20 @@
 import json
 
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.views import View
-from django.views.decorators.http import require_POST
 
 from allocations.models import LineAllocation
 from core.mixins import RoleRequiredMixin
 from employees.models import Employee
-from telecom.models import PhoneLine, PhoneLineHistory
+from telecom.models import PhoneLineHistory
 from users.models import SystemUser
 
-from .models import AllocationPendency
+from .models import AllocationPendency, PendencyObservationNotification
+from .services import notify_observation_change
 
 # Roles que podem VER e interagir com a tela de pendências
 PENDENCY_ALLOWED_ROLES = list(SystemUser.EMPLOYEE_ACCESS_ROLES)
@@ -184,7 +185,9 @@ class PendencyUpdateView(RoleRequiredMixin, View):
             return JsonResponse({"errors": errors}, status=403)
 
         # --- Observação (qualquer role) ---
-        if new_observation != pendency.observation:
+        old_observation = pendency.observation
+        observation_changed = new_observation != old_observation
+        if observation_changed:
             pendency.observation = new_observation[:350]
             update_fields.append("observation")
 
@@ -238,10 +241,21 @@ class PendencyUpdateView(RoleRequiredMixin, View):
             update_fields.append("updated_by")
             pendency.save(update_fields=list(set(update_fields)))
 
+        # --- Notificação de observação ---
+        notifications_sent = 0
+        if observation_changed and new_observation:
+            notifications_sent = notify_observation_change(
+                pendency, request.user, new_observation
+            )
+
         # Re-fetch allocation para retornar estado atual
         allocation = pendency.allocation
         return JsonResponse(
-            {"ok": True, **_pendency_to_json(pendency, allocation)}
+            {
+                "ok": True,
+                "notifications_sent": notifications_sent,
+                **_pendency_to_json(pendency, allocation),
+            }
         )
 
 
@@ -277,3 +291,51 @@ class PendencyClaimView(RoleRequiredMixin, View):
         return JsonResponse(
             {"ok": True, **_pendency_to_json(pendency, allocation)}
         )
+
+
+class PendencyNotificationsView(LoginRequiredMixin, View):
+    """
+    GET: retorna notificações de observação não lidas do usuário logado
+    e marca todas como lidas.
+    """
+
+    def get(self, request):
+        qs = (
+            PendencyObservationNotification.objects.filter(
+                recipient=request.user,
+                is_read=False,
+            )
+            .select_related("pendency__employee", "sent_by")
+            .order_by("-created_at")
+        )
+
+        notifications = []
+        ids_to_mark = []
+        for notif in qs:
+            ids_to_mark.append(notif.pk)
+            sent_by_name = ""
+            if notif.sent_by:
+                sent_by_name = (
+                    notif.sent_by.get_full_name().strip()
+                    or notif.sent_by.email
+                )
+            notifications.append(
+                {
+                    "id": notif.pk,
+                    "text": notif.observation_text,
+                    "sent_by": sent_by_name,
+                    "employee_name": (
+                        notif.pendency.employee.full_name
+                        if notif.pendency_id
+                        else ""
+                    ),
+                    "created_at": _format_dt(notif.created_at),
+                }
+            )
+
+        if ids_to_mark:
+            PendencyObservationNotification.objects.filter(
+                pk__in=ids_to_mark
+            ).update(is_read=True)
+
+        return JsonResponse({"notifications": notifications})

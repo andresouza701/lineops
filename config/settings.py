@@ -96,6 +96,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "django.template.context_processors.debug",
                 "core.context_processors.pending_actions_count",
+                "core.context_processors.unread_notifications_count",
                 "core.context_processors.app_metadata",
             ],
         },

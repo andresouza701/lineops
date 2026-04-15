@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 
 class AllocationPendency(models.Model):
@@ -144,3 +145,60 @@ class AllocationPendency(models.Model):
         if now is None:
             now = timezone.now()
         self.last_action_changed_at = now
+
+
+class PendencyObservationNotification(models.Model):
+    """
+    Notificação gerada quando a Observação de uma pendência é alterada.
+
+    - Admin salva observação → notifica super, backoffice, gerente.
+    - Super/backoffice/gerente salva observação → notifica admins.
+    """
+
+    pendency = models.ForeignKey(
+        AllocationPendency,
+        on_delete=models.CASCADE,
+        related_name="observation_notifications",
+        verbose_name=_("Pendência"),
+    )
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="pendency_notifications",
+        verbose_name=_("Destinatário"),
+    )
+    sent_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sent_pendency_notifications",
+        verbose_name=_("Enviado por"),
+    )
+    observation_text = models.CharField(
+        max_length=350,
+        verbose_name=_("Texto da observação"),
+    )
+    is_read = models.BooleanField(
+        default=False,
+        verbose_name=_("Lida"),
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name=_("Criada em"),
+    )
+
+    class Meta:
+        verbose_name = _("Notificação de Observação de Pendência")
+        verbose_name_plural = _("Notificações de Observação de Pendência")
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["recipient", "is_read"], name="pendency_notif_recip_read_idx"),
+        ]
+
+    def __str__(self):
+        return (
+            f"Notif → {self.recipient_id} | "
+            f"pendência {self.pendency_id} | "
+            f"{'lida' if self.is_read else 'não lida'}"
+        )
