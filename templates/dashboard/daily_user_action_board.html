@@ -114,15 +114,39 @@
         <table class="table table-striped table-hover align-middle">
             <thead class="table-light">
                 <tr>
-                    <th>PA</th>
-                    <th>Usuário</th>
-                    <th>Carteira</th>
-                    <th>Resp. Técnico</th>
-                    <th>Últ.alt.status</th>
-                    <th>Linha ativa</th>
-                    <th>Status da linha</th>
-                    <th>Ação</th>
-                    <th class="text-center">Status Pendência</th>
+                    {% if is_admin_role %}
+                        {% for col_key, col_label in sort_columns %}
+                            {% if col_key == "status_pendencia" %}
+                                <th class="text-center">{{ col_label }}</th>
+                            {% else %}
+                                <th>
+                                    <a href="?{% if supervisor_filter %}supervisor={{ supervisor_filter|urlencode }}&{% endif %}{% if user_filter %}user={{ user_filter|urlencode }}&{% endif %}{% if line_filter %}line={{ line_filter|urlencode }}&{% endif %}{% if technical_filter %}technical={{ technical_filter|urlencode }}&{% endif %}sort={{ col_key }}&order={% if sort_col == col_key and sort_order == "asc" %}desc{% else %}asc{% endif %}"
+                                       class="text-decoration-none text-reset d-flex align-items-center gap-1">
+                                        {{ col_label }}
+                                        {% if sort_col == col_key %}
+                                            {% if sort_order == "asc" %}
+                                                <i class="bi bi-sort-up text-primary"></i>
+                                            {% else %}
+                                                <i class="bi bi-sort-down text-primary"></i>
+                                            {% endif %}
+                                        {% else %}
+                                            <i class="bi bi-arrow-down-up text-muted opacity-50"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <th>PA</th>
+                        <th>Usuário</th>
+                        <th>Carteira</th>
+                        <th>Resp. Técnico</th>
+                        <th>Últ.alt.status</th>
+                        <th>Linha ativa</th>
+                        <th>Status da linha</th>
+                        <th>Ação</th>
+                        <th class="text-center">Status Pendência</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -223,6 +247,11 @@
 
 {% block scripts %}
 {{ block.super }}
+
+<style>
+  thead th a.text-reset:hover { opacity: 0.8; }
+  thead th a.text-reset { white-space: nowrap; }
+</style>
 
 {# ── Modal: detalhe da linha (existente) ── #}
 <div class="modal fade" id="lineDetailModal" tabindex="-1" aria-labelledby="lineDetailModalLabel" aria-hidden="true">

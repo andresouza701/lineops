@@ -510,6 +510,55 @@ def filter_daily_user_action_rows(
     return filtered_rows
 
 
+_SORT_COLUMN_KEYS = {
+    "pa", "usuario", "carteira", "resp_tecnico",
+    "ult_alt_status", "linha", "status_linha", "acao",
+}
+
+
+def sort_daily_user_action_rows(rows, sort_col, sort_order):
+    """Ordena as linhas da tabela de ações do dia por coluna e direção.
+
+    sort_col: chave da coluna (ver _SORT_COLUMN_KEYS)
+    sort_order: "asc" ou "desc"
+    """
+    if sort_col not in _SORT_COLUMN_KEYS:
+        return rows
+
+    reverse = sort_order == "desc"
+
+    def sort_key(row):
+        employee = row["employee"]
+        pendency = row.get("pendency")
+        allocation = row.get("allocation")
+
+        if sort_col == "pa":
+            return (employee.pa or "").lower()
+        if sort_col == "usuario":
+            return (employee.full_name or "").lower()
+        if sort_col == "carteira":
+            return (employee.employee_id or "").lower()
+        if sort_col == "resp_tecnico":
+            return _pendency_technical_name(pendency).lower()
+        if sort_col == "ult_alt_status":
+            changed_at = row.get("line_status_changed_at")
+            # None vai para o final; datetime comparável diretamente
+            return (0, changed_at) if changed_at else (1, None)
+        if sort_col == "linha":
+            return (row.get("line_number") or "").lower()
+        if sort_col == "status_linha":
+            if allocation:
+                return allocation.get_line_status_display().lower()
+            return employee.get_line_status_display().lower()
+        if sort_col == "acao":
+            if pendency and pendency.is_open:
+                return pendency.get_action_display().lower()
+            return ""
+        return ""
+
+    return sorted(rows, key=sort_key, reverse=reverse)
+
+
 def count_visible_pending_actions(rows):
     new_number = 0
     reconnect_whatsapp = 0
@@ -1569,6 +1618,10 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
     technical_filter = (
         (request.GET.get("technical") or "").strip() if is_admin_role else ""
     )
+    sort_col = (request.GET.get("sort") or "").strip() if is_admin_role else ""
+    sort_order = (request.GET.get("order") or "asc").strip().lower()
+    if sort_order not in ("asc", "desc"):
+        sort_order = "asc"
     employees_qs = get_supervised_employees_queryset(request.user, supervisor_filter)
 
     if request.method == "POST":
@@ -1778,6 +1831,9 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
             query["line"] = line_filter
         if technical_filter:
             query["technical"] = technical_filter
+        if sort_col:
+            query["sort"] = sort_col
+            query["order"] = sort_order
         redirect_url = reverse("daily_user_action_board")
         if query:
             redirect_url = f"{redirect_url}?{urlencode(query)}"
@@ -1795,6 +1851,8 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         line_filter=line_filter,
         technical_filter=technical_filter,
     )
+    if is_admin_role and sort_col:
+        rows = sort_daily_user_action_rows(rows, sort_col, sort_order)
     action_counts = count_visible_pending_actions(rows)
 
     context = {
@@ -1805,6 +1863,19 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         "user_filter": user_filter,
         "line_filter": line_filter,
         "technical_filter": technical_filter,
+        "sort_col": sort_col,
+        "sort_order": sort_order,
+        "sort_columns": [
+            ("pa", "PA"),
+            ("usuario", "Usuário"),
+            ("carteira", "Carteira"),
+            ("resp_tecnico", "Resp. Técnico"),
+            ("ult_alt_status", "Últ.alt.status"),
+            ("linha", "Linha ativa"),
+            ("status_linha", "Status da linha"),
+            ("acao", "Ação"),
+            ("status_pendencia", "Status Pendência"),
+        ],
         "is_supervisor_role": request.user.is_supervisor_role,
         "is_admin_role": is_admin_role,
     }
