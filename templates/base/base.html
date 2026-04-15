@@ -64,7 +64,7 @@
                         data-notifications-url="{% url 'pendencies:notifications' %}"
                     >
                         <i class="bi bi-bell" aria-hidden="true"></i>
-                        {% if unread_notifications_count > 0 %}
+                        {% if unread_notifications_count > 0 and not hide_bell_badge %}
                             <span class="rail-badge" id="notifBadge">{{ unread_notifications_count }}</span>
                         {% else %}
                             <span class="rail-badge d-none" id="notifBadge"></span>

@@ -209,25 +209,35 @@
                             </td>
                             <td class="text-center">
                                 {% if row.pendency and row.pendency.is_open %}
-                                    <button
-                                        type="button"
-                                        class="btn btn-warning btn-sm pendency-btn"
-                                        title="Ver pendência"
-                                        data-employee-id="{{ row.employee.pk }}"
-                                        data-allocation-id="{{ row.allocation.pk|default:'' }}"
-                                    >
-                                        <i class="bi bi-exclamation-triangle-fill"></i>
-                                    </button>
+                                    <span class="position-relative d-inline-block">
+                                        <button
+                                            type="button"
+                                            class="btn btn-warning btn-sm pendency-btn"
+                                            title="Ver pendência"
+                                            data-employee-id="{{ row.employee.pk }}"
+                                            data-allocation-id="{{ row.allocation.pk|default:'' }}"
+                                        >
+                                            <i class="bi bi-exclamation-triangle-fill"></i>
+                                        </button>
+                                        {% if row.employee.pk in employee_ids_with_notifications %}
+                                            <span class="notif-dot" aria-label="Nova observação"></span>
+                                        {% endif %}
+                                    </span>
                                 {% else %}
-                                    <button
-                                        type="button"
-                                        class="btn btn-outline-secondary btn-sm pendency-btn"
-                                        title="Abrir painel de pendência"
-                                        data-employee-id="{{ row.employee.pk }}"
-                                        data-allocation-id="{{ row.allocation.pk|default:'' }}"
-                                    >
-                                        <i class="bi bi-exclamation-circle"></i>
-                                    </button>
+                                    <span class="position-relative d-inline-block">
+                                        <button
+                                            type="button"
+                                            class="btn btn-outline-secondary btn-sm pendency-btn"
+                                            title="Abrir painel de pendência"
+                                            data-employee-id="{{ row.employee.pk }}"
+                                            data-allocation-id="{{ row.allocation.pk|default:'' }}"
+                                        >
+                                            <i class="bi bi-exclamation-circle"></i>
+                                        </button>
+                                        {% if row.employee.pk in employee_ids_with_notifications %}
+                                            <span class="notif-dot" aria-label="Nova observação"></span>
+                                        {% endif %}
+                                    </span>
                                 {% endif %}
                             </td>
                         </tr>
@@ -251,6 +261,18 @@
 <style>
   thead th a.text-reset:hover { opacity: 0.8; }
   thead th a.text-reset { white-space: nowrap; }
+  .notif-dot {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 10px;
+    height: 10px;
+    background: #dc3545;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    display: block;
+    pointer-events: none;
+  }
 </style>
 
 {# ── Modal: detalhe da linha (existente) ── #}
@@ -728,6 +750,9 @@
         if (!btn) return;
         const employeeId   = btn.getAttribute('data-employee-id');
         const allocationId = btn.getAttribute('data-allocation-id') || '';
+        // Remove badge de notificação local ao abrir o modal
+        const dot = btn.closest('.position-relative')?.querySelector('.notif-dot');
+        if (dot) dot.remove();
         const modal = bootstrap.Modal.getOrCreateInstance(pendencyModalEl);
         modal.show();
         loadPendency(employeeId, allocationId);

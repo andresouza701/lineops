@@ -1854,6 +1854,15 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         rows = sort_daily_user_action_rows(rows, sort_col, sort_order)
     action_counts = count_visible_pending_actions(rows)
 
+    from pendencies.models import PendencyObservationNotification
+
+    employee_ids_with_notifications = set(
+        PendencyObservationNotification.objects.filter(
+            recipient=request.user,
+            is_read=False,
+        ).values_list("pendency__employee_id", flat=True)
+    )
+
     context = {
         "title": "Ações do Dia",
         "rows": rows,
@@ -1864,6 +1873,8 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         "technical_filter": technical_filter,
         "sort_col": sort_col,
         "sort_order": sort_order,
+        "employee_ids_with_notifications": employee_ids_with_notifications,
+        "hide_bell_badge": True,
         "sort_columns": [
             ("pa", "PA"),
             ("usuario", "Usuário"),
