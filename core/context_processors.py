@@ -12,15 +12,6 @@ from dashboard.views import (
 from employees.models import Employee
 from users.models import SystemUser
 
-# Roles que recebem notificações de observação de pendência
-_NOTIFICATION_ROLES = (
-    SystemUser.Role.ADMIN,
-    SystemUser.Role.SUPER,
-    SystemUser.Role.BACKOFFICE,
-    SystemUser.Role.GERENTE,
-)
-
-
 def pending_actions_count(request):
     """
     Disponibiliza o contador de pendencias de "Acoes do Dia" para ADMINs.
@@ -46,26 +37,6 @@ def pending_actions_count(request):
         )
 
     return {"pending_actions_count": count}
-
-
-def unread_notifications_count(request):
-    """
-    Disponibiliza a contagem de notificações de observação não lidas
-    para as roles que participam do fluxo de pendências.
-    """
-    count = 0
-    if (
-        request.user.is_authenticated
-        and request.user.role in _NOTIFICATION_ROLES
-    ):
-        from pendencies.models import PendencyObservationNotification
-
-        count = PendencyObservationNotification.objects.filter(
-            recipient=request.user,
-            is_read=False,
-        ).count()
-
-    return {"unread_notifications_count": count}
 
 
 def app_metadata(request):

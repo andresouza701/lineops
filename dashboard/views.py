@@ -1874,7 +1874,6 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         "sort_col": sort_col,
         "sort_order": sort_order,
         "employee_ids_with_notifications": employee_ids_with_notifications,
-        "hide_bell_badge": True,
         "sort_columns": [
             ("pa", "PA"),
             ("usuario", "Usuário"),
