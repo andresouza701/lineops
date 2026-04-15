@@ -22,27 +22,35 @@
 
 <section class="mb-3">
     <div class="row g-3">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card detail-stat-card detail-stat-card-warning">
                 <div class="card-body">
-                    <p class="text-muted mb-1">Pendência - Número Novo</p>
+                    <p class="text-muted mb-1">Número Novo</p>
                     <strong class="h4">{{ action_counts.new_number }}</strong>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card detail-stat-card detail-stat-card-info">
                 <div class="card-body">
-                    <p class="text-muted mb-1">Pendência - Reconexão Whats</p>
+                    <p class="text-muted mb-1">Reconexão Whats</p>
                     <strong class="h4">{{ action_counts.reconnect_whatsapp }}</strong>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card detail-stat-card detail-stat-card-primary">
                 <div class="card-body">
-                    <p class="text-muted mb-1">Total sinalizados</p>
-                    <strong class="h4">{{ action_counts.new_number|add:action_counts.reconnect_whatsapp }}</strong>
+                    <p class="text-muted mb-1">Pendência</p>
+                    <strong class="h4">{{ action_counts.pending }}</strong>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card detail-stat-card detail-stat-card-danger">
+                <div class="card-body">
+                    <p class="text-muted mb-1">Status da Linha</p>
+                    <strong class="h4">{{ action_counts.line_status_issues }}</strong>
                 </div>
             </div>
         </div>
@@ -328,12 +336,12 @@
                                 <span id="pendencyTechName" class="text-muted">-</span>
                                 <button
                                     type="button"
-                                    class="btn btn-sm btn-outline-primary"
+                                    class="btn btn-sm btn-outline-primary ms-auto"
                                     id="pendencyClaimBtn"
                                     style="display:none;"
                                     title="Assumir como responsável técnico"
                                 >
-                                    ✋ Assumir
+                                    Assumir
                                 </button>
                             </div>
                         </div>

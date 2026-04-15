@@ -511,21 +511,35 @@ def filter_daily_user_action_rows(
 
 
 def count_visible_pending_actions(rows):
+    new_number = 0
+    reconnect_whatsapp = 0
+    pending = 0
+    line_status_issues = 0
+
+    for row in rows:
+        pendency = row.get("pendency")
+        action = pendency.action if pendency else AllocationPendency.ActionType.NO_ACTION
+
+        if action == AllocationPendency.ActionType.NEW_NUMBER:
+            new_number += 1
+        elif action == AllocationPendency.ActionType.RECONNECT_WHATSAPP:
+            reconnect_whatsapp += 1
+        elif action == AllocationPendency.ActionType.PENDING:
+            pending += 1
+
+        allocation = row.get("allocation")
+        if allocation:
+            if allocation.line_status != LineAllocation.LineStatus.ACTIVE:
+                line_status_issues += 1
+        else:
+            if row["employee"].line_status != Employee.LineStatus.ACTIVE:
+                line_status_issues += 1
+
     return {
-        "new_number": sum(
-            1
-            for row in rows
-            if row.get("pendency")
-            and row["pendency"].action
-            == AllocationPendency.ActionType.NEW_NUMBER
-        ),
-        "reconnect_whatsapp": sum(
-            1
-            for row in rows
-            if row.get("pendency")
-            and row["pendency"].action
-            == AllocationPendency.ActionType.RECONNECT_WHATSAPP
-        ),
+        "new_number": new_number,
+        "reconnect_whatsapp": reconnect_whatsapp,
+        "pending": pending,
+        "line_status_issues": line_status_issues,
     }
 
 
