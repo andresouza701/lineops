@@ -620,6 +620,44 @@ def build_admin_resolved_reconnect_numbers_for_day(day, employee_ids=None):
     return details
 
 
+def build_pendency_resolved_reconnect_numbers_for_day(day, employee_ids=None):
+    """
+    Conta reconexões resolvidas via AllocationPendency (novo sistema).
+
+    Uma reconexão via pendência ocorre quando o admin resolve (resolved_at == day)
+    uma pendência cujo last_submitted_action era RECONNECT_WHATSAPP.
+    Substitui progressivamente build_admin_resolved_reconnect_numbers_for_day
+    para pendências criadas após a introdução do AllocationPendency.
+    """
+    from pendencies.models import AllocationPendency
+
+    qs = AllocationPendency.objects.filter(
+        resolved_at__date=day,
+        last_submitted_action=AllocationPendency.ActionType.RECONNECT_WHATSAPP,
+    ).select_related("employee", "allocation__phone_line")
+
+    if employee_ids is not None:
+        qs = qs.filter(employee_id__in=employee_ids)
+
+    details = []
+    for pendency in qs:
+        allocation = pendency.allocation
+        if not allocation or not allocation.phone_line:
+            continue
+        if not phone_line_is_visible_for_day(
+            allocation.phone_line, day, allocation.allocated_at
+        ):
+            continue
+        details.append(
+            {
+                "numero": allocation.phone_line.phone_number,
+                "usuario": pendency.employee.full_name,
+                "carteira": pendency.employee.employee_id,
+            }
+        )
+    return details
+
+
 def build_reconnected_numbers_for_day(day, employee_ids=None):
     start_of_day = timezone.make_aware(datetime.combine(day, time.min))
     reconnected_allocations = DailyIndicatorService.get_reconnected_allocations_queryset(
@@ -648,8 +686,13 @@ def build_reconnected_numbers_for_day(day, employee_ids=None):
             allocation.allocated_at or start_of_day,
         )
     ]
+    # Retrocompatibilidade: DailyUserAction criados antes do AllocationPendency
     reconnected_numbers.extend(
         build_admin_resolved_reconnect_numbers_for_day(day, employee_ids)
+    )
+    # Novo sistema: AllocationPendency resolvidas como RECONNECT_WHATSAPP
+    reconnected_numbers.extend(
+        build_pendency_resolved_reconnect_numbers_for_day(day, employee_ids)
     )
     return reconnected_numbers
 

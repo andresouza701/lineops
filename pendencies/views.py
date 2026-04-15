@@ -177,6 +177,7 @@ class PendencyUpdateView(RoleRequiredMixin, View):
                 update_fields += [
                     "action",
                     "last_action_changed_at",
+                    "last_submitted_action",
                     "pendency_submitted_at",
                     "resolved_at",
                 ]

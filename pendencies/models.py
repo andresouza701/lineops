@@ -56,6 +56,22 @@ class AllocationPendency(models.Model):
         verbose_name="Responsável Técnico",
     )
 
+    # Rastreia qual ação foi enviada pela última vez (antes de uma eventual
+    # resolução). Preenchido junto com pendency_submitted_at e permanece
+    # intacto quando a pendência é resolvida (action volta a NO_ACTION).
+    # Permite saber que tipo de pendência foi resolvida pelo admin.
+    last_submitted_action = models.CharField(
+        max_length=30,
+        choices=ActionType.choices,
+        null=True,
+        blank=True,
+        verbose_name="Última ação enviada",
+        help_text=(
+            "Ação que estava ativa quando a pendência foi submetida. "
+            "Mantida após a resolução para auditoria e contagem de reconexões."
+        ),
+    )
+
     # Timestamps de ciclo de vida da pendência
     last_action_changed_at = models.DateTimeField(
         null=True,
@@ -95,6 +111,10 @@ class AllocationPendency(models.Model):
         indexes = [
             models.Index(fields=["employee", "action"]),
             models.Index(fields=["allocation"]),
+            models.Index(
+                fields=["resolved_at", "last_submitted_action"],
+                name="pendency_resolved_action_idx",
+            ),
         ]
 
     def __str__(self):
@@ -133,9 +153,11 @@ class AllocationPendency(models.Model):
         is_now_no_action = new_action == self.ActionType.NO_ACTION
 
         if not is_now_no_action and was_no_action:
-            # Reabertura: registra envio e limpa resolução anterior
+            # Reabertura: registra envio, limpa resolução anterior e
+            # snapshot qual ação foi submetida para auditoria/reconexões.
             self.pendency_submitted_at = now
             self.resolved_at = None
+            self.last_submitted_action = new_action
 
         if actor_role == "admin":
             self.last_action_changed_at = now
