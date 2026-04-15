@@ -512,7 +512,7 @@ def filter_daily_user_action_rows(
 
 _SORT_COLUMN_KEYS = {
     "pa", "usuario", "carteira", "resp_tecnico",
-    "ult_alt_status", "linha", "status_linha", "acao",
+    "envio_pendencia", "linha", "status_linha", "acao",
 }
 
 
@@ -540,10 +540,9 @@ def sort_daily_user_action_rows(rows, sort_col, sort_order):
             return (employee.employee_id or "").lower()
         if sort_col == "resp_tecnico":
             return _pendency_technical_name(pendency).lower()
-        if sort_col == "ult_alt_status":
-            changed_at = row.get("line_status_changed_at")
-            # None vai para o final; datetime comparável diretamente
-            return (0, changed_at) if changed_at else (1, None)
+        if sort_col == "envio_pendencia":
+            submitted_at = pendency.pendency_submitted_at if pendency else None
+            return (0, submitted_at) if submitted_at else (1, None)
         if sort_col == "linha":
             return (row.get("line_number") or "").lower()
         if sort_col == "status_linha":
@@ -1870,7 +1869,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
             ("usuario", "Usuário"),
             ("carteira", "Carteira"),
             ("resp_tecnico", "Resp. Técnico"),
-            ("ult_alt_status", "Últ.alt.status"),
+            ("envio_pendencia", "Envio da pendência"),
             ("linha", "Linha ativa"),
             ("status_linha", "Status da linha"),
             ("acao", "Ação"),

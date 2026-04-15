@@ -141,7 +141,7 @@
                         <th>Usuário</th>
                         <th>Carteira</th>
                         <th>Resp. Técnico</th>
-                        <th>Últ.alt.status</th>
+                        <th>Envio da pendência</th>
                         <th>Linha ativa</th>
                         <th>Status da linha</th>
                         <th>Ação</th>
@@ -163,9 +163,9 @@
                                     -
                                 {% endif %}
                             </td>
-                            <td class="js-last-changed">
-                                {% if row.line_status_changed_at %}
-                                    <span class="metric-mono">{{ row.line_status_changed_at|date:"d/m/Y H:i" }}</span>
+                            <td>
+                                {% if row.pendency and row.pendency.pendency_submitted_at %}
+                                    <span class="metric-mono">{{ row.pendency.pendency_submitted_at|date:"d/m/Y H:i" }}</span>
                                 {% else %}
                                     -
                                 {% endif %}
