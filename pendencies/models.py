@@ -161,9 +161,10 @@ class AllocationPendency(models.Model):
             self.resolved_at = None
             self.last_submitted_action = new_action
         elif is_now_no_action and not was_no_action:
-            # Resolução pelo admin: registra resolved_at e garante que
-            # last_submitted_action reflita a ação que estava ativa.
+            # Resolução pelo admin: registra resolved_at, limpa responsável técnico
+            # e garante que last_submitted_action reflita a ação que estava ativa.
             self.resolved_at = now
+            self.technical_responsible = None
             if not self.last_submitted_action:
                 self.last_submitted_action = old_action
 

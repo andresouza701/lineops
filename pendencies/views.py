@@ -180,6 +180,7 @@ class PendencyUpdateView(RoleRequiredMixin, View):
                     "last_submitted_action",
                     "pendency_submitted_at",
                     "resolved_at",
+                    "technical_responsible",
                 ]
 
         if errors:
