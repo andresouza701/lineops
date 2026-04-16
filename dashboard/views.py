@@ -682,7 +682,7 @@ def build_pendency_resolved_reconnect_numbers_for_day(day, employee_ids=None):
     qs = AllocationPendency.objects.filter(
         resolved_at__date=day,
         last_submitted_action=AllocationPendency.ActionType.RECONNECT_WHATSAPP,
-    ).select_related("employee", "allocation__phone_line")
+    ).select_related("employee", "allocation__phone_line__sim_card")
 
     if employee_ids is not None:
         qs = qs.filter(employee_id__in=employee_ids)
@@ -690,10 +690,40 @@ def build_pendency_resolved_reconnect_numbers_for_day(day, employee_ids=None):
     details = []
     for pendency in qs:
         allocation = pendency.allocation
+        reference_time = pendency.resolved_at or timezone.make_aware(
+            datetime.combine(day, time.min)
+        )
+
+        if not allocation or not allocation.phone_line:
+            # Fallback: busca a alocação ativa do funcionário no momento da resolução.
+            # Cobre casos onde allocation=None (funcionário sem linha cadastrada na
+            # pendência) ou onde a FK foi perdida.
+            active_allocations = list(
+                LineAllocation.objects.filter(
+                    employee=pendency.employee,
+                    allocated_at__lte=reference_time,
+                )
+                .filter(
+                    Q(released_at__isnull=True) | Q(released_at__gt=reference_time)
+                )
+                .select_related("phone_line__sim_card")
+                .order_by("-allocated_at")[:2]
+            )
+            active_allocations = [
+                item
+                for item in active_allocations
+                if item.phone_line
+                and phone_line_is_visible_for_day(
+                    item.phone_line, day, reference_time
+                )
+            ]
+            if len(active_allocations) == 1:
+                allocation = active_allocations[0]
+
         if not allocation or not allocation.phone_line:
             continue
         if not phone_line_is_visible_for_day(
-            allocation.phone_line, day, allocation.allocated_at
+            allocation.phone_line, day, allocation.allocated_at or reference_time
         ):
             continue
         details.append(
