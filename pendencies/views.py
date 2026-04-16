@@ -220,24 +220,6 @@ class PendencyUpdateView(RoleRequiredMixin, View):
                     pendency.record_line_status_change(now=now)
                     update_fields.append("last_action_changed_at")
 
-                    # Auto-resolução: se a linha voltou a Ativo enquanto havia
-                    # uma pendência RECONNECT_WHATSAPP aberta, resolve automaticamente.
-                    if (
-                        new_line_status == LineAllocation.LineStatus.ACTIVE
-                        and pendency.action == AllocationPendency.ActionType.RECONNECT_WHATSAPP
-                    ):
-                        pendency.record_action_change(
-                            AllocationPendency.ActionType.NO_ACTION,
-                            actor_role=request.user.role,
-                            now=now,
-                        )
-                        update_fields += [
-                            "action",
-                            "last_submitted_action",
-                            "pendency_submitted_at",
-                            "resolved_at",
-                        ]
-
         # --- Salva pendência ---
         if update_fields:
             pendency.updated_by = request.user
