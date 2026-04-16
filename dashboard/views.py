@@ -204,9 +204,10 @@ def phone_line_was_visible_at(phone_line, reference_time):
 
 
 def phone_line_is_visible_for_day(phone_line, day, reference_time):
-    if is_historical_day(day):
-        return phone_line_was_visible_at(phone_line, reference_time)
-    return phone_line_is_visible_now(phone_line)
+    # Sempre verifica visibilidade no momento do evento (reference_time), não no
+    # estado atual. Garante que linhas/usuários excluídos ou inativados após o
+    # evento (entrega, reconexão) continuem contabilizados nos indicadores do dia.
+    return phone_line_was_visible_at(phone_line, reference_time)
 
 
 def get_active_allocations_by_employee(employee_ids):
