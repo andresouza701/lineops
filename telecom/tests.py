@@ -11,7 +11,7 @@ from core.exceptions.domain_exceptions import BusinessRuleException
 from core.services.allocation_service import AllocationService
 from employees.models import Employee
 from telecom.forms import BlipConfigurationForm
-from telecom.models import BlipConfiguration, PhoneLine, PhoneLineHistory, SIMcard
+from telecom.models import BlipConfiguration, PhoneLine, PhoneLineHistory, SIMcard, WhatsappReconnectHistory
 from users.models import SystemUser
 
 
@@ -2078,6 +2078,225 @@ class PhoneLineReconnectViewsTests(TestCase):
 
         response = self.client.post(
             reverse("telecom:phoneline_reconnect_start", args=[self.unmanaged_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+
+# ---------------------------------------------------------------------------
+# WhatsappReconnectHistory — model + service
+# ---------------------------------------------------------------------------
+
+class WhatsappReconnectHistoryModelTest(TestCase):
+    def setUp(self):
+        self.sim = SIMcard.objects.create(
+            iccid="8900000000000099001",
+            carrier="CarrierHist",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.line = PhoneLine.objects.create(
+            phone_number="+5511999993001",
+            sim_card=self.sim,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_01,
+        )
+        self.admin = SystemUser.objects.create_user(
+            email="admin.hist@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+
+    def test_open_creates_entry_in_progress(self):
+        from telecom.services.reconnect_history_service import WhatsappReconnectHistoryService
+        entry = WhatsappReconnectHistoryService.open(
+            phone_line=self.line,
+            session_id="sess-hist-1",
+            started_by=self.admin,
+        )
+        self.assertEqual(entry.phone_line, self.line)
+        self.assertEqual(entry.session_id, "sess-hist-1")
+        self.assertIsNone(entry.outcome)
+        self.assertIsNone(entry.finished_at)
+        self.assertEqual(entry.started_by, self.admin)
+
+    def test_open_is_idempotent(self):
+        from telecom.services.reconnect_history_service import WhatsappReconnectHistoryService
+        WhatsappReconnectHistoryService.open(
+            phone_line=self.line, session_id="sess-hist-2", started_by=self.admin
+        )
+        WhatsappReconnectHistoryService.open(
+            phone_line=self.line, session_id="sess-hist-2", started_by=self.admin
+        )
+        self.assertEqual(
+            WhatsappReconnectHistory.objects.filter(session_id="sess-hist-2").count(), 1
+        )
+
+    def test_close_sets_outcome_and_finished_at(self):
+        from telecom.services.reconnect_history_service import WhatsappReconnectHistoryService
+        WhatsappReconnectHistoryService.open(
+            phone_line=self.line, session_id="sess-hist-3", started_by=self.admin
+        )
+        WhatsappReconnectHistoryService.close(
+            session_id="sess-hist-3",
+            outcome=WhatsappReconnectHistory.Outcome.CONNECTED,
+            attempt_count=2,
+        )
+        entry = WhatsappReconnectHistory.objects.get(session_id="sess-hist-3")
+        self.assertEqual(entry.outcome, WhatsappReconnectHistory.Outcome.CONNECTED)
+        self.assertIsNotNone(entry.finished_at)
+        self.assertEqual(entry.attempt_count, 2)
+
+    def test_close_sets_error_fields_on_failure(self):
+        from telecom.services.reconnect_history_service import WhatsappReconnectHistoryService
+        WhatsappReconnectHistoryService.open(
+            phone_line=self.line, session_id="sess-hist-4", started_by=self.admin
+        )
+        WhatsappReconnectHistoryService.close(
+            session_id="sess-hist-4",
+            outcome=WhatsappReconnectHistory.Outcome.FAILED,
+            error_code="TIMEOUT",
+            error_message="Tempo limite excedido",
+            attempt_count=3,
+        )
+        entry = WhatsappReconnectHistory.objects.get(session_id="sess-hist-4")
+        self.assertEqual(entry.outcome, WhatsappReconnectHistory.Outcome.FAILED)
+        self.assertEqual(entry.error_code, "TIMEOUT")
+        self.assertEqual(entry.error_message, "Tempo limite excedido")
+
+    def test_close_is_noop_when_already_closed(self):
+        from telecom.services.reconnect_history_service import WhatsappReconnectHistoryService
+        WhatsappReconnectHistoryService.open(
+            phone_line=self.line, session_id="sess-hist-5", started_by=self.admin
+        )
+        WhatsappReconnectHistoryService.close(
+            session_id="sess-hist-5",
+            outcome=WhatsappReconnectHistory.Outcome.CONNECTED,
+        )
+        # Segunda chamada não deve sobrescrever
+        WhatsappReconnectHistoryService.close(
+            session_id="sess-hist-5",
+            outcome=WhatsappReconnectHistory.Outcome.FAILED,
+            error_code="LATE_ERROR",
+        )
+        entry = WhatsappReconnectHistory.objects.get(session_id="sess-hist-5")
+        self.assertEqual(entry.outcome, WhatsappReconnectHistory.Outcome.CONNECTED)
+        self.assertEqual(entry.error_code, "")
+
+    def test_str_representation(self):
+        entry = WhatsappReconnectHistory.objects.create(
+            phone_line=self.line,
+            session_id="sess-hist-str",
+            outcome=WhatsappReconnectHistory.Outcome.CONNECTED,
+            started_by=self.admin,
+        )
+        self.assertIn(self.line.phone_number, str(entry))
+        self.assertIn("Conectado", str(entry))
+
+
+@override_settings(RECONNECT_ENABLED=True)
+class WhatsappReconnectHistoryViewsTest(TestCase):
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="admin.histview@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.sim = SIMcard.objects.create(
+            iccid="8900000000000099002",
+            carrier="CarrierHistV",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.line = PhoneLine.objects.create(
+            phone_number="+5511999993002",
+            sim_card=self.sim,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_01,
+        )
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_start_creates_history_entry(self, mocked_service):
+        mocked_service.return_value = FakeReconnectWebService()
+        self.client.force_login(self.admin)
+
+        self.client.post(
+            reverse("telecom:phoneline_reconnect_start", args=[self.line.pk])
+        )
+
+        self.assertEqual(
+            WhatsappReconnectHistory.objects.filter(
+                phone_line=self.line, session_id="sess-web-1"
+            ).count(),
+            1,
+        )
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_status_closes_history_on_terminal(self, mocked_service):
+        class FakeTerminalService(FakeReconnectWebService):
+            def get_status_for_line(self, line, *, session_id=""):
+                return {
+                    "session_id": "sess-web-terminal",
+                    "status": "CONNECTED",
+                    "attempt": 2,
+                    "is_terminal": True,
+                    "error_code": None,
+                    "error_message": None,
+                    "can_submit_code": False,
+                    "can_cancel": False,
+                }
+
+        WhatsappReconnectHistory.objects.create(
+            phone_line=self.line,
+            session_id="sess-web-terminal",
+            started_by=self.admin,
+        )
+        mocked_service.return_value = FakeTerminalService()
+        self.client.force_login(self.admin)
+
+        self.client.get(
+            reverse("telecom:phoneline_reconnect_status", args=[self.line.pk]),
+            {"session_id": "sess-web-terminal"},
+        )
+
+        entry = WhatsappReconnectHistory.objects.get(session_id="sess-web-terminal")
+        self.assertEqual(entry.outcome, WhatsappReconnectHistory.Outcome.CONNECTED)
+        self.assertIsNotNone(entry.finished_at)
+
+    def test_history_endpoint_returns_entries(self):
+        WhatsappReconnectHistory.objects.create(
+            phone_line=self.line,
+            session_id="sess-hist-view-1",
+            outcome=WhatsappReconnectHistory.Outcome.CONNECTED,
+            attempt_count=1,
+            started_by=self.admin,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_reconnect_history", args=[self.line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data["entries"]), 1)
+        self.assertEqual(data["entries"][0]["session_id"], "sess-hist-view-1")
+        self.assertEqual(data["entries"][0]["outcome"], "CONNECTED")
+
+    def test_history_endpoint_returns_empty_when_no_entries(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_reconnect_history", args=[self.line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["entries"], [])
+
+    @override_settings(RECONNECT_ENABLED=False)
+    def test_history_endpoint_returns_404_when_disabled(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_reconnect_history", args=[self.line.pk])
         )
 
         self.assertEqual(response.status_code, 404)

@@ -7,6 +7,7 @@ from .views import (
     ExportPhoneLinesCSVView,
     PhoneLineCreateView,
     PhoneLineReconnectCancelView,
+    PhoneLineReconnectHistoryView,
     PhoneLineReconnectStartView,
     PhoneLineReconnectStatusView,
     PhoneLineReconnectSubmitCodeView,
@@ -63,6 +64,11 @@ urlpatterns = [
         "phonelines/<int:pk>/reconnect/cancel/",
         PhoneLineReconnectCancelView.as_view(),
         name="phoneline_reconnect_cancel",
+    ),
+    path(
+        "phonelines/<int:pk>/reconnect/history/",
+        PhoneLineReconnectHistoryView.as_view(),
+        name="phoneline_reconnect_history",
     ),
     path(
         "phonelines/<int:pk>/update/",

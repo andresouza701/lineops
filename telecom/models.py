@@ -294,6 +294,66 @@ class PhoneLineHistory(models.Model):
         )
 
 
+class WhatsappReconnectHistory(models.Model):
+    """Histórico persistido de sessões de reconexão de WhatsApp."""
+
+    class Outcome(models.TextChoices):
+        CONNECTED = "CONNECTED", "Conectado"
+        FAILED = "FAILED", "Falhou"
+        CANCELLED = "CANCELLED", "Cancelado"
+
+    phone_line = models.ForeignKey(
+        "PhoneLine",
+        on_delete=models.CASCADE,
+        related_name="reconnect_history",
+        verbose_name="Linha",
+    )
+    session_id = models.CharField(
+        max_length=120,
+        unique=True,
+        verbose_name="ID da sessão",
+    )
+    outcome = models.CharField(
+        max_length=20,
+        choices=Outcome.choices,
+        null=True,
+        blank=True,
+        verbose_name="Resultado",
+        help_text="Nulo enquanto a sessão está em andamento.",
+    )
+    error_code = models.CharField(
+        max_length=100, blank=True, default="", verbose_name="Código de erro"
+    )
+    error_message = models.TextField(
+        blank=True, default="", verbose_name="Mensagem de erro"
+    )
+    attempt_count = models.IntegerField(default=0, verbose_name="Tentativas")
+    started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reconnect_sessions_started",
+        verbose_name="Iniciado por",
+    )
+    started_at = models.DateTimeField(auto_now_add=True, verbose_name="Iniciado em")
+    finished_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="Finalizado em"
+    )
+
+    class Meta:
+        ordering = ["-started_at"]
+        verbose_name = "Histórico de Reconexão WhatsApp"
+        verbose_name_plural = "Históricos de Reconexão WhatsApp"
+        indexes = [
+            models.Index(fields=["phone_line", "-started_at"]),
+        ]
+
+    def __str__(self):
+        outcome_display = self.get_outcome_display() if self.outcome else "Em andamento"
+        return f"{self.phone_line.phone_number} — {outcome_display} — {self.started_at:%d/%m/%Y %H:%M}"
+
+
 class BlipConfiguration(models.Model):
     class ConfigurationType(models.TextChoices):
         FLOW = "FLOW", "Fluxo"

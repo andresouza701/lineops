@@ -122,6 +122,19 @@
         <div class="d-flex flex-wrap gap-2 mt-3">
             <button type="button" class="btn btn-primary" data-reconnect-start>Iniciar reconexao</button>
             <button type="button" class="btn btn-outline-danger d-none" data-reconnect-cancel>Cancelar sessao</button>
+            <button type="button" class="btn btn-outline-secondary" id="btn-check-status" data-reconnect-check-status>
+                <i class="bi bi-wifi"></i> Verificar status
+            </button>
+            <button
+                type="button"
+                class="btn btn-outline-secondary"
+                data-bs-toggle="modal"
+                data-bs-target="#reconnectHistoryModal"
+                id="btn-reconnect-history"
+                data-history-url="{% url 'telecom:phoneline_reconnect_history' phone_line.pk %}"
+            >
+                <i class="bi bi-clock-history"></i> Histórico de reconexão
+            </button>
         </div>
 
         <form class="row g-2 mt-3 d-none" data-reconnect-code-form>
@@ -400,7 +413,143 @@ document.addEventListener('DOMContentLoaded', function () {
 
     renderEmpty();
     refreshStatus();
+
+    // --- Verificar status button ---
+    const checkStatusButton = root.querySelector('[data-reconnect-check-status]');
+    if (checkStatusButton) {
+        checkStatusButton.addEventListener('click', async function () {
+            checkStatusButton.disabled = true;
+            try {
+                await refreshStatus();
+            } finally {
+                checkStatusButton.disabled = false;
+            }
+        });
+    }
 });
+</script>
+
+<!-- Modal: Histórico de reconexão WhatsApp -->
+<div class="modal fade" id="reconnectHistoryModal" tabindex="-1" aria-labelledby="reconnectHistoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reconnectHistoryModalLabel">
+                    <i class="bi bi-clock-history me-2"></i>Histórico de reconexão WhatsApp
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="reconnect-history-loading" class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm text-secondary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <span class="ms-2 text-muted">Carregando histórico…</span>
+                </div>
+                <div id="reconnect-history-error" class="alert alert-danger d-none"></div>
+                <div id="reconnect-history-empty" class="text-muted d-none">Nenhum registro encontrado.</div>
+                <div id="reconnect-history-table-wrapper" class="d-none">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Iniciado em</th>
+                                <th>Resultado</th>
+                                <th>Tentativas</th>
+                                <th>Iniciado por</th>
+                                <th>Finalizado em</th>
+                                <th>Erro</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reconnect-history-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const historyBtn = document.getElementById('btn-reconnect-history');
+    if (!historyBtn) return;
+
+    const historyUrl = historyBtn.dataset.historyUrl;
+    const modal = document.getElementById('reconnectHistoryModal');
+    const loadingEl = document.getElementById('reconnect-history-loading');
+    const errorEl = document.getElementById('reconnect-history-error');
+    const emptyEl = document.getElementById('reconnect-history-empty');
+    const tableWrapper = document.getElementById('reconnect-history-table-wrapper');
+    const tbody = document.getElementById('reconnect-history-tbody');
+
+    const OUTCOME_BADGE = {
+        CONNECTED: 'bg-success',
+        FAILED: 'bg-danger',
+        CANCELLED: 'bg-secondary',
+    };
+
+    function formatDatetime(iso) {
+        if (!iso) return '-';
+        const d = new Date(iso);
+        return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    function renderHistory(entries) {
+        loadingEl.classList.add('d-none');
+        errorEl.classList.add('d-none');
+
+        if (!entries || entries.length === 0) {
+            emptyEl.classList.remove('d-none');
+            tableWrapper.classList.add('d-none');
+            return;
+        }
+
+        emptyEl.classList.add('d-none');
+        tableWrapper.classList.remove('d-none');
+
+        tbody.innerHTML = '';
+        entries.forEach(function (e) {
+            const badgeClass = e.outcome ? (OUTCOME_BADGE[e.outcome] || 'bg-secondary') : 'bg-warning text-dark';
+            const outcomeLabel = e.outcome_display || 'Em andamento';
+            const errorText = [e.error_code, e.error_message].filter(Boolean).join(' — ') || '-';
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${formatDatetime(e.started_at)}</td>
+                <td><span class="badge ${badgeClass}">${outcomeLabel}</span></td>
+                <td>${e.attempt_count ?? '-'}</td>
+                <td>${e.started_by || '-'}</td>
+                <td>${formatDatetime(e.finished_at)}</td>
+                <td class="text-break small">${errorText}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    modal.addEventListener('show.bs.modal', async function () {
+        // Reset state
+        loadingEl.classList.remove('d-none');
+        errorEl.classList.add('d-none');
+        emptyEl.classList.add('d-none');
+        tableWrapper.classList.add('d-none');
+        tbody.innerHTML = '';
+
+        try {
+            const response = await fetch(historyUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const data = await response.json();
+            renderHistory(data.entries);
+        } catch (err) {
+            loadingEl.classList.add('d-none');
+            errorEl.classList.remove('d-none');
+            errorEl.textContent = `Erro ao carregar histórico: ${err.message}`;
+        }
+    });
+}());
 </script>
 {% endif %}
 {% endblock %}

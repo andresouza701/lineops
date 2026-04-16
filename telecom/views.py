@@ -346,6 +346,11 @@ class PhoneLineReconnectBaseView(RoleRequiredMixin, View):
 
 class PhoneLineReconnectStatusView(PhoneLineReconnectBaseView):
     def get(self, request, *args, **kwargs):
+        from telecom.models import WhatsappReconnectHistory
+        from telecom.services.reconnect_history_service import (
+            WhatsappReconnectHistoryService,
+        )
+
         phone_line = self.get_phone_line()
         session_id = request.GET.get("session_id", "").strip()
         try:
@@ -355,17 +360,89 @@ class PhoneLineReconnectStatusView(PhoneLineReconnectBaseView):
             )
         except BusinessRuleException as exc:
             return JsonResponse({"error": str(exc)}, status=400)
+
+        if payload and payload.get("is_terminal") and payload.get("session_id"):
+            raw_status = payload.get("raw_status") or payload.get("status", "")
+            outcome_map = {
+                "CONNECTED": WhatsappReconnectHistory.Outcome.CONNECTED,
+                "FAILED": WhatsappReconnectHistory.Outcome.FAILED,
+                "CANCELLED": WhatsappReconnectHistory.Outcome.CANCELLED,
+            }
+            outcome = outcome_map.get(raw_status)
+            if outcome:
+                WhatsappReconnectHistoryService.close(
+                    session_id=payload["session_id"],
+                    outcome=outcome,
+                    error_code=payload.get("error_code") or "",
+                    error_message=payload.get("error_message") or "",
+                    attempt_count=payload.get("attempt") or 0,
+                )
+
         return JsonResponse(payload or empty_reconnect_payload())
 
 
 class PhoneLineReconnectStartView(PhoneLineReconnectBaseView):
     def post(self, request, *args, **kwargs):
+        from telecom.services.reconnect_history_service import (
+            WhatsappReconnectHistoryService,
+        )
+
         phone_line = self.get_phone_line()
         try:
             payload = self.get_service().start_for_line(phone_line)
         except BusinessRuleException as exc:
             return JsonResponse({"error": str(exc)}, status=400)
+
+        if payload.get("session_id"):
+            WhatsappReconnectHistoryService.open(
+                phone_line=phone_line,
+                session_id=payload["session_id"],
+                started_by=request.user,
+            )
+
         return JsonResponse(payload)
+
+
+class PhoneLineReconnectHistoryView(PhoneLineReconnectBaseView):
+    def get(self, request, *args, **kwargs):
+        if not settings.RECONNECT_ENABLED:
+            raise Http404
+
+        from telecom.models import WhatsappReconnectHistory
+
+        phone_line = self.get_phone_line()
+        entries = (
+            WhatsappReconnectHistory.objects.filter(phone_line=phone_line)
+            .select_related("started_by")
+            .order_by("-started_at")[:50]
+        )
+        return JsonResponse(
+            {
+                "entries": [
+                    {
+                        "session_id": e.session_id,
+                        "outcome": e.outcome,
+                        "outcome_display": (
+                            e.get_outcome_display() if e.outcome else "Em andamento"
+                        ),
+                        "error_code": e.error_code,
+                        "error_message": e.error_message,
+                        "attempt_count": e.attempt_count,
+                        "started_by": (
+                            e.started_by.get_full_name().strip()
+                            or e.started_by.email
+                            if e.started_by
+                            else None
+                        ),
+                        "started_at": e.started_at.isoformat(),
+                        "finished_at": (
+                            e.finished_at.isoformat() if e.finished_at else None
+                        ),
+                    }
+                    for e in entries
+                ]
+            }
+        )
 
 
 class PhoneLineReconnectSubmitCodeView(PhoneLineReconnectBaseView):
