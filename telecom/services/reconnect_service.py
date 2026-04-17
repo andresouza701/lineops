@@ -12,7 +12,6 @@ from telecom.models import PhoneLine
 
 TERMINAL_RECONNECT_STATUSES = {"CONNECTED", "FAILED", "CANCELLED"}
 WAITING_FOR_CODE_STATUS = "WAITING_FOR_CODE"
-WAITING_FOR_QR_SCAN_STATUS = "WAITING_FOR_QR_SCAN"
 CANCEL_REQUESTED_STATUS = "CANCEL_REQUESTED"
 ELIGIBLE_RECONNECT_ORIGENS = {
     PhoneLine.Origem.SRVMEMU_01,
@@ -30,12 +29,22 @@ def _format_datetime(value: Any) -> Any:
     return value
 
 
-def _render_qr_data_url(mime_type: Any, base64_payload: Any) -> str | None:
-    normalized_mime_type = str(mime_type or "").strip() or "image/png"
-    normalized_base64 = str(base64_payload or "").strip()
-    if not normalized_base64:
-        return None
-    return f"data:{normalized_mime_type};base64,{normalized_base64}"
+def _format_progress_history(progress_history: Any) -> list[dict[str, Any]]:
+    if not isinstance(progress_history, list):
+        return []
+
+    normalized_history: list[dict[str, Any]] = []
+    for item in progress_history:
+        if not isinstance(item, dict):
+            continue
+        normalized_history.append(
+            {
+                "stage": item.get("stage"),
+                "label": item.get("label"),
+                "at": _format_datetime(item.get("at")),
+            }
+        )
+    return normalized_history
 
 
 class ReconnectService:
@@ -200,7 +209,6 @@ class ReconnectService:
         return "".join(character for character in (phone_number or "") if character.isdigit())
 
     def _serialize_session(self, document: dict[str, Any]) -> dict[str, Any]:
-        raw_qr_base64 = str(document.get("qr_image_base64") or "").strip()
         raw_status = document.get("status")
         cancel_requested = bool(document.get("cancel_requested_at")) and (
             raw_status not in TERMINAL_RECONNECT_STATUSES
@@ -216,6 +224,12 @@ class ReconnectService:
             "error_message": document.get("error_message"),
             "session_deadline_at": _format_datetime(document.get("session_deadline_at")),
             "worker_heartbeat_at": _format_datetime(document.get("worker_heartbeat_at")),
+            "progress_stage": document.get("progress_stage"),
+            "progress_stage_label": document.get("progress_stage_label"),
+            "progress_stage_updated_at": _format_datetime(
+                document.get("progress_stage_updated_at")
+            ),
+            "progress_history": _format_progress_history(document.get("progress_history")),
             "cancel_requested": cancel_requested,
             "cancel_requested_at": _format_datetime(document.get("cancel_requested_at")),
             "account_state": document.get("account_state"),
@@ -226,10 +240,6 @@ class ReconnectService:
             ),
             "restriction_until": _format_datetime(document.get("restriction_until")),
             "device_name": document.get("device_name"),
-            "connection_mode": document.get("connection_mode"),
-            "qr_image_base64": None,
-            "qr_image_mime_type": document.get("qr_image_mime_type"),
-            "qr_image_updated_at": _format_datetime(document.get("qr_image_updated_at")),
             "last_pair_code": document.get("last_pair_code"),
             "last_pair_code_attempt": document.get("last_pair_code_attempt"),
             "last_pair_code_submitted_at": _format_datetime(
@@ -245,15 +255,6 @@ class ReconnectService:
             "can_submit_code": raw_status == WAITING_FOR_CODE_STATUS and not cancel_requested,
             "can_cancel": raw_status not in TERMINAL_RECONNECT_STATUSES and not cancel_requested,
         }
-        payload["qr_image_data_url"] = _render_qr_data_url(
-            payload.get("qr_image_mime_type"),
-            raw_qr_base64,
-        )
-        payload["can_show_qr_code"] = (
-            raw_status == WAITING_FOR_QR_SCAN_STATUS
-            and not cancel_requested
-            and bool(payload["qr_image_data_url"])
-        )
         return payload
 
 

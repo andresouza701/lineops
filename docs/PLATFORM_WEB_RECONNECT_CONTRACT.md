@@ -14,9 +14,9 @@ Fluxo:
 
 1. A plataforma cria uma sessao em `reconnect_sessions` com `status=QUEUED`.
 2. O RPA do servidor correto faz claim da sessao e muda para `EMULATOR_STARTING`.
-3. Quando o WhatsApp estiver pronto para receber codigo, o RPA muda a sessao para `WAITING_FOR_CODE`.
-4. Se o fluxo disponivel no app for por QR, o RPA muda a sessao para `WAITING_FOR_QR_SCAN` e publica o QR no documento.
-5. A plataforma mostra ao usuario que ja pode informar o codigo ou escanear o QR, conforme o status.
+3. O RPA publica etapas intermediarias do fluxo em `status` e `progress_stage*`.
+4. Quando o WhatsApp estiver pronto para receber codigo, o RPA muda a sessao para `WAITING_FOR_CODE`.
+5. A plataforma mostra ao usuario que ja pode informar o codigo.
 6. A plataforma grava o codigo no Mongo quando a sessao estiver em `WAITING_FOR_CODE`.
 7. O RPA consome o codigo, envia para o WhatsApp e muda a sessao para `SUBMITTING_CODE`.
 8. Se tudo der certo, o RPA finaliza em `CONNECTED`.
@@ -116,13 +116,24 @@ A plataforma deve criar o documento com estes campos:
 - `EMULATOR_STARTING`
   - o RPA ja pegou a sessao e esta abrindo ou preparando o emulador
 
+- `PRE_RECONNECT_SYNC`
+- `PRE_RECONNECT_SYNC_WAITING`
+- `OPEN_WHATSAPP_AFTER_SYNC_FAILURE`
+- `OPEN_WHATSAPP`
+- `OPEN_MENU`
+- `OPEN_LINKED_DEVICES`
+- `OPEN_LINK_DEVICE`
+- `OPEN_PAIR_BY_PHONE`
+- `AWAITING_SUBMIT_RESULT`
+- `FILL_DEVICE_NAME`
+- `OPEN_FIRST_LINKED_DEVICE`
+- `REMOVE_LINKED_DEVICE`
+  - estados intermediarios do fluxo
+  - a plataforma pode exibir esses valores diretamente como andamento atual
+
 - `WAITING_FOR_CODE`
   - o WhatsApp ja esta na tela pronta para receber o codigo
   - nesse momento a plataforma deve liberar a UI para o usuario informar o codigo
-
-- `WAITING_FOR_QR_SCAN`
-  - o WhatsApp entrou no fluxo de companion por QR
-  - nesse momento a plataforma deve exibir o QR ao usuario e continuar acompanhando essa mesma sessao
 
 - `SUBMITTING_CODE`
   - o RPA ja consumiu o codigo do Mongo e esta digitando ou processando no WhatsApp
@@ -144,20 +155,20 @@ A plataforma deve acompanhar pelo menos:
 - `status`
 - `attempt`
 - `assigned_server`
-- `connection_mode`
 - `error_code`
 - `error_message`
 - `session_deadline_at`
 - `worker_heartbeat_at`
+- `progress_stage`
+- `progress_stage_label`
+- `progress_stage_updated_at`
+- `progress_history`
 - `account_state`
 - `needs_it_action`
 - `needs_it_reason`
 - `restriction_seconds_remaining`
 - `restriction_until`
 - `device_name`
-- `qr_image_base64`
-- `qr_image_mime_type`
-- `qr_image_updated_at`
 - `last_pair_code`
 - `last_pair_code_attempt`
 - `last_pair_code_submitted_at`
@@ -201,18 +212,6 @@ Tambem deve usar:
 - `session_deadline_at`
 
 para saber qual tentativa esta aberta e ate quando o codigo pode ser enviado.
-
-### Passo 3B: esperar `WAITING_FOR_QR_SCAN`
-
-Se a sessao entrar em:
-
-- `status == WAITING_FOR_QR_SCAN`
-
-A plataforma deve:
-
-- exibir o QR da sessao ao usuario
-- continuar o polling dessa mesma sessao por `_id`
-- tratar `CONNECTED`, `FAILED` ou `CANCELLED` como estados terminais dessa mesma sessao
 
 ## Como a plataforma deve enviar o codigo
 
@@ -448,13 +447,6 @@ Fluxo normal com codigo:
 4. `SUBMITTING_CODE`
 5. `CONNECTED`
 
-Fluxo normal com QR:
-
-1. `QUEUED`
-2. `EMULATOR_STARTING`
-3. `WAITING_FOR_QR_SCAN`
-4. `CONNECTED`
-
 Fluxo com retry de codigo:
 
 1. `QUEUED`
@@ -469,7 +461,7 @@ Fluxo com falha:
 
 1. `QUEUED`
 2. `EMULATOR_STARTING`
-3. `WAITING_FOR_CODE` ou `WAITING_FOR_QR_SCAN`
+3. `WAITING_FOR_CODE`
 4. `FAILED`
 
 ## Regras obrigatorias para a plataforma web
@@ -512,18 +504,6 @@ Fluxo com falha:
   "status": "WAITING_FOR_CODE",
   "attempt": 1,
   "session_deadline_at": "2026-04-10T14:45:57Z"
-}
-```
-
-### Quando o RPA ficar pronto para QR
-
-```json
-{
-  "status": "WAITING_FOR_QR_SCAN",
-  "connection_mode": "QR_CODE",
-  "qr_image_base64": "<base64>",
-  "qr_image_mime_type": "image/png",
-  "qr_image_updated_at": "2026-04-11T15:16:57Z"
 }
 ```
 

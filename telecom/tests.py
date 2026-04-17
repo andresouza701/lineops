@@ -1679,7 +1679,6 @@ class ReconnectServiceTests(TestCase):
             "phone_number": "5511999991000",
             "status": "CONNECTED",
             "attempt": 1,
-            "connection_mode": "QR_CODE",
             "device_name": "Rafael Gomes",
         }
         service = ReconnectService(
@@ -1696,7 +1695,7 @@ class ReconnectServiceTests(TestCase):
         self.assertEqual(payload["status"], "CONNECTED")
         self.assertTrue(payload["is_terminal"])
 
-    def test_serialize_session_exposes_qr_payload_when_waiting_for_qr_scan(self):
+    def test_serialize_session_exposes_progress_fields(self):
         from telecom.services.reconnect_service import ReconnectService
 
         repository = FakeReconnectRepository()
@@ -1709,23 +1708,33 @@ class ReconnectServiceTests(TestCase):
             {
                 "_id": "sess-qr-001",
                 "phone_number": "5511999991000",
-                "status": "WAITING_FOR_QR_SCAN",
-                "attempt": 0,
-                "connection_mode": "QR_CODE",
-                "qr_image_base64": "abc123",
-                "qr_image_mime_type": "image/png",
+                "status": "OPEN_LINKED_DEVICES",
+                "attempt": 1,
+                "progress_stage": "open_linked_devices",
+                "progress_stage_label": "Abrindo dispositivos conectados",
+                "progress_stage_updated_at": timezone.now(),
+                "progress_history": [
+                    {
+                        "stage": "claimed",
+                        "label": "Sessao capturada pelo worker",
+                        "at": timezone.now(),
+                    },
+                    {
+                        "stage": "open_linked_devices",
+                        "label": "Abrindo dispositivos conectados",
+                        "at": timezone.now(),
+                    },
+                ],
             }
         )
 
-        self.assertEqual(payload["status"], "WAITING_FOR_QR_SCAN")
-        self.assertEqual(payload["connection_mode"], "QR_CODE")
-        self.assertIsNone(payload["qr_image_base64"])
-        self.assertEqual(payload["qr_image_mime_type"], "image/png")
+        self.assertEqual(payload["status"], "OPEN_LINKED_DEVICES")
+        self.assertEqual(payload["progress_stage"], "open_linked_devices")
         self.assertEqual(
-            payload["qr_image_data_url"],
-            "data:image/png;base64,abc123",
+            payload["progress_stage_label"],
+            "Abrindo dispositivos conectados",
         )
-        self.assertTrue(payload["can_show_qr_code"])
+        self.assertEqual(len(payload["progress_history"]), 2)
         self.assertFalse(payload["can_submit_code"])
 
     def test_cancel_for_line_immediately_finishes_queued_session(self):
@@ -1768,11 +1777,9 @@ class ReconnectServiceTests(TestCase):
             {
                 "_id": "sess-cancel-001",
                 "phone_number": "5511999991000",
-                "status": "WAITING_FOR_QR_SCAN",
+                "status": "WAITING_FOR_CODE",
                 "attempt": 1,
                 "cancel_requested_at": timezone.now(),
-                "qr_image_base64": "abc123",
-                "qr_image_mime_type": "image/png",
             }
         )
 
@@ -1780,7 +1787,6 @@ class ReconnectServiceTests(TestCase):
         self.assertFalse(payload["is_terminal"])
         self.assertFalse(payload["can_cancel"])
         self.assertFalse(payload["can_submit_code"])
-        self.assertFalse(payload["can_show_qr_code"])
         self.assertTrue(payload["cancel_requested"])
 
 
@@ -1925,7 +1931,7 @@ class PhoneLineReconnectViewsTests(TestCase):
         self.assertContains(response, "Estado da conta")
         self.assertContains(response, "Acao de TI")
         self.assertContains(response, "Motivo TI")
-        self.assertContains(response, "QR de conexao")
+        self.assertContains(response, "Etapa atual")
 
     @patch("telecom.views.get_reconnect_service")
     def test_start_endpoint_returns_session_payload(self, mocked_service):
@@ -1970,8 +1976,6 @@ class PhoneLineReconnectViewsTests(TestCase):
                     "session_id": session_id,
                     "status": "CONNECTED",
                     "attempt": 1,
-                    "connection_mode": "QR_CODE",
-                    "can_show_qr_code": False,
                     "can_submit_code": False,
                     "can_cancel": False,
                     "is_terminal": True,
@@ -1997,27 +2001,37 @@ class PhoneLineReconnectViewsTests(TestCase):
         )
 
     @patch("telecom.views.get_reconnect_service")
-    def test_status_endpoint_returns_qr_payload_when_waiting_for_qr_scan(
+    def test_status_endpoint_returns_progress_payload(
         self, mocked_service
     ):
-        class FakeQrReconnectWebService(FakeReconnectWebService):
+        class FakeProgressReconnectWebService(FakeReconnectWebService):
             def get_status_for_line(self, line, *, session_id=""):
                 self.status_calls.append((line.pk, session_id))
                 return {
-                    "session_id": "sess-web-qr-1",
-                    "status": "WAITING_FOR_QR_SCAN",
-                    "attempt": 0,
-                    "connection_mode": "QR_CODE",
-                    "qr_image_base64": None,
-                    "qr_image_mime_type": "image/png",
-                    "qr_image_data_url": "data:image/png;base64,abc123",
-                    "can_show_qr_code": True,
+                    "session_id": "sess-web-progress-1",
+                    "status": "OPEN_MENU",
+                    "attempt": 1,
+                    "progress_stage": "open_menu",
+                    "progress_stage_label": "Abrindo menu do WhatsApp",
+                    "progress_stage_updated_at": timezone.now().isoformat(),
+                    "progress_history": [
+                        {
+                            "stage": "claimed",
+                            "label": "Sessao capturada pelo worker",
+                            "at": timezone.now().isoformat(),
+                        },
+                        {
+                            "stage": "open_menu",
+                            "label": "Abrindo menu do WhatsApp",
+                            "at": timezone.now().isoformat(),
+                        },
+                    ],
                     "can_submit_code": False,
                     "can_cancel": True,
                     "is_terminal": False,
                 }
 
-        service = FakeQrReconnectWebService()
+        service = FakeProgressReconnectWebService()
         mocked_service.return_value = service
         self.client.force_login(self.admin)
 
@@ -2027,10 +2041,9 @@ class PhoneLineReconnectViewsTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["status"], "WAITING_FOR_QR_SCAN")
-        self.assertEqual(payload["connection_mode"], "QR_CODE")
-        self.assertTrue(payload["can_show_qr_code"])
-        self.assertEqual(payload["qr_image_data_url"], "data:image/png;base64,abc123")
+        self.assertEqual(payload["status"], "OPEN_MENU")
+        self.assertEqual(payload["progress_stage"], "open_menu")
+        self.assertEqual(payload["progress_stage_label"], "Abrindo menu do WhatsApp")
 
     @patch("telecom.views.get_reconnect_service")
     def test_submit_code_endpoint_passes_code_to_service(self, mocked_service):

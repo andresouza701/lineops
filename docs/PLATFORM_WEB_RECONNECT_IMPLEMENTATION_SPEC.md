@@ -31,7 +31,7 @@ O usuario podera:
 2. iniciar a reconexao
 3. acompanhar o status por polling
 4. informar o codigo quando o status for `WAITING_FOR_CODE`
-5. visualizar o QR de conexao quando o status for `WAITING_FOR_QR_SCAN`
+5. acompanhar as etapas intermediarias do RPA por `progress_stage` e `progress_stage_label`
 6. cancelar a sessao enquanto ela estiver ativa
 
 ### Fora de escopo
@@ -155,8 +155,8 @@ As views devem permanecer finas e delegar a regra de negocio ao servico.
 - inicio da reconexao via endpoint
 - consulta de status da sessao via endpoint JSON
 - consulta de status terminal por `session_id` via endpoint JSON
+- exposicao das etapas `progress_stage*` no payload de status
 - envio de codigo permitido apenas em `WAITING_FOR_CODE`
-- renderizacao do QR via `qr_image_data_url` sem duplicar `qr_image_base64` no payload web
 - cancelamento de sessao via endpoint
 - negacao de acesso quando o usuario nao pode ver a linha
 
@@ -180,8 +180,8 @@ concorrencia inconsistente.
 - o usuario consegue iniciar a reconexao a partir de uma linha elegivel
 - o LineOps cria ou reaproveita a sessao correta no Mongo
 - o estado exibido ao usuario acompanha o documento de `reconnect_sessions`
+- o progresso exibido ao usuario acompanha `progress_stage`, `progress_stage_label`, `progress_stage_updated_at` e `progress_history`
 - o campo de codigo so fica operacional em `WAITING_FOR_CODE`
-- o QR fica visivel ao usuario quando a sessao estiver em `WAITING_FOR_QR_SCAN`
 - o polling preserva o ultimo estado da sessao quando a UI ja conhece o `session_id`
 - o codigo e salvo corretamente com `attempt` e historico `last_pair_code*`
 - o usuario consegue cancelar uma sessao nao terminal

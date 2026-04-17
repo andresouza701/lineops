@@ -122,8 +122,7 @@ Sem esse indice, o LineOps bloqueia a abertura de novas sessoes.
 3. RPA faz claim da sessao
 4. LineOps acompanha o status via polling
 5. se o RPA entrar em `WAITING_FOR_CODE`, o usuario informa o codigo
-6. se o RPA entrar em `WAITING_FOR_QR_SCAN`, o usuario escaneia o QR
-7. a sessao termina em `CONNECTED`, `FAILED` ou `CANCELLED`
+6. a sessao termina em `CONNECTED`, `FAILED` ou `CANCELLED`
 
 ## Status que podem aparecer no card
 
@@ -135,10 +134,6 @@ Sem esse indice, o LineOps bloqueia a abertura de novas sessoes.
 
 - `WAITING_FOR_CODE`
   - o WhatsApp esta pronto para receber o codigo
-
-- `WAITING_FOR_QR_SCAN`
-  - o app entrou no fluxo de QR
-  - o LineOps deve exibir a imagem do QR
 
 - `SUBMITTING_CODE`
   - o RPA ja consumiu o codigo do Mongo
@@ -273,14 +268,6 @@ Verificar:
 - `PhoneLine.origem` em `SRVMEMU-01..06`
 - `RECONNECT_TARGET_SERVER_MAP` contendo a origem
 - indice parcial no Mongo
-
-### O QR nao aparece
-
-Verificar:
-
-- status da sessao em `WAITING_FOR_QR_SCAN`
-- `qr_image_data_url` presente no payload
-- RPA com fluxo QR habilitado
 
 ### O cancelamento nao termina
 
