@@ -1932,6 +1932,7 @@ class PhoneLineReconnectViewsTests(TestCase):
         self.assertContains(response, "Acao de TI")
         self.assertContains(response, "Motivo TI")
         self.assertContains(response, "Etapa atual")
+        self.assertContains(response, 'class="modal-content reconnect-history-modal-content"')
 
     @patch("telecom.views.get_reconnect_service")
     def test_start_endpoint_returns_session_payload(self, mocked_service):

@@ -298,6 +298,44 @@ h1, h2, h3, h4, h5, h6 {
     border-color: rgba(148, 163, 184, 0.6);
 }
 
+.reconnect-history-modal-content {
+    background: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid rgba(37, 99, 235, 0.35);
+    box-shadow: 0 24px 60px rgba(2, 6, 23, 0.55);
+}
+
+.reconnect-history-modal-content .modal-header,
+.reconnect-history-modal-content .modal-footer {
+    border-color: rgba(226, 232, 240, 0.12);
+    background: rgba(15, 23, 42, 0.6);
+}
+
+.reconnect-history-modal-content .modal-title {
+    color: #f8fafc;
+}
+
+.reconnect-history-modal-content .btn-close {
+    filter: invert(1) grayscale(100%) brightness(0.8);
+}
+
+.reconnect-history-modal-body {
+    background: rgba(15, 23, 42, 0.9);
+    color: #e2e8f0;
+}
+
+.reconnect-history-modal-body .table {
+    --bs-table-bg: transparent;
+    --bs-table-color: #e2e8f0;
+    --bs-table-border-color: rgba(148, 163, 184, 0.25);
+    --bs-table-hover-bg: rgba(37, 99, 235, 0.12);
+}
+
+.reconnect-history-modal-body .table thead.table-light {
+    --bs-table-bg: rgba(2, 6, 23, 0.68);
+    --bs-table-color: #cbd5e1;
+}
+
 .kpi-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
