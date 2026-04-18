@@ -5,7 +5,10 @@ from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 
-from dashboard.services.query_service import build_dashboard_status_counts
+from dashboard.services.query_service import (
+    build_dashboard_status_counts,
+    get_pending_action_counts_for_user,
+)
 
 
 class DashboardQueryServiceScopeTests(TestCase):
@@ -99,3 +102,11 @@ class DashboardQueryServiceScopeTests(TestCase):
         line_status_counts = {item["value"]: item["count"] for item in result["line_status_counts"]}
 
         self.assertEqual(line_status_counts.get(PhoneLine.Status.SUSPENDED), 2)
+
+    def test_get_pending_action_counts_uses_single_database_query(self):
+        """
+        get_pending_action_counts_for_user deve usar apenas 1 query via .aggregate()
+        em vez de 3 queries separadas com .count() por tipo de acao.
+        """
+        with self.assertNumQueries(1):
+            get_pending_action_counts_for_user(self.admin)

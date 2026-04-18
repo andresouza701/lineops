@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from django.db.models import Count, Q
+from django.db.models import Case, Count, IntegerField, Q, When
 
 from allocations.models import LineAllocation
 from employees.models import Employee
@@ -126,12 +126,28 @@ def get_pending_action_counts_for_user(user):
         allocation__isnull=True,
         employee_id__in=employees_with_active_allocations,
     )
+    counts = pendencies.aggregate(
+        new_number=Count(
+            Case(
+                When(action=AllocationPendency.ActionType.NEW_NUMBER, then=1),
+                output_field=IntegerField(),
+            )
+        ),
+        reconnect_whatsapp=Count(
+            Case(
+                When(action=AllocationPendency.ActionType.RECONNECT_WHATSAPP, then=1),
+                output_field=IntegerField(),
+            )
+        ),
+        pending=Count(
+            Case(
+                When(action=AllocationPendency.ActionType.PENDING, then=1),
+                output_field=IntegerField(),
+            )
+        ),
+    )
     return {
-        "new_number": pendencies.filter(
-            action=AllocationPendency.ActionType.NEW_NUMBER
-        ).count(),
-        "reconnect_whatsapp": pendencies.filter(
-            action=AllocationPendency.ActionType.RECONNECT_WHATSAPP
-        ).count(),
-        "pending": pendencies.filter(action=AllocationPendency.ActionType.PENDING).count(),
+        "new_number": counts["new_number"],
+        "reconnect_whatsapp": counts["reconnect_whatsapp"],
+        "pending": counts["pending"],
     }

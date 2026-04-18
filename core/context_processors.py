@@ -21,7 +21,9 @@ def pending_actions_count(request):
         and request.user.role == SystemUser.Role.ADMIN
     )
     if is_admin:
-        count = get_pending_actions_count_for_user(request.user)
+        if not hasattr(request, "_pending_actions_count"):
+            request._pending_actions_count = get_pending_actions_count_for_user(request.user)
+        count = request._pending_actions_count
 
     return {"pending_actions_count": count}
 

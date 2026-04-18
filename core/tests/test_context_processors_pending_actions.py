@@ -39,3 +39,20 @@ class PendingActionsContextProcessorTests(TestCase):
 
         self.assertEqual(context["pending_actions_count"], 0)
         count_mock.assert_not_called()
+
+    @patch("core.context_processors.get_pending_actions_count_for_user", return_value=7)
+    def test_admin_context_processor_caches_result_per_request(self, count_mock):
+        """
+        Chamadas multiplas ao context processor no mesmo request (ex.: middlewares
+        ou template tags) nao devem re-executar o servico. O resultado e cacheado
+        no atributo _pending_actions_count do request.
+        """
+        request = self.factory.get("/")
+        request.user = self.admin
+
+        context1 = pending_actions_count(request)
+        context2 = pending_actions_count(request)
+
+        self.assertEqual(context1["pending_actions_count"], 7)
+        self.assertEqual(context2["pending_actions_count"], 7)
+        count_mock.assert_called_once_with(self.admin)
