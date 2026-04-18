@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from django.db.models import Count
+from django.db.models import Count, Q
 
 from allocations.models import LineAllocation
 from employees.models import Employee
@@ -108,7 +108,24 @@ def get_pending_action_counts_for_user(user):
         )
         .values_list("id", flat=True)
     )
-    pendencies = AllocationPendency.objects.filter(employee_id__in=scoped_employee_ids)
+    active_allocations = LineAllocation.objects.filter(
+        employee_id__in=scoped_employee_ids,
+        is_active=True,
+        phone_line__is_deleted=False,
+        phone_line__sim_card__is_deleted=False,
+    )
+    active_allocation_ids = active_allocations.values_list("id", flat=True)
+    employees_with_active_allocations = active_allocations.values_list(
+        "employee_id", flat=True
+    ).distinct()
+    pendencies = AllocationPendency.objects.filter(
+        employee_id__in=scoped_employee_ids
+    ).filter(
+        Q(allocation_id__in=active_allocation_ids) | Q(allocation__isnull=True)
+    ).exclude(
+        allocation__isnull=True,
+        employee_id__in=employees_with_active_allocations,
+    )
     return {
         "new_number": pendencies.filter(
             action=AllocationPendency.ActionType.NEW_NUMBER
@@ -118,4 +135,3 @@ def get_pending_action_counts_for_user(user):
         ).count(),
         "pending": pendencies.filter(action=AllocationPendency.ActionType.PENDING).count(),
     }
-
