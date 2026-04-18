@@ -89,6 +89,37 @@ class DashboardPendingCardsConsistencyTest(TestCase):
         self.assertEqual(board_response.context["action_counts"]["new_number"], 1)
         self.assertEqual(board_response.context["action_counts"]["reconnect_whatsapp"], 0)
 
+    def test_sidebar_badge_includes_pending_action_type(self):
+        """
+        O badge da barra lateral deve refletir o valor do card Total,
+        que soma new_number + reconnect_whatsapp + pending.
+        Antes da correcao, o tipo 'pending' era ignorado pelo context_service.
+        """
+        allocation = self._create_active_allocation("103")
+        AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.PENDING,
+        )
+
+        self.client.force_login(self.admin)
+        dashboard_response = self.client.get(reverse("dashboard"))
+        board_response = self.client.get(reverse("daily_user_action_board"))
+
+        self.assertEqual(dashboard_response.status_code, 200)
+        self.assertEqual(board_response.status_code, 200)
+
+        board_total = board_response.context["action_counts"]["total"]
+        badge_count = dashboard_response.context["pending_actions_count"]
+
+        self.assertEqual(board_response.context["action_counts"]["pending"], 1)
+        self.assertEqual(board_total, 1)
+        self.assertEqual(
+            badge_count,
+            board_total,
+            "O badge da sidebar deve ser igual ao card Total das acoes do dia",
+        )
+
     def test_query_service_excludes_pendencies_from_inactive_allocations(self):
         allocation = self._create_active_allocation("102")
         allocation.is_active = False
