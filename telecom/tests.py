@@ -1987,6 +1987,9 @@ class PhoneLineReconnectViewsTests(TestCase):
         self.assertContains(response, "Acao de TI")
         self.assertContains(response, "Motivo TI")
         self.assertContains(response, "Etapa atual")
+        self.assertContains(response, "Tempo restante")
+        self.assertContains(response, "data-reconnect-restriction-countdown")
+        self.assertContains(response, "window.setInterval(updateRestrictionCountdown, 1000);")
         self.assertContains(response, 'class="modal-content reconnect-history-modal-content"')
         self.assertContains(
             response,

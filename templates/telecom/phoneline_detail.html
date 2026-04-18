@@ -101,6 +101,8 @@
 
                     <dt class="col-sm-4 d-none" data-reconnect-restriction-row>Restricao ate</dt>
                     <dd class="col-sm-8 d-none" data-reconnect-restriction-row data-reconnect-restriction-until>-</dd>
+                    <dt class="col-sm-4 d-none" data-reconnect-restriction-row>Tempo restante</dt>
+                    <dd class="col-sm-8 d-none" data-reconnect-restriction-row data-reconnect-restriction-countdown>-</dd>
 
                     <dt class="col-sm-4">Acao de TI</dt>
                     <dd class="col-sm-8" data-reconnect-needs-it-action>-</dd>
@@ -159,6 +161,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const accountStateEl = root.querySelector('[data-reconnect-account-state]');
     const restrictionRowEls = root.querySelectorAll('[data-reconnect-restriction-row]');
     const restrictionUntilEl = root.querySelector('[data-reconnect-restriction-until]');
+    const restrictionCountdownEl = root.querySelector('[data-reconnect-restriction-countdown]');
     const needsItActionEl = root.querySelector('[data-reconnect-needs-it-action]');
     const needsItReasonEl = root.querySelector('[data-reconnect-needs-it-reason]');
     const deviceNameEl = root.querySelector('[data-reconnect-device-name]');
@@ -172,6 +175,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const pollIntervalMs = Number(root.dataset.pollIntervalMs || 1000);
     let pollHandle = null;
     let currentSessionId = null;
+    let restrictionCountdownHandle = null;
+    let restrictionUntilMs = null;
 
     function setBadge(status) {
         statusBadge.className = 'badge';
@@ -200,8 +205,97 @@ document.addEventListener('DOMContentLoaded', function () {
         return '-';
     }
 
+    function parseRestrictionUntilMs(payload) {
+        if (payload.restriction_until) {
+            const parsedUntil = new Date(payload.restriction_until);
+            const parsedTime = parsedUntil.getTime();
+            if (Number.isFinite(parsedTime)) {
+                return parsedTime;
+            }
+        }
+
+        const secondsRemaining = Number(payload.restriction_seconds_remaining);
+        if (Number.isFinite(secondsRemaining) && secondsRemaining >= 0) {
+            return Date.now() + (secondsRemaining * 1000);
+        }
+
+        return null;
+    }
+
+    function formatRestrictionDeadline(value) {
+        if (!value) {
+            return '-';
+        }
+
+        const parsed = value instanceof Date ? value : new Date(value);
+        if (!Number.isFinite(parsed.getTime())) {
+            return value;
+        }
+
+        return parsed.toLocaleString('pt-BR', {
+            dateStyle: 'short',
+            timeStyle: 'medium'
+        });
+    }
+
+    function formatRemainingDuration(totalSeconds) {
+        const safeSeconds = Math.max(0, Number(totalSeconds) || 0);
+        const hours = Math.floor(safeSeconds / 3600);
+        const minutes = Math.floor((safeSeconds % 3600) / 60);
+        const seconds = safeSeconds % 60;
+
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function stopRestrictionCountdown() {
+        if (restrictionCountdownHandle) {
+            window.clearInterval(restrictionCountdownHandle);
+            restrictionCountdownHandle = null;
+        }
+        restrictionUntilMs = null;
+    }
+
+    function updateRestrictionCountdown() {
+        if (restrictionUntilMs === null) {
+            restrictionCountdownEl.textContent = '-';
+            return;
+        }
+
+        const remainingSeconds = Math.max(
+            0,
+            Math.ceil((restrictionUntilMs - Date.now()) / 1000)
+        );
+        restrictionCountdownEl.textContent = formatRemainingDuration(remainingSeconds);
+
+        if (remainingSeconds <= 0 && restrictionCountdownHandle) {
+            window.clearInterval(restrictionCountdownHandle);
+            restrictionCountdownHandle = null;
+        }
+    }
+
+    function startRestrictionCountdown(payload) {
+        stopRestrictionCountdown();
+
+        restrictionUntilMs = parseRestrictionUntilMs(payload);
+        if (restrictionUntilMs === null) {
+            restrictionCountdownEl.textContent = '-';
+            return;
+        }
+
+        if (!payload.restriction_until) {
+            restrictionUntilEl.textContent = formatRestrictionDeadline(
+                new Date(restrictionUntilMs)
+            );
+        }
+        updateRestrictionCountdown();
+        if (restrictionUntilMs > Date.now()) {
+            restrictionCountdownHandle = window.setInterval(updateRestrictionCountdown, 1000);
+        }
+    }
+
     function renderEmpty() {
         currentSessionId = null;
+        stopRestrictionCountdown();
         setBadge(null);
         sessionIdEl.textContent = '-';
         statusLabelEl.textContent = 'Sem sessao ativa';
@@ -214,6 +308,7 @@ document.addEventListener('DOMContentLoaded', function () {
         accountStateEl.textContent = '-';
         restrictionRowEls.forEach(el => el.classList.add('d-none'));
         restrictionUntilEl.textContent = '-';
+        restrictionCountdownEl.textContent = '-';
         needsItActionEl.textContent = '-';
         needsItReasonEl.textContent = '-';
         errorEl.classList.add('d-none');
@@ -243,12 +338,21 @@ document.addEventListener('DOMContentLoaded', function () {
         deadlineEl.textContent = payload.session_deadline_at || '-';
         accountStateEl.textContent = payload.account_state || '-';
 
-        if (payload.account_state === 'RESTRICTED' && payload.restriction_until) {
+        const hasRestrictionWindow = payload.account_state === 'RESTRICTED' && (
+            payload.restriction_until ||
+            payload.restriction_seconds_remaining !== null &&
+            payload.restriction_seconds_remaining !== undefined
+        );
+
+        if (hasRestrictionWindow) {
             restrictionRowEls.forEach(el => el.classList.remove('d-none'));
-            restrictionUntilEl.textContent = payload.restriction_until;
+            restrictionUntilEl.textContent = formatRestrictionDeadline(payload.restriction_until);
+            startRestrictionCountdown(payload);
         } else {
             restrictionRowEls.forEach(el => el.classList.add('d-none'));
             restrictionUntilEl.textContent = '-';
+            restrictionCountdownEl.textContent = '-';
+            stopRestrictionCountdown();
         }
 
         needsItActionEl.textContent = formatBooleanLabel(payload.needs_it_action);
