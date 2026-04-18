@@ -1695,6 +1695,57 @@ class ReconnectServiceTests(TestCase):
         self.assertEqual(payload["status"], "CONNECTED")
         self.assertTrue(payload["is_terminal"])
 
+    def test_get_status_for_line_treats_success_alias_as_terminal_connected(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.by_id["sess-terminal-success"] = {
+            "_id": "sess-terminal-success",
+            "phone_number": "5511999991000",
+            "status": "SUCCESS",
+            "attempt": 1,
+            "device_name": "Rafael Gomes",
+        }
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        payload = service.get_status_for_line(
+            self.line,
+            session_id="sess-terminal-success",
+        )
+
+        self.assertEqual(payload["session_id"], "sess-terminal-success")
+        self.assertEqual(payload["status"], "CONNECTED")
+        self.assertEqual(payload["raw_status"], "CONNECTED")
+        self.assertTrue(payload["is_terminal"])
+
+    def test_get_status_for_line_normalizes_status_spacing_and_case(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.by_id["sess-terminal-failed"] = {
+            "_id": "sess-terminal-failed",
+            "phone_number": "5511999991000",
+            "status": " failed ",
+            "attempt": 1,
+            "device_name": "Rafael Gomes",
+        }
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        payload = service.get_status_for_line(
+            self.line,
+            session_id="sess-terminal-failed",
+        )
+
+        self.assertEqual(payload["status"], "FAILED")
+        self.assertEqual(payload["raw_status"], "FAILED")
+        self.assertTrue(payload["is_terminal"])
+
     def test_serialize_session_exposes_progress_fields(self):
         from telecom.services.reconnect_service import ReconnectService
 
@@ -1933,6 +1984,10 @@ class PhoneLineReconnectViewsTests(TestCase):
         self.assertContains(response, "Motivo TI")
         self.assertContains(response, "Etapa atual")
         self.assertContains(response, 'class="modal-content reconnect-history-modal-content"')
+        self.assertContains(
+            response,
+            "if (payload && payload.session_id && !payload.is_terminal) {",
+        )
 
     @patch("telecom.views.get_reconnect_service")
     def test_start_endpoint_returns_session_payload(self, mocked_service):
@@ -2272,6 +2327,41 @@ class WhatsappReconnectHistoryViewsTest(TestCase):
         )
 
         entry = WhatsappReconnectHistory.objects.get(session_id="sess-web-terminal")
+        self.assertEqual(entry.outcome, WhatsappReconnectHistory.Outcome.CONNECTED)
+        self.assertIsNotNone(entry.finished_at)
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_status_closes_history_when_service_returns_success_alias(self, mocked_service):
+        class FakeSuccessAliasService(FakeReconnectWebService):
+            def get_status_for_line(self, line, *, session_id=""):
+                return {
+                    "session_id": "sess-web-terminal-success",
+                    "status": "CONNECTED",
+                    "raw_status": "SUCCESS",
+                    "attempt": 1,
+                    "is_terminal": True,
+                    "error_code": None,
+                    "error_message": None,
+                    "can_submit_code": False,
+                    "can_cancel": False,
+                }
+
+        WhatsappReconnectHistory.objects.create(
+            phone_line=self.line,
+            session_id="sess-web-terminal-success",
+            started_by=self.admin,
+        )
+        mocked_service.return_value = FakeSuccessAliasService()
+        self.client.force_login(self.admin)
+
+        self.client.get(
+            reverse("telecom:phoneline_reconnect_status", args=[self.line.pk]),
+            {"session_id": "sess-web-terminal-success"},
+        )
+
+        entry = WhatsappReconnectHistory.objects.get(
+            session_id="sess-web-terminal-success"
+        )
         self.assertEqual(entry.outcome, WhatsappReconnectHistory.Outcome.CONNECTED)
         self.assertIsNotNone(entry.finished_at)
 

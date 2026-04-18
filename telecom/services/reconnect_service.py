@@ -13,6 +13,10 @@ from telecom.models import PhoneLine
 TERMINAL_RECONNECT_STATUSES = {"CONNECTED", "FAILED", "CANCELLED"}
 WAITING_FOR_CODE_STATUS = "WAITING_FOR_CODE"
 CANCEL_REQUESTED_STATUS = "CANCEL_REQUESTED"
+STATUS_ALIASES = {
+    "SUCCESS": "CONNECTED",
+    "SUCESS": "CONNECTED",
+}
 ELIGIBLE_RECONNECT_ORIGENS = {
     PhoneLine.Origem.SRVMEMU_01,
     PhoneLine.Origem.SRVMEMU_02,
@@ -45,6 +49,13 @@ def _format_progress_history(progress_history: Any) -> list[dict[str, Any]]:
             }
         )
     return normalized_history
+
+
+def _normalize_status(value: Any) -> str:
+    if value is None:
+        return ""
+    normalized = str(value).strip().upper()
+    return STATUS_ALIASES.get(normalized, normalized)
 
 
 class ReconnectService:
@@ -209,7 +220,7 @@ class ReconnectService:
         return "".join(character for character in (phone_number or "") if character.isdigit())
 
     def _serialize_session(self, document: dict[str, Any]) -> dict[str, Any]:
-        raw_status = document.get("status")
+        raw_status = _normalize_status(document.get("status"))
         cancel_requested = bool(document.get("cancel_requested_at")) and (
             raw_status not in TERMINAL_RECONNECT_STATUSES
         )

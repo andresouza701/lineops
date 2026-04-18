@@ -5,7 +5,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.dateparse import parse_date
@@ -41,6 +41,16 @@ RECONNECT_ALLOWED_ROLES = [
     SystemUser.Role.BACKOFFICE,
     SystemUser.Role.GERENTE,
 ]
+
+RECONNECT_STATUS_ALIASES = {
+    "SUCCESS": "CONNECTED",
+    "SUCESS": "CONNECTED",
+}
+
+
+def normalize_reconnect_status(value):
+    normalized = str(value or "").strip().upper()
+    return RECONNECT_STATUS_ALIASES.get(normalized, normalized)
 
 
 def get_reconnect_service():
@@ -361,7 +371,9 @@ class PhoneLineReconnectStatusView(PhoneLineReconnectBaseView):
             return JsonResponse({"error": str(exc)}, status=400)
 
         if payload and payload.get("is_terminal") and payload.get("session_id"):
-            raw_status = payload.get("raw_status") or payload.get("status", "")
+            raw_status = normalize_reconnect_status(
+                payload.get("raw_status") or payload.get("status", "")
+            )
             outcome_map = {
                 "CONNECTED": WhatsappReconnectHistory.Outcome.CONNECTED,
                 "FAILED": WhatsappReconnectHistory.Outcome.FAILED,
