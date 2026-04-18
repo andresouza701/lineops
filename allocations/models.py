@@ -21,6 +21,7 @@ class LineAllocation(models.Model):
         UNDER_ANALYSIS = "under_analysis", "Em análise"
         RESTRICTED = "restricted", "Restrito"
         PERMANENTLY_BANNED = "permanently_banned", "Banido Permanentemente"
+        WAITING_OPERATOR = "waiting_operator", "Aguardando operador"
         ACTIVE = "active", "Ativo"
 
     employee = models.ForeignKey(

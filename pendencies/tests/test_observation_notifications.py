@@ -3,9 +3,11 @@ import json
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from allocations.models import LineAllocation
 from employees.models import Employee
 from pendencies.models import AllocationPendency, PendencyObservationNotification
 from pendencies.services import notify_observation_change
+from telecom.models import PhoneLine, SIMcard
 from users.models import SystemUser
 
 
@@ -169,6 +171,61 @@ class PendencyUpdateViewNotificationTest(TestCase):
             ),
             content_type="application/json",
         )
+
+    def test_detail_exposes_waiting_operator_line_status_choice(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(
+            reverse("pendencies:detail"),
+            data={"employee_id": self.employee.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        choices = {
+            item["value"]: item["label"]
+            for item in response.json()["line_status_choices"]
+        }
+        self.assertIn("waiting_operator", choices)
+        self.assertEqual(choices["waiting_operator"], "Aguardando operador")
+
+    def test_admin_can_update_allocation_line_status_to_waiting_operator(self):
+        simcard = SIMcard.objects.create(
+            iccid="8900000000000012345",
+            carrier="CarrierTest",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        phone_line = PhoneLine.objects.create(
+            phone_number="+5547999990001",
+            sim_card=simcard,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=phone_line,
+            allocated_by=self.admin,
+            is_active=True,
+        )
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "pendency_id": pendency.pk,
+                    "action": "",
+                    "observation": "",
+                    "line_status": "waiting_operator",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        allocation.refresh_from_db()
+        self.assertEqual(allocation.line_status, "waiting_operator")
 
     def test_admin_saving_new_observation_notifies_super(self):
         resp = self._post(self.admin, "nova obs")

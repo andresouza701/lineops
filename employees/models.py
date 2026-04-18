@@ -36,6 +36,7 @@ class Employee(models.Model):
         UNDER_ANALYSIS = "under_analysis", "Em analise"
         RESTRICTED = "restricted", "Restrito"
         PERMANENTLY_BANNED = "permanently_banned", "Banido permanentemente"
+        WAITING_OPERATOR = "waiting_operator", "Aguardando operador"
         ACTIVE = "active", "Ativo"
 
     full_name = models.CharField(max_length=40)
