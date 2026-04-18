@@ -7,6 +7,11 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import TemplateView, View
 
 from core.exceptions.domain_exceptions import BusinessRuleException
+from core.integrity import (
+    DUPLICATE_PHONE_NUMBER_CONSTRAINT,
+    integrity_error_matches,
+    is_duplicate_employee_name_error,
+)
 from core.mixins import RoleRequiredMixin
 from core.services.allocation_service import AllocationService
 from core.services.telephony_use_case import TelephonyUseCase
@@ -16,42 +21,6 @@ from users.models import SystemUser
 
 from .forms import CombinedRegistrationForm, TelephonyAssignmentForm
 from .models import LineAllocation
-
-DUPLICATE_EMPLOYEE_NAME_CONSTRAINT = "employees_employee_unique_active_full_name_ci"
-DUPLICATE_PHONE_NUMBER_CONSTRAINT = "telecom_phoneline_phone_number_key"
-
-
-def _is_duplicate_full_name_error(exc: IntegrityError) -> bool:
-    if DUPLICATE_EMPLOYEE_NAME_CONSTRAINT in str(exc):
-        return True
-
-    cause = getattr(exc, "__cause__", None)
-    if not cause:
-        return False
-
-    if DUPLICATE_EMPLOYEE_NAME_CONSTRAINT in str(cause):
-        return True
-
-    diag = getattr(cause, "diag", None)
-    constraint_name = getattr(diag, "constraint_name", None)
-    return constraint_name == DUPLICATE_EMPLOYEE_NAME_CONSTRAINT
-
-
-def _integrity_error_matches(
-    exc: IntegrityError, constraint_name: str, field_name: str
-) -> bool:
-    if constraint_name in str(exc) or field_name in str(exc):
-        return True
-
-    cause = getattr(exc, "__cause__", None)
-    if not cause:
-        return False
-
-    if constraint_name in str(cause) or field_name in str(cause):
-        return True
-
-    diag = getattr(cause, "diag", None)
-    return getattr(diag, "constraint_name", None) == constraint_name
 
 
 class RegistrationHubView(RoleRequiredMixin, TemplateView):
@@ -99,7 +68,7 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
                     status=form.cleaned_data["status"],
                 )
             except IntegrityError as exc:
-                if not _is_duplicate_full_name_error(exc):
+                if not is_duplicate_employee_name_error(exc):
                     raise
                 form.add_error(
                     "full_name",
@@ -159,8 +128,10 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
             messages.error(request, "Corrija os erros de telefonia.")
             return self._render_with_forms(telephony_form=form)
         except IntegrityError as exc:
-            if _integrity_error_matches(
-                exc, DUPLICATE_PHONE_NUMBER_CONSTRAINT, "phone_number"
+            if integrity_error_matches(
+                exc,
+                constraint_name=DUPLICATE_PHONE_NUMBER_CONSTRAINT,
+                field_name="phone_number",
             ):
                 form.add_error("phone_number", "Linha já cadastrada!")
             else:

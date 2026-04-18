@@ -8,6 +8,7 @@ from django.views import View
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
 from allocations.models import LineAllocation
+from core.integrity import is_duplicate_employee_name_error
 from core.mixins import RoleRequiredMixin
 from core.services.allocation_service import AllocationService
 from core.validation import parse_non_negative_int
@@ -15,24 +16,7 @@ from users.models import SystemUser
 
 from .models import Employee, EmployeeHistory
 
-DUPLICATE_EMPLOYEE_NAME_CONSTRAINT = "employees_employee_unique_active_full_name_ci"
 DUPLICATE_EMPLOYEE_NAME_MESSAGE = "Já existe um usuário cadastrado com este nome."
-
-
-def _is_duplicate_full_name_error(exc: IntegrityError) -> bool:
-    if DUPLICATE_EMPLOYEE_NAME_CONSTRAINT in str(exc):
-        return True
-
-    cause = getattr(exc, "__cause__", None)
-    if not cause:
-        return False
-
-    if DUPLICATE_EMPLOYEE_NAME_CONSTRAINT in str(cause):
-        return True
-
-    diag = getattr(cause, "diag", None)
-    constraint_name = getattr(diag, "constraint_name", None)
-    return constraint_name == DUPLICATE_EMPLOYEE_NAME_CONSTRAINT
 
 
 class EmployeeListView(RoleRequiredMixin, ListView):
@@ -160,7 +144,7 @@ class EmployeeCreateView(RoleRequiredMixin, CreateView):
         try:
             response = super().form_valid(form)
         except IntegrityError as exc:
-            if not _is_duplicate_full_name_error(exc):
+            if not is_duplicate_employee_name_error(exc):
                 raise
             form.add_error("full_name", DUPLICATE_EMPLOYEE_NAME_MESSAGE)
             messages.error(self.request, "Corrija os erros do usuário.")
@@ -189,7 +173,7 @@ class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
         try:
             response = super().form_valid(form)
         except IntegrityError as exc:
-            if not _is_duplicate_full_name_error(exc):
+            if not is_duplicate_employee_name_error(exc):
                 raise
             form.add_error("full_name", DUPLICATE_EMPLOYEE_NAME_MESSAGE)
             messages.error(self.request, "Corrija os erros do usuário.")

@@ -10,6 +10,7 @@ from core.current_user import clear_current_user, set_current_user
 from core.exceptions.domain_exceptions import BusinessRuleException
 from core.services.allocation_service import AllocationService
 from employees.models import Employee
+from telecom import history as telecom_history
 from telecom.forms import BlipConfigurationForm
 from telecom.models import BlipConfiguration, PhoneLine, PhoneLineHistory, SIMcard, WhatsappReconnectHistory
 from users.models import SystemUser
@@ -24,6 +25,9 @@ class TelecomAdminRegistrationTest(TestCase):
 
     def test_blip_configuration_is_registered_in_admin(self):
         self.assertIn(BlipConfiguration, admin.site._registry)
+
+    def test_legacy_history_module_exports_canonical_model(self):
+        self.assertIs(telecom_history.PhoneLineHistory, PhoneLineHistory)
 
     def test_simcard_admin_form_hides_soft_delete_flag(self):
         admin_user = SystemUser.objects.create_user(
