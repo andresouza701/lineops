@@ -69,9 +69,20 @@ class ReconnectService:
     def start_for_line(self, phone_line: PhoneLine) -> dict[str, Any]:
         self._ensure_line_is_eligible_for_reconnect(phone_line)
         normalized_phone = self._normalize_phone_number(phone_line.phone_number)
+        line_log_context = self._line_log_context(phone_line)
         active_session = self.repository.find_active_session_by_phone(normalized_phone)
         if active_session:
-            return self._serialize_session(active_session)
+            serialized = self._serialize_session(active_session)
+            logger.info(
+                "Reconnect session reused",
+                extra={
+                    **line_log_context,
+                    "session_id": serialized.get("session_id"),
+                    "status": serialized.get("status"),
+                    "attempt": serialized.get("attempt"),
+                },
+            )
+            return serialized
         self._ensure_active_session_unique_index()
 
         now = timezone.now()
@@ -94,11 +105,31 @@ class ReconnectService:
         except ActiveReconnectSessionConflict:
             active_session = self.repository.find_active_session_by_phone(normalized_phone)
             if active_session:
-                return self._serialize_session(active_session)
+                serialized = self._serialize_session(active_session)
+                logger.warning(
+                    "Reconnect session conflict resolved by reusing active session",
+                    extra={
+                        **line_log_context,
+                        "session_id": serialized.get("session_id"),
+                        "status": serialized.get("status"),
+                        "attempt": serialized.get("attempt"),
+                    },
+                )
+                return serialized
             raise BusinessRuleException(
                 "Ja existe uma sessao de reconexao ativa para este numero. Tente novamente."
             )
-        return self._serialize_session(created)
+        serialized = self._serialize_session(created)
+        logger.info(
+            "Reconnect session queued",
+            extra={
+                **line_log_context,
+                "session_id": serialized.get("session_id"),
+                "status": serialized.get("status"),
+                "attempt": serialized.get("attempt"),
+            },
+        )
+        return serialized
 
     def get_active_for_line(self, phone_line: PhoneLine) -> dict[str, Any] | None:
         return self.get_status_for_line(phone_line)
@@ -138,9 +169,19 @@ class ReconnectService:
         if not normalized_code:
             raise BusinessRuleException("Informe um codigo de conexao valido.")
 
+        line_log_context = self._line_log_context(phone_line)
         if session.get("status") != WAITING_FOR_CODE_STATUS:
             result = self._serialize_session(session)
             result["code_accepted"] = False
+            logger.warning(
+                "Reconnect pair code ignored due to invalid status",
+                extra={
+                    **line_log_context,
+                    "session_id": session_id,
+                    "status": result.get("status"),
+                    "pair_code_length": len(normalized_code),
+                },
+            )
             return result
 
         modified = self.repository.submit_pair_code(
@@ -152,10 +193,22 @@ class ReconnectService:
         latest = self.repository.get_session(session_id) or session
         result = self._serialize_session(latest)
         result["code_accepted"] = bool(modified)
+        logger.info(
+            "Reconnect pair code submitted",
+            extra={
+                **line_log_context,
+                "session_id": session_id,
+                "status": result.get("status"),
+                "attempt": result.get("attempt"),
+                "pair_code_length": len(normalized_code),
+                "code_accepted": bool(modified),
+            },
+        )
         return result
 
     def cancel_for_line(self, phone_line: PhoneLine, *, session_id: str) -> dict[str, Any]:
         session = self._require_session_for_line(phone_line, session_id)
+        line_log_context = self._line_log_context(phone_line)
         modified = self.repository.cancel_session(
             session_id=session_id,
             requested_at=timezone.now(),
@@ -163,7 +216,24 @@ class ReconnectService:
         latest = self.repository.get_session(session_id) or session
         result = self._serialize_session(latest)
         result["cancel_requested"] = bool(modified)
+        logger.info(
+            "Reconnect session cancel requested",
+            extra={
+                **line_log_context,
+                "session_id": session_id,
+                "status": result.get("status"),
+                "attempt": result.get("attempt"),
+                "cancel_requested": bool(modified),
+            },
+        )
         return result
+
+    def _line_log_context(self, phone_line: PhoneLine) -> dict[str, Any]:
+        return {
+            "phone_line_id": phone_line.pk,
+            "phone_number": self._normalize_phone_number(phone_line.phone_number),
+            "origem": phone_line.origem or "",
+        }
 
     def _require_session_for_line(
         self,

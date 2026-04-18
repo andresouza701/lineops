@@ -3,7 +3,7 @@ from django.test import RequestFactory
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from allocations.forms import TelephonyAssignmentForm
 from core.current_user import clear_current_user, set_current_user
@@ -1844,6 +1844,93 @@ class ReconnectServiceTests(TestCase):
         self.assertFalse(payload["can_submit_code"])
         self.assertTrue(payload["cancel_requested"])
 
+    @patch("telecom.services.reconnect_service.logger")
+    def test_start_for_line_logs_queued_session_with_context(self, mocked_logger):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        session = service.start_for_line(self.line)
+
+        mocked_logger.info.assert_any_call(
+            "Reconnect session queued",
+            extra=ANY,
+        )
+        _, kwargs = mocked_logger.info.call_args
+        self.assertEqual(kwargs["extra"]["session_id"], session["session_id"])
+        self.assertEqual(kwargs["extra"]["phone_line_id"], self.line.pk)
+        self.assertEqual(kwargs["extra"]["phone_number"], "5511999991000")
+
+    @patch("telecom.services.reconnect_service.logger")
+    def test_submit_code_logs_result_with_context(self, mocked_logger):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.by_id["sess-log-submit-1"] = {
+            "_id": "sess-log-submit-1",
+            "phone_number": "5511999991000",
+            "status": "WAITING_FOR_CODE",
+            "attempt": 1,
+            "device_name": "Rafael Gomes",
+        }
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        service.submit_code_for_line(
+            self.line,
+            session_id="sess-log-submit-1",
+            pair_code="ab12cd34",
+        )
+
+        mocked_logger.info.assert_any_call(
+            "Reconnect pair code submitted",
+            extra=ANY,
+        )
+        _, kwargs = mocked_logger.info.call_args
+        self.assertEqual(kwargs["extra"]["session_id"], "sess-log-submit-1")
+        self.assertEqual(kwargs["extra"]["phone_line_id"], self.line.pk)
+        self.assertEqual(kwargs["extra"]["pair_code_length"], 8)
+        self.assertTrue(kwargs["extra"]["code_accepted"])
+
+    @patch("telecom.services.reconnect_service.logger")
+    def test_cancel_for_line_logs_result_with_context(self, mocked_logger):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.by_id["sess-log-cancel-1"] = {
+            "_id": "sess-log-cancel-1",
+            "phone_number": "5511999991000",
+            "status": "QUEUED",
+            "attempt": 0,
+            "active_lock": True,
+            "device_name": "Rafael Gomes",
+        }
+        repository.active_by_phone["5511999991000"] = repository.by_id["sess-log-cancel-1"]
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        service.cancel_for_line(
+            self.line,
+            session_id="sess-log-cancel-1",
+        )
+
+        mocked_logger.info.assert_any_call(
+            "Reconnect session cancel requested",
+            extra=ANY,
+        )
+        _, kwargs = mocked_logger.info.call_args
+        self.assertEqual(kwargs["extra"]["session_id"], "sess-log-cancel-1")
+        self.assertEqual(kwargs["extra"]["phone_line_id"], self.line.pk)
+        self.assertTrue(kwargs["extra"]["cancel_requested"])
+
 
 class FakeReconnectWebService:
     def __init__(self):
@@ -2145,6 +2232,109 @@ class PhoneLineReconnectViewsTests(TestCase):
         self.assertEqual(
             service.cancel_calls,
             [(self.managed_line.pk, "sess-web-1")],
+        )
+
+    def test_start_endpoint_logs_warning_when_business_rule_exception(self):
+        class FailingStartReconnectService(FakeReconnectWebService):
+            def start_for_line(self, line):
+                raise BusinessRuleException("nao pode iniciar")
+
+        self.client.force_login(self.admin)
+        with (
+            patch("telecom.views.get_reconnect_service") as mocked_service,
+            patch("telecom.views.logger") as mocked_logger,
+        ):
+            mocked_service.return_value = FailingStartReconnectService()
+            response = self.client.post(
+                reverse("telecom:phoneline_reconnect_start", args=[self.managed_line.pk])
+            )
+
+        self.assertEqual(response.status_code, 400)
+        mocked_logger.warning.assert_called_once_with(
+            "Reconnect start rejected by business rule",
+            extra={
+                "phone_line_id": self.managed_line.pk,
+                "user_id": self.admin.pk,
+            },
+        )
+
+    def test_status_endpoint_logs_warning_when_business_rule_exception(self):
+        class FailingStatusReconnectService(FakeReconnectWebService):
+            def get_status_for_line(self, line, *, session_id=""):
+                raise BusinessRuleException("status indisponivel")
+
+        self.client.force_login(self.admin)
+        with (
+            patch("telecom.views.get_reconnect_service") as mocked_service,
+            patch("telecom.views.logger") as mocked_logger,
+        ):
+            mocked_service.return_value = FailingStatusReconnectService()
+            response = self.client.get(
+                reverse("telecom:phoneline_reconnect_status", args=[self.managed_line.pk]),
+                data={"session_id": "sess-1"},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        mocked_logger.warning.assert_called_once_with(
+            "Reconnect status rejected by business rule",
+            extra={
+                "phone_line_id": self.managed_line.pk,
+                "user_id": self.admin.pk,
+                "session_id": "sess-1",
+            },
+        )
+
+    def test_submit_code_endpoint_logs_warning_when_business_rule_exception(self):
+        class FailingSubmitReconnectService(FakeReconnectWebService):
+            def submit_code_for_line(self, line, *, session_id, pair_code):
+                raise BusinessRuleException("codigo invalido")
+
+        self.client.force_login(self.admin)
+        with (
+            patch("telecom.views.get_reconnect_service") as mocked_service,
+            patch("telecom.views.logger") as mocked_logger,
+        ):
+            mocked_service.return_value = FailingSubmitReconnectService()
+            response = self.client.post(
+                reverse("telecom:phoneline_reconnect_submit_code", args=[self.managed_line.pk]),
+                data={"session_id": "sess-2", "pair_code": "ab12cd34"},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        mocked_logger.warning.assert_called_once_with(
+            "Reconnect pair code submission rejected by business rule",
+            extra={
+                "phone_line_id": self.managed_line.pk,
+                "user_id": self.admin.pk,
+                "session_id": "sess-2",
+                "pair_code_length": 8,
+            },
+        )
+
+    def test_cancel_endpoint_logs_warning_when_business_rule_exception(self):
+        class FailingCancelReconnectService(FakeReconnectWebService):
+            def cancel_for_line(self, line, *, session_id):
+                raise BusinessRuleException("nao pode cancelar")
+
+        self.client.force_login(self.admin)
+        with (
+            patch("telecom.views.get_reconnect_service") as mocked_service,
+            patch("telecom.views.logger") as mocked_logger,
+        ):
+            mocked_service.return_value = FailingCancelReconnectService()
+            response = self.client.post(
+                reverse("telecom:phoneline_reconnect_cancel", args=[self.managed_line.pk]),
+                data={"session_id": "sess-3"},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        mocked_logger.warning.assert_called_once_with(
+            "Reconnect cancel rejected by business rule",
+            extra={
+                "phone_line_id": self.managed_line.pk,
+                "user_id": self.admin.pk,
+                "session_id": "sess-3",
+            },
         )
 
     @patch("telecom.views.get_reconnect_service")

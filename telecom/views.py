@@ -1,4 +1,5 @@
 import csv
+import logging
 
 from django import forms
 from django.conf import settings
@@ -33,6 +34,8 @@ from .forms import (
 )
 from .models import BlipConfiguration, PhoneLine, PhoneLineHistory, SIMcard
 from .services.reconnect_service import build_default_reconnect_service
+
+logger = logging.getLogger(__name__)
 
 
 RECONNECT_ALLOWED_ROLES = [
@@ -368,6 +371,14 @@ class PhoneLineReconnectStatusView(PhoneLineReconnectBaseView):
                 session_id=session_id,
             )
         except BusinessRuleException as exc:
+            logger.warning(
+                "Reconnect status rejected by business rule",
+                extra={
+                    "phone_line_id": phone_line.pk,
+                    "user_id": getattr(request.user, "pk", None),
+                    "session_id": session_id,
+                },
+            )
             return JsonResponse({"error": str(exc)}, status=400)
 
         if payload and payload.get("is_terminal") and payload.get("session_id"):
@@ -402,6 +413,13 @@ class PhoneLineReconnectStartView(PhoneLineReconnectBaseView):
         try:
             payload = self.get_service().start_for_line(phone_line)
         except BusinessRuleException as exc:
+            logger.warning(
+                "Reconnect start rejected by business rule",
+                extra={
+                    "phone_line_id": phone_line.pk,
+                    "user_id": getattr(request.user, "pk", None),
+                },
+            )
             return JsonResponse({"error": str(exc)}, status=400)
 
         if payload.get("session_id"):
@@ -468,6 +486,15 @@ class PhoneLineReconnectSubmitCodeView(PhoneLineReconnectBaseView):
                 pair_code=pair_code,
             )
         except BusinessRuleException as exc:
+            logger.warning(
+                "Reconnect pair code submission rejected by business rule",
+                extra={
+                    "phone_line_id": phone_line.pk,
+                    "user_id": getattr(request.user, "pk", None),
+                    "session_id": session_id,
+                    "pair_code_length": len(pair_code),
+                },
+            )
             return JsonResponse({"error": str(exc)}, status=400)
         return JsonResponse(payload)
 
@@ -482,6 +509,14 @@ class PhoneLineReconnectCancelView(PhoneLineReconnectBaseView):
                 session_id=session_id,
             )
         except BusinessRuleException as exc:
+            logger.warning(
+                "Reconnect cancel rejected by business rule",
+                extra={
+                    "phone_line_id": phone_line.pk,
+                    "user_id": getattr(request.user, "pk", None),
+                    "session_id": session_id,
+                },
+            )
             return JsonResponse({"error": str(exc)}, status=400)
         return JsonResponse(payload)
 

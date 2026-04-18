@@ -254,10 +254,8 @@ LOGGING = {
     "disable_existing_loggers": False,
     "formatters": {
         "structured": {
-            "format": (
-                '{"timestamp": "%(asctime)s", "level": "%(levelname)s", '
-                '"logger": "%(name)s", "message": %(message)s}'
-            )
+            "()": "core.logging.StructuredJSONFormatter",
+            "datefmt": "%Y-%m-%dT%H:%M:%S%z",
         },
     },
     "handlers": {
