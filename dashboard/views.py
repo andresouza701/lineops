@@ -590,6 +590,7 @@ def count_visible_pending_actions(rows):
         "new_number": new_number,
         "reconnect_whatsapp": reconnect_whatsapp,
         "pending": pending,
+        "total": new_number + reconnect_whatsapp + pending,
         "line_status_issues": line_status_issues,
     }
 
