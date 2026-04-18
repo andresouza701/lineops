@@ -119,9 +119,6 @@
         <div class="d-flex flex-wrap gap-2 mt-3">
             <button type="button" class="btn btn-primary" data-reconnect-start>Iniciar reconexao</button>
             <button type="button" class="btn btn-outline-danger d-none" data-reconnect-cancel>Cancelar sessao</button>
-            <button type="button" class="btn btn-outline-secondary" id="btn-check-status" data-reconnect-check-status>
-                <i class="bi bi-wifi"></i> Verificar status
-            </button>
             <button
                 type="button"
                 class="btn btn-outline-secondary"
@@ -400,19 +397,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     renderEmpty();
     refreshStatus();
-
-    // --- Verificar status button ---
-    const checkStatusButton = root.querySelector('[data-reconnect-check-status]');
-    if (checkStatusButton) {
-        checkStatusButton.addEventListener('click', async function () {
-            checkStatusButton.disabled = true;
-            try {
-                await refreshStatus();
-            } finally {
-                checkStatusButton.disabled = false;
-            }
-        });
-    }
 });
 </script>
 
