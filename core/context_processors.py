@@ -4,12 +4,7 @@ Context processors para disponibilizar dados globalmente nos templates.
 
 from django.conf import settings
 
-from dashboard.views import (
-    build_daily_user_action_rows,
-    count_visible_pending_actions,
-    get_supervised_employees_queryset,
-)
-from employees.models import Employee
+from dashboard.services.context_service import get_pending_actions_count_for_user
 from users.models import SystemUser
 
 def pending_actions_count(request):
@@ -26,15 +21,7 @@ def pending_actions_count(request):
         and request.user.role == SystemUser.Role.ADMIN
     )
     if is_admin:
-        employees_qs = get_supervised_employees_queryset(request.user).filter(
-            status=Employee.Status.ACTIVE,
-            is_deleted=False,
-        )
-        rows = build_daily_user_action_rows(employees_qs, request.user)
-        action_counts = count_visible_pending_actions(rows)
-        count = (
-            action_counts["new_number"] + action_counts["reconnect_whatsapp"]
-        )
+        count = get_pending_actions_count_for_user(request.user)
 
     return {"pending_actions_count": count}
 

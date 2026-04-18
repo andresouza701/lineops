@@ -22,6 +22,15 @@ from core.constants import (
 )
 from core.mixins import AuthenticadView, RoleRequiredMixin, roles_required
 from core.services.daily_indicator_service import DailyIndicatorService
+from dashboard.services.insight_service import build_dashboard_exception_cards
+from dashboard.services.query_service import (
+    build_dashboard_overview_counts,
+    build_dashboard_status_counts,
+    get_pending_action_counts_for_user,
+    get_scoped_phone_lines_queryset_for_dashboard as query_get_scoped_phone_lines_queryset_for_dashboard,
+    get_supervised_employees_queryset as query_get_supervised_employees_queryset,
+    uses_scoped_dashboard_metrics as query_uses_scoped_dashboard_metrics,
+)
 from employees.models import Employee, EmployeeHistory
 from telecom.models import PhoneLine, PhoneLineHistory, SIMcard
 from users.models import SystemUser
@@ -82,22 +91,11 @@ def resolve_day(value):
 
 
 def get_supervised_employees_queryset(user, supervisor_filter=None):
-    employees = user.scope_employee_queryset(Employee.objects.filter(is_deleted=False))
-    if user.role == SystemUser.Role.ADMIN and supervisor_filter:
-        employees = employees.filter(corporate_email__icontains=supervisor_filter)
-    return employees.order_by("full_name")
+    return query_get_supervised_employees_queryset(user, supervisor_filter)
 
 
 def uses_scoped_dashboard_metrics(user):
-    return bool(
-        user
-        and getattr(user, "role", None)
-        in {
-            SystemUser.Role.SUPER,
-            SystemUser.Role.BACKOFFICE,
-            SystemUser.Role.GERENTE,
-        }
-    )
+    return query_uses_scoped_dashboard_metrics(user)
 
 
 def get_daily_indicators_queryset(user):
@@ -230,32 +228,7 @@ def get_active_allocations_by_employee(employee_ids):
 
 
 def get_scoped_phone_lines_queryset_for_dashboard(user):
-    """
-    Resolve phone-line scope for dashboard status cards.
-
-    Admin keeps global visibility. Supervisor/backoffice/manager sees only lines
-    linked to employees in their team scope (historical allocation linkage).
-    """
-    lines = PhoneLine.objects.filter(
-        is_deleted=False,
-        sim_card__is_deleted=False,
-    )
-    if not uses_scoped_dashboard_metrics(user):
-        return lines
-
-    scoped_employee_ids = get_supervised_employees_queryset(user).values_list(
-        "id", flat=True
-    )
-    scoped_line_ids = (
-        LineAllocation.objects.filter(
-            employee_id__in=scoped_employee_ids,
-            phone_line__is_deleted=False,
-            phone_line__sim_card__is_deleted=False,
-        )
-        .values_list("phone_line_id", flat=True)
-        .distinct()
-    )
-    return lines.filter(id__in=scoped_line_ids)
+    return query_get_scoped_phone_lines_queryset_for_dashboard(user)
 
 
 def get_latest_admin_status_history_by_phone_line(phone_line_ids):
@@ -1209,24 +1182,10 @@ class DashboardView(AuthenticadView, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         trend_period = self._resolve_trend_period()
-        scoped_active_employees = get_supervised_employees_queryset(self.request.user).filter(
-            status=Employee.Status.ACTIVE,
-            is_deleted=False,
-        )
         context["snapshot_report_date"] = self.request.GET.get(
             "snapshot_report_date", timezone.localdate().isoformat()
         )
-        context["total_employees"] = scoped_active_employees.count()
-        context["total_lines"] = PhoneLine.objects.filter(is_deleted=False).count()
-        context["allocated_lines"] = LineAllocation.objects.filter(
-            is_active=True,
-            employee_id__in=scoped_active_employees.values_list("id", flat=True),
-        ).count()
-        context["available_lines"] = PhoneLine.objects.filter(
-            is_deleted=False,
-            status=PhoneLine.Status.AVAILABLE,
-        ).count()
-        context["total_simcards"] = SIMcard.objects.filter(is_deleted=False).count()
+        context.update(build_dashboard_overview_counts(self.request.user))
 
         context.update(self._build_status_counts())
         context["indicadores_diarios"] = self._build_daily_indicators(days=trend_period)
@@ -1238,7 +1197,7 @@ class DashboardView(AuthenticadView, TemplateView):
         raw_period = self.request.GET.get("period", str(DEFAULT_TREND_PERIOD))
         return resolve_trend_period(raw_period)
 
-    def _build_dashboard_insights(self, context):  # noqa: PLR0912, PLR0915
+    def _build_dashboard_insights_legacy(self, context):  # noqa: PLR0912, PLR0915
         daily = context.get("indicadores_diarios", [])
         latest = daily[-1] if daily else {}
         employees_qs = get_supervised_employees_queryset(self.request.user).filter(
@@ -1332,6 +1291,15 @@ class DashboardView(AuthenticadView, TemplateView):
             "exception_cards": exception_cards,
         }
 
+    def _build_dashboard_insights(self, context):
+        pending_action_counts = get_pending_action_counts_for_user(self.request.user)
+        return build_dashboard_exception_cards(
+            daily_indicators=context.get("indicadores_diarios", []),
+            line_status_counts=context.get("line_status_counts", []),
+            pending_action_counts=pending_action_counts,
+            action_board_url=reverse("daily_user_action_board"),
+        )
+
     def _build_negociador_data(self):
         employees = Employee.objects.filter(is_deleted=False)
         active_allocated_employee_ids = set(
@@ -1366,7 +1334,7 @@ class DashboardView(AuthenticadView, TemplateView):
     def _build_indicator_for_day(self, day):
         return get_dashboard_indicator_for_user_day(day, self.request.user)
 
-    def _build_status_counts(self):
+    def _build_status_counts_legacy(self):
         sim_counts = defaultdict(int)
         line_counts = defaultdict(int)
 
@@ -1391,6 +1359,9 @@ class DashboardView(AuthenticadView, TemplateView):
                 for value, label in PhoneLine.Status.choices
             ],
         }
+
+    def _build_status_counts(self):
+        return build_dashboard_status_counts(self.request.user)
 
 
 class ManagerDashboardView(RoleRequiredMixin, TemplateView):
