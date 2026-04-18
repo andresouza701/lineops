@@ -177,6 +177,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let currentSessionId = null;
     let restrictionCountdownHandle = null;
     let restrictionUntilMs = null;
+    let lastRestrictionUntilMs = null;
 
     function setBadge(status) {
         statusBadge.className = 'badge';
@@ -253,6 +254,7 @@ document.addEventListener('DOMContentLoaded', function () {
             restrictionCountdownHandle = null;
         }
         restrictionUntilMs = null;
+        lastRestrictionUntilMs = null;
     }
 
     function updateRestrictionCountdown() {
@@ -274,9 +276,19 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function startRestrictionCountdown(payload) {
+        const nextUntilMs = parseRestrictionUntilMs(payload);
+
+        const isSameDeadline =
+            nextUntilMs === lastRestrictionUntilMs ||
+            (nextUntilMs !== null && lastRestrictionUntilMs !== null &&
+             Math.abs(nextUntilMs - lastRestrictionUntilMs) < pollIntervalMs * 2);
+        if (isSameDeadline) return;
+
         stopRestrictionCountdown();
 
-        restrictionUntilMs = parseRestrictionUntilMs(payload);
+        restrictionUntilMs = nextUntilMs;
+        lastRestrictionUntilMs = nextUntilMs;
+
         if (restrictionUntilMs === null) {
             restrictionCountdownEl.textContent = '-';
             return;
@@ -340,8 +352,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const hasRestrictionWindow = payload.account_state === 'RESTRICTED' && (
             payload.restriction_until ||
-            payload.restriction_seconds_remaining !== null &&
-            payload.restriction_seconds_remaining !== undefined
+            (payload.restriction_seconds_remaining !== null &&
+             payload.restriction_seconds_remaining !== undefined)
         );
 
         if (hasRestrictionWindow) {
