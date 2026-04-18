@@ -229,6 +229,35 @@ def get_active_allocations_by_employee(employee_ids):
     return allocations_by_employee
 
 
+def get_scoped_phone_lines_queryset_for_dashboard(user):
+    """
+    Resolve phone-line scope for dashboard status cards.
+
+    Admin keeps global visibility. Supervisor/backoffice/manager sees only lines
+    linked to employees in their team scope (historical allocation linkage).
+    """
+    lines = PhoneLine.objects.filter(
+        is_deleted=False,
+        sim_card__is_deleted=False,
+    )
+    if not uses_scoped_dashboard_metrics(user):
+        return lines
+
+    scoped_employee_ids = get_supervised_employees_queryset(user).values_list(
+        "id", flat=True
+    )
+    scoped_line_ids = (
+        LineAllocation.objects.filter(
+            employee_id__in=scoped_employee_ids,
+            phone_line__is_deleted=False,
+            phone_line__sim_card__is_deleted=False,
+        )
+        .values_list("phone_line_id", flat=True)
+        .distinct()
+    )
+    return lines.filter(id__in=scoped_line_ids)
+
+
 def get_latest_admin_status_history_by_phone_line(phone_line_ids):
     if not phone_line_ids:
         return {}
@@ -1348,11 +1377,8 @@ class DashboardView(AuthenticadView, TemplateView):
         ):
             sim_counts[row["status"]] = row["count"]
 
-        for row in (
-            PhoneLine.objects.filter(is_deleted=False)
-            .values("status")
-            .annotate(count=Count("id"))
-        ):
+        scoped_lines = get_scoped_phone_lines_queryset_for_dashboard(self.request.user)
+        for row in scoped_lines.values("status").annotate(count=Count("id")):
             line_counts[row["status"]] = row["count"]
 
         return {
