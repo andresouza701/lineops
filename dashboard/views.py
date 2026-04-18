@@ -1230,8 +1230,8 @@ class DashboardView(AuthenticadView, TemplateView):
             entry["value"]: int(entry.get("count", 0))
             for entry in context.get("line_status_counts", [])
         }
-        blocked_lines = line_status_map.get("suspended", 0) + line_status_map.get(
-            "cancelled", 0
+        blocked_lines = line_status_map.get(PhoneLine.Status.SUSPENDED, 0) + line_status_map.get(
+            PhoneLine.Status.CANCELLED, 0
         )
 
         def level_for_percentage(value):
