@@ -1,6 +1,5 @@
 from django import forms
 
-from allocations.models import LineAllocation
 from core.constants import B2B_PORTFOLIOS, B2C_PORTFOLIOS
 from core.normalization import (
     normalize_carrier_name,
@@ -327,36 +326,6 @@ class TelephonyAssignmentForm(forms.Form):
                 self.add_error("phone_line_status", "Selecione a linha.")
             if not status_line:
                 self.add_error("status_line", "Selecione o novo status.")
-
-            if phone_line and status_line:
-                active_allocation = (
-                    LineAllocation.objects.filter(phone_line=phone_line, is_active=True)
-                    .select_related("employee")
-                    .first()
-                )
-                has_active_allocation = active_allocation is not None
-                if has_active_allocation and status_line != PhoneLine.Status.ALLOCATED:
-                    employee_name = (
-                        active_allocation.employee.full_name
-                        if active_allocation.employee_id
-                        else "Usuario desconhecido!"
-                    )
-                    self.add_error(
-                        "status_line",
-                        (
-                            "Libere a linha primeiro e tente novamente!"
-                            f"Status atual: {phone_line.status}. "
-                            f"Usuario vinculado: {employee_name}. "
-                        ),
-                    )
-                if (
-                    not has_active_allocation
-                    and status_line == PhoneLine.Status.ALLOCATED
-                ):
-                    self.add_error(
-                        "status_line",
-                        "Use o vinculo com usuario para deixar ALLOCATED.",
-                    )
 
             cleaned["phone_number"] = cleaned.get("phone_number") or ""
             cleaned["iccid"] = cleaned.get("iccid") or ""

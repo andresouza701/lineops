@@ -9,6 +9,8 @@ from dataclasses import dataclass
 
 from django.db import transaction
 
+from allocations.models import LineAllocation
+from core.exceptions.domain_exceptions import BusinessRuleException
 from core.services.allocation_service import AllocationService
 from employees.models import Employee
 from telecom.models import PhoneLine, SIMcard
@@ -37,6 +39,31 @@ class TelephonyUseCase:
     ) -> TelephonyResult:
         """Change the status of an existing phone line."""
         phone_line = PhoneLine.objects.select_for_update().get(pk=phone_line_id)
+        active_allocation = (
+            LineAllocation.objects.filter(phone_line=phone_line, is_active=True)
+            .select_related("employee")
+            .first()
+        )
+
+        if active_allocation and new_status != PhoneLine.Status.ALLOCATED:
+            employee_name = (
+                active_allocation.employee.full_name
+                if active_allocation.employee_id
+                else "Usuario desconhecido!"
+            )
+            raise BusinessRuleException(
+                (
+                    "Libere a linha primeiro e tente novamente! "
+                    f"Status atual: {phone_line.status}. "
+                    f"Usuario vinculado: {employee_name}. "
+                )
+            )
+
+        if not active_allocation and new_status == PhoneLine.Status.ALLOCATED:
+            raise BusinessRuleException(
+                "Use o vinculo com usuario para deixar ALLOCATED."
+            )
+
         phone_line.status = new_status
         phone_line.save(update_fields=["status"])
 
