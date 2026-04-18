@@ -69,12 +69,7 @@ h1, h2, h3, h4, h5, h6 {
     width: 38px;
     height: 38px;
     border-radius: 12px;
-    background: var(--primary-accent);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: #f8fafc;
-    font-weight: 700;
+    display: block;
 }
 
 .rail-nav {
@@ -1057,6 +1052,19 @@ textarea:disabled {
 
 .auth-background {
     background: radial-gradient(circle at 20% 20%, rgba(37, 99, 235, 0.35), transparent 50%), var(--bg-main);
+}
+
+.auth-logo {
+    filter: drop-shadow(0 4px 16px rgba(37, 99, 235, 0.4));
+}
+
+.auth-brand-title {
+    font-family: var(--font-main);
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--text-strong);
+    margin-top: 0.5rem;
 }
 
 .auth-card {

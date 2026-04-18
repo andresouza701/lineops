@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>LineOps</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'img/lineops-icon.svg' %}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -23,7 +24,7 @@
     <div class="app-shell">
         <aside class="side-rail" aria-label="Navegação principal">
             <div class="rail-brand">
-                <span class="rail-logo">L</span>
+                <img src="{% static 'img/lineops-icon.svg' %}" alt="LineOps" class="rail-logo" width="38" height="38">
             </div>
             {% with current_ns=request.resolver_match.namespace|default:'' current_name=request.resolver_match.url_name|default:'' %}
             <nav class="rail-nav">
