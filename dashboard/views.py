@@ -22,11 +22,11 @@ from core.constants import (
 )
 from core.mixins import AuthenticadView, RoleRequiredMixin, roles_required
 from core.services.daily_indicator_service import DailyIndicatorService
+from dashboard.services.context_service import get_pending_action_counts_cached
 from dashboard.services.insight_service import build_dashboard_exception_cards
 from dashboard.services.query_service import (
     build_dashboard_overview_counts,
     build_dashboard_status_counts,
-    get_pending_action_counts_for_user,
     get_scoped_phone_lines_queryset_for_dashboard as query_get_scoped_phone_lines_queryset_for_dashboard,
     get_supervised_employees_queryset as query_get_supervised_employees_queryset,
     uses_scoped_dashboard_metrics as query_uses_scoped_dashboard_metrics,
@@ -1293,7 +1293,7 @@ class DashboardView(AuthenticadView, TemplateView):
         }
 
     def _build_dashboard_insights(self, context):
-        pending_action_counts = get_pending_action_counts_for_user(self.request.user)
+        pending_action_counts = get_pending_action_counts_cached(self.request)
         return build_dashboard_exception_cards(
             daily_indicators=context.get("indicadores_diarios", []),
             line_status_counts=context.get("line_status_counts", []),
