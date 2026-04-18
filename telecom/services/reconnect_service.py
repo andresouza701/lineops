@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -9,6 +10,8 @@ from django.utils import timezone
 from core.exceptions.domain_exceptions import BusinessRuleException
 from telecom.exceptions import ActiveReconnectSessionConflict
 from telecom.models import PhoneLine
+
+logger = logging.getLogger(__name__)
 
 TERMINAL_RECONNECT_STATUSES = {"CONNECTED", "FAILED", "CANCELLED"}
 WAITING_FOR_CODE_STATUS = "WAITING_FOR_CODE"
@@ -92,7 +95,9 @@ class ReconnectService:
             active_session = self.repository.find_active_session_by_phone(normalized_phone)
             if active_session:
                 return self._serialize_session(active_session)
-            raise
+            raise BusinessRuleException(
+                "Ja existe uma sessao de reconexao ativa para este numero. Tente novamente."
+            )
         return self._serialize_session(created)
 
     def get_active_for_line(self, phone_line: PhoneLine) -> dict[str, Any] | None:
@@ -108,12 +113,13 @@ class ReconnectService:
         normalized_session_id = (session_id or "").strip()
         if normalized_session_id:
             session = self.repository.get_session(normalized_session_id)
-            if session:
-                if session.get("phone_number") != normalized_phone:
-                    raise BusinessRuleException(
-                        "Sessao de reconexao nao pertence a esta linha."
-                    )
-                return self._serialize_session(session)
+            if not session:
+                raise BusinessRuleException("Sessao de reconexao nao encontrada.")
+            if session.get("phone_number") != normalized_phone:
+                raise BusinessRuleException(
+                    "Sessao de reconexao nao pertence a esta linha."
+                )
+            return self._serialize_session(session)
 
         active_session = self.repository.find_active_session_by_phone(normalized_phone)
         if not active_session:
@@ -214,6 +220,12 @@ class ReconnectService:
             if active_allocation and active_allocation.employee
             else self._normalize_phone_number(phone_line.phone_number)
         )
+        if len(raw_device_name) > 50:
+            logger.warning(
+                "device_name truncado para 50 chars (original: %r) para linha %s",
+                raw_device_name,
+                phone_line.phone_number,
+            )
         return raw_device_name[:50]
 
     def _normalize_phone_number(self, phone_number: str) -> str:
