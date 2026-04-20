@@ -1430,6 +1430,7 @@ class FakeReconnectRepository:
         self.cancel_calls = []
         self.active_by_phone = {}
         self.restricted_by_phone = {}
+        self.latest_terminal_by_phone = {}
         self.by_id = {}
         self.submit_modified = True
         self.cancel_modified = True
@@ -1440,6 +1441,9 @@ class FakeReconnectRepository:
 
     def find_recent_restricted_session_by_phone(self, phone_number):
         return self.restricted_by_phone.get(phone_number)
+
+    def find_latest_terminal_session_by_phone(self, phone_number):
+        return self.latest_terminal_by_phone.get(phone_number)
 
     def create_session(self, document):
         created = dict(document)
@@ -1776,6 +1780,9 @@ class ReconnectServiceTests(TestCase):
             "device_name": "Rafael Gomes",
             "active_lock": False,
         }
+        repository.latest_terminal_by_phone["5511999991000"] = repository.restricted_by_phone[
+            "5511999991000"
+        ]
         service = ReconnectService(
             repository=repository,
             target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
@@ -1805,6 +1812,44 @@ class ReconnectServiceTests(TestCase):
             "restriction_seconds_remaining": 120,
             "restriction_until": timezone.now() - timedelta(minutes=1),
             "device_name": "Rafael Gomes",
+            "active_lock": False,
+        }
+        repository.latest_terminal_by_phone["5511999991000"] = repository.restricted_by_phone[
+            "5511999991000"
+        ]
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        payload = service.get_status_for_line(self.line)
+
+        self.assertIsNone(payload)
+
+    def test_get_status_for_line_does_not_return_old_restricted_when_newer_terminal_exists(
+        self,
+    ):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.restricted_by_phone["5511999991000"] = {
+            "_id": "sess-restricted-old",
+            "phone_number": "5511999991000",
+            "status": "FAILED",
+            "attempt": 1,
+            "error_code": "whatsapp_account_restricted",
+            "account_state": "RESTRICTED",
+            "restriction_seconds_remaining": 1800,
+            "restriction_until": timezone.now() + timedelta(minutes=30),
+            "active_lock": False,
+        }
+        repository.latest_terminal_by_phone["5511999991000"] = {
+            "_id": "sess-failed-new",
+            "phone_number": "5511999991000",
+            "status": "FAILED",
+            "attempt": 2,
+            "error_code": "pre_reconnect_whatsapp_sync_failed",
+            "error_message": "Falha de pré-sincronização.",
             "active_lock": False,
         }
         service = ReconnectService(

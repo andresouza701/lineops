@@ -53,6 +53,19 @@ class MongoReconnectSessionRepository:
             ],
         )
 
+    def find_latest_terminal_session_by_phone(self, phone_number: str):
+        return self.collection.find_one(
+            {
+                "phone_number": phone_number,
+                "status": {"$in": ["CONNECTED", "FAILED", "CANCELLED"]},
+            },
+            sort=[
+                ("updated_at", -1),
+                ("finished_at", -1),
+                ("account_state_detected_at", -1),
+            ],
+        )
+
     def create_session(self, document: dict):
         from pymongo.errors import DuplicateKeyError
 

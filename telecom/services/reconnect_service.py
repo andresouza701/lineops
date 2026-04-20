@@ -161,7 +161,13 @@ class ReconnectService:
             restricted_session = self.repository.find_recent_restricted_session_by_phone(
                 normalized_phone
             )
-        if self._is_restriction_window_active(restricted_session):
+        if (
+            self._is_restriction_window_active(restricted_session)
+            and self._is_latest_terminal_session_for_phone(
+                phone_number=normalized_phone,
+                session_id=str(restricted_session.get("_id") or ""),
+            )
+        ):
             return self._serialize_session(restricted_session)
 
         return None
@@ -341,6 +347,18 @@ class ReconnectService:
             return True
 
         return (detected_at + timedelta(seconds=seconds_remaining)) > now
+
+    def _is_latest_terminal_session_for_phone(self, *, phone_number: str, session_id: str) -> bool:
+        if not session_id:
+            return False
+        if not hasattr(self.repository, "find_latest_terminal_session_by_phone"):
+            return True
+
+        latest_terminal = self.repository.find_latest_terminal_session_by_phone(phone_number)
+        if not latest_terminal:
+            return False
+
+        return str(latest_terminal.get("_id") or "") == session_id
 
     @staticmethod
     def _to_aware_datetime(value: Any) -> datetime | None:
