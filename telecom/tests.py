@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.contrib import admin
 from django.test import RequestFactory
 from django.test import TestCase, override_settings
@@ -1427,6 +1429,7 @@ class FakeReconnectRepository:
         self.submit_calls = []
         self.cancel_calls = []
         self.active_by_phone = {}
+        self.restricted_by_phone = {}
         self.by_id = {}
         self.submit_modified = True
         self.cancel_modified = True
@@ -1434,6 +1437,9 @@ class FakeReconnectRepository:
 
     def find_active_session_by_phone(self, phone_number):
         return self.active_by_phone.get(phone_number)
+
+    def find_recent_restricted_session_by_phone(self, phone_number):
+        return self.restricted_by_phone.get(phone_number)
 
     def create_session(self, document):
         created = dict(document)
@@ -1749,6 +1755,66 @@ class ReconnectServiceTests(TestCase):
         self.assertEqual(payload["status"], "FAILED")
         self.assertEqual(payload["raw_status"], "FAILED")
         self.assertTrue(payload["is_terminal"])
+
+    def test_get_status_for_line_returns_recent_restricted_terminal_when_no_active_session(
+        self,
+    ):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        restriction_until = timezone.now() + timedelta(minutes=12)
+        repository.restricted_by_phone["5511999991000"] = {
+            "_id": "sess-restricted-001",
+            "phone_number": "5511999991000",
+            "status": "FAILED",
+            "attempt": 1,
+            "error_code": "whatsapp_account_restricted",
+            "error_message": "Conta restrita temporariamente.",
+            "account_state": "RESTRICTED",
+            "restriction_seconds_remaining": 720,
+            "restriction_until": restriction_until,
+            "device_name": "Rafael Gomes",
+            "active_lock": False,
+        }
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        payload = service.get_status_for_line(self.line)
+
+        self.assertEqual(payload["session_id"], "sess-restricted-001")
+        self.assertEqual(payload["status"], "FAILED")
+        self.assertEqual(payload["error_code"], "whatsapp_account_restricted")
+        self.assertEqual(payload["account_state"], "RESTRICTED")
+        self.assertEqual(payload["restriction_seconds_remaining"], 720)
+        self.assertTrue(payload["restriction_until"].endswith("Z"))
+        self.assertTrue(payload["is_terminal"])
+
+    def test_get_status_for_line_ignores_expired_restricted_terminal_session(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.restricted_by_phone["5511999991000"] = {
+            "_id": "sess-restricted-expired",
+            "phone_number": "5511999991000",
+            "status": "FAILED",
+            "attempt": 1,
+            "error_code": "whatsapp_account_restricted",
+            "account_state": "RESTRICTED",
+            "restriction_seconds_remaining": 120,
+            "restriction_until": timezone.now() - timedelta(minutes=1),
+            "device_name": "Rafael Gomes",
+            "active_lock": False,
+        }
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        payload = service.get_status_for_line(self.line)
+
+        self.assertIsNone(payload)
 
     def test_serialize_session_exposes_progress_fields(self):
         from telecom.services.reconnect_service import ReconnectService

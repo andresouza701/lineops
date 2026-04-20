@@ -36,6 +36,23 @@ class MongoReconnectSessionRepository:
             }
         )
 
+    def find_recent_restricted_session_by_phone(self, phone_number: str):
+        return self.collection.find_one(
+            {
+                "phone_number": phone_number,
+                "status": "FAILED",
+                "$or": [
+                    {"account_state": "RESTRICTED"},
+                    {"error_code": "whatsapp_account_restricted"},
+                ],
+            },
+            sort=[
+                ("restriction_until", -1),
+                ("updated_at", -1),
+                ("account_state_detected_at", -1),
+            ],
+        )
+
     def create_session(self, document: dict):
         from pymongo.errors import DuplicateKeyError
 

@@ -350,7 +350,9 @@ document.addEventListener('DOMContentLoaded', function () {
         deadlineEl.textContent = payload.session_deadline_at || '-';
         accountStateEl.textContent = payload.account_state || '-';
 
-        const hasRestrictionWindow = payload.account_state === 'RESTRICTED' && (
+        const isRestrictedState = payload.account_state === 'RESTRICTED' ||
+            payload.error_code === 'whatsapp_account_restricted';
+        const hasRestrictionWindow = isRestrictedState && (
             payload.restriction_until ||
             (payload.restriction_seconds_remaining !== null &&
              payload.restriction_seconds_remaining !== undefined)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -153,9 +153,18 @@ class ReconnectService:
             return self._serialize_session(session)
 
         active_session = self.repository.find_active_session_by_phone(normalized_phone)
-        if not active_session:
-            return None
-        return self._serialize_session(active_session)
+        if active_session:
+            return self._serialize_session(active_session)
+
+        restricted_session = None
+        if hasattr(self.repository, "find_recent_restricted_session_by_phone"):
+            restricted_session = self.repository.find_recent_restricted_session_by_phone(
+                normalized_phone
+            )
+        if self._is_restriction_window_active(restricted_session):
+            return self._serialize_session(restricted_session)
+
+        return None
 
     def submit_code_for_line(
         self,
@@ -300,6 +309,46 @@ class ReconnectService:
 
     def _normalize_phone_number(self, phone_number: str) -> str:
         return "".join(character for character in (phone_number or "") if character.isdigit())
+
+    def _is_restriction_window_active(self, document: dict[str, Any] | None) -> bool:
+        if not document:
+            return False
+
+        account_state = _normalize_status(document.get("account_state"))
+        error_code = (document.get("error_code") or "").strip()
+        if account_state != "RESTRICTED" and error_code != "whatsapp_account_restricted":
+            return False
+
+        now = timezone.now()
+        restriction_until = self._to_aware_datetime(document.get("restriction_until"))
+        if restriction_until is not None:
+            return restriction_until > now
+
+        raw_seconds_remaining = document.get("restriction_seconds_remaining")
+        try:
+            seconds_remaining = int(raw_seconds_remaining)
+        except (TypeError, ValueError):
+            return False
+        if seconds_remaining <= 0:
+            return False
+
+        detected_at = self._to_aware_datetime(
+            document.get("account_state_detected_at")
+            or document.get("updated_at")
+            or document.get("finished_at")
+        )
+        if detected_at is None:
+            return True
+
+        return (detected_at + timedelta(seconds=seconds_remaining)) > now
+
+    @staticmethod
+    def _to_aware_datetime(value: Any) -> datetime | None:
+        if not isinstance(value, datetime):
+            return None
+        if timezone.is_naive(value):
+            return value.replace(tzinfo=UTC)
+        return value
 
     def _serialize_session(self, document: dict[str, Any]) -> dict[str, Any]:
         raw_status = _normalize_status(document.get("status"))

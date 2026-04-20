@@ -266,7 +266,7 @@ Casos implementados:
   - `error_code=whatsapp_account_restricted`
   - `account_state=RESTRICTED`
   - `needs_it_action=false`
-  - tenta extrair contador `HH:MM:SS` ou `MM:SS`
+  - tenta extrair contador em `HH:MM:SS` / `MM:SS` ou em texto (`1 hora 20 minutos`, `2 hours 5 minutes`)
   - preenche `restriction_seconds_remaining`
   - calcula `restriction_until`
 
