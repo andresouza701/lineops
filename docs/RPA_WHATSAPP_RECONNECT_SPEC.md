@@ -114,6 +114,7 @@ Campos mantidos pelo RPA:
 - `needs_it_action`
 - `needs_it_reason`
 - `restriction_seconds_remaining`
+- `restriction_remaining_hms`
 - `restriction_until`
 - `account_state_detected_at`
 - `detected_screen_text`
@@ -264,11 +265,12 @@ Casos implementados:
 
 - `RESTRICTED`
   - `error_code=whatsapp_account_restricted`
-  - `account_state=RESTRICTED`
-  - `needs_it_action=false`
-  - tenta extrair contador em `HH:MM:SS` / `MM:SS` ou em texto (`1 hora 20 minutos`, `2 hours 5 minutes`)
-  - preenche `restriction_seconds_remaining`
-  - calcula `restriction_until`
+- `account_state=RESTRICTED`
+- `needs_it_action=false`
+- tenta extrair contador em `HH:MM:SS` / `MM:SS` ou em texto (`1 hora 20 minutos`, `2 hours 5 minutes`)
+- preenche `restriction_seconds_remaining`
+- preenche `restriction_remaining_hms`
+- calcula `restriction_until`
 
 - `RESTORED`
   - `error_code=whatsapp_account_restored_requires_it`

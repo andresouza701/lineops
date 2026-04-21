@@ -61,6 +61,41 @@ def _normalize_status(value: Any) -> str:
     return STATUS_ALIASES.get(normalized, normalized)
 
 
+def _parse_restriction_hms(value: Any) -> int | None:
+    if value is None:
+        return None
+
+    parts = str(value).strip().split(":")
+    if len(parts) != 3:
+        return None
+
+    try:
+        hours, minutes, seconds = (int(part) for part in parts)
+    except ValueError:
+        return None
+
+    if hours < 0 or minutes < 0 or seconds < 0:
+        return None
+    if minutes >= 60 or seconds >= 60:
+        return None
+
+    return (hours * 3600) + (minutes * 60) + seconds
+
+
+def _format_restriction_hms(value: Any) -> str | None:
+    try:
+        total_seconds = int(value)
+    except (TypeError, ValueError):
+        return None
+
+    if total_seconds < 0:
+        return None
+
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
 class ReconnectService:
     def __init__(self, *, repository, target_server_by_origem: dict[str, str]):
         self.repository = repository
@@ -330,10 +365,8 @@ class ReconnectService:
         if restriction_until is not None:
             return restriction_until > now
 
-        raw_seconds_remaining = document.get("restriction_seconds_remaining")
-        try:
-            seconds_remaining = int(raw_seconds_remaining)
-        except (TypeError, ValueError):
+        seconds_remaining = self._resolve_restriction_seconds(document)
+        if seconds_remaining is None:
             return False
         if seconds_remaining <= 0:
             return False
@@ -347,6 +380,21 @@ class ReconnectService:
             return True
 
         return (detected_at + timedelta(seconds=seconds_remaining)) > now
+
+    def _resolve_restriction_seconds(self, document: dict[str, Any]) -> int | None:
+        raw_seconds_remaining = document.get("restriction_seconds_remaining")
+        try:
+            return int(raw_seconds_remaining)
+        except (TypeError, ValueError):
+            return _parse_restriction_hms(document.get("restriction_remaining_hms"))
+
+    def _resolve_restriction_remaining_hms(self, document: dict[str, Any]) -> str | None:
+        explicit_value = _format_restriction_hms(document.get("restriction_remaining_hms"))
+        if explicit_value is not None:
+            return explicit_value
+
+        resolved_seconds = self._resolve_restriction_seconds(document)
+        return _format_restriction_hms(resolved_seconds)
 
     def _is_latest_terminal_session_for_phone(self, *, phone_number: str, session_id: str) -> bool:
         if not session_id:
@@ -374,6 +422,7 @@ class ReconnectService:
             raw_status not in TERMINAL_RECONNECT_STATUSES
         )
         serialized_status = CANCEL_REQUESTED_STATUS if cancel_requested else raw_status
+        restriction_seconds_remaining = self._resolve_restriction_seconds(document)
         payload = {
             "session_id": document.get("_id"),
             "status": serialized_status,
@@ -395,9 +444,8 @@ class ReconnectService:
             "account_state": document.get("account_state"),
             "needs_it_action": document.get("needs_it_action"),
             "needs_it_reason": document.get("needs_it_reason"),
-            "restriction_seconds_remaining": document.get(
-                "restriction_seconds_remaining"
-            ),
+            "restriction_seconds_remaining": restriction_seconds_remaining,
+            "restriction_remaining_hms": self._resolve_restriction_remaining_hms(document),
             "restriction_until": _format_datetime(document.get("restriction_until")),
             "device_name": document.get("device_name"),
             "last_pair_code": document.get("last_pair_code"),

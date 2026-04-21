@@ -1795,7 +1795,41 @@ class ReconnectServiceTests(TestCase):
         self.assertEqual(payload["error_code"], "whatsapp_account_restricted")
         self.assertEqual(payload["account_state"], "RESTRICTED")
         self.assertEqual(payload["restriction_seconds_remaining"], 720)
+        self.assertEqual(payload["restriction_remaining_hms"], "00:12:00")
         self.assertTrue(payload["restriction_until"].endswith("Z"))
+        self.assertTrue(payload["is_terminal"])
+
+    def test_get_status_for_line_derives_restriction_seconds_from_hms_payload(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.restricted_by_phone["5511999991000"] = {
+            "_id": "sess-restricted-hms",
+            "phone_number": "5511999991000",
+            "status": "FAILED",
+            "attempt": 1,
+            "error_code": "whatsapp_account_restricted",
+            "error_message": "Conta restrita temporariamente.",
+            "account_state": "RESTRICTED",
+            "restriction_remaining_hms": "72:00:00",
+            "account_state_detected_at": timezone.now(),
+            "device_name": "Rafael Gomes",
+            "active_lock": False,
+        }
+        repository.latest_terminal_by_phone["5511999991000"] = repository.restricted_by_phone[
+            "5511999991000"
+        ]
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        payload = service.get_status_for_line(self.line)
+
+        self.assertEqual(payload["session_id"], "sess-restricted-hms")
+        self.assertEqual(payload["restriction_seconds_remaining"], 259200)
+        self.assertEqual(payload["restriction_remaining_hms"], "72:00:00")
+        self.assertEqual(payload["account_state"], "RESTRICTED")
         self.assertTrue(payload["is_terminal"])
 
     def test_get_status_for_line_ignores_expired_restricted_terminal_session(self):

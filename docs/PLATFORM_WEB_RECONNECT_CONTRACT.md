@@ -167,6 +167,7 @@ A plataforma deve acompanhar pelo menos:
 - `needs_it_action`
 - `needs_it_reason`
 - `restriction_seconds_remaining`
+- `restriction_remaining_hms`
 - `restriction_until`
 - `device_name`
 - `last_pair_code`
@@ -380,6 +381,7 @@ Se detectar restricao:
 - `account_state = RESTRICTED`
 - `needs_it_action = false`
 - `restriction_seconds_remaining`
+- `restriction_remaining_hms`
 - `restriction_until`
 - `account_state_detected_at`
 - `detected_screen_text`
