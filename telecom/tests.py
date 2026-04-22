@@ -753,6 +753,22 @@ class TelecomPermissionTest(TestCase):
             password="123456",
             role=SystemUser.Role.OPERATOR,
         )
+        self.supervisor = SystemUser.objects.create_user(
+            email="super.rbac@test.com",
+            password="123456",
+            role=SystemUser.Role.SUPER,
+        )
+        self.backoffice = SystemUser.objects.create_user(
+            email="backoffice.rbac@test.com",
+            password="123456",
+            role=SystemUser.Role.BACKOFFICE,
+            supervisor_email="super.rbac@test.com",
+        )
+        self.manager = SystemUser.objects.create_user(
+            email="manager.rbac@test.com",
+            password="123456",
+            role=SystemUser.Role.GERENTE,
+        )
 
         sim = SIMcard.objects.create(iccid="8900000000000000999", carrier="CarX")
         self.line = PhoneLine.objects.create(
@@ -763,6 +779,24 @@ class TelecomPermissionTest(TestCase):
 
     def test_admin_can_access_all_telecom_views(self):
         self.client.force_login(self.admin)
+
+        resp = self.client.get(reverse("telecom:overview"))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_super_can_access_telecom_overview(self):
+        self.client.force_login(self.supervisor)
+
+        resp = self.client.get(reverse("telecom:overview"))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_backoffice_can_access_telecom_overview(self):
+        self.client.force_login(self.backoffice)
+
+        resp = self.client.get(reverse("telecom:overview"))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_manager_can_access_telecom_overview(self):
+        self.client.force_login(self.manager)
 
         resp = self.client.get(reverse("telecom:overview"))
         self.assertEqual(resp.status_code, 200)
@@ -1339,10 +1373,16 @@ class BackofficePhoneLineVisibilityTests(TestCase):
             password="123456",
             role=SystemUser.Role.ADMIN,
         )
+        self.manager = SystemUser.objects.create_user(
+            email="manager.line@test.com",
+            password="123456",
+            role=SystemUser.Role.GERENTE,
+        )
         self.supervisor = SystemUser.objects.create_user(
             email="super.line@test.com",
             password="123456",
             role=SystemUser.Role.SUPER,
+            manager_email="manager.line@test.com",
         )
         self.backoffice = SystemUser.objects.create_user(
             email="backoffice.line@test.com",
@@ -1421,6 +1461,108 @@ class BackofficePhoneLineVisibilityTests(TestCase):
 
         self.assertEqual(allowed_response.status_code, 200)
         self.assertEqual(denied_response.status_code, 404)
+
+    @override_settings(RECONNECT_ENABLED=True)
+    def test_backoffice_overview_shows_only_reconnect_action_for_scoped_lines(self):
+        self.client.force_login(self.backoffice)
+
+        response = self.client.get(reverse("telecom:overview"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.managed_line.phone_number)
+        self.assertNotContains(response, self.unmanaged_line.phone_number)
+        self.assertContains(
+            response,
+            f'{reverse("telecom:phoneline_detail", args=[self.managed_line.pk])}#reconnect-whatsapp',
+            html=False,
+        )
+        self.assertNotContains(
+            response,
+            reverse("telecom:phoneline_update", args=[self.managed_line.pk]),
+        )
+        self.assertNotContains(
+            response,
+            reverse("telecom:phoneline_history", args=[self.managed_line.pk]),
+        )
+
+    @override_settings(RECONNECT_ENABLED=True)
+    def test_backoffice_ajax_overview_returns_reconnect_url_without_admin_actions(self):
+        self.client.force_login(self.backoffice)
+
+        response = self.client.get(
+            reverse("telecom:overview"),
+            {"table": "main", "offset": 0, "limit": 10},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        target = next(
+            item for item in payload["data"] if item["id"] == self.managed_line.pk
+        )
+        self.assertEqual(
+            target["reconnect_url"],
+            f'{reverse("telecom:phoneline_detail", args=[self.managed_line.pk])}#reconnect-whatsapp',
+        )
+        self.assertNotIn("edit_url", target)
+        self.assertNotIn("history_url", target)
+
+    @override_settings(RECONNECT_ENABLED=True)
+    def test_backoffice_detail_hides_admin_only_buttons(self):
+        self.client.force_login(self.backoffice)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.managed_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Reconexao WhatsApp")
+        self.assertNotContains(
+            response,
+            reverse("telecom:phoneline_update", args=[self.managed_line.pk]),
+        )
+        self.assertNotContains(
+            response,
+            reverse("telecom:phoneline_history", args=[self.managed_line.pk]),
+        )
+
+    @override_settings(RECONNECT_ENABLED=True)
+    def test_manager_overview_scopes_lines_and_shows_only_reconnect_action(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.get(reverse("telecom:overview"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.managed_line.phone_number)
+        self.assertNotContains(response, self.unmanaged_line.phone_number)
+        self.assertContains(
+            response,
+            f'{reverse("telecom:phoneline_detail", args=[self.managed_line.pk])}#reconnect-whatsapp',
+            html=False,
+        )
+        self.assertNotContains(
+            response,
+            reverse("telecom:phoneline_update", args=[self.managed_line.pk]),
+        )
+
+    @override_settings(RECONNECT_ENABLED=True)
+    def test_supervisor_overview_scopes_lines_and_shows_only_reconnect_action(self):
+        self.client.force_login(self.supervisor)
+
+        response = self.client.get(reverse("telecom:overview"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.managed_line.phone_number)
+        self.assertNotContains(response, self.unmanaged_line.phone_number)
+        self.assertContains(
+            response,
+            f'{reverse("telecom:phoneline_detail", args=[self.managed_line.pk])}#reconnect-whatsapp',
+            html=False,
+        )
+        self.assertNotContains(
+            response,
+            reverse("telecom:phoneline_update", args=[self.managed_line.pk]),
+        )
 
 
 class FakeReconnectRepository:

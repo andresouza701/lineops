@@ -45,6 +45,16 @@ RECONNECT_ALLOWED_ROLES = [
     SystemUser.Role.GERENTE,
 ]
 
+
+def user_can_manage_telecom(user):
+    return (getattr(user, "role", "") or "").lower() == SystemUser.Role.ADMIN
+
+
+def user_can_use_reconnect(user):
+    role = (getattr(user, "role", "") or "").lower()
+    return role in {item.lower() for item in RECONNECT_ALLOWED_ROLES}
+
+
 RECONNECT_STATUS_ALIASES = {
     "SUCCESS": "CONNECTED",
     "SUCESS": "CONNECTED",
@@ -319,9 +329,12 @@ class PhoneLineDetailView(RoleRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["reconnect_enabled"] = settings.RECONNECT_ENABLED
+        context["can_manage_telecom"] = user_can_manage_telecom(self.request.user)
+        context["reconnect_enabled"] = settings.RECONNECT_ENABLED and user_can_use_reconnect(
+            self.request.user
+        )
         context["reconnect_poll_interval_ms"] = settings.RECONNECT_POLL_INTERVAL_MS
-        if settings.RECONNECT_ENABLED:
+        if context["reconnect_enabled"]:
             context["reconnect_status_url"] = reverse(
                 "telecom:phoneline_reconnect_status",
                 args=[self.object.pk],
@@ -673,7 +686,7 @@ class PhoneLineHistoryView(RoleRequiredMixin, DetailView):
 
 
 class TelecomOverviewView(RoleRequiredMixin, TemplateView):
-    allowed_roles = [SystemUser.Role.ADMIN]
+    allowed_roles = RECONNECT_ALLOWED_ROLES
     template_name = "telecom/overview.html"
 
     def get(self, request, *args, **kwargs):
@@ -748,7 +761,10 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
 
         # Formatar dados para JSON
         data = []
-        is_admin = request.user.role == "admin"
+        can_manage_telecom = user_can_manage_telecom(request.user)
+        can_use_reconnect = settings.RECONNECT_ENABLED and user_can_use_reconnect(
+            request.user
+        )
 
         for line in lines:
             employee_name = (
@@ -770,11 +786,11 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
                 "detail_url": f"/telecom/phonelines/{line.pk}/",
             }
 
-            if table_type == "main" and is_admin:
+            if table_type == "main" and can_manage_telecom:
                 line_data["edit_url"] = f"/telecom/phonelines/{line.pk}/update/"
                 line_data["history_url"] = f"/telecom/phonelines/{line.pk}/history/"
-                if settings.RECONNECT_ENABLED:
-                    line_data["reconnect_url"] = build_reconnect_detail_url(line.pk)
+            if table_type == "main" and can_use_reconnect:
+                line_data["reconnect_url"] = build_reconnect_detail_url(line.pk)
 
             data.append(line_data)
 
@@ -784,12 +800,17 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        can_manage_telecom = user_can_manage_telecom(self.request.user)
+        can_use_reconnect = settings.RECONNECT_ENABLED and user_can_use_reconnect(
+            self.request.user
+        )
         context["total_simcards"] = SIMcard.objects.filter(is_deleted=False).count()
         base_lines = get_visible_phone_lines_queryset(self.request.user)
         context["total_lines"] = base_lines.count()
         counts = self._line_status_counts(base_lines)
         context["allocated_lines"] = LineAllocation.objects.filter(
-            is_active=True
+            is_active=True,
+            phone_line_id__in=base_lines.values("id"),
         ).count()
         context["available_lines"] = counts.get(PhoneLine.Status.AVAILABLE, 0)
         context["cancelled_lines"] = counts.get(PhoneLine.Status.CANCELLED, 0)
@@ -830,7 +851,9 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         context["line_filter"] = line_filter
         context["status_filter"] = status_filter
         context["status_choices"] = PhoneLine.Status.choices
-        context["reconnect_enabled"] = settings.RECONNECT_ENABLED
+        context["reconnect_enabled"] = can_use_reconnect
+        context["can_manage_telecom"] = can_manage_telecom
+        context["can_use_reconnect"] = can_use_reconnect
 
         # Segunda tabela: Ações recentes
         search_query = self.request.GET.get("search", "").strip()

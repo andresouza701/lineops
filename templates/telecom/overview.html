@@ -83,17 +83,17 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-end">
-                                    {% if request.user.role == 'admin' %}
+                                    {% if can_manage_telecom %}
                                         <a href="{% url 'telecom:phoneline_update' line.pk %}" class="btn btn-outline-primary btn-sm" aria-label="Editar" title="Editar">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-                                        {% if reconnect_enabled %}
-                                            <a href="{% url 'telecom:phoneline_detail' line.pk %}#reconnect-whatsapp" class="btn btn-outline-success btn-sm ms-1" aria-label="Reconnect" title="Reconnect">
-                                                Reconnect
-                                            </a>
-                                        {% endif %}
                                         <a href="{% url 'telecom:phoneline_history' line.pk %}" class="btn btn-outline-secondary btn-sm ms-1" aria-label="Historico" title="Historico">
                                             <i class="bi bi-clock-history"></i>
+                                        </a>
+                                    {% endif %}
+                                    {% if can_use_reconnect %}
+                                        <a href="{% url 'telecom:phoneline_detail' line.pk %}#reconnect-whatsapp" class="btn btn-outline-success btn-sm ms-1" aria-label="Reconnect" title="Reconnect">
+                                            Reconnect
                                         </a>
                                     {% endif %}
                                 </td>
@@ -169,20 +169,17 @@ document.addEventListener('DOMContentLoaded', function() {
     function createMainTableRow(line) {
         const tr = document.createElement('tr');
         const employeeText = line.employee || '<span class="text-muted">Sem vínculo</span>';
-        const isAdmin = {% if request.user.role == 'admin' %}true{% else %}false{% endif %};
-        const reconnectEnabled = {% if reconnect_enabled %}true{% else %}false{% endif %};
+        const canManageTelecom = {% if can_manage_telecom %}true{% else %}false{% endif %};
+        const canUseReconnect = {% if can_use_reconnect %}true{% else %}false{% endif %};
         let actionsHtml = '';
-        if (isAdmin) {
-            actionsHtml = `
-                <a href="${line.edit_url}" class="btn btn-outline-primary btn-sm" aria-label="Editar" title="Editar"><i class="bi bi-pencil"></i></a>
-                <a href="${line.history_url}" class="btn btn-outline-secondary btn-sm ms-1" aria-label="Historico" title="Historico"><i class="bi bi-clock-history"></i></a>
-            `;
-            if (reconnectEnabled && line.reconnect_url) {
-                actionsHtml = `
-                    ${actionsHtml}
-                    <a href="${line.reconnect_url}" class="btn btn-outline-success btn-sm ms-1" aria-label="Reconnect" title="Reconnect">Reconnect</a>
-                `;
-            }
+        if (canManageTelecom && line.edit_url) {
+            actionsHtml += `<a href="${line.edit_url}" class="btn btn-outline-primary btn-sm" aria-label="Editar" title="Editar"><i class="bi bi-pencil"></i></a>`;
+        }
+        if (canManageTelecom && line.history_url) {
+            actionsHtml += `<a href="${line.history_url}" class="btn btn-outline-secondary btn-sm ms-1" aria-label="Historico" title="Historico"><i class="bi bi-clock-history"></i></a>`;
+        }
+        if (canUseReconnect && line.reconnect_url) {
+            actionsHtml += `<a href="${line.reconnect_url}" class="btn btn-outline-success btn-sm ms-1" aria-label="Reconnect" title="Reconnect">Reconnect</a>`;
         }
         tr.innerHTML = `<td>${line.phone_number}</td><td>${line.iccid}</td><td>${line.carrier || '-'}</td><td>${line.origem_display || '-'}</td><td>${employeeText}</td><td></td><td class="text-end">${actionsHtml}</td>`;
         tr.querySelector('td:nth-child(6)').appendChild(createStatusBadge(line.status, line.status_display));
