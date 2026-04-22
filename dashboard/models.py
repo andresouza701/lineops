@@ -196,6 +196,8 @@ class DailyUserAction(models.Model):
 
 
 class DashboardDailySnapshot(models.Model):
+    CALCULATION_VERSION = 2
+
     date = models.DateField(unique=True, db_index=True, verbose_name="Data")
     people_logged_in = models.IntegerField(default=0, verbose_name="Pessoas Logadas")
     percentage_without_whatsapp = models.FloatField(
@@ -215,6 +217,10 @@ class DashboardDailySnapshot(models.Model):
     numbers_new = models.IntegerField(default=0, verbose_name="Novos")
     total_uncovered_day = models.IntegerField(
         default=0, verbose_name="Total Descoberto DIA"
+    )
+    calculation_version = models.PositiveSmallIntegerField(
+        default=CALCULATION_VERSION,
+        verbose_name="Versao do Calculo",
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")

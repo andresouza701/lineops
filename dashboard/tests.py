@@ -399,6 +399,90 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertEqual(historical_row["b2c_sem_whats"], 1)
         self.assertEqual(historical_row["numeros_disponiveis"], 1)
 
+    def test_dashboard_historical_rows_refresh_legacy_snapshot_version(self):
+        yesterday = timezone.localdate() - timedelta(days=1)
+        created_at = timezone.make_aware(datetime.combine(yesterday, time(8, 0)))
+
+        employee = Employee.objects.create(
+            full_name="Legacy Snapshot User",
+            corporate_email="legacy-snapshot@corp.com",
+            employee_id="Natura",
+            teams="B2C Squad",
+            status=Employee.Status.ACTIVE,
+        )
+        Employee.all_objects.filter(pk=employee.pk).update(
+            created_at=created_at,
+            updated_at=created_at,
+        )
+
+        sim = SIMcard.objects.create(
+            iccid="8900000000000004556",
+            carrier="CarrierLegacy",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        line = PhoneLine.objects.create(
+            phone_number="+5511999994556",
+            sim_card=sim,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        PhoneLine.all_objects.filter(pk=line.pk).update(
+            created_at=created_at,
+            updated_at=created_at,
+        )
+
+        first_alloc = LineAllocation.objects.create(
+            employee=employee,
+            phone_line=line,
+            allocated_by=self.user,
+            is_active=True,
+        )
+        LineAllocation.objects.filter(pk=first_alloc.pk).update(
+            allocated_at=timezone.make_aware(datetime.combine(yesterday, time(9, 0))),
+            released_at=timezone.make_aware(datetime.combine(yesterday, time(10, 0))),
+            is_active=False,
+        )
+
+        second_alloc = LineAllocation.objects.create(
+            employee=employee,
+            phone_line=line,
+            allocated_by=self.user,
+            is_active=True,
+        )
+        LineAllocation.objects.filter(pk=second_alloc.pk).update(
+            allocated_at=timezone.make_aware(datetime.combine(yesterday, time(11, 0))),
+        )
+
+        DashboardDailySnapshot.objects.create(
+            date=yesterday,
+            people_logged_in=0,
+            percentage_without_whatsapp=0,
+            b2b_without_whatsapp=0,
+            b2c_without_whatsapp=0,
+            numbers_available=0,
+            numbers_delivered=0,
+            numbers_reconnected=0,
+            numbers_new=0,
+            total_uncovered_day=0,
+            calculation_version=1,
+        )
+
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        refreshed_snapshot = DashboardDailySnapshot.objects.get(date=yesterday)
+        self.assertEqual(
+            refreshed_snapshot.calculation_version,
+            dashboard_views.CURRENT_DASHBOARD_SNAPSHOT_VERSION,
+        )
+        self.assertEqual(refreshed_snapshot.numbers_reconnected, 1)
+
+        historical_row = next(
+            item
+            for item in response.context["indicadores_diarios"]
+            if item["data"] == yesterday
+        )
+        self.assertEqual(historical_row["reconectados"], 1)
+
     def test_dashboard_exception_cards_show_pending_action_counts(self):
         DailyUserAction.objects.create(
             day=timezone.localdate(),

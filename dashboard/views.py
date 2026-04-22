@@ -59,6 +59,7 @@ DASHBOARD_ALLOWED_ROLES = (
     SystemUser.Role.BACKOFFICE,
     SystemUser.Role.GERENTE,
 )
+CURRENT_DASHBOARD_SNAPSHOT_VERSION = DashboardDailySnapshot.CALCULATION_VERSION
 SCOPED_DASHBOARD_METRIC_KEYS = (
     "pessoas_logadas",
     "perc_sem_whats",
@@ -1099,6 +1100,7 @@ def persist_dashboard_snapshot_for_day(day: date) -> dict:
         "numbers_reconnected": int(indicator["reconectados"]),
         "numbers_new": int(indicator["novos"]),
         "total_uncovered_day": int(indicator["total_descoberto_dia"]),
+        "calculation_version": CURRENT_DASHBOARD_SNAPSHOT_VERSION,
     }
     DashboardDailySnapshot.objects.update_or_create(
         date=day,
@@ -1110,7 +1112,10 @@ def persist_dashboard_snapshot_for_day(day: date) -> dict:
 def get_or_create_dashboard_snapshot_for_day(day: date) -> DashboardDailySnapshot:
     if is_historical_day(day):
         snapshot = DashboardDailySnapshot.objects.filter(date=day).first()
-        if snapshot is not None:
+        if (
+            snapshot is not None
+            and snapshot.calculation_version >= CURRENT_DASHBOARD_SNAPSHOT_VERSION
+        ):
             return snapshot
 
     persist_dashboard_snapshot_for_day(day)
