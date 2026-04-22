@@ -788,18 +788,21 @@ class TelecomPermissionTest(TestCase):
 
         resp = self.client.get(reverse("telecom:overview"))
         self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'aria-label="Telecom"', html=False)
 
     def test_backoffice_can_access_telecom_overview(self):
         self.client.force_login(self.backoffice)
 
         resp = self.client.get(reverse("telecom:overview"))
         self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'aria-label="Telecom"', html=False)
 
     def test_manager_can_access_telecom_overview(self):
         self.client.force_login(self.manager)
 
         resp = self.client.get(reverse("telecom:overview"))
         self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'aria-label="Telecom"', html=False)
 
     def test_operator_is_denied_on_telecom_views(self):
         self.client.force_login(self.operator)

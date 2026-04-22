@@ -36,14 +36,15 @@
         </li>
         {% endif %}
 
-        {% if request.user.role == 'admin' or request.user.role == 'operator' %}
+        {% if request.user.role == 'admin' or request.user.role == 'operator' or request.user.role == 'super' or request.user.role == 'backoffice' or request.user.role == 'gerente' %}
         <li>
             <a href="{% url 'telecom:overview' %}"
                class="nav-link {% if current_ns == 'telecom' %}active{% endif %}">
                 Telecom
             </a>
         </li>
-
+        {% endif %}
+        {% if request.user.role == 'admin' or request.user.role == 'operator' %}
         <li>
             <a href="{% url 'allocations:allocation_list' %}"
                class="nav-link {% if current_ns == 'allocations' %}active{% endif %}">
