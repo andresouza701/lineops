@@ -2367,6 +2367,7 @@ class PhoneLineReconnectViewsTests(TestCase):
         self.assertContains(response, "Tempo restante")
         self.assertContains(response, "data-reconnect-restriction-countdown")
         self.assertContains(response, "window.setInterval(updateRestrictionCountdown, 1000);")
+        self.assertContains(response, 'data-reconnect-code-form data-no-loading="true"')
         self.assertContains(response, 'class="modal-content reconnect-history-modal-content"')
         self.assertContains(
             response,
