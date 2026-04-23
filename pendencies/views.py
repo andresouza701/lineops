@@ -125,6 +125,14 @@ class PendencyDetailView(RoleRequiredMixin, View):
             )
 
         pendency = _get_or_create_pendency(employee, allocation)
+
+        # Abertura do modal conta como leitura para as notificações desse colaborador.
+        PendencyObservationNotification.objects.filter(
+            recipient=request.user,
+            is_read=False,
+            pendency__employee_id=employee.pk,
+        ).update(is_read=True)
+
         return JsonResponse(_pendency_to_json(pendency, allocation))
 
 

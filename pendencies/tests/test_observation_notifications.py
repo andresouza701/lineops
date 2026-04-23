@@ -268,6 +268,58 @@ class PendencyUpdateViewNotificationTest(TestCase):
         self.assertEqual(data["notifications_sent"], 1)
 
 
+class PendencyDetailViewNotificationReadTest(TestCase):
+    """Integration tests: opening detail marks matching notifications as read."""
+
+    def setUp(self):
+        self.admin = _make_user("admin@t.com", SystemUser.Role.ADMIN)
+        self.super_user = _make_user("super@t.com", SystemUser.Role.SUPER)
+        self.employee_a = _make_employee(email="super@t.com", eid="EA")
+        self.employee_b = Employee.objects.create(
+            full_name="Test Employee B",
+            corporate_email="super@t.com",
+            employee_id="EB",
+        )
+
+        self.pendency_a = AllocationPendency.objects.create(
+            employee=self.employee_a,
+            allocation=None,
+        )
+        self.pendency_b = AllocationPendency.objects.create(
+            employee=self.employee_b,
+            allocation=None,
+        )
+
+        self.notification_a = PendencyObservationNotification.objects.create(
+            pendency=self.pendency_a,
+            recipient=self.super_user,
+            sent_by=self.admin,
+            observation_text="obs a",
+        )
+        self.notification_b = PendencyObservationNotification.objects.create(
+            pendency=self.pendency_b,
+            recipient=self.super_user,
+            sent_by=self.admin,
+            observation_text="obs b",
+        )
+
+        self.client = Client()
+        self.url = reverse("pendencies:detail")
+
+    def test_detail_marks_only_opened_employee_notifications_as_read(self):
+        self.client.force_login(self.super_user)
+        response = self.client.get(
+            self.url,
+            data={"employee_id": self.employee_a.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.notification_a.refresh_from_db()
+        self.notification_b.refresh_from_db()
+        self.assertTrue(self.notification_a.is_read)
+        self.assertFalse(self.notification_b.is_read)
+
+
 class PendencyNotificationsViewTest(TestCase):
     """Tests for the GET /pendencies/api/notifications/ endpoint."""
 

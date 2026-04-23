@@ -508,6 +508,15 @@
         });
     }
 
+    function removeNotificationDot(employeeId, allocationId) {
+        const row = document.querySelector(
+            `tr[data-employee-id="${employeeId}"][data-allocation-id="${allocationId || ''}"]`
+        );
+        if (!row) return;
+        const dot = row.querySelector('.notif-dot');
+        if (dot) dot.remove();
+    }
+
     function renderModal(data) {
         currentPendencyId = data.id;
 
@@ -598,6 +607,7 @@
             if (!resp.ok) throw new Error('Erro ao carregar pendência.');
             const data = await resp.json();
             renderModal(data);
+            removeNotificationDot(employeeId, allocationId);
         } catch (err) {
             loadingEl.innerHTML = `<span class="text-danger">${err.message}</span>`;
         }
@@ -758,9 +768,6 @@
         if (!btn) return;
         const employeeId   = btn.getAttribute('data-employee-id');
         const allocationId = btn.getAttribute('data-allocation-id') || '';
-        // Remove badge de notificação local ao abrir o modal
-        const dot = btn.closest('.position-relative')?.querySelector('.notif-dot');
-        if (dot) dot.remove();
         const modal = bootstrap.Modal.getOrCreateInstance(pendencyModalEl);
         modal.show();
         loadPendency(employeeId, allocationId);
