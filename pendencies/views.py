@@ -18,6 +18,9 @@ from .services import notify_observation_change
 
 # Roles que podem VER e interagir com a tela de pendências
 PENDENCY_ALLOWED_ROLES = list(SystemUser.EMPLOYEE_ACCESS_ROLES)
+OBSERVATION_LOCKED_REASON = (
+    "Observacao bloqueada enquanto o status da linha estiver Em analise."
+)
 
 
 def _get_or_create_pendency(employee, allocation):
@@ -45,10 +48,17 @@ def _format_dt(dt):
     return local.strftime("%d/%m/%Y %H:%M")
 
 
+def _is_observation_locked(employee, allocation):
+    if allocation:
+        return allocation.line_status == LineAllocation.LineStatus.UNDER_ANALYSIS
+    return employee.line_status == Employee.LineStatus.UNDER_ANALYSIS
+
+
 def _pendency_to_json(pendency, allocation):
     """Serializa a pendência para o payload do modal."""
     employee = pendency.employee
     tech = pendency.technical_responsible
+    observation_locked = _is_observation_locked(employee, allocation)
 
     line_number = ""
     line_status = ""
@@ -81,6 +91,10 @@ def _pendency_to_json(pendency, allocation):
         "line_status": line_status,
         "line_status_display": line_status_display,
         "observation": pendency.observation,
+        "observation_locked": observation_locked,
+        "observation_locked_reason": (
+            OBSERVATION_LOCKED_REASON if observation_locked else ""
+        ),
         # Responsável técnico
         "technical_responsible_name": (
             tech.get_full_name().strip() or tech.email if tech else ""
@@ -197,6 +211,12 @@ class PendencyUpdateView(RoleRequiredMixin, View):
         # --- Observação (qualquer role) ---
         old_observation = pendency.observation
         observation_changed = new_observation != old_observation
+        if observation_changed and _is_observation_locked(
+            pendency.employee,
+            pendency.allocation,
+        ):
+            return JsonResponse({"errors": [OBSERVATION_LOCKED_REASON]}, status=403)
+
         if observation_changed:
             pendency.observation = new_observation[:350]
             update_fields.append("observation")

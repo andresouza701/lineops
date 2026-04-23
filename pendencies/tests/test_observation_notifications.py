@@ -187,6 +187,129 @@ class PendencyUpdateViewNotificationTest(TestCase):
         self.assertIn("waiting_operator", choices)
         self.assertEqual(choices["waiting_operator"], "Aguardando operador")
 
+    def test_detail_marks_observation_locked_when_line_is_under_analysis(self):
+        simcard = SIMcard.objects.create(
+            iccid="8900000000000012351",
+            carrier="CarrierTest",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        phone_line = PhoneLine.objects.create(
+            phone_number="+5547999990051",
+            sim_card=simcard,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=phone_line,
+            allocated_by=self.admin,
+            is_active=True,
+            line_status=LineAllocation.LineStatus.UNDER_ANALYSIS,
+        )
+        AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            observation="observacao original",
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.get(
+            reverse("pendencies:detail"),
+            data={
+                "employee_id": self.employee.pk,
+                "allocation_id": allocation.pk,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["observation_locked"])
+        self.assertIn("Em analise", payload["observation_locked_reason"])
+
+    def test_update_rejects_observation_change_when_line_is_under_analysis(self):
+        simcard = SIMcard.objects.create(
+            iccid="8900000000000012352",
+            carrier="CarrierTest",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        phone_line = PhoneLine.objects.create(
+            phone_number="+5547999990052",
+            sim_card=simcard,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=phone_line,
+            allocated_by=self.admin,
+            is_active=True,
+            line_status=LineAllocation.LineStatus.UNDER_ANALYSIS,
+        )
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            observation="observacao original",
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "pendency_id": pendency.pk,
+                    "action": pendency.action,
+                    "observation": "observacao alterada",
+                    "line_status": LineAllocation.LineStatus.UNDER_ANALYSIS,
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        pendency.refresh_from_db()
+        self.assertEqual(pendency.observation, "observacao original")
+        self.assertEqual(PendencyObservationNotification.objects.count(), 0)
+
+    def test_update_allows_observation_change_after_line_leaves_under_analysis(self):
+        simcard = SIMcard.objects.create(
+            iccid="8900000000000012353",
+            carrier="CarrierTest",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        phone_line = PhoneLine.objects.create(
+            phone_number="+5547999990053",
+            sim_card=simcard,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=phone_line,
+            allocated_by=self.admin,
+            is_active=True,
+            line_status=LineAllocation.LineStatus.RESTRICTED,
+        )
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            observation="observacao original",
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "pendency_id": pendency.pk,
+                    "action": pendency.action,
+                    "observation": "observacao liberada",
+                    "line_status": LineAllocation.LineStatus.RESTRICTED,
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        pendency.refresh_from_db()
+        self.assertEqual(pendency.observation, "observacao liberada")
+
     def test_admin_can_update_allocation_line_status_to_waiting_operator(self):
         simcard = SIMcard.objects.create(
             iccid="8900000000000012345",

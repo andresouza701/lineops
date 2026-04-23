@@ -379,8 +379,10 @@
                                 id="pendencyObservation"
                                 rows="3"
                                 maxlength="350"
+                                aria-describedby="pendencyObservationLockMessage"
                                 placeholder="Observação opcional..."
                             ></textarea>
+                            <p class="small text-muted mt-1 mb-0" id="pendencyObservationLockMessage" style="display:none;"></p>
                         </div>
 
                         {# ── Responsável Técnico ── #}
@@ -572,7 +574,14 @@
         }
 
         // Observação
-        document.getElementById('pendencyObservation').value = data.observation || '';
+        const observationEl = document.getElementById('pendencyObservation');
+        const observationLockMessageEl = document.getElementById('pendencyObservationLockMessage');
+        const observationLocked = data.observation_locked === true;
+        observationEl.value = data.observation || '';
+        observationEl.disabled = observationLocked;
+        observationEl.classList.toggle('bg-light', observationLocked);
+        observationLockMessageEl.textContent = data.observation_locked_reason || '';
+        observationLockMessageEl.style.display = observationLocked ? '' : 'none';
 
         // Responsável técnico
         const techNameEl = document.getElementById('pendencyTechName');
