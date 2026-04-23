@@ -2416,6 +2416,8 @@ class PhoneLineReconnectViewsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Reconexao WhatsApp")
         self.assertContains(response, 'data-reconnect-root')
+        self.assertContains(response, "Nenhuma reconexao em andamento.")
+        self.assertContains(response, "Detalhes tecnicos da sessao")
         self.assertContains(response, "Estado da conta")
         self.assertContains(response, "Acao de TI")
         self.assertContains(response, "Motivo TI")
