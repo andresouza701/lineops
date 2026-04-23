@@ -44,6 +44,7 @@ RECONNECT_ALLOWED_ROLES = [
     SystemUser.Role.BACKOFFICE,
     SystemUser.Role.GERENTE,
 ]
+RECONNECT_ALLOWED_ORIGENS = {PhoneLine.Origem.SRVMEMU_01}
 
 
 def user_can_manage_telecom(user):
@@ -53,6 +54,10 @@ def user_can_manage_telecom(user):
 def user_can_use_reconnect(user):
     role = (getattr(user, "role", "") or "").lower()
     return role in {item.lower() for item in RECONNECT_ALLOWED_ROLES}
+
+
+def line_can_use_reconnect(phone_line: PhoneLine) -> bool:
+    return phone_line.origem in RECONNECT_ALLOWED_ORIGENS
 
 
 RECONNECT_STATUS_ALIASES = {
@@ -330,8 +335,10 @@ class PhoneLineDetailView(RoleRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["can_manage_telecom"] = user_can_manage_telecom(self.request.user)
-        context["reconnect_enabled"] = settings.RECONNECT_ENABLED and user_can_use_reconnect(
-            self.request.user
+        context["reconnect_enabled"] = (
+            settings.RECONNECT_ENABLED
+            and user_can_use_reconnect(self.request.user)
+            and line_can_use_reconnect(self.object)
         )
         context["reconnect_poll_interval_ms"] = settings.RECONNECT_POLL_INTERVAL_MS
         if context["reconnect_enabled"]:
@@ -359,7 +366,9 @@ class PhoneLineReconnectBaseView(RoleRequiredMixin, View):
 
     def get_phone_line(self):
         return get_object_or_404(
-            get_visible_phone_lines_queryset(self.request.user),
+            get_visible_phone_lines_queryset(self.request.user).filter(
+                origem=PhoneLine.Origem.SRVMEMU_01
+            ),
             pk=self.kwargs["pk"],
         )
 
@@ -789,7 +798,9 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
             if table_type == "main" and can_manage_telecom:
                 line_data["edit_url"] = f"/telecom/phonelines/{line.pk}/update/"
                 line_data["history_url"] = f"/telecom/phonelines/{line.pk}/history/"
-            if table_type == "main" and can_use_reconnect:
+            if table_type == "main" and can_use_reconnect and line_can_use_reconnect(
+                line
+            ):
                 line_data["reconnect_url"] = build_reconnect_detail_url(line.pk)
 
             data.append(line_data)
@@ -852,6 +863,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         context["status_filter"] = status_filter
         context["status_choices"] = PhoneLine.Status.choices
         context["reconnect_enabled"] = can_use_reconnect
+        context["reconnect_allowed_origem"] = PhoneLine.Origem.SRVMEMU_01
         context["can_manage_telecom"] = can_manage_telecom
         context["can_use_reconnect"] = can_use_reconnect
 

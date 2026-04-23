@@ -844,6 +844,7 @@ class PhoneLineViewsTest(TestCase):
             phone_number="+551199999001",
             sim_card=self.sim_available,
             status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_01,
         )
         self.line_allocated = PhoneLine.objects.create(
             phone_number="+551199999002",
@@ -933,6 +934,11 @@ class PhoneLineViewsTest(TestCase):
             f'{reverse("telecom:phoneline_detail", args=[self.line_available.pk])}#reconnect-whatsapp',
             html=False,
         )
+        self.assertNotContains(
+            response,
+            f'{reverse("telecom:phoneline_detail", args=[self.blip_line.pk])}#reconnect-whatsapp',
+            html=False,
+        )
 
     @override_settings(RECONNECT_ENABLED=True)
     def test_ajax_overview_returns_reconnect_url_when_feature_enabled(self):
@@ -951,6 +957,19 @@ class PhoneLineViewsTest(TestCase):
             target["reconnect_url"],
             f'{reverse("telecom:phoneline_detail", args=[self.line_available.pk])}#reconnect-whatsapp',
         )
+        non_eligible_target = next(
+            item for item in payload["data"] if item["id"] == self.blip_line.pk
+        )
+        self.assertNotIn("reconnect_url", non_eligible_target)
+
+    @override_settings(RECONNECT_ENABLED=True)
+    def test_detail_hides_reconnect_section_for_non_srvmemu_01_origin(self):
+        response = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.blip_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Reconexao WhatsApp")
 
     def test_ajax_overview_ignores_invalid_offset_and_limit(self):
         url = reverse("telecom:overview")
@@ -1427,11 +1446,13 @@ class BackofficePhoneLineVisibilityTests(TestCase):
             phone_number="+5511999999901",
             sim_card=managed_sim,
             status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_01,
         )
         self.unmanaged_line = PhoneLine.objects.create(
             phone_number="+5511999999902",
             sim_card=unmanaged_sim,
             status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_02,
         )
         AllocationService.allocate_line(
             employee=self.managed_employee,
@@ -1806,6 +1827,25 @@ class ReconnectServiceTests(TestCase):
             target_server_by_origem={
                 PhoneLine.Origem.SRVMEMU_01: "rafael",
                 PhoneLine.Origem.APARELHO: "srv-aparelho",
+            },
+        )
+
+        with self.assertRaises(BusinessRuleException):
+            service.start_for_line(self.line)
+
+        self.assertEqual(repository.created_documents, [])
+
+    def test_start_for_line_blocks_srvmemu_02_even_when_mapped(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        self.line.origem = PhoneLine.Origem.SRVMEMU_02
+        self.line.save(update_fields=["origem"])
+        repository = FakeReconnectRepository()
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={
+                PhoneLine.Origem.SRVMEMU_01: "rafael",
+                PhoneLine.Origem.SRVMEMU_02: "srv02",
             },
         )
 
@@ -2335,6 +2375,17 @@ class PhoneLineReconnectViewsTests(TestCase):
             status=PhoneLine.Status.AVAILABLE,
             origem=PhoneLine.Origem.SRVMEMU_01,
         )
+        self.non_eligible_sim = SIMcard.objects.create(
+            iccid="8900000000000088003",
+            carrier="CarrierView",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.non_eligible_line = PhoneLine.objects.create(
+            phone_number="+5511999992003",
+            sim_card=self.non_eligible_sim,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_02,
+        )
         AllocationService.allocate_line(
             employee=self.managed_employee,
             phone_line=self.managed_line,
@@ -2343,6 +2394,11 @@ class PhoneLineReconnectViewsTests(TestCase):
         AllocationService.allocate_line(
             employee=self.unmanaged_employee,
             phone_line=self.unmanaged_line,
+            allocated_by=self.admin,
+        )
+        AllocationService.allocate_line(
+            employee=self.managed_employee,
+            phone_line=self.non_eligible_line,
             allocated_by=self.admin,
         )
 
@@ -2375,6 +2431,21 @@ class PhoneLineReconnectViewsTests(TestCase):
         )
 
     @patch("telecom.views.get_reconnect_service")
+    def test_detail_view_hides_reconnect_section_for_non_srvmemu_01(
+        self, mocked_service
+    ):
+        mocked_service.return_value = FakeReconnectWebService()
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.non_eligible_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Reconexao WhatsApp")
+        self.assertNotContains(response, 'data-reconnect-root')
+
+    @patch("telecom.views.get_reconnect_service")
     def test_start_endpoint_returns_session_payload(self, mocked_service):
         service = FakeReconnectWebService()
         mocked_service.return_value = service
@@ -2389,6 +2460,19 @@ class PhoneLineReconnectViewsTests(TestCase):
         self.assertEqual(payload["status"], "QUEUED")
         self.assertEqual(payload["session_id"], "sess-web-1")
         self.assertEqual(service.start_calls, [self.managed_line.pk])
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_start_endpoint_returns_404_for_non_srvmemu_01_line(self, mocked_service):
+        service = FakeReconnectWebService()
+        mocked_service.return_value = service
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("telecom:phoneline_reconnect_start", args=[self.non_eligible_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(service.start_calls, [])
 
     @patch("telecom.views.get_reconnect_service")
     def test_status_endpoint_returns_active_session_payload(self, mocked_service):

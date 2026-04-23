@@ -91,7 +91,7 @@
                                             <i class="bi bi-clock-history"></i>
                                         </a>
                                     {% endif %}
-                                    {% if can_use_reconnect %}
+                                    {% if can_use_reconnect and line.origem == reconnect_allowed_origem %}
                                         <a href="{% url 'telecom:phoneline_detail' line.pk %}#reconnect-whatsapp" class="btn btn-outline-success btn-sm ms-1" aria-label="Reconnect" title="Reconnect">
                                             Reconnect
                                         </a>

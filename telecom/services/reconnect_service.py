@@ -22,11 +22,6 @@ STATUS_ALIASES = {
 }
 ELIGIBLE_RECONNECT_ORIGENS = {
     PhoneLine.Origem.SRVMEMU_01,
-    PhoneLine.Origem.SRVMEMU_02,
-    PhoneLine.Origem.SRVMEMU_03,
-    PhoneLine.Origem.SRVMEMU_04,
-    PhoneLine.Origem.SRVMEMU_05,
-    PhoneLine.Origem.SRVMEMU_06,
 }
 
 def _format_datetime(value: Any) -> Any:
@@ -305,7 +300,7 @@ class ReconnectService:
     def _ensure_line_is_eligible_for_reconnect(self, phone_line: PhoneLine) -> None:
         if phone_line.origem not in ELIGIBLE_RECONNECT_ORIGENS:
             raise BusinessRuleException(
-                "A linha precisa ter origem SRVMEMU para iniciar a reconexao."
+                "A linha precisa ter origem SRVMEMU-01 para iniciar a reconexao."
             )
 
     def _ensure_active_session_unique_index(self) -> None:
