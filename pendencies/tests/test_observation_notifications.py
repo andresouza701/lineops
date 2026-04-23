@@ -227,6 +227,139 @@ class PendencyUpdateViewNotificationTest(TestCase):
         allocation.refresh_from_db()
         self.assertEqual(allocation.line_status, "waiting_operator")
 
+    def test_admin_setting_line_status_active_with_no_action_clears_technical_responsible(self):
+        simcard = SIMcard.objects.create(
+            iccid="8900000000000012346",
+            carrier="CarrierTest",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        phone_line = PhoneLine.objects.create(
+            phone_number="+5547999990002",
+            sim_card=simcard,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=phone_line,
+            allocated_by=self.admin,
+            is_active=True,
+            line_status="restricted",
+        )
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.NO_ACTION,
+            technical_responsible=self.admin,
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "pendency_id": pendency.pk,
+                    "action": "no_action",
+                    "observation": "",
+                    "line_status": "active",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        pendency.refresh_from_db()
+        allocation.refresh_from_db()
+        self.assertEqual(allocation.line_status, "active")
+        self.assertIsNone(pendency.technical_responsible)
+
+    def test_admin_setting_non_active_line_status_keeps_technical_responsible(self):
+        simcard = SIMcard.objects.create(
+            iccid="8900000000000012347",
+            carrier="CarrierTest",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        phone_line = PhoneLine.objects.create(
+            phone_number="+5547999990003",
+            sim_card=simcard,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=phone_line,
+            allocated_by=self.admin,
+            is_active=True,
+            line_status="under_analysis",
+        )
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.NO_ACTION,
+            technical_responsible=self.admin,
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "pendency_id": pendency.pk,
+                    "action": "no_action",
+                    "observation": "",
+                    "line_status": "restricted",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        pendency.refresh_from_db()
+        allocation.refresh_from_db()
+        self.assertEqual(allocation.line_status, "restricted")
+        self.assertEqual(pendency.technical_responsible, self.admin)
+
+    def test_admin_save_clears_technical_responsible_when_active_and_no_action(self):
+        simcard = SIMcard.objects.create(
+            iccid="8900000000000012348",
+            carrier="CarrierTest",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        phone_line = PhoneLine.objects.create(
+            phone_number="+5547999990004",
+            sim_card=simcard,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=phone_line,
+            allocated_by=self.admin,
+            is_active=True,
+            line_status="active",
+        )
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.NO_ACTION,
+            technical_responsible=self.admin,
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "pendency_id": pendency.pk,
+                    "action": "no_action",
+                    "observation": "",
+                    "line_status": "active",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        pendency.refresh_from_db()
+        self.assertIsNone(pendency.technical_responsible)
+
     def test_admin_saving_new_observation_notifies_super(self):
         resp = self._post(self.admin, "nova obs")
         self.assertEqual(resp.status_code, 200)

@@ -229,6 +229,18 @@ class PendencyUpdateView(RoleRequiredMixin, View):
                     pendency.record_line_status_change(now=now)
                     update_fields.append("last_action_changed_at")
 
+        # Regra de persistência: no save de admin, se a linha estiver ativa e
+        # a ação estiver em "Sem Ação", o responsável técnico deve ser limpo.
+        if (
+            is_admin
+            and pendency.allocation
+            and pendency.allocation.line_status == Employee.LineStatus.ACTIVE
+            and pendency.action == AllocationPendency.ActionType.NO_ACTION
+            and pendency.technical_responsible_id
+        ):
+            pendency.technical_responsible = None
+            update_fields.append("technical_responsible")
+
         # --- Salva pendência ---
         if update_fields:
             pendency.updated_by = request.user
