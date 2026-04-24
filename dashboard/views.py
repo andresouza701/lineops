@@ -515,9 +515,99 @@ def filter_daily_user_action_rows(
 
 
 _SORT_COLUMN_KEYS = {
-    "pa", "usuario", "carteira", "resp_tecnico",
+    "pa", "usuario", "criticidade", "carteira", "resp_tecnico",
     "envio_pendencia", "linha", "status_linha", "acao",
 }
+
+DAILY_USER_CRITICALITY_META = {
+    "high": {
+        "label": "Alto",
+        "badge_class": "text-bg-danger",
+        "row_class": "daily-action-criticality-high",
+        "sort": 0,
+    },
+    "medium": {
+        "label": "Médio",
+        "badge_class": "text-bg-warning",
+        "row_class": "daily-action-criticality-medium",
+        "sort": 1,
+    },
+    "low": {
+        "label": "Baixo",
+        "badge_class": "text-bg-success",
+        "row_class": "daily-action-criticality-low",
+        "sort": 2,
+    },
+}
+
+
+def _is_daily_action_row_pending_for_criticality(row):
+    if not row.get("has_line"):
+        return False
+
+    allocation = row.get("allocation")
+    if not allocation:
+        return False
+
+    pendency = row.get("pendency")
+    action = pendency.action if pendency else AllocationPendency.ActionType.NO_ACTION
+
+    return (
+        allocation.line_status != LineAllocation.LineStatus.ACTIVE
+        and action != AllocationPendency.ActionType.NO_ACTION
+    )
+
+
+def _resolve_daily_user_criticality(user_rows):
+    line_rows = [row for row in user_rows if row.get("has_line")]
+    line_count = len(line_rows)
+    pending_count = sum(
+        1 for row in line_rows if _is_daily_action_row_pending_for_criticality(row)
+    )
+
+    if line_count == 0:
+        return "high"
+    if pending_count == line_count:
+        return "high"
+    if line_count == 2 and pending_count == 1:
+        return "medium"
+    if line_count >= 2:
+        return "low"
+    return "high"
+
+
+def apply_daily_user_action_criticality(rows):
+    rows_by_employee = defaultdict(list)
+    for row in rows:
+        rows_by_employee[row["employee"].id].append(row)
+
+    for user_rows in rows_by_employee.values():
+        level = _resolve_daily_user_criticality(user_rows)
+        meta = DAILY_USER_CRITICALITY_META[level]
+        for row in user_rows:
+            row["criticality_level"] = level
+            row["criticality_label"] = meta["label"]
+            row["criticality_badge_class"] = meta["badge_class"]
+            row["criticality_row_class"] = meta["row_class"]
+            row["criticality_sort"] = meta["sort"]
+
+    return rows
+
+
+def count_daily_user_action_criticality(rows):
+    counts = {"high": 0, "medium": 0, "low": 0}
+    seen_employee_ids = set()
+
+    for row in rows:
+        employee_id = row["employee"].id
+        if employee_id in seen_employee_ids:
+            continue
+        seen_employee_ids.add(employee_id)
+        level = row.get("criticality_level")
+        if level in counts:
+            counts[level] += 1
+
+    return counts
 
 
 def sort_daily_user_action_rows(rows, sort_col, sort_order):
@@ -540,6 +630,8 @@ def sort_daily_user_action_rows(rows, sort_col, sort_order):
             return (employee.pa or "").lower()
         if sort_col == "usuario":
             return (employee.full_name or "").lower()
+        if sort_col == "criticidade":
+            return row.get("criticality_sort", 99)
         if sort_col == "carteira":
             return (employee.employee_id or "").lower()
         if sort_col == "resp_tecnico":
@@ -1891,9 +1983,11 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         line_filter=line_filter,
         technical_filter=technical_filter,
     )
+    apply_daily_user_action_criticality(rows)
     if is_admin_role and sort_col:
         rows = sort_daily_user_action_rows(rows, sort_col, sort_order)
     action_counts = count_visible_pending_actions(rows)
+    criticality_counts = count_daily_user_action_criticality(rows)
 
     from pendencies.models import PendencyObservationNotification
 
@@ -1908,6 +2002,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         "title": "Ações do Dia",
         "rows": rows,
         "action_counts": action_counts,
+        "criticality_counts": criticality_counts,
         "supervisor_filter": supervisor_filter,
         "user_filter": user_filter,
         "line_filter": line_filter,
@@ -1918,6 +2013,7 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         "sort_columns": [
             ("pa", "PA"),
             ("usuario", "Usuário"),
+            ("criticidade", "Criticidade"),
             ("carteira", "Carteira"),
             ("resp_tecnico", "Resp. Técnico"),
             ("envio_pendencia", "Envio da pendência"),
@@ -2012,4 +2108,3 @@ def daily_indicator_day_breakdown(request, day):
         "users": indicator.get("users", []),
     }
     return render(request, "dashboard/daily_indicator_day_breakdown.html", context)
-

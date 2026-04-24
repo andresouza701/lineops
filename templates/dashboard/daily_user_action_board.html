@@ -111,7 +111,7 @@
         {% endif %}
     </form>
     <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle">
+        <table class="table table-striped table-hover align-middle daily-action-table">
             <thead class="table-light">
                 <tr>
                     {% if is_admin_role %}
@@ -139,6 +139,7 @@
                     {% else %}
                         <th>PA</th>
                         <th>Usuário</th>
+                        <th>Criticidade</th>
                         <th>Carteira</th>
                         <th>Resp. Técnico</th>
                         <th>Envio da pendência</th>
@@ -152,9 +153,14 @@
             <tbody>
                 {% if rows %}
                     {% for row in rows %}
-                        <tr data-employee-id="{{ row.employee.pk }}" data-allocation-id="{{ row.allocation.pk|default:'' }}">
+                        <tr class="{{ row.criticality_row_class }}" data-criticality="{{ row.criticality_level }}" data-employee-id="{{ row.employee.pk }}" data-allocation-id="{{ row.allocation.pk|default:'' }}">
                             <td>{{ row.employee.pa|default:"-" }}</td>
                             <td>{{ row.employee.full_name }}</td>
+                            <td>
+                                <span class="badge {{ row.criticality_badge_class }}">
+                                    {{ row.criticality_label }}
+                                </span>
+                            </td>
                             <td>{{ row.employee.employee_id }}</td>
                             <td class="js-tech-responsible">
                                 {% if row.line_status_changed_by_admin %}
@@ -245,7 +251,7 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="9" class="text-center text-muted py-4">
+                        <td colspan="10" class="text-center text-muted py-4">
                             Nenhum usuário encontrado para este filtro.
                         </td>
                     </tr>
@@ -262,6 +268,33 @@
 <style>
   thead th a.text-reset:hover { opacity: 0.8; }
   thead th a.text-reset { white-space: nowrap; }
+  .daily-action-table tbody tr.daily-action-criticality-high {
+    --bs-table-bg: #fff1f2;
+    --bs-table-hover-bg: #ffe4e6;
+    border-left: 4px solid #dc3545;
+  }
+  .daily-action-table tbody tr.daily-action-criticality-medium {
+    --bs-table-bg: #fff8e1;
+    --bs-table-hover-bg: #fff3cd;
+    border-left: 4px solid #f0ad00;
+  }
+  .daily-action-table tbody tr.daily-action-criticality-low {
+    --bs-table-bg: #f0fdf4;
+    --bs-table-hover-bg: #dcfce7;
+    border-left: 4px solid #198754;
+  }
+  .daily-action-table tbody tr[class*="daily-action-criticality-"] > td:first-child {
+    box-shadow: inset 4px 0 0 currentColor;
+  }
+  .daily-action-table tbody tr.daily-action-criticality-high > td:first-child {
+    color: #dc3545;
+  }
+  .daily-action-table tbody tr.daily-action-criticality-medium > td:first-child {
+    color: #b58100;
+  }
+  .daily-action-table tbody tr.daily-action-criticality-low > td:first-child {
+    color: #198754;
+  }
   .notif-dot {
     position: absolute;
     top: -4px;
