@@ -56,16 +56,16 @@ class DailyUserActionCriticalityTests(SimpleTestCase):
             {"daily-action-criticality-high"},
         )
 
-    def test_user_with_all_lines_pending_is_high(self):
+    def test_user_with_all_active_lines_pending_is_high(self):
         rows = [
             self._row(
                 1,
-                line_status=LineAllocation.LineStatus.RESTRICTED,
+                line_status=LineAllocation.LineStatus.ACTIVE,
                 action=AllocationPendency.ActionType.NEW_NUMBER,
             ),
             self._row(
                 1,
-                line_status=LineAllocation.LineStatus.UNDER_ANALYSIS,
+                line_status=LineAllocation.LineStatus.ACTIVE,
                 action=AllocationPendency.ActionType.RECONNECT_WHATSAPP,
             ),
         ]
@@ -123,11 +123,11 @@ class DailyUserActionCriticalityTests(SimpleTestCase):
             {"daily-action-criticality-low"},
         )
 
-    def test_pending_requires_status_issue_and_non_empty_action(self):
+    def test_pending_counts_even_when_line_status_is_active(self):
         rows = [
             self._row(
                 1,
-                line_status=LineAllocation.LineStatus.RESTRICTED,
+                line_status=LineAllocation.LineStatus.ACTIVE,
                 action=AllocationPendency.ActionType.NO_ACTION,
             ),
             self._row(
@@ -139,7 +139,7 @@ class DailyUserActionCriticalityTests(SimpleTestCase):
 
         apply_daily_user_action_criticality(rows)
 
-        self.assertEqual(self._levels_for_employee(rows, 1), {"low"})
+        self.assertEqual(self._levels_for_employee(rows, 1), {"medium"})
 
     def test_user_with_single_active_line_is_high_fallback(self):
         rows = [
@@ -245,5 +245,5 @@ class DailyUserActionCriticalityBoardRenderingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Criticidade")
-        self.assertContains(response, 'class="daily-action-criticality-high"')
-        self.assertContains(response, 'data-criticality="high"')
+        self.assertContains(response, 'class="daily-action-criticality-medium"')
+        self.assertContains(response, 'data-criticality="medium"')

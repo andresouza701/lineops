@@ -477,6 +477,7 @@ def build_daily_user_action_rows(
             )
         rows.append(row)
 
+    apply_daily_user_action_criticality(rows)
     return apply_action_board_visibility_rules(rows, user)
 
 
@@ -545,17 +546,13 @@ def _is_daily_action_row_pending_for_criticality(row):
     if not row.get("has_line"):
         return False
 
-    allocation = row.get("allocation")
-    if not allocation:
+    if not row.get("allocation"):
         return False
 
     pendency = row.get("pendency")
     action = pendency.action if pendency else AllocationPendency.ActionType.NO_ACTION
 
-    return (
-        allocation.line_status != LineAllocation.LineStatus.ACTIVE
-        and action != AllocationPendency.ActionType.NO_ACTION
-    )
+    return action != AllocationPendency.ActionType.NO_ACTION
 
 
 def _resolve_daily_user_criticality(user_rows):
@@ -1983,7 +1980,6 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         line_filter=line_filter,
         technical_filter=technical_filter,
     )
-    apply_daily_user_action_criticality(rows)
     if is_admin_role and sort_col:
         rows = sort_daily_user_action_rows(rows, sort_col, sort_order)
     action_counts = count_visible_pending_actions(rows)
