@@ -157,6 +157,11 @@ class DailyUserActionCriticalityTests(SimpleTestCase):
 
 class DailyUserActionCriticalityBoardRenderingTests(TestCase):
     def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="criticality.admin@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.ADMIN,
+        )
         self.supervisor = SystemUser.objects.create_user(
             email="criticality.supervisor@test.com",
             password="StrongPass123",
@@ -190,7 +195,7 @@ class DailyUserActionCriticalityBoardRenderingTests(TestCase):
             line_status=line_status,
         )
 
-    def test_action_board_renders_user_criticality(self):
+    def _create_medium_criticality_dataset(self):
         restricted_allocation = self._create_allocation(
             "101",
             LineAllocation.LineStatus.RESTRICTED,
@@ -201,6 +206,9 @@ class DailyUserActionCriticalityBoardRenderingTests(TestCase):
             allocation=restricted_allocation,
             action=AllocationPendency.ActionType.PENDING,
         )
+
+    def test_action_board_hides_criticality_column_for_non_admin(self):
+        self._create_medium_criticality_dataset()
 
         response = self.client.get(reverse("daily_user_action_board"))
 
@@ -219,8 +227,7 @@ class DailyUserActionCriticalityBoardRenderingTests(TestCase):
             {row["criticality_row_class"] for row in matching_rows},
             {"daily-action-criticality-medium"},
         )
-        self.assertContains(response, "Criticidade")
-        self.assertContains(response, "Médio")
+        self.assertNotContains(response, "Criticidade")
         self.assertContains(response, "daily-action-criticality-medium")
         self.assertContains(response, "daily-action-table")
         self.assertContains(
@@ -228,3 +235,12 @@ class DailyUserActionCriticalityBoardRenderingTests(TestCase):
             "box-shadow: inset 5px 0 0 var(--criticality-accent)",
         )
         self.assertNotContains(response, "criticality-row-bg")
+
+    def test_action_board_renders_criticality_column_for_admin(self):
+        self._create_medium_criticality_dataset()
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("daily_user_action_board"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Criticidade")

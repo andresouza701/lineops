@@ -137,7 +137,6 @@
                             {% endif %}
                         {% endfor %}
                     {% else %}
-                        <th>Criticidade</th>
                         <th>PA</th>
                         <th>Usuário</th>
                         <th>Carteira</th>
@@ -154,11 +153,13 @@
                 {% if rows %}
                     {% for row in rows %}
                         <tr class="{{ row.criticality_row_class }}" data-criticality="{{ row.criticality_level }}" data-employee-id="{{ row.employee.pk }}" data-allocation-id="{{ row.allocation.pk|default:'' }}">
-                            <td>
-                                <span class="badge {{ row.criticality_badge_class }}">
-                                    {{ row.criticality_label }}
-                                </span>
-                            </td>
+                            {% if is_admin_role %}
+                                <td>
+                                    <span class="badge {{ row.criticality_badge_class }}">
+                                        {{ row.criticality_label }}
+                                    </span>
+                                </td>
+                            {% endif %}
                             <td>{{ row.employee.pa|default:"-" }}</td>
                             <td>{{ row.employee.full_name }}</td>
                             <td>{{ row.employee.employee_id }}</td>
@@ -251,7 +252,7 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="10" class="text-center text-muted py-4">
+                        <td colspan="{% if is_admin_role %}10{% else %}9{% endif %}" class="text-center text-muted py-4">
                             Nenhum usuário encontrado para este filtro.
                         </td>
                     </tr>
