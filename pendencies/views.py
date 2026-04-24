@@ -57,7 +57,11 @@ def _is_observation_locked(employee, allocation):
 def _pendency_to_json(pendency, allocation):
     """Serializa a pendência para o payload do modal."""
     employee = pendency.employee
-    tech = pendency.technical_responsible
+    tech = (
+        pendency.technical_responsible
+        if pendency.action != AllocationPendency.ActionType.NO_ACTION
+        else None
+    )
     observation_locked = _is_observation_locked(employee, allocation)
 
     line_number = ""

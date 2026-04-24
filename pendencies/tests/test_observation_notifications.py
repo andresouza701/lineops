@@ -2,6 +2,7 @@ import json
 
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from allocations.models import LineAllocation
 from employees.models import Employee
@@ -156,6 +157,33 @@ class PendencyUpdateViewNotificationTest(TestCase):
         )
         self.client = Client()
         self.url = reverse("pendencies:update")
+        self.detail_url = reverse("pendencies:detail")
+
+    def _make_allocation(
+        self,
+        *,
+        employee=None,
+        phone_suffix="0000",
+        line_status=LineAllocation.LineStatus.ACTIVE,
+    ):
+        employee = employee or self.employee
+        simcard = SIMcard.objects.create(
+            iccid=f"890000000000001{phone_suffix}",
+            carrier="CarrierTest",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        phone_line = PhoneLine.objects.create(
+            phone_number=f"+554799999{phone_suffix}",
+            sim_card=simcard,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        return LineAllocation.objects.create(
+            employee=employee,
+            phone_line=phone_line,
+            allocated_by=self.admin,
+            is_active=True,
+            line_status=line_status,
+        )
 
     def _post(self, user, observation, action="", line_status=""):
         self.client.force_login(user)
@@ -439,6 +467,78 @@ class PendencyUpdateViewNotificationTest(TestCase):
         allocation.refresh_from_db()
         self.assertEqual(allocation.line_status, "restricted")
         self.assertEqual(pendency.technical_responsible, self.admin)
+
+    def test_detail_hides_stale_technical_responsible_for_resolved_pendency(self):
+        allocation = self._make_allocation(phone_suffix="0101")
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.NO_ACTION,
+            technical_responsible=self.admin,
+            resolved_at=timezone.now(),
+            last_submitted_action=AllocationPendency.ActionType.PENDING,
+        )
+
+        self.client.force_login(self.super_user)
+        response = self.client.get(
+            self.detail_url,
+            data={
+                "employee_id": self.employee.pk,
+                "allocation_id": allocation.pk,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["id"], pendency.pk)
+        self.assertEqual(payload["technical_responsible_name"], "")
+
+    def test_non_admin_reopening_resolved_pendency_clears_technical_responsible(self):
+        gerente = _make_user("gerente@t.com", SystemUser.Role.GERENTE)
+        backoffice = _make_user("bo@t.com", SystemUser.Role.BACKOFFICE)
+        backoffice.supervisor_email = self.super_user.email
+        backoffice.save(update_fields=["supervisor_email"])
+
+        self.employee.corporate_email = self.super_user.email
+        self.employee.manager_email = gerente.email
+        self.employee.save(update_fields=["corporate_email", "manager_email"])
+
+        role_users = {
+            "super": self.super_user,
+            "gerente": gerente,
+            "backoffice": backoffice,
+        }
+
+        for role_name, role_user in role_users.items():
+            with self.subTest(role=role_name):
+                allocation = self._make_allocation(phone_suffix=f"02{len(role_name)}{role_name.count('o')}")
+                pendency = AllocationPendency.objects.create(
+                    employee=self.employee,
+                    allocation=allocation,
+                    action=AllocationPendency.ActionType.NO_ACTION,
+                    technical_responsible=self.admin,
+                    resolved_at=timezone.now(),
+                    last_submitted_action=AllocationPendency.ActionType.PENDING,
+                )
+
+                self.client.force_login(role_user)
+                response = self.client.post(
+                    self.url,
+                    data=json.dumps(
+                        {
+                            "pendency_id": pendency.pk,
+                            "action": AllocationPendency.ActionType.PENDING,
+                            "observation": "",
+                            "line_status": "",
+                        }
+                    ),
+                    content_type="application/json",
+                )
+
+                self.assertEqual(response.status_code, 200)
+                pendency.refresh_from_db()
+                self.assertIsNone(pendency.technical_responsible)
+                self.assertEqual(response.json()["technical_responsible_name"], "")
 
     def test_admin_save_clears_technical_responsible_when_active_and_no_action(self):
         simcard = SIMcard.objects.create(
