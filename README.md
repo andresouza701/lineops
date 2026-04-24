@@ -9,6 +9,8 @@ Aplicação Django para gestão de linhas telefônicas, alocações e indicadore
 
 ## Release Notes
 
+- `1.5.0`: veja [docs/release-notes-1.5.0.md](docs/release-notes-1.5.0.md)
+- `1.4.1`: veja [docs/release-notes-1.4.1.md](docs/release-notes-1.4.1.md)
 - `1.4.0`: veja [docs/release-notes-1.4.0.md](docs/release-notes-1.4.0.md)
 - `1.3.0`: veja [docs/release-notes-1.3.0.md](docs/release-notes-1.3.0.md)
 - `1.2.1`: veja [docs/release-notes-1.2.1.md](docs/release-notes-1.2.1.md)
