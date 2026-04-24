@@ -137,9 +137,9 @@
                             {% endif %}
                         {% endfor %}
                     {% else %}
+                        <th>Criticidade</th>
                         <th>PA</th>
                         <th>Usuário</th>
-                        <th>Criticidade</th>
                         <th>Carteira</th>
                         <th>Resp. Técnico</th>
                         <th>Envio da pendência</th>
@@ -154,13 +154,13 @@
                 {% if rows %}
                     {% for row in rows %}
                         <tr class="{{ row.criticality_row_class }}" data-criticality="{{ row.criticality_level }}" data-employee-id="{{ row.employee.pk }}" data-allocation-id="{{ row.allocation.pk|default:'' }}">
-                            <td>{{ row.employee.pa|default:"-" }}</td>
-                            <td>{{ row.employee.full_name }}</td>
                             <td>
                                 <span class="badge {{ row.criticality_badge_class }}">
                                     {{ row.criticality_label }}
                                 </span>
                             </td>
+                            <td>{{ row.employee.pa|default:"-" }}</td>
+                            <td>{{ row.employee.full_name }}</td>
                             <td>{{ row.employee.employee_id }}</td>
                             <td class="js-tech-responsible">
                                 {% if row.line_status_changed_by_admin %}
@@ -268,32 +268,30 @@
 <style>
   thead th a.text-reset:hover { opacity: 0.8; }
   thead th a.text-reset { white-space: nowrap; }
+  .daily-action-table tbody tr[class*="daily-action-criticality-"] > * {
+    background-color: var(--criticality-row-bg) !important;
+  }
+  .daily-action-table tbody tr[class*="daily-action-criticality-"]:hover > * {
+    background-color: var(--criticality-row-hover-bg) !important;
+  }
   .daily-action-table tbody tr.daily-action-criticality-high {
-    --bs-table-bg: #fff1f2;
-    --bs-table-hover-bg: #ffe4e6;
-    border-left: 4px solid #dc3545;
+    --criticality-row-bg: #fff1f2;
+    --criticality-row-hover-bg: #ffe4e6;
+    --criticality-accent: #dc3545;
   }
   .daily-action-table tbody tr.daily-action-criticality-medium {
-    --bs-table-bg: #fff8e1;
-    --bs-table-hover-bg: #fff3cd;
-    border-left: 4px solid #f0ad00;
+    --criticality-row-bg: #fff8e1;
+    --criticality-row-hover-bg: #fff3cd;
+    --criticality-accent: #b58100;
   }
   .daily-action-table tbody tr.daily-action-criticality-low {
-    --bs-table-bg: #f0fdf4;
-    --bs-table-hover-bg: #dcfce7;
-    border-left: 4px solid #198754;
+    --criticality-row-bg: #f0fdf4;
+    --criticality-row-hover-bg: #dcfce7;
+    --criticality-accent: #198754;
   }
   .daily-action-table tbody tr[class*="daily-action-criticality-"] > td:first-child {
+    color: var(--criticality-accent);
     box-shadow: inset 4px 0 0 currentColor;
-  }
-  .daily-action-table tbody tr.daily-action-criticality-high > td:first-child {
-    color: #dc3545;
-  }
-  .daily-action-table tbody tr.daily-action-criticality-medium > td:first-child {
-    color: #b58100;
-  }
-  .daily-action-table tbody tr.daily-action-criticality-low > td:first-child {
-    color: #198754;
   }
   .notif-dot {
     position: absolute;

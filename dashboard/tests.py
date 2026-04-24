@@ -1420,6 +1420,7 @@ class DashboardDailyIndicatorsTests(TestCase):
         content = response.content.decode()
 
         expected_headers = [
+            "Criticidade",
             "PA",
             "Usuário",
             "Carteira",

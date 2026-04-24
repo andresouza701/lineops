@@ -2011,9 +2011,9 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
         "sort_order": sort_order,
         "employee_ids_with_notifications": employee_ids_with_notifications,
         "sort_columns": [
+            ("criticidade", "Criticidade"),
             ("pa", "PA"),
             ("usuario", "Usuário"),
-            ("criticidade", "Criticidade"),
             ("carteira", "Carteira"),
             ("resp_tecnico", "Resp. Técnico"),
             ("envio_pendencia", "Envio da pendência"),
