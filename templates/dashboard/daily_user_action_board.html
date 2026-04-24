@@ -152,7 +152,7 @@
             <tbody>
                 {% if rows %}
                     {% for row in rows %}
-                        <tr class="{{ row.criticality_row_class }}" data-criticality="{{ row.criticality_level }}" data-employee-id="{{ row.employee.pk }}" data-allocation-id="{{ row.allocation.pk|default:'' }}">
+                        <tr{% if is_admin_role %} class="{{ row.criticality_row_class }}" data-criticality="{{ row.criticality_level }}"{% endif %} data-employee-id="{{ row.employee.pk }}" data-allocation-id="{{ row.allocation.pk|default:'' }}">
                             {% if is_admin_role %}
                                 <td>
                                     <span class="badge {{ row.criticality_badge_class }}">

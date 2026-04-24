@@ -228,7 +228,8 @@ class DailyUserActionCriticalityBoardRenderingTests(TestCase):
             {"daily-action-criticality-medium"},
         )
         self.assertNotContains(response, "Criticidade")
-        self.assertContains(response, "daily-action-criticality-medium")
+        self.assertNotContains(response, 'class="daily-action-criticality-medium"')
+        self.assertNotContains(response, 'data-criticality="medium"')
         self.assertContains(response, "daily-action-table")
         self.assertContains(
             response,
@@ -244,3 +245,5 @@ class DailyUserActionCriticalityBoardRenderingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Criticidade")
+        self.assertContains(response, 'class="daily-action-criticality-high"')
+        self.assertContains(response, 'data-criticality="high"')
