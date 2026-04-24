@@ -268,30 +268,17 @@
 <style>
   thead th a.text-reset:hover { opacity: 0.8; }
   thead th a.text-reset { white-space: nowrap; }
-  .daily-action-table tbody tr[class*="daily-action-criticality-"] > * {
-    background-color: var(--criticality-row-bg) !important;
-  }
-  .daily-action-table tbody tr[class*="daily-action-criticality-"]:hover > * {
-    background-color: var(--criticality-row-hover-bg) !important;
-  }
   .daily-action-table tbody tr.daily-action-criticality-high {
-    --criticality-row-bg: #fff1f2;
-    --criticality-row-hover-bg: #ffe4e6;
     --criticality-accent: #dc3545;
   }
   .daily-action-table tbody tr.daily-action-criticality-medium {
-    --criticality-row-bg: #fff8e1;
-    --criticality-row-hover-bg: #fff3cd;
     --criticality-accent: #b58100;
   }
   .daily-action-table tbody tr.daily-action-criticality-low {
-    --criticality-row-bg: #f0fdf4;
-    --criticality-row-hover-bg: #dcfce7;
     --criticality-accent: #198754;
   }
   .daily-action-table tbody tr[class*="daily-action-criticality-"] > td:first-child {
-    color: var(--criticality-accent);
-    box-shadow: inset 4px 0 0 currentColor;
+    box-shadow: inset 5px 0 0 var(--criticality-accent);
   }
   .notif-dot {
     position: absolute;

@@ -223,3 +223,8 @@ class DailyUserActionCriticalityBoardRenderingTests(TestCase):
         self.assertContains(response, "Médio")
         self.assertContains(response, "daily-action-criticality-medium")
         self.assertContains(response, "daily-action-table")
+        self.assertContains(
+            response,
+            "box-shadow: inset 5px 0 0 var(--criticality-accent)",
+        )
+        self.assertNotContains(response, "criticality-row-bg")
