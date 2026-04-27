@@ -87,6 +87,21 @@ class MongoReconnectSessionRepository:
                 return True
         return False
 
+    def count_queued_before_session(
+        self, *, target_server: str, created_at, session_id: str
+    ) -> int:
+        return self.collection.count_documents(
+            {
+                "target_server": target_server,
+                "status": "QUEUED",
+                "active_lock": True,
+                "$or": [
+                    {"created_at": {"$lt": created_at}},
+                    {"created_at": created_at, "_id": {"$lt": session_id}},
+                ],
+            }
+        )
+
     def get_session(self, session_id: str):
         return self.collection.find_one({"_id": session_id})
 

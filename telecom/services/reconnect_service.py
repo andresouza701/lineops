@@ -411,6 +411,30 @@ class ReconnectService:
             return value.replace(tzinfo=UTC)
         return value
 
+    def _resolve_queue_position(self, document: dict[str, Any], raw_status: str) -> int | None:
+        if raw_status != "QUEUED":
+            return None
+        if not hasattr(self.repository, "count_queued_before_session"):
+            return None
+        target_server = document.get("target_server")
+        created_at = document.get("created_at")
+        session_id = document.get("_id")
+        if not target_server or created_at is None or not session_id:
+            return None
+        try:
+            count_before = self.repository.count_queued_before_session(
+                target_server=target_server,
+                created_at=created_at,
+                session_id=session_id,
+            )
+            return count_before + 1
+        except Exception:
+            logger.warning(
+                "Failed to calculate queue position for session %s",
+                session_id,
+            )
+            return None
+
     def _serialize_session(self, document: dict[str, Any]) -> dict[str, Any]:
         raw_status = _normalize_status(document.get("status"))
         cancel_requested = bool(document.get("cancel_requested_at")) and (
@@ -418,6 +442,7 @@ class ReconnectService:
         )
         serialized_status = CANCEL_REQUESTED_STATUS if cancel_requested else raw_status
         restriction_seconds_remaining = self._resolve_restriction_seconds(document)
+        queue_position = self._resolve_queue_position(document, raw_status)
         payload = {
             "session_id": document.get("_id"),
             "status": serialized_status,
@@ -457,6 +482,10 @@ class ReconnectService:
             "is_terminal": raw_status in TERMINAL_RECONNECT_STATUSES,
             "can_submit_code": raw_status == WAITING_FOR_CODE_STATUS and not cancel_requested,
             "can_cancel": raw_status not in TERMINAL_RECONNECT_STATUSES and not cancel_requested,
+            "queue_position": queue_position,
+            "queue_position_label": (
+                f"{queue_position} na fila de execucao" if queue_position is not None else None
+            ),
         }
         return payload
 

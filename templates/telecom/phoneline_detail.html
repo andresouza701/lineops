@@ -86,6 +86,9 @@
                     <dt class="col-sm-4">Tentativa</dt>
                     <dd class="col-sm-8" data-reconnect-attempt>-</dd>
 
+                    <dt class="col-sm-4 d-none" data-reconnect-queue-position-row>Posicao na fila</dt>
+                    <dd class="col-sm-8 d-none" data-reconnect-queue-position-row data-reconnect-queue-position>-</dd>
+
                     <dt class="col-sm-4">Etapa atual</dt>
                     <dd class="col-sm-8" data-reconnect-progress-stage>-</dd>
 
@@ -184,6 +187,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const needsItActionEl = root.querySelector('[data-reconnect-needs-it-action]');
     const needsItReasonEl = root.querySelector('[data-reconnect-needs-it-reason]');
     const deviceNameEl = root.querySelector('[data-reconnect-device-name]');
+    const queuePositionRowEls = root.querySelectorAll('[data-reconnect-queue-position-row]');
+    const queuePositionEl = root.querySelector('[data-reconnect-queue-position]');
     const errorEl = root.querySelector('[data-reconnect-error]');
     const hintEl = root.querySelector('[data-reconnect-hint]');
     const startButton = root.querySelector('[data-reconnect-start]');
@@ -395,6 +400,8 @@ document.addEventListener('DOMContentLoaded', function () {
         restrictionRowEls.forEach(el => el.classList.add('d-none'));
         restrictionUntilEl.textContent = '-';
         restrictionCountdownEl.textContent = '-';
+        queuePositionRowEls.forEach(el => el.classList.add('d-none'));
+        if (queuePositionEl) queuePositionEl.textContent = '-';
         needsItActionEl.textContent = '-';
         needsItReasonEl.textContent = '-';
         errorEl.classList.add('d-none');
@@ -425,6 +432,17 @@ document.addEventListener('DOMContentLoaded', function () {
         progressStageUpdatedAtEl.textContent = formatDateTime(payload.progress_stage_updated_at);
         deadlineEl.textContent = formatDateTime(payload.session_deadline_at);
         accountStateEl.textContent = payload.account_state || '-';
+
+        const hasQueuePosition = payload.queue_position !== null && payload.queue_position !== undefined;
+        if (hasQueuePosition) {
+            if (queuePositionEl) {
+                queuePositionEl.textContent = payload.queue_position_label || String(payload.queue_position);
+            }
+            queuePositionRowEls.forEach(el => el.classList.remove('d-none'));
+        } else {
+            if (queuePositionEl) queuePositionEl.textContent = '-';
+            queuePositionRowEls.forEach(el => el.classList.add('d-none'));
+        }
 
         const isRestrictedState = payload.account_state === 'RESTRICTED' ||
             payload.error_code === 'whatsapp_account_restricted';
@@ -482,6 +500,11 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 showHint('A sessao terminou com falha. Tente novamente.', 'danger');
             }
+        } else if (payload.status === 'QUEUED') {
+            const posLabel = payload.queue_position_label
+                ? `Posicao na fila: ${payload.queue_position_label}. `
+                : '';
+            showHint(`${posLabel}Aguardando sua vez na fila de execucao.`, 'info');
         } else if (payload.status === 'CANCEL_REQUESTED') {
             showHint(
                 'Cancelamento solicitado. Aguarde a confirmacao final da sessao.',

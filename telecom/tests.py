@@ -5,7 +5,7 @@ from django.test import RequestFactory
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
-from unittest.mock import ANY, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from allocations.forms import TelephonyAssignmentForm
 from core.current_user import clear_current_user, set_current_user
@@ -1601,6 +1601,8 @@ class FakeReconnectRepository:
         self.submit_modified = True
         self.cancel_modified = True
         self.active_session_unique_index_present = True
+        self.queued_before_count = 0
+        self.count_queued_before_raises = False
 
     def find_active_session_by_phone(self, phone_number):
         return self.active_by_phone.get(phone_number)
@@ -1667,6 +1669,11 @@ class FakeReconnectRepository:
             session["cancel_requested_at"] = requested_at
             session["updated_at"] = requested_at
         return self.cancel_modified
+
+    def count_queued_before_session(self, *, target_server, created_at, session_id):
+        if self.count_queued_before_raises:
+            raise RuntimeError("Mongo error simulado")
+        return self.queued_before_count
 
 
 class ReconnectServiceTests(TestCase):
@@ -2261,6 +2268,159 @@ class ReconnectServiceTests(TestCase):
         self.assertEqual(kwargs["extra"]["phone_line_id"], self.line.pk)
         self.assertTrue(kwargs["extra"]["cancel_requested"])
 
+    def test_serialize_queued_session_returns_queue_position_3_with_two_before(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.queued_before_count = 2
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        payload = service._serialize_session(
+            {
+                "_id": "sess-q-pos-001",
+                "phone_number": "5511999991000",
+                "status": "QUEUED",
+                "attempt": 0,
+                "active_lock": True,
+                "target_server": "rafael",
+                "created_at": timezone.now(),
+            }
+        )
+
+        self.assertEqual(payload["queue_position"], 3)
+        self.assertEqual(payload["queue_position_label"], "3 na fila de execucao")
+
+    def test_serialize_non_queued_session_returns_queue_position_none(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.queued_before_count = 2
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        payload = service._serialize_session(
+            {
+                "_id": "sess-wfc-pos-001",
+                "phone_number": "5511999991000",
+                "status": "WAITING_FOR_CODE",
+                "attempt": 1,
+                "active_lock": True,
+                "target_server": "rafael",
+                "created_at": timezone.now(),
+            }
+        )
+
+        self.assertIsNone(payload["queue_position"])
+        self.assertIsNone(payload["queue_position_label"])
+
+    @patch("telecom.services.reconnect_service.logger")
+    def test_serialize_queued_session_returns_none_on_repository_error(self, mocked_logger):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.count_queued_before_raises = True
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        payload = service._serialize_session(
+            {
+                "_id": "sess-q-err-001",
+                "phone_number": "5511999991000",
+                "status": "QUEUED",
+                "attempt": 0,
+                "active_lock": True,
+                "target_server": "rafael",
+                "created_at": timezone.now(),
+            }
+        )
+
+        self.assertIsNone(payload["queue_position"])
+        self.assertIsNone(payload["queue_position_label"])
+        mocked_logger.warning.assert_called()
+
+    def test_serialize_queued_session_without_created_at_returns_queue_position_none(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        payload = service._serialize_session(
+            {
+                "_id": "sess-q-no-ts-001",
+                "phone_number": "5511999991000",
+                "status": "QUEUED",
+                "attempt": 0,
+                "active_lock": True,
+                "target_server": "rafael",
+            }
+        )
+
+        self.assertIsNone(payload["queue_position"])
+
+    def test_start_for_line_payload_contains_queue_position(self):
+        from telecom.services.reconnect_service import ReconnectService
+
+        repository = FakeReconnectRepository()
+        repository.queued_before_count = 0
+        service = ReconnectService(
+            repository=repository,
+            target_server_by_origem={PhoneLine.Origem.SRVMEMU_01: "rafael"},
+        )
+
+        session = service.start_for_line(self.line)
+
+        self.assertIn("queue_position", session)
+        self.assertEqual(session["queue_position"], 1)
+        self.assertEqual(session["queue_position_label"], "1 na fila de execucao")
+
+
+class ReconnectRepositoryQueuePositionTests(TestCase):
+    def test_count_queued_before_session_uses_correct_filter(self):
+        from telecom.repositories.reconnect_sessions import MongoReconnectSessionRepository
+
+        mock_client = MagicMock()
+        repository = MongoReconnectSessionRepository(
+            client=mock_client,
+            database_name="test_db",
+            collection_name="test_col",
+        )
+        mock_collection = MagicMock()
+        mock_collection.count_documents.return_value = 2
+        repository.collection = mock_collection
+
+        target_server = "srv-01"
+        created_at = timezone.now()
+        session_id = "sess-abc-123"
+
+        result = repository.count_queued_before_session(
+            target_server=target_server,
+            created_at=created_at,
+            session_id=session_id,
+        )
+
+        self.assertEqual(result, 2)
+        mock_collection.count_documents.assert_called_once_with(
+            {
+                "target_server": target_server,
+                "status": "QUEUED",
+                "active_lock": True,
+                "$or": [
+                    {"created_at": {"$lt": created_at}},
+                    {"created_at": created_at, "_id": {"$lt": session_id}},
+                ],
+            }
+        )
+
 
 class FakeReconnectWebService:
     def __init__(self):
@@ -2278,6 +2438,8 @@ class FakeReconnectWebService:
             "can_submit_code": False,
             "can_cancel": True,
             "is_terminal": False,
+            "queue_position": 1,
+            "queue_position_label": "1 na fila de execucao",
         }
 
     def get_status_for_line(self, line, *, session_id=""):
@@ -2289,6 +2451,8 @@ class FakeReconnectWebService:
             "can_submit_code": True,
             "can_cancel": True,
             "is_terminal": False,
+            "queue_position": None,
+            "queue_position_label": None,
         }
 
     def submit_code_for_line(self, line, *, session_id, pair_code):
@@ -2724,6 +2888,49 @@ class PhoneLineReconnectViewsTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 404)
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_start_endpoint_payload_contains_queue_position_key(self, mocked_service):
+        service = FakeReconnectWebService()
+        mocked_service.return_value = service
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("telecom:phoneline_reconnect_start", args=[self.managed_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("queue_position", payload)
+        self.assertIn("queue_position_label", payload)
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_status_endpoint_payload_contains_queue_position_key(self, mocked_service):
+        service = FakeReconnectWebService()
+        mocked_service.return_value = service
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_reconnect_status", args=[self.managed_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("queue_position", payload)
+        self.assertIn("queue_position_label", payload)
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_template_has_queue_position_data_attributes(self, mocked_service):
+        mocked_service.return_value = FakeReconnectWebService()
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.managed_line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "data-reconnect-queue-position-row")
+        self.assertContains(response, "data-reconnect-queue-position")
 
 
 # ---------------------------------------------------------------------------
