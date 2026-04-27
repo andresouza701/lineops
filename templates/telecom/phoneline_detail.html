@@ -501,10 +501,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 showHint('A sessao terminou com falha. Tente novamente.', 'danger');
             }
         } else if (payload.status === 'QUEUED') {
-            const posLabel = payload.queue_position_label
-                ? `Posicao na fila: ${payload.queue_position_label}. `
-                : '';
-            showHint(`${posLabel}Aguardando sua vez na fila de execucao.`, 'info');
+            showHint('Aguarde sua vez na fila de execução.', 'info');
         } else if (payload.status === 'CANCEL_REQUESTED') {
             showHint(
                 'Cancelamento solicitado. Aguarde a confirmacao final da sessao.',
