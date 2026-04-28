@@ -19,6 +19,7 @@ def track_employee_creation(sender, instance, created, **kwargs):
             action=EmployeeHistory.ActionType.CREATED,
             new_value=(
                 f"Nome: {instance.full_name}, "
+                f"Email: {instance.email or '-'}, "
                 f"Supervisor: {instance.corporate_email}, "
                 f"Gerente: {instance.manager_email or '-'}, "
                 f"Carteira: {instance.employee_id}, "
@@ -73,6 +74,7 @@ def track_employee_changes(sender, instance, **kwargs):
     new_values = []
     field_labels = {
         "full_name": "Nome",
+        "email": "Email",
         "corporate_email": "Supervisor",
         "manager_email": "Gerente",
         "employee_id": "Carteira",

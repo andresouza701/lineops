@@ -18,6 +18,7 @@ class EmployeeForm(forms.ModelForm):
         model = Employee
         fields = [
             "full_name",
+            "email",
             "corporate_email",
             "manager_email",
             "employee_id",
@@ -64,6 +65,21 @@ class EmployeeForm(forms.ModelForm):
             )
 
         return full_name
+
+    def clean_email(self):
+        email = normalize_email_address(self.cleaned_data.get("email"))
+        if not email:
+            return None
+
+        if Employee.has_active_email_conflict(
+            email,
+            exclude_id=self.instance.pk if self.instance and self.instance.pk else None,
+        ):
+            raise forms.ValidationError(
+                "Ja existe um negociador cadastrado com este email."
+            )
+
+        return email
 
     def clean_corporate_email(self):
         corporate_email = normalize_email_address(
@@ -143,6 +159,8 @@ class EmployeeForm(forms.ModelForm):
         )
 
         self.fields["full_name"].widget.attrs.setdefault("class", "form-control")
+        self.fields["email"].required = False
+        self.fields["email"].widget.attrs.setdefault("class", "form-control")
         self.fields["status"].widget.attrs.setdefault("class", "form-select")
         self.fields["pa"].required = False
         self.fields["pa"].widget.attrs.setdefault("class", "form-control")

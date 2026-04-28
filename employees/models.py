@@ -40,6 +40,12 @@ class Employee(models.Model):
         ACTIVE = "active", "Ativo"
 
     full_name = models.CharField(max_length=40)
+    email = models.EmailField(
+        max_length=254,
+        blank=True,
+        null=True,
+        verbose_name="Email do negociador",
+    )
     corporate_email = models.EmailField(max_length=254, verbose_name="Supervisor")
     manager_email = models.EmailField(
         max_length=254,
@@ -102,8 +108,23 @@ class Employee(models.Model):
             is not None
         )
 
+    @classmethod
+    def has_active_email_conflict(cls, email, *, exclude_id=None):
+        normalized_email = normalize_email_address(email)
+        if not normalized_email:
+            return False
+
+        queryset = cls.all_objects.filter(
+            is_deleted=False,
+            email__iexact=normalized_email,
+        )
+        if exclude_id is not None:
+            queryset = queryset.exclude(pk=exclude_id)
+        return queryset.exists()
+
     def save(self, *args, **kwargs):
         self.full_name = normalize_full_name(self.full_name)
+        self.email = normalize_email_address(self.email) or None
         self.corporate_email = normalize_email_address(self.corporate_email)
         self.manager_email = normalize_email_address(self.manager_email) or None
         self.employee_id = normalize_portfolio_value(self.employee_id)
@@ -127,10 +148,18 @@ class Employee(models.Model):
                 Lower("full_name"),
                 condition=Q(is_deleted=False),
                 name="employees_employee_unique_active_full_name_ci",
-            )
+            ),
+            models.UniqueConstraint(
+                Lower("email"),
+                condition=Q(is_deleted=False)
+                & Q(email__isnull=False)
+                & ~Q(email=""),
+                name="employees_employee_unique_active_email_ci",
+            ),
         ]
         indexes = [
             models.Index(fields=["employee_id"]),
+            models.Index(fields=["email"]),
             models.Index(fields=["corporate_email"]),
             models.Index(fields=["manager_email"]),
             models.Index(fields=["status", "is_deleted"]),

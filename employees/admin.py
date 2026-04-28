@@ -26,6 +26,21 @@ class EmployeeAdminForm(forms.ModelForm):
 
         return full_name
 
+    def clean_email(self):
+        email = normalize_email_address(self.cleaned_data.get("email"))
+        if not email:
+            return None
+
+        if Employee.has_active_email_conflict(
+            email,
+            exclude_id=self.instance.pk if self.instance and self.instance.pk else None,
+        ):
+            raise forms.ValidationError(
+                "Ja existe um negociador cadastrado com este email."
+            )
+
+        return email
+
     def clean_corporate_email(self):
         return normalize_email_address(self.cleaned_data.get("corporate_email"))
 
@@ -38,6 +53,7 @@ class EmployeeAdmin(admin.ModelAdmin):
     form = EmployeeAdminForm
     list_display = (
         "full_name",
+        "email",
         "corporate_email",
         "employee_id",
         "teams",
@@ -47,7 +63,7 @@ class EmployeeAdmin(admin.ModelAdmin):
         "updated_at",
     )
 
-    search_fields = ("full_name", "corporate_email", "employee_id", "teams")
+    search_fields = ("full_name", "email", "corporate_email", "employee_id", "teams")
     list_filter = ("status", "is_deleted", "teams")
     ordering = ("full_name",)
 
