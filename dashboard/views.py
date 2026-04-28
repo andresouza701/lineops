@@ -2096,7 +2096,7 @@ def daily_indicator_day_breakdown(request, day):
     return render(request, "dashboard/daily_indicator_day_breakdown.html", context)
 
 
-@roles_required(*DASHBOARD_ALLOWED_ROLES)
+@roles_required(SystemUser.Role.ADMIN)
 def pendency_metrics(request):
     filters = {
         "line_status": (request.GET.get("line_status") or "").strip(),

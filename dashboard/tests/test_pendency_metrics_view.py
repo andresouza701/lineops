@@ -16,6 +16,11 @@ class PendencyMetricsViewTests(TestCase):
             password="StrongPass123",
             role=SystemUser.Role.OPERATOR,
         )
+        self.super_user = SystemUser.objects.create_user(
+            email="metrics.view.super@test.com",
+            password="StrongPass123",
+            role=SystemUser.Role.SUPER,
+        )
 
     def test_admin_can_open_metrics_page(self):
         self.client.force_login(self.admin)
@@ -29,6 +34,13 @@ class PendencyMetricsViewTests(TestCase):
 
     def test_operator_cannot_open_metrics_page(self):
         self.client.force_login(self.operator)
+
+        response = self.client.get(reverse("dashboard_metrics"))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_non_admin_authenticated_user_cannot_open_metrics_page(self):
+        self.client.force_login(self.super_user)
 
         response = self.client.get(reverse("dashboard_metrics"))
 

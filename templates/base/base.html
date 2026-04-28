@@ -47,7 +47,7 @@
                     </a>
                     {% endif %}
                 {% endif %}
-                {% if request.user.is_authenticated and request.user.role != 'dev' and request.user.role != 'operator' %}
+                {% if request.user.is_authenticated and request.user.role == 'admin' %}
                     <a href="{% url 'dashboard_metrics' %}" class="rail-link {% if current_name == 'dashboard_metrics' %}is-active{% endif %}" aria-label="Metricas" title="Metricas">
                         <i class="bi bi-bar-chart-line" aria-hidden="true"></i>
                     </a>
