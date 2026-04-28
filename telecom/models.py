@@ -156,6 +156,15 @@ class PhoneLine(models.Model):
                     employee_id__in=employee_ids,
                 ).values("phone_line_id")
             )
+        elif role == "operator":
+            allocation_model = apps.get_model("allocations", "LineAllocation")
+            queryset = queryset.filter(
+                pk__in=allocation_model.objects.filter(
+                    is_active=True,
+                    employee__email__iexact=user.email,
+                    employee__is_deleted=False,
+                ).values("phone_line_id")
+            )
 
         return queryset
 

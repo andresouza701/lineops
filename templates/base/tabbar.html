@@ -2,11 +2,13 @@
 <nav class="tab-bar shadow-sm d-lg-none">
     <div class="container-fluid">
         <ul class="nav nav-tabs flex-wrap">
+            {% if request.user.role != 'operator' %}
             <li class="nav-item">
                 <a class="nav-link {% if current_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}">
                     Dashboard
                 </a>
             </li>
+            {% endif %}
             {% if request.user.is_authenticated %}
                 {% if request.user.role == 'gerente' %}
                     <li class="nav-item">
@@ -15,11 +17,13 @@
                         </a>
                     </li>
                 {% endif %}
+                {% if request.user.role != 'operator' %}
                 <li class="nav-item">
                     <a class="nav-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' or current_name == 'daily_user_action_board' or current_name == 'daily_indicator_day_breakdown' %}active{% endif %}" href="{% url 'daily_user_action_board' %}">
                         Ações do Dia
                     </a>
                 </li>
+                {% endif %}
                 {% if request.user.can_access_employee_area %}
                     <li class="nav-item">
                         <a class="nav-link {% if current_ns == 'employees' %}active{% endif %}" href="{% url 'employees:employee_list' %}">
@@ -34,7 +38,7 @@
                         </a>
                     </li>
                 {% endif %}
-                {% if request.user.role == 'admin' or request.user.role == 'operator' %}
+                {% if request.user.role == 'admin' %}
                     <li class="nav-item">
                         <a class="nav-link {% if current_ns == 'allocations' %}active{% endif %}" href="{% url 'allocations:allocation_list' %}">
                             Cadastro

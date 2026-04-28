@@ -75,7 +75,7 @@ class AllocationRBACViewTests(TestCase):
             status=PhoneLine.Status.AVAILABLE,
         )
 
-    def test_admin_and_operator_can_access_registration_hub(self):
+    def test_only_admin_can_access_registration_hub(self):
         url = reverse("allocations:allocation_list")
 
         self.client.force_login(self.admin)
@@ -84,7 +84,7 @@ class AllocationRBACViewTests(TestCase):
 
         self.client.force_login(self.operator)
         operator_resp = self.client.get(url)
-        self.assertEqual(operator_resp.status_code, 200)
+        self.assertEqual(operator_resp.status_code, 403)
 
     def test_anonymous_redirected_to_login(self):
         url = reverse("allocations:allocation_list")
@@ -92,7 +92,7 @@ class AllocationRBACViewTests(TestCase):
         self.assertEqual(resp.status_code, 403)
 
     def test_release_view_respects_roles(self):
-        # admin can allocate and release; operator can release; anonymous cannot
+        # admin can release; operator is blocked; anonymous is blocked
         self.client.force_login(self.admin)
         allocation = LineAllocation.objects.create(
             employee=self.employee,
@@ -103,17 +103,17 @@ class AllocationRBACViewTests(TestCase):
 
         url = reverse("allocations:allocation_release", args=[allocation.pk])
 
-        # operator allowed
+        # operator blocked
         self.client.force_login(self.operator)
         op_resp = self.client.post(url, follow=False)
-        self.assertIn(op_resp.status_code, (302, 200))
+        self.assertEqual(op_resp.status_code, 403)
 
         # anonymous blocked
         self.client.logout()
         anon_resp = self.client.post(url)
         self.assertEqual(anon_resp.status_code, 403)
 
-    def test_operator_release_from_edit_redirects_back_to_registration_hub(self):
+    def test_operator_cannot_post_allocation_edit_action(self):
         self.client.force_login(self.admin)
         allocation = LineAllocation.objects.create(
             employee=self.employee,
@@ -127,4 +127,4 @@ class AllocationRBACViewTests(TestCase):
         self.client.force_login(self.operator)
         response = self.client.post(edit_url, {"action": "release"})
 
-        self.assertRedirects(response, reverse("allocations:allocation_list"))
+        self.assertEqual(response.status_code, 403)

@@ -1,7 +1,7 @@
 ﻿{% with current_ns=request.resolver_match.namespace|default:'' current_name=request.resolver_match.url_name|default:'' %}
 <ul class="nav nav-pills flex-column mb-auto">
 
-    {% if request.user.role != 'dev' %}
+    {% if request.user.role != 'dev' and request.user.role != 'operator' %}
     <li class="nav-item">
         <a href="{% url 'dashboard' %}"
            class="nav-link {% if current_name == 'dashboard' %}active{% endif %}">
@@ -19,7 +19,7 @@
             </a>
         </li>
         {% endif %}
-        {% if request.user.role != 'dev' %}
+        {% if request.user.role != 'dev' and request.user.role != 'operator' %}
         <li>
             <a href="{% url 'daily_user_action_board' %}"
                class="nav-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' or current_name == 'daily_user_action_board' or current_name == 'daily_indicator_day_breakdown' %}active{% endif %}">
@@ -44,7 +44,7 @@
             </a>
         </li>
         {% endif %}
-        {% if request.user.role == 'admin' or request.user.role == 'operator' %}
+        {% if request.user.role == 'admin' %}
         <li>
             <a href="{% url 'allocations:allocation_list' %}"
                class="nav-link {% if current_ns == 'allocations' %}active{% endif %}">

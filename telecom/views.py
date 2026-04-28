@@ -6,6 +6,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q
+from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
@@ -719,6 +720,20 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
     template_name = "telecom/overview.html"
 
     def get(self, request, *args, **kwargs):
+        if (getattr(request.user, "role", "") or "").lower() == SystemUser.Role.OPERATOR:
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return JsonResponse({"error": "Acesso negado."}, status=403)
+            visible = get_visible_phone_lines_queryset(request.user)
+            first_line = (
+                visible.filter(origem=PhoneLine.Origem.SRVMEMU_01).first()
+                or visible.first()
+            )
+            if first_line is None:
+                raise PermissionDenied
+            return redirect(
+                reverse("telecom:phoneline_detail", args=[first_line.pk])
+                + "#reconnect-whatsapp"
+            )
         # Se for requisição AJAX para lazy loading
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return self._handle_ajax_request(request)

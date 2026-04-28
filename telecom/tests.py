@@ -804,33 +804,15 @@ class TelecomPermissionTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'aria-label="Telecom"', html=False)
 
-    def test_operator_can_access_telecom_overview(self):
+    def test_operator_without_linked_line_gets_403_on_overview(self):
         self.client.force_login(self.operator)
 
         resp = self.client.get(reverse("telecom:overview"))
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 403)
 
     def test_anonymous_redirected_to_login(self):
         resp = self.client.get(reverse("telecom:overview"))
         self.assertEqual(resp.status_code, 403)
-
-    def test_operator_overview_does_not_show_admin_actions(self):
-        self.client.force_login(self.operator)
-
-        resp = self.client.get(reverse("telecom:overview"))
-
-        self.assertEqual(resp.status_code, 200)
-        # JS flag confirma que ações admin estão desabilitadas no cliente
-        self.assertContains(resp, "const canManageTelecom = false")
-        # URLs de edição/histórico da linha não aparecem nos rows renderizados
-        self.assertNotContains(
-            resp,
-            reverse("telecom:phoneline_update", args=[self.line.pk]),
-        )
-        self.assertNotContains(
-            resp,
-            reverse("telecom:phoneline_history", args=[self.line.pk]),
-        )
 
 
 class PhoneLineViewsTest(TestCase):
@@ -3315,6 +3297,11 @@ class OperatorReconnectAccessTests(TestCase):
     """Verifies OPERATOR role can use detail view and reconnect with limited UI."""
 
     def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="admin.reconnect.access@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
         self.operator = SystemUser.objects.create_user(
             email="operator.reconnect.access@test.com",
             password="123456",
@@ -3342,32 +3329,39 @@ class OperatorReconnectAccessTests(TestCase):
             status=PhoneLine.Status.AVAILABLE,
             origem=PhoneLine.Origem.SRVMEMU_02,
         )
+        self.linked_employee = Employee.objects.create(
+            full_name="Reconnect Linked Employee",
+            corporate_email="sup.reconnect@corp.com",
+            email="operator.reconnect.access@test.com",
+            employee_id="EMP-RECONNECT-01",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        AllocationService.allocate_line(
+            employee=self.linked_employee,
+            phone_line=self.eligible_line,
+            allocated_by=self.admin,
+        )
+        AllocationService.allocate_line(
+            employee=self.linked_employee,
+            phone_line=self.non_eligible_line,
+            allocated_by=self.admin,
+        )
 
     # --- Overview access ---
 
-    def test_operator_can_access_overview(self):
+    def test_operator_overview_redirects_to_eligible_line_detail(self):
         self.client.force_login(self.operator)
 
         resp = self.client.get(reverse("telecom:overview"))
 
-        self.assertEqual(resp.status_code, 200)
-
-    def test_operator_overview_shows_reconnect_button_for_eligible_line(self):
-        self.client.force_login(self.operator)
-
-        resp = self.client.get(reverse("telecom:overview"))
-
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(
-            resp,
-            f'{reverse("telecom:phoneline_detail", args=[self.eligible_line.pk])}#reconnect-whatsapp',
-        )
-        self.assertNotContains(
-            resp,
-            f'{reverse("telecom:phoneline_detail", args=[self.non_eligible_line.pk])}#reconnect-whatsapp',
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(
+            reverse("telecom:phoneline_detail", args=[self.eligible_line.pk]),
+            resp["Location"],
         )
 
-    def test_operator_overview_ajax_does_not_return_edit_or_history_url(self):
+    def test_operator_overview_ajax_returns_403(self):
         self.client.force_login(self.operator)
 
         resp = self.client.get(
@@ -3376,11 +3370,7 @@ class OperatorReconnectAccessTests(TestCase):
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
 
-        self.assertEqual(resp.status_code, 200)
-        payload = resp.json()
-        for item in payload["data"]:
-            self.assertNotIn("edit_url", item)
-            self.assertNotIn("history_url", item)
+        self.assertEqual(resp.status_code, 403)
 
     # --- Detail view access ---
 
@@ -3521,3 +3511,228 @@ class OperatorReconnectAccessTests(TestCase):
         )
 
         self.assertEqual(resp.status_code, 403)
+
+
+class OperatorLinkedLineAccessTests(TestCase):
+    """
+    Tests that operator is scoped to lines linked via Employee.email and has
+    no access to allocation management, dashboard, or unlinked lines.
+    """
+
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="op.linked.admin@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.operator = SystemUser.objects.create_user(
+            email="op.linked.op@test.com",
+            password="123456",
+            role=SystemUser.Role.OPERATOR,
+        )
+        self.unlinked_operator = SystemUser.objects.create_user(
+            email="op.linked.nolink@test.com",
+            password="123456",
+            role=SystemUser.Role.OPERATOR,
+        )
+        self.linked_employee = Employee.objects.create(
+            full_name="Linked Access Employee",
+            corporate_email="sup.linked@corp.com",
+            email="op.linked.op@test.com",
+            employee_id="EMP-LINKED-ACCESS",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        linked_sim = SIMcard.objects.create(
+            iccid="8900000000000089011",
+            carrier="CarrierLinkedAccess",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.linked_line = PhoneLine.objects.create(
+            phone_number="+5511989891001",
+            sim_card=linked_sim,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_01,
+        )
+        self.active_allocation = AllocationService.allocate_line(
+            employee=self.linked_employee,
+            phone_line=self.linked_line,
+            allocated_by=self.admin,
+        )
+        other_employee = Employee.objects.create(
+            full_name="Other Access Employee",
+            corporate_email="sup.other.acc@corp.com",
+            email="other.emp.acc@corp.com",
+            employee_id="EMP-OTHER-ACCESS-2",
+            teams="Araquari",
+            status=Employee.Status.ACTIVE,
+        )
+        other_sim = SIMcard.objects.create(
+            iccid="8900000000000089012",
+            carrier="CarrierOtherAccess",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.unlinked_line = PhoneLine.objects.create(
+            phone_number="+5511989891002",
+            sim_card=other_sim,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_01,
+        )
+        AllocationService.allocate_line(
+            employee=other_employee,
+            phone_line=self.unlinked_line,
+            allocated_by=self.admin,
+        )
+
+    # --- Queryset ---
+
+    def test_visible_to_user_returns_only_linked_lines_for_operator(self):
+        visible = PhoneLine.visible_to_user(self.operator)
+        pks = list(visible.values_list("pk", flat=True))
+        self.assertIn(self.linked_line.pk, pks)
+        self.assertNotIn(self.unlinked_line.pk, pks)
+
+    def test_visible_to_user_case_insensitive_email_match(self):
+        upper_op = SystemUser.objects.create_user(
+            email="Op.Linked.Op@test.com",
+            password="123456",
+            role=SystemUser.Role.OPERATOR,
+        )
+        visible = PhoneLine.visible_to_user(upper_op)
+        pks = list(visible.values_list("pk", flat=True))
+        self.assertIn(self.linked_line.pk, pks)
+
+    def test_visible_to_user_inactive_allocation_denies_access(self):
+        AllocationService.release_line(self.active_allocation, released_by=self.admin)
+        visible = PhoneLine.visible_to_user(self.operator)
+        self.assertFalse(visible.filter(pk=self.linked_line.pk).exists())
+
+    def test_visible_to_user_no_linked_employee_returns_empty(self):
+        visible = PhoneLine.visible_to_user(self.unlinked_operator)
+        self.assertFalse(visible.exists())
+
+    def test_admin_visibility_unchanged(self):
+        visible = PhoneLine.visible_to_user(self.admin)
+        pks = list(visible.values_list("pk", flat=True))
+        self.assertIn(self.linked_line.pk, pks)
+        self.assertIn(self.unlinked_line.pk, pks)
+
+    # --- Detail view ---
+
+    def test_operator_can_access_linked_phoneline_detail(self):
+        self.client.force_login(self.operator)
+        resp = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.linked_line.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+
+    def test_operator_cannot_access_unlinked_phoneline_detail(self):
+        self.client.force_login(self.operator)
+        resp = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.unlinked_line.pk])
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_operator_detail_returns_404_after_allocation_released(self):
+        AllocationService.release_line(self.active_allocation, released_by=self.admin)
+        self.client.force_login(self.operator)
+        resp = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.linked_line.pk])
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    # --- Overview redirect ---
+
+    def test_operator_overview_redirects_to_linked_line(self):
+        self.client.force_login(self.operator)
+        resp = self.client.get(reverse("telecom:overview"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(
+            reverse("telecom:phoneline_detail", args=[self.linked_line.pk]),
+            resp["Location"],
+        )
+
+    def test_operator_overview_returns_403_with_no_linked_line(self):
+        self.client.force_login(self.unlinked_operator)
+        resp = self.client.get(reverse("telecom:overview"))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_operator_overview_ajax_returns_403(self):
+        self.client.force_login(self.operator)
+        resp = self.client.get(
+            reverse("telecom:overview"),
+            {"table": "main", "offset": 0, "limit": 10},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    # --- Reconnect endpoints ---
+
+    @override_settings(RECONNECT_ENABLED=True)
+    @patch("telecom.views.get_reconnect_service")
+    def test_operator_reconnect_start_works_for_linked_line(self, mocked_service):
+        mocked_service.return_value = FakeReconnectWebService()
+        self.client.force_login(self.operator)
+        resp = self.client.post(
+            reverse("telecom:phoneline_reconnect_start", args=[self.linked_line.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["status"], "QUEUED")
+
+    @override_settings(RECONNECT_ENABLED=True)
+    @patch("telecom.views.get_reconnect_service")
+    def test_operator_reconnect_start_returns_404_for_unlinked_line(self, mocked_service):
+        mocked_service.return_value = FakeReconnectWebService()
+        self.client.force_login(self.operator)
+        resp = self.client.post(
+            reverse("telecom:phoneline_reconnect_start", args=[self.unlinked_line.pk])
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    # --- Allocation management blocked ---
+
+    def test_operator_cannot_access_allocation_list(self):
+        self.client.force_login(self.operator)
+        resp = self.client.get(reverse("allocations:allocation_list"))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_operator_cannot_post_allocation_release(self):
+        self.client.force_login(self.operator)
+        resp = self.client.post(
+            reverse("allocations:allocation_release", args=[self.active_allocation.pk])
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_operator_cannot_access_allocation_edit(self):
+        self.client.force_login(self.operator)
+        resp = self.client.get(
+            reverse("allocations:allocation_edit", args=[self.active_allocation.pk])
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    # --- Dashboard blocked ---
+
+    def test_operator_is_redirected_from_dashboard(self):
+        self.client.force_login(self.operator)
+        resp = self.client.get(reverse("dashboard"))
+        self.assertNotEqual(resp.status_code, 200)
+
+    # --- Navigation ---
+
+    def test_operator_nav_does_not_show_dashboard_or_daily_actions(self):
+        self.client.force_login(self.operator)
+        resp = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.linked_line.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, 'aria-label="Dashboard"', html=False)
+        self.assertNotContains(resp, 'aria-label="Ações do Dia"', html=False)
+
+    def test_operator_nav_does_not_show_cadastro_or_upload(self):
+        self.client.force_login(self.operator)
+        resp = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.linked_line.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, 'aria-label="Cadastro"', html=False)
+        self.assertNotContains(resp, 'aria-label="Upload"', html=False)

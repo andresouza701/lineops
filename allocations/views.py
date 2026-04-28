@@ -24,7 +24,7 @@ from .models import LineAllocation
 
 
 class RegistrationHubView(RoleRequiredMixin, TemplateView):
-    allowed_roles = [SystemUser.Role.ADMIN, SystemUser.Role.OPERATOR]
+    allowed_roles = [SystemUser.Role.ADMIN]
     template_name = "allocations/allocation_list.html"
 
     def get_context_data(self, **kwargs):
@@ -176,7 +176,7 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
 
 
 class LineAllocationReleaseView(RoleRequiredMixin, View):
-    allowed_roles = [SystemUser.Role.ADMIN, SystemUser.Role.OPERATOR]
+    allowed_roles = [SystemUser.Role.ADMIN]
 
     def post(self, request, pk):
         allocation = get_object_or_404(
@@ -195,7 +195,7 @@ class LineAllocationReleaseView(RoleRequiredMixin, View):
 
 
 class AllocationEditView(RoleRequiredMixin, View):
-    allowed_roles = [SystemUser.Role.ADMIN, SystemUser.Role.OPERATOR]
+    allowed_roles = [SystemUser.Role.ADMIN]
 
     def get(self, request, pk):
         allocation = get_object_or_404(
