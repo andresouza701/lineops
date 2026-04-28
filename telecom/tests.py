@@ -804,15 +804,33 @@ class TelecomPermissionTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'aria-label="Telecom"', html=False)
 
-    def test_operator_is_denied_on_telecom_views(self):
+    def test_operator_can_access_telecom_overview(self):
         self.client.force_login(self.operator)
 
         resp = self.client.get(reverse("telecom:overview"))
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 200)
 
     def test_anonymous_redirected_to_login(self):
         resp = self.client.get(reverse("telecom:overview"))
         self.assertEqual(resp.status_code, 403)
+
+    def test_operator_overview_does_not_show_admin_actions(self):
+        self.client.force_login(self.operator)
+
+        resp = self.client.get(reverse("telecom:overview"))
+
+        self.assertEqual(resp.status_code, 200)
+        # JS flag confirma que ações admin estão desabilitadas no cliente
+        self.assertContains(resp, "const canManageTelecom = false")
+        # URLs de edição/histórico da linha não aparecem nos rows renderizados
+        self.assertNotContains(
+            resp,
+            reverse("telecom:phoneline_update", args=[self.line.pk]),
+        )
+        self.assertNotContains(
+            resp,
+            reverse("telecom:phoneline_history", args=[self.line.pk]),
+        )
 
 
 class PhoneLineViewsTest(TestCase):
@@ -3290,3 +3308,216 @@ class WhatsappReconnectHistoryViewsTest(TestCase):
         self.assertIsNone(entry.finished_at)
         data = response.json()
         self.assertEqual(data["entries"][0]["outcome_display"], "Em andamento")
+
+
+@override_settings(RECONNECT_ENABLED=True)
+class OperatorReconnectAccessTests(TestCase):
+    """Verifies OPERATOR role can use detail view and reconnect with limited UI."""
+
+    def setUp(self):
+        self.operator = SystemUser.objects.create_user(
+            email="operator.reconnect.access@test.com",
+            password="123456",
+            role=SystemUser.Role.OPERATOR,
+        )
+        sim_eligible = SIMcard.objects.create(
+            iccid="8900000000000077001",
+            carrier="CarrierOp",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        sim_non_eligible = SIMcard.objects.create(
+            iccid="8900000000000077002",
+            carrier="CarrierOp",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.eligible_line = PhoneLine.objects.create(
+            phone_number="+5511977770001",
+            sim_card=sim_eligible,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_01,
+        )
+        self.non_eligible_line = PhoneLine.objects.create(
+            phone_number="+5511977770002",
+            sim_card=sim_non_eligible,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_02,
+        )
+
+    # --- Overview access ---
+
+    def test_operator_can_access_overview(self):
+        self.client.force_login(self.operator)
+
+        resp = self.client.get(reverse("telecom:overview"))
+
+        self.assertEqual(resp.status_code, 200)
+
+    def test_operator_overview_shows_reconnect_button_for_eligible_line(self):
+        self.client.force_login(self.operator)
+
+        resp = self.client.get(reverse("telecom:overview"))
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(
+            resp,
+            f'{reverse("telecom:phoneline_detail", args=[self.eligible_line.pk])}#reconnect-whatsapp',
+        )
+        self.assertNotContains(
+            resp,
+            f'{reverse("telecom:phoneline_detail", args=[self.non_eligible_line.pk])}#reconnect-whatsapp',
+        )
+
+    def test_operator_overview_ajax_does_not_return_edit_or_history_url(self):
+        self.client.force_login(self.operator)
+
+        resp = self.client.get(
+            reverse("telecom:overview"),
+            {"table": "main", "offset": 0, "limit": 10},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.json()
+        for item in payload["data"]:
+            self.assertNotIn("edit_url", item)
+            self.assertNotIn("history_url", item)
+
+    # --- Detail view access ---
+
+    def test_operator_can_access_phoneline_detail(self):
+        self.client.force_login(self.operator)
+
+        resp = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.eligible_line.pk])
+        )
+
+        self.assertEqual(resp.status_code, 200)
+
+    def test_operator_detail_shows_reconnect_section_for_srvmemu_01(self):
+        self.client.force_login(self.operator)
+
+        resp = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.eligible_line.pk])
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Reconexao WhatsApp")
+        self.assertContains(resp, "data-reconnect-root")
+
+    def test_operator_detail_does_not_show_edit_or_history(self):
+        self.client.force_login(self.operator)
+
+        resp = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.eligible_line.pk])
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(
+            resp,
+            reverse("telecom:phoneline_update", args=[self.eligible_line.pk]),
+        )
+        self.assertNotContains(
+            resp,
+            reverse("telecom:phoneline_history", args=[self.eligible_line.pk]),
+        )
+
+    def test_operator_detail_hides_reconnect_for_non_eligible_origin(self):
+        self.client.force_login(self.operator)
+
+        resp = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.non_eligible_line.pk])
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, "Reconexao WhatsApp")
+        self.assertNotContains(resp, "data-reconnect-root")
+
+    # --- Reconnect endpoints ---
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_operator_can_call_reconnect_start(self, mocked_service):
+        mocked_service.return_value = FakeReconnectWebService()
+        self.client.force_login(self.operator)
+
+        resp = self.client.post(
+            reverse("telecom:phoneline_reconnect_start", args=[self.eligible_line.pk])
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["status"], "QUEUED")
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_operator_can_call_reconnect_status(self, mocked_service):
+        mocked_service.return_value = FakeReconnectWebService()
+        self.client.force_login(self.operator)
+
+        resp = self.client.get(
+            reverse("telecom:phoneline_reconnect_status", args=[self.eligible_line.pk])
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["status"], "WAITING_FOR_CODE")
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_operator_can_call_reconnect_submit_code(self, mocked_service):
+        mocked_service.return_value = FakeReconnectWebService()
+        self.client.force_login(self.operator)
+
+        resp = self.client.post(
+            reverse(
+                "telecom:phoneline_reconnect_submit_code",
+                args=[self.eligible_line.pk],
+            ),
+            {"session_id": "sess-web-1", "pair_code": "ABC123"},
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["status"], "SUBMITTING_CODE")
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_operator_can_call_reconnect_cancel(self, mocked_service):
+        mocked_service.return_value = FakeReconnectWebService()
+        self.client.force_login(self.operator)
+
+        resp = self.client.post(
+            reverse(
+                "telecom:phoneline_reconnect_cancel",
+                args=[self.eligible_line.pk],
+            ),
+            {"session_id": "sess-web-1"},
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["status"], "CANCELLED")
+
+    def test_operator_reconnect_start_returns_404_for_non_eligible_origin(self):
+        self.client.force_login(self.operator)
+
+        resp = self.client.post(
+            reverse(
+                "telecom:phoneline_reconnect_start",
+                args=[self.non_eligible_line.pk],
+            )
+        )
+
+        self.assertEqual(resp.status_code, 404)
+
+    # --- Admin views remain blocked ---
+
+    def test_operator_is_denied_on_phoneline_update(self):
+        self.client.force_login(self.operator)
+
+        resp = self.client.get(
+            reverse("telecom:phoneline_update", args=[self.eligible_line.pk])
+        )
+
+        self.assertEqual(resp.status_code, 403)
+
+    def test_operator_is_denied_on_phoneline_history(self):
+        self.client.force_login(self.operator)
+
+        resp = self.client.get(
+            reverse("telecom:phoneline_history", args=[self.eligible_line.pk])
+        )
+
+        self.assertEqual(resp.status_code, 403)

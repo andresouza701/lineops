@@ -43,6 +43,7 @@ RECONNECT_ALLOWED_ROLES = [
     SystemUser.Role.SUPER,
     SystemUser.Role.BACKOFFICE,
     SystemUser.Role.GERENTE,
+    SystemUser.Role.OPERATOR,
 ]
 RECONNECT_ALLOWED_ORIGENS = {PhoneLine.Origem.SRVMEMU_01}
 
