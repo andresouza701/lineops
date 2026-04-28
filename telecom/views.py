@@ -460,8 +460,27 @@ class PhoneLineReconnectHistoryView(PhoneLineReconnectBaseView):
             raise Http404
 
         from telecom.models import WhatsappReconnectHistory
+        from telecom.services.reconnect_history_service import (
+            WhatsappReconnectHistoryService,
+        )
 
         phone_line = self.get_phone_line()
+
+        if WhatsappReconnectHistory.objects.filter(
+            phone_line=phone_line, outcome__isnull=True
+        ).exists():
+            try:
+                reconnect_service = self.get_service()
+                WhatsappReconnectHistoryService.reconcile_open_entries_for_line(
+                    phone_line=phone_line,
+                    repository=reconnect_service.repository,
+                )
+            except Exception:
+                logger.warning(
+                    "Could not reconcile open reconnect history for phone_line %s",
+                    phone_line.pk,
+                )
+
         entries = (
             WhatsappReconnectHistory.objects.filter(phone_line=phone_line)
             .select_related("started_by")

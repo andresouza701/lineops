@@ -3185,3 +3185,108 @@ class WhatsappReconnectHistoryViewsTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 404)
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_history_closes_stale_open_entry_when_mongo_session_not_found(
+        self, mocked_service
+    ):
+        """Open entry with no corresponding Mongo session → closed as CANCELLED/stale."""
+
+        class FakeRepoSessionNotFound:
+            def get_session(self, session_id):
+                return None
+
+        fake_svc = FakeReconnectWebService()
+        fake_svc.repository = FakeRepoSessionNotFound()
+        mocked_service.return_value = fake_svc
+
+        WhatsappReconnectHistory.objects.create(
+            phone_line=self.line,
+            session_id="sess-stale-1",
+            started_by=self.admin,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_reconnect_history", args=[self.line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        entry = WhatsappReconnectHistory.objects.get(session_id="sess-stale-1")
+        self.assertEqual(entry.outcome, WhatsappReconnectHistory.Outcome.CANCELLED)
+        self.assertIsNotNone(entry.finished_at)
+        self.assertEqual(entry.error_code, "stale_session")
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_history_closes_open_entry_when_mongo_session_is_terminal(
+        self, mocked_service
+    ):
+        """Open entry whose Mongo session is already FAILED → closed with FAILED outcome."""
+
+        class FakeRepoTerminalSession:
+            def get_session(self, session_id):
+                return {
+                    "_id": session_id,
+                    "status": "FAILED",
+                    "attempt": 3,
+                    "error_code": "timeout",
+                    "error_message": "Tempo limite excedido",
+                }
+
+        fake_svc = FakeReconnectWebService()
+        fake_svc.repository = FakeRepoTerminalSession()
+        mocked_service.return_value = fake_svc
+
+        WhatsappReconnectHistory.objects.create(
+            phone_line=self.line,
+            session_id="sess-terminal-mongo-1",
+            started_by=self.admin,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_reconnect_history", args=[self.line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        entry = WhatsappReconnectHistory.objects.get(session_id="sess-terminal-mongo-1")
+        self.assertEqual(entry.outcome, WhatsappReconnectHistory.Outcome.FAILED)
+        self.assertIsNotNone(entry.finished_at)
+        self.assertEqual(entry.error_code, "timeout")
+        self.assertEqual(entry.attempt_count, 3)
+
+    @patch("telecom.views.get_reconnect_service")
+    def test_history_does_not_close_entry_when_mongo_session_is_active(
+        self, mocked_service
+    ):
+        """Open entry whose Mongo session is still QUEUED → stays as Em andamento."""
+
+        class FakeRepoActiveSession:
+            def get_session(self, session_id):
+                return {
+                    "_id": session_id,
+                    "status": "QUEUED",
+                    "attempt": 0,
+                }
+
+        fake_svc = FakeReconnectWebService()
+        fake_svc.repository = FakeRepoActiveSession()
+        mocked_service.return_value = fake_svc
+
+        WhatsappReconnectHistory.objects.create(
+            phone_line=self.line,
+            session_id="sess-active-mongo-1",
+            started_by=self.admin,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_reconnect_history", args=[self.line.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        entry = WhatsappReconnectHistory.objects.get(session_id="sess-active-mongo-1")
+        self.assertIsNone(entry.outcome)
+        self.assertIsNone(entry.finished_at)
+        data = response.json()
+        self.assertEqual(data["entries"][0]["outcome_display"], "Em andamento")
