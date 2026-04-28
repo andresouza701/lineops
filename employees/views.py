@@ -8,7 +8,10 @@ from django.views import View
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
 from allocations.models import LineAllocation
-from core.integrity import is_duplicate_employee_name_error
+from core.integrity import (
+    is_duplicate_employee_email_error,
+    is_duplicate_employee_name_error,
+)
 from core.mixins import RoleRequiredMixin
 from core.services.allocation_service import AllocationService
 from core.validation import parse_non_negative_int
@@ -17,6 +20,7 @@ from users.models import SystemUser
 from .models import Employee, EmployeeHistory
 
 DUPLICATE_EMPLOYEE_NAME_MESSAGE = "Já existe um usuário cadastrado com este nome."
+DUPLICATE_EMPLOYEE_EMAIL_MESSAGE = "Já existe um negociador cadastrado com este email."
 
 
 class EmployeeListView(RoleRequiredMixin, ListView):
@@ -50,6 +54,7 @@ class EmployeeListView(RoleRequiredMixin, ListView):
             data.append(
                 {
                     "id": emp.pk,
+                    "email": emp.email or "",
                     "corporate_email": emp.corporate_email,
                     "full_name": emp.full_name,
                     "line": lines,
@@ -144,6 +149,10 @@ class EmployeeCreateView(RoleRequiredMixin, CreateView):
         try:
             response = super().form_valid(form)
         except IntegrityError as exc:
+            if is_duplicate_employee_email_error(exc):
+                form.add_error("email", DUPLICATE_EMPLOYEE_EMAIL_MESSAGE)
+                messages.error(self.request, "Corrija os erros do usuário.")
+                return self.form_invalid(form)
             if not is_duplicate_employee_name_error(exc):
                 raise
             form.add_error("full_name", DUPLICATE_EMPLOYEE_NAME_MESSAGE)
@@ -173,6 +182,10 @@ class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
         try:
             response = super().form_valid(form)
         except IntegrityError as exc:
+            if is_duplicate_employee_email_error(exc):
+                form.add_error("email", DUPLICATE_EMPLOYEE_EMAIL_MESSAGE)
+                messages.error(self.request, "Corrija os erros do usuário.")
+                return self.form_invalid(form)
             if not is_duplicate_employee_name_error(exc):
                 raise
             form.add_error("full_name", DUPLICATE_EMPLOYEE_NAME_MESSAGE)

@@ -43,6 +43,7 @@ class UploadServiceTests(TestCase):
         self.assertEqual(employee.status, Employee.Status.ACTIVE)
         self.assertEqual(employee.pa, "PA-10")
         self.assertEqual(employee.manager_email, "gerente@test.com")
+        self.assertIsNone(employee.email)
         self.assertEqual(simcard.status, SIMcard.Status.AVAILABLE)
         phone_line = PhoneLine.objects.get(phone_number="+5511999990000")
         self.assertEqual(phone_line.status, PhoneLine.Status.AVAILABLE)
@@ -65,6 +66,100 @@ class UploadServiceTests(TestCase):
         self.assertEqual(employee.status, Employee.Status.INACTIVE)
         self.assertEqual(employee.manager_email, "gerente-2@test.com")
         self.assertEqual(simcard.carrier, "Carrier B")
+
+    def test_process_creates_employee_with_negotiator_email(self):
+        csv_content = (
+            "type,full_name,email,corporate_email,manager_email,employee_id,teams,status,iccid,carrier\n"
+            "employee,Alice Email, ALICE.EMAIL@LINEOPS.TECH ,supervisor@test.com,gerente@test.com,Pepsico,Joinville,ativo,,\n"
+        )
+        path = self._write("employee_email.csv", csv_content)
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(summary.rows_processed, 1)
+        self.assertFalse(summary.errors)
+        employee = Employee.objects.get(full_name="Alice Email")
+        self.assertEqual(employee.email, "alice.email@lineops.tech")
+        self.assertEqual(employee.corporate_email, "supervisor@test.com")
+
+    def test_process_accepts_employee_email_alias(self):
+        csv_content = (
+            "type,full_name,employee_email,corporate_email,manager_email,employee_id,teams,status,iccid,carrier\n"
+            "employee,Alice Alias, ALIAS.EMAIL@LINEOPS.TECH ,supervisor@test.com,gerente@test.com,Pepsico,Joinville,ativo,,\n"
+        )
+        path = self._write("employee_email_alias.csv", csv_content)
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(summary.rows_processed, 1)
+        self.assertFalse(summary.errors)
+        employee = Employee.objects.get(full_name="Alice Alias")
+        self.assertEqual(employee.email, "alias.email@lineops.tech")
+
+    def test_process_updates_existing_employee_with_negotiator_email(self):
+        employee = Employee.objects.create(
+            full_name="Alice Update Email",
+            corporate_email="supervisor@corp.com",
+            manager_email="gerente@corp.com",
+            employee_id="Ambiental",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        csv_content = (
+            "type,full_name,email,corporate_email,manager_email,employee_id,teams,status,iccid,carrier\n"
+            "employee,Alice Update Email,UPDATE.EMAIL@LINEOPS.TECH,supervisor@corp.com,gerente@corp.com,Ambiental,Joinville,ativo,,\n"
+        )
+        path = self._write("update_employee_email.csv", csv_content)
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(summary.rows_processed, 1)
+        self.assertFalse(summary.errors)
+        self.assertEqual(summary.employees_updated, 1)
+        employee.refresh_from_db()
+        self.assertEqual(employee.email, "update.email@lineops.tech")
+
+    def test_upload_with_empty_email_preserves_existing_email(self):
+        employee = Employee.objects.create(
+            full_name="Alice Preserve Email",
+            email="preserve@lineops.tech",
+            corporate_email="supervisor@corp.com",
+            employee_id="Ambiental",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        csv_content = (
+            "type,full_name,email,corporate_email,employee_id,teams,status,iccid,carrier\n"
+            "employee,Alice Preserve Email,,supervisor@corp.com,Ambiental,Joinville,ativo,,\n"
+        )
+        path = self._write("preserve_email.csv", csv_content)
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(summary.rows_processed, 1)
+        self.assertFalse(summary.errors)
+        employee.refresh_from_db()
+        self.assertEqual(employee.email, "preserve@lineops.tech")
+
+    def test_upload_with_duplicate_email_reports_error(self):
+        Employee.objects.create(
+            full_name="Alice Dono Email",
+            email="duplicado.upload@lineops.tech",
+            corporate_email="supervisor@corp.com",
+            employee_id="Ambiental",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        csv_content = (
+            "type,full_name,email,corporate_email,employee_id,teams,status,iccid,carrier\n"
+            "employee,Alice Nova Duplicada,duplicado.upload@lineops.tech,supervisor@corp.com,Ambiental,Joinville,ativo,,\n"
+        )
+        path = self._write("duplicate_email_upload.csv", csv_content)
+
+        summary = process_upload_file(path)
+
+        self.assertEqual(len(summary.errors), 1)
+        self.assertFalse(Employee.objects.filter(full_name="Alice Nova Duplicada").exists())
 
     def test_process_collects_errors(self):
         broken_csv = (

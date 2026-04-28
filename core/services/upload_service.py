@@ -205,6 +205,13 @@ def _upsert_employee(row: dict[str, str], summary: UploadSummary) -> None:
         "status": status,
         "is_deleted": False,
     }
+    employee_email = normalize_email_address(
+        row.get("email") or row.get("employee_email")
+    )
+    # Coluna ausente ou vazia preserva o email existente (sem limpeza via upload).
+    if employee_email:
+        fields["email"] = employee_email
+
     supervisor_email = normalize_email_address(row.get("corporate_email"))
     if supervisor_email:
         fields["corporate_email"] = supervisor_email

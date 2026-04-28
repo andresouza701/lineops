@@ -54,6 +54,7 @@ class EmployeeModelTest(TestCase):
     def test_save_normalizes_employee_fields(self) -> None:
         employee = Employee.objects.create(
             full_name="  mARIA   da   sILVA  ",
+            email="  NEGOCIADOR@LINEOPS.TECH ",
             corporate_email="  SUPERVISOR@LINEOPS.TECH ",
             manager_email="  GERENTE@LINEOPS.TECH ",
             employee_id=" viasata ",
@@ -65,6 +66,7 @@ class EmployeeModelTest(TestCase):
         employee.refresh_from_db()
 
         self.assertEqual(employee.full_name, "Maria da Silva")
+        self.assertEqual(employee.email, "negociador@lineops.tech")
         self.assertEqual(employee.corporate_email, "supervisor@lineops.tech")
         self.assertEqual(employee.manager_email, "gerente@lineops.tech")
         self.assertEqual(employee.employee_id, "ViaSat")
@@ -83,6 +85,42 @@ class EmployeeModelTest(TestCase):
         employee.refresh_from_db()
 
         self.assertEqual(employee.full_name, "Deleted B2C User")
+
+    def test_employee_email_is_optional(self) -> None:
+        employee = Employee.objects.create(**self.base_data)
+
+        self.assertIsNone(employee.email)
+
+    def test_active_employee_email_is_unique_case_insensitive(self) -> None:
+        Employee.objects.create(email="negociador@lineops.tech", **self.base_data)
+
+        with self.assertRaises(IntegrityError):
+            Employee.objects.create(
+                full_name="Email Duplicado",
+                email=" NEGOCIADOR@LINEOPS.TECH ",
+                corporate_email="supervisor2@lineops.tech",
+                employee_id="EMP-1005",
+                teams=Employee.UnitChoices.ARAQUARI,
+                status=Employee.Status.ACTIVE,
+            )
+
+    def test_soft_deleted_employee_email_can_be_reused(self) -> None:
+        employee = Employee.objects.create(
+            email="reuse@lineops.tech",
+            **self.base_data,
+        )
+        employee.delete()
+
+        reused = Employee.objects.create(
+            full_name="Email Reutilizado",
+            email="REUSE@LINEOPS.TECH",
+            corporate_email="supervisor2@lineops.tech",
+            employee_id="EMP-1006",
+            teams=Employee.UnitChoices.ARAQUARI,
+            status=Employee.Status.ACTIVE,
+        )
+
+        self.assertEqual(reused.email, "reuse@lineops.tech")
 
 
 class EmployeeListViewTest(TestCase):
@@ -187,6 +225,48 @@ class EmployeeListViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "<th>Linha</th>", html=False)
         self.assertContains(response, "+5511999999999")
+
+    def test_employee_list_shows_negotiator_email(self) -> None:
+        self.employee.email = "aline.negociadora@lineops.tech"
+        self.employee.save(update_fields=["email"])
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("employees:employee_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<th>Email</th>", html=False)
+        self.assertContains(response, "aline.negociadora@lineops.tech")
+
+    def test_ajax_employee_list_includes_negotiator_email(self) -> None:
+        self.employee.email = "aline.ajax@lineops.tech"
+        self.employee.save(update_fields=["email"])
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("employees:employee_list"),
+            {"offset": 0, "limit": 10},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        target = next(item for item in payload["data"] if item["id"] == self.employee.pk)
+        self.assertEqual(target["email"], "aline.ajax@lineops.tech")
+
+    def test_ajax_employee_list_returns_empty_string_when_no_email(self) -> None:
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("employees:employee_list"),
+            {"offset": 0, "limit": 10},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        target = next(item for item in payload["data"] if item["id"] == self.employee.pk)
+        self.assertIn("email", target)
+        self.assertEqual(target["email"], "")
 
     def test_admin_can_filter_by_team(self) -> None:
         self.client.force_login(self.admin)
@@ -397,6 +477,23 @@ class EmployeeHistoryAuditTest(TestCase):
         self.assertIn("PA:", updated_event.new_value)
         self.assertIn("PA-123", updated_event.new_value)
 
+    def test_email_change_is_recorded_in_updated_history(self) -> None:
+        set_current_user(self.admin)
+        try:
+            self.employee.email = "historico.negociador@lineops.tech"
+            self.employee.save(update_fields=["email"])
+        finally:
+            clear_current_user()
+
+        updated_event = EmployeeHistory.objects.filter(
+            employee=self.employee,
+            action=EmployeeHistory.ActionType.UPDATED,
+        ).first()
+
+        self.assertIsNotNone(updated_event)
+        self.assertIn("Email:", updated_event.new_value)
+        self.assertIn("historico.negociador@lineops.tech", updated_event.new_value)
+
     def test_deactivate_view_releases_active_allocations_before_soft_delete(
         self,
     ) -> None:
@@ -492,6 +589,7 @@ class EmployeeFormPortfolioChoicesTest(TestCase):
         form = EmployeeForm(
             data={
                 "full_name": "New User",
+                "email": "",
                 "corporate_email": "supervisor@test.com",
                 "employee_id": "",
                 "teams": "",
@@ -516,6 +614,7 @@ class EmployeeFormPortfolioChoicesTest(TestCase):
         form = EmployeeForm(
             data={
                 "full_name": "  maria silva  ",
+                "email": "",
                 "corporate_email": "supervisor@test.com",
                 "employee_id": "Ambiental",
                 "teams": Employee.UnitChoices.JOINVILLE,
@@ -539,6 +638,7 @@ class EmployeeFormPortfolioChoicesTest(TestCase):
         form = EmployeeForm(
             data={
                 "full_name": " carlos dias ",
+                "email": "",
                 "corporate_email": "supervisor@test.com",
                 "employee_id": "Ambiental",
                 "teams": Employee.UnitChoices.ARAQUARI,
@@ -549,6 +649,97 @@ class EmployeeFormPortfolioChoicesTest(TestCase):
         )
 
         self.assertTrue(form.is_valid())
+
+    def test_form_normalizes_negotiator_email(self) -> None:
+        form = EmployeeForm(
+            data={
+                "full_name": "Email Form",
+                "email": "  FORM.EMAIL@LINEOPS.TECH ",
+                "corporate_email": "supervisor@test.com",
+                "employee_id": "Ambiental",
+                "teams": Employee.UnitChoices.JOINVILLE,
+                "status": Employee.Status.ACTIVE,
+                "pa": "",
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["email"], "form.email@lineops.tech")
+
+    def test_form_blocks_duplicate_negotiator_email(self) -> None:
+        Employee.objects.create(
+            full_name="Email Existente",
+            email="existente@lineops.tech",
+            corporate_email="supervisor@test.com",
+            employee_id="Carteira A",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+
+        form = EmployeeForm(
+            data={
+                "full_name": "Email Novo",
+                "email": " EXISTENTE@LINEOPS.TECH ",
+                "corporate_email": "supervisor@test.com",
+                "employee_id": "Ambiental",
+                "teams": Employee.UnitChoices.JOINVILLE,
+                "status": Employee.Status.ACTIVE,
+                "pa": "",
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("email", form.errors)
+
+    def test_form_allows_updating_same_email_for_same_instance(self) -> None:
+        employee = Employee.objects.create(
+            full_name="Carlos Email Mesmo",
+            email="carlos.mesmo@lineops.tech",
+            corporate_email="supervisor@test.com",
+            employee_id="Ambiental",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+
+        form = EmployeeForm(
+            data={
+                "full_name": "Carlos Email Mesmo",
+                "email": "carlos.mesmo@lineops.tech",
+                "corporate_email": "supervisor@test.com",
+                "employee_id": "Ambiental",
+                "teams": Employee.UnitChoices.JOINVILLE,
+                "status": Employee.Status.ACTIVE,
+                "pa": "",
+            },
+            instance=employee,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_form_allows_reusing_email_of_soft_deleted_employee(self) -> None:
+        deleted = Employee.objects.create(
+            full_name="Deletado Email Form",
+            email="deletado.form@lineops.tech",
+            corporate_email="supervisor@test.com",
+            employee_id="Ambiental",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+        deleted.delete()
+
+        form = EmployeeForm(
+            data={
+                "full_name": "Novo Apos Deleted",
+                "email": "deletado.form@lineops.tech",
+                "corporate_email": "supervisor@test.com",
+                "employee_id": "Ambiental",
+                "teams": Employee.UnitChoices.JOINVILLE,
+                "status": Employee.Status.ACTIVE,
+                "pa": "",
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
 
 
 class EmployeeCreateUpdateIntegrityHandlingTest(TestCase):
@@ -579,6 +770,7 @@ class EmployeeCreateUpdateIntegrityHandlingTest(TestCase):
                 reverse("employees:employee_create"),
                 {
                     "full_name": "Usuario Novo",
+                    "email": "",
                     "corporate_email": "supervisor@test.com",
                     "employee_id": "Ambiental",
                     "teams": Employee.UnitChoices.JOINVILLE,
@@ -604,6 +796,7 @@ class EmployeeCreateUpdateIntegrityHandlingTest(TestCase):
                 reverse("employees:employee_update", args=[self.employee.pk]),
                 {
                     "full_name": "Usuario Original",
+                    "email": "",
                     "corporate_email": "supervisor@test.com",
                     "employee_id": "Ambiental",
                     "teams": Employee.UnitChoices.JOINVILLE,
@@ -616,6 +809,58 @@ class EmployeeCreateUpdateIntegrityHandlingTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Corrija os erros do usuário.")
         self.assertContains(response, "Já existe um usuário cadastrado com este nome.")
+
+    def test_create_view_handles_duplicate_email_integrity_error(self) -> None:
+        with patch(
+            "employees.views.CreateView.form_valid",
+            side_effect=IntegrityError(
+                "duplicate key value violates unique constraint "
+                "employees_employee_unique_active_email_ci"
+            ),
+        ):
+            response = self.client.post(
+                reverse("employees:employee_create"),
+                {
+                    "full_name": "Email Duplicado Create",
+                    "email": "duplicado@lineops.tech",
+                    "corporate_email": "supervisor@test.com",
+                    "employee_id": "Ambiental",
+                    "teams": Employee.UnitChoices.JOINVILLE,
+                    "status": Employee.Status.ACTIVE,
+                    "pa": "",
+                },
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Corrija os erros do usuário.")
+        self.assertContains(response, "Já existe um negociador cadastrado com este email.")
+
+    def test_update_view_handles_duplicate_email_integrity_error(self) -> None:
+        with patch(
+            "employees.views.UpdateView.form_valid",
+            side_effect=IntegrityError(
+                "duplicate key value violates unique constraint "
+                "employees_employee_unique_active_email_ci"
+            ),
+        ):
+            response = self.client.post(
+                reverse("employees:employee_update", args=[self.employee.pk]),
+                {
+                    "full_name": "Usuario Original",
+                    "email": "duplicado@lineops.tech",
+                    "corporate_email": "supervisor@test.com",
+                    "employee_id": "Ambiental",
+                    "teams": Employee.UnitChoices.JOINVILLE,
+                    "status": Employee.Status.ACTIVE,
+                    "pa": "",
+                },
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Corrija os erros do usuário.")
+        self.assertContains(response, "Já existe um negociador cadastrado com este email.")
 
 
 class EmployeeAdminFormValidationTest(TestCase):
@@ -631,6 +876,7 @@ class EmployeeAdminFormValidationTest(TestCase):
         form = EmployeeAdminForm(
             data={
                 "full_name": " teste super 01 ",
+                "email": "",
                 "corporate_email": "supervisor2@test.com",
                 "employee_id": "EMP-ADM-2",
                 "teams": Employee.UnitChoices.JOINVILLE,
@@ -656,6 +902,7 @@ class EmployeeAdminFormValidationTest(TestCase):
         form = EmployeeAdminForm(
             data={
                 "full_name": " teste super 02 ",
+                "email": "",
                 "corporate_email": "supervisor1@test.com",
                 "employee_id": "EMP-ADM-3",
                 "teams": Employee.UnitChoices.JOINVILLE,
@@ -668,6 +915,60 @@ class EmployeeAdminFormValidationTest(TestCase):
         )
 
         self.assertTrue(form.is_valid())
+
+    def test_admin_form_blocks_duplicate_negotiator_email(self) -> None:
+        Employee.objects.create(
+            full_name="Email Admin 01",
+            email="admin.email@lineops.tech",
+            corporate_email="supervisor1@test.com",
+            employee_id="EMP-ADM-4",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+
+        form = EmployeeAdminForm(
+            data={
+                "full_name": "Email Admin 02",
+                "email": "ADMIN.EMAIL@LINEOPS.TECH",
+                "corporate_email": "supervisor2@test.com",
+                "employee_id": "EMP-ADM-5",
+                "teams": Employee.UnitChoices.JOINVILLE,
+                "status": Employee.Status.ACTIVE,
+                "line_status": Employee.LineStatus.ACTIVE,
+                "pa": "",
+                "is_deleted": False,
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("email", form.errors)
+
+    def test_admin_form_allows_same_email_for_same_instance(self) -> None:
+        employee = Employee.objects.create(
+            full_name="Email Admin Same",
+            email="admin.same@lineops.tech",
+            corporate_email="supervisor1@test.com",
+            employee_id="EMP-ADM-6",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+
+        form = EmployeeAdminForm(
+            data={
+                "full_name": "Email Admin Same",
+                "email": "admin.same@lineops.tech",
+                "corporate_email": "supervisor1@test.com",
+                "employee_id": "EMP-ADM-6",
+                "teams": Employee.UnitChoices.JOINVILLE,
+                "status": Employee.Status.ACTIVE,
+                "line_status": Employee.LineStatus.ACTIVE,
+                "pa": "",
+                "is_deleted": False,
+            },
+            instance=employee,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
 
 
 class EmployeeAdminDeleteBehaviorTest(TestCase):

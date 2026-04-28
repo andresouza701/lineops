@@ -86,6 +86,8 @@ def _normalize_name_token(token: str) -> str:
 
 
 def normalize_email_address(value: str | None) -> str:
+    """Retorna o email normalizado (trim + lowercase), ou '' para entrada vazia/None.
+    Callers que persistem em campo nullable devem aplicar ``or None``."""
     return collapse_whitespace(value).lower()
 
 

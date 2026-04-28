@@ -1,6 +1,7 @@
 from django.db import IntegrityError
 
 DUPLICATE_EMPLOYEE_NAME_CONSTRAINT = "employees_employee_unique_active_full_name_ci"
+DUPLICATE_EMPLOYEE_EMAIL_CONSTRAINT = "employees_employee_unique_active_email_ci"
 DUPLICATE_PHONE_NUMBER_CONSTRAINT = "telecom_phoneline_phone_number_key"
 
 
@@ -34,6 +35,13 @@ def is_duplicate_employee_name_error(exc: IntegrityError) -> bool:
     return integrity_error_matches(
         exc,
         constraint_name=DUPLICATE_EMPLOYEE_NAME_CONSTRAINT,
+    )
+
+
+def is_duplicate_employee_email_error(exc: IntegrityError) -> bool:
+    return integrity_error_matches(
+        exc,
+        constraint_name=DUPLICATE_EMPLOYEE_EMAIL_CONSTRAINT,
     )
 
 
