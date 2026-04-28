@@ -411,18 +411,7 @@ def build_daily_user_action_rows(
                     "action": action,
                     "pendency": pendency,
                     "line_number": allocation.phone_line.phone_number,
-                    "line_status_changed_by_admin": (
-                        _pendency_technical_name(pendency)
-                        or get_user_display_name(
-                            getattr(
-                                latest_admin_status_history_by_phone_line.get(
-                                    allocation.phone_line_id
-                                ),
-                                "changed_by",
-                                None,
-                            )
-                        )
-                    ),
+                    "line_status_changed_by_admin": _pendency_technical_name(pendency),
                     "line_status_changed_at": getattr(
                         latest_status_history_by_phone_line.get(
                             allocation.phone_line_id
