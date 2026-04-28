@@ -47,6 +47,11 @@
                     </a>
                     {% endif %}
                 {% endif %}
+                {% if request.user.is_authenticated and request.user.role != 'dev' and request.user.role != 'operator' %}
+                    <a href="{% url 'dashboard_metrics' %}" class="rail-link {% if current_name == 'dashboard_metrics' %}is-active{% endif %}" aria-label="Metricas" title="Metricas">
+                        <i class="bi bi-bar-chart-line" aria-hidden="true"></i>
+                    </a>
+                {% endif %}
                 {% if request.user.is_authenticated and request.user.role != 'dev' %}
                     <a href="{% url 'daily_user_action_board' %}" class="rail-link {% if current_name == 'daily_indicator_management' or current_name == 'daily_indicator_entry' or current_name == 'daily_indicator_detail' or current_name == 'daily_indicator_edit' or current_name == 'daily_user_action_board' or current_name == 'daily_indicator_day_breakdown' %}is-active{% endif %}" aria-label="Ações do Dia" title="Ações do Dia">
                         <i class="bi bi-clipboard-data" aria-hidden="true"></i>

@@ -24,6 +24,7 @@ from core.mixins import AuthenticadView, RoleRequiredMixin, roles_required
 from core.services.daily_indicator_service import DailyIndicatorService
 from dashboard.services.context_service import get_pending_action_counts_cached
 from dashboard.services.insight_service import build_dashboard_exception_cards
+from dashboard.services.metrics_service import build_pendency_metrics
 from dashboard.services.query_service import (
     build_dashboard_overview_counts,
     build_dashboard_status_counts,
@@ -2093,3 +2094,27 @@ def daily_indicator_day_breakdown(request, day):
         "users": indicator.get("users", []),
     }
     return render(request, "dashboard/daily_indicator_day_breakdown.html", context)
+
+
+@roles_required(*DASHBOARD_ALLOWED_ROLES)
+def pendency_metrics(request):
+    filters = {
+        "line_status": (request.GET.get("line_status") or "").strip(),
+        "action": (request.GET.get("action") or "").strip(),
+        "technical_responsible": (
+            request.GET.get("technical_responsible") or ""
+        ).strip(),
+        "supervisor": (
+            (request.GET.get("supervisor") or "").strip()
+            if request.user.role == SystemUser.Role.ADMIN
+            else ""
+        ),
+    }
+    metrics = build_pendency_metrics(request.user, filters=filters)
+    context = {
+        "title": "Metricas de Pendencias",
+        "line_status_choices": LineAllocation.LineStatus.choices,
+        "action_choices": AllocationPendency.ActionType.choices,
+        **metrics,
+    }
+    return render(request, "dashboard/metrics.html", context)

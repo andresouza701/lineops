@@ -1,0 +1,152 @@
+{% extends "base/base.html" %}
+
+{% block title %}Metricas de Pendencias{% endblock %}
+{% block page_title %}Metricas de Pendencias{% endblock %}
+
+{% block content %}
+<section class="surface-card reveal-item mb-3">
+    <div class="d-flex justify-content-between align-items-end gap-3 flex-wrap">
+        <div>
+            <h2 class="h5 mb-1">Pendencias assumidas</h2>
+            <p class="text-muted mb-0">Visao operacional das pendencias abertas por responsavel tecnico.</p>
+        </div>
+        <form method="get" class="d-flex align-items-end gap-2 flex-wrap" data-no-loading="true">
+            <div>
+                <label for="metrics-line-status" class="form-label mb-1">Status da linha</label>
+                <select id="metrics-line-status" name="line_status" class="form-select">
+                    <option value="">Todos</option>
+                    {% for value, label in line_status_choices %}
+                        <option value="{{ value }}" {% if filters.line_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="metrics-action" class="form-label mb-1">Acao</label>
+                <select id="metrics-action" name="action" class="form-select">
+                    <option value="">Todas</option>
+                    {% for value, label in action_choices %}
+                        {% if value != "no_action" %}
+                            <option value="{{ value }}" {% if filters.action == value %}selected{% endif %}>{{ label }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="metrics-technical" class="form-label mb-1">Responsavel</label>
+                <select id="metrics-technical" name="technical_responsible" class="form-select">
+                    <option value="">Todos</option>
+                    {% for responsible in technical_responsible_choices %}
+                        <option value="{{ responsible.id }}" {% if filters.technical_responsible == responsible.id|stringformat:"s" %}selected{% endif %}>{{ responsible.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% if request.user.role == "admin" %}
+            <div>
+                <label for="metrics-supervisor" class="form-label mb-1">Supervisor</label>
+                <input id="metrics-supervisor" type="search" name="supervisor" value="{{ filters.supervisor }}" class="form-control">
+            </div>
+            {% endif %}
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            <a href="{% url 'dashboard_metrics' %}" class="btn btn-outline-secondary">Limpar</a>
+        </form>
+    </div>
+</section>
+
+<section class="exception-grid reveal-item mb-3">
+    <article class="exception-card severity-info">
+        <p class="exception-title">Pendencias abertas</p>
+        <p class="exception-value metric-mono">{{ summary.open_total }}</p>
+        <p class="exception-description">Acoes diferentes de Sem Acao.</p>
+    </article>
+    <article class="exception-card severity-success">
+        <p class="exception-title">Assumidas</p>
+        <p class="exception-value metric-mono">{{ summary.assigned_total }}</p>
+        <p class="exception-description">Com responsavel tecnico definido.</p>
+    </article>
+    <article class="exception-card severity-warning">
+        <p class="exception-title">Sem responsavel</p>
+        <p class="exception-value metric-mono">{{ summary.unassigned_total }}</p>
+        <p class="exception-description">Aguardando alguem assumir.</p>
+    </article>
+    <article class="exception-card severity-danger">
+        <p class="exception-title">Restritos assumidos</p>
+        <p class="exception-value metric-mono">{{ summary.restricted_assigned_total }}</p>
+        <p class="exception-description">Pendencias assumidas em linhas restritas.</p>
+    </article>
+    <article class="exception-card severity-danger">
+        <p class="exception-title">Banidos assumidos</p>
+        <p class="exception-value metric-mono">{{ summary.banned_assigned_total }}</p>
+        <p class="exception-description">Pendencias assumidas em linhas banidas.</p>
+    </article>
+</section>
+
+<section class="surface-card reveal-item mb-3">
+    <h2 class="h5 mb-3">Ranking por responsavel tecnico</h2>
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Responsavel</th>
+                    <th>Total</th>
+                    <th>Restrito</th>
+                    <th>Banido</th>
+                    <th>Em analise</th>
+                    <th>Aguardando operador</th>
+                    <th>Numero novo</th>
+                    <th>Reconectar</th>
+                    <th>Pendencia</th>
+                    <th>Mais antiga</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in responsible_rankings %}
+                <tr>
+                    <td>{{ row.responsible_name }}</td>
+                    <td>{{ row.total }}</td>
+                    <td>{{ row.restricted }}</td>
+                    <td>{{ row.permanently_banned }}</td>
+                    <td>{{ row.under_analysis }}</td>
+                    <td>{{ row.waiting_operator }}</td>
+                    <td>{{ row.new_number }}</td>
+                    <td>{{ row.reconnect_whatsapp }}</td>
+                    <td>{{ row.pending }}</td>
+                    <td>
+                        {% if row.oldest_submitted_at %}
+                            {{ row.oldest_submitted_at|date:"d/m/Y H:i" }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10" class="text-center text-muted">Nenhuma pendencia assumida encontrada.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="surface-card reveal-item">
+    <h2 class="h5 mb-3">Pendencias sem responsavel</h2>
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Total</th>
+                    <th>Restrito</th>
+                    <th>Banido permanentemente</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>{{ unassigned_breakdown.total }}</td>
+                    <td>{{ unassigned_breakdown.restricted }}</td>
+                    <td>{{ unassigned_breakdown.permanently_banned }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}
