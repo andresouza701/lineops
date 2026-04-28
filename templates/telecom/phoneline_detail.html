@@ -11,9 +11,15 @@
                 Editar
             </a>
         {% endif %}
+        {% if request.user.role == 'operator' %}
+        <a href="{% url 'telecom:operator_lines' %}" class="btn btn-outline-secondary">
+            Voltar
+        </a>
+        {% else %}
         <a href="{% url 'telecom:overview' %}" class="btn btn-outline-secondary">
             Voltar
         </a>
+        {% endif %}
     </div>
 </div>
 

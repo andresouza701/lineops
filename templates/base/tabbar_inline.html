@@ -29,7 +29,13 @@
                 </a>
             </li>
         {% endif %}
-        {% if request.user.role == 'admin' or request.user.role == 'operator' or request.user.role == 'super' or request.user.role == 'backoffice' or request.user.role == 'gerente' %}
+        {% if request.user.role == 'operator' %}
+            <li class="nav-item">
+                <a class="nav-link px-3 py-2 {% if current_ns == 'telecom' %}active{% endif %}" href="{% url 'telecom:operator_lines' %}">
+                    Telecom
+                </a>
+            </li>
+        {% elif request.user.role == 'admin' or request.user.role == 'super' or request.user.role == 'backoffice' or request.user.role == 'gerente' %}
             <li class="nav-item">
                 <a class="nav-link px-3 py-2 {% if current_ns == 'telecom' %}active{% endif %}" href="{% url 'telecom:overview' %}">
                     Telecom

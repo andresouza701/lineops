@@ -61,7 +61,11 @@
                     </a>
                 {% endif %}
                 {% if request.user.is_authenticated %}
-                    {% if request.user.role == 'admin' or request.user.role == 'operator' or request.user.role == 'super' or request.user.role == 'backoffice' or request.user.role == 'gerente' %}
+                    {% if request.user.role == 'operator' %}
+                        <a href="{% url 'telecom:operator_lines' %}" class="rail-link {% if current_ns == 'telecom' %}is-active{% endif %}" aria-label="Telecom" title="Telecom">
+                            <i class="bi bi-broadcast-pin" aria-hidden="true"></i>
+                        </a>
+                    {% elif request.user.role == 'admin' or request.user.role == 'super' or request.user.role == 'backoffice' or request.user.role == 'gerente' %}
                         <a href="{% url 'telecom:overview' %}" class="rail-link {% if current_ns == 'telecom' %}is-active{% endif %}" aria-label="Telecom" title="Telecom">
                             <i class="bi bi-broadcast-pin" aria-hidden="true"></i>
                         </a>

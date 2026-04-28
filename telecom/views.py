@@ -715,6 +715,21 @@ class PhoneLineHistoryView(RoleRequiredMixin, DetailView):
         return context
 
 
+class OperatorLinkedLinesView(RoleRequiredMixin, TemplateView):
+    allowed_roles = [SystemUser.Role.OPERATOR]
+    template_name = "telecom/operator_lines.html"
+
+    def get(self, request, *args, **kwargs):
+        lines = (
+            get_visible_phone_lines_queryset(request.user)
+            .select_related("sim_card")
+            .order_by("phone_number")
+        )
+        if not lines.exists():
+            raise PermissionDenied
+        return self.render_to_response({"phone_lines": lines})
+
+
 class TelecomOverviewView(RoleRequiredMixin, TemplateView):
     allowed_roles = RECONNECT_ALLOWED_ROLES
     template_name = "telecom/overview.html"
@@ -723,17 +738,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
         if (getattr(request.user, "role", "") or "").lower() == SystemUser.Role.OPERATOR:
             if request.headers.get("X-Requested-With") == "XMLHttpRequest":
                 return JsonResponse({"error": "Acesso negado."}, status=403)
-            visible = get_visible_phone_lines_queryset(request.user)
-            first_line = (
-                visible.filter(origem=PhoneLine.Origem.SRVMEMU_01).first()
-                or visible.first()
-            )
-            if first_line is None:
-                raise PermissionDenied
-            return redirect(
-                reverse("telecom:phoneline_detail", args=[first_line.pk])
-                + "#reconnect-whatsapp"
-            )
+            return redirect(reverse("telecom:operator_lines"))
         # Se for requisição AJAX para lazy loading
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return self._handle_ajax_request(request)

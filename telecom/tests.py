@@ -804,11 +804,12 @@ class TelecomPermissionTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'aria-label="Telecom"', html=False)
 
-    def test_operator_without_linked_line_gets_403_on_overview(self):
+    def test_operator_overview_redirects_to_operator_lines(self):
         self.client.force_login(self.operator)
 
         resp = self.client.get(reverse("telecom:overview"))
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp["Location"], reverse("telecom:operator_lines"))
 
     def test_anonymous_redirected_to_login(self):
         resp = self.client.get(reverse("telecom:overview"))
@@ -3350,16 +3351,13 @@ class OperatorReconnectAccessTests(TestCase):
 
     # --- Overview access ---
 
-    def test_operator_overview_redirects_to_eligible_line_detail(self):
+    def test_operator_overview_redirects_to_operator_lines(self):
         self.client.force_login(self.operator)
 
         resp = self.client.get(reverse("telecom:overview"))
 
         self.assertEqual(resp.status_code, 302)
-        self.assertIn(
-            reverse("telecom:phoneline_detail", args=[self.eligible_line.pk]),
-            resp["Location"],
-        )
+        self.assertEqual(resp["Location"], reverse("telecom:operator_lines"))
 
     def test_operator_overview_ajax_returns_403(self):
         self.client.force_login(self.operator)
@@ -3643,18 +3641,15 @@ class OperatorLinkedLineAccessTests(TestCase):
 
     # --- Overview redirect ---
 
-    def test_operator_overview_redirects_to_linked_line(self):
+    def test_operator_overview_redirects_to_operator_lines(self):
         self.client.force_login(self.operator)
         resp = self.client.get(reverse("telecom:overview"))
         self.assertEqual(resp.status_code, 302)
-        self.assertIn(
-            reverse("telecom:phoneline_detail", args=[self.linked_line.pk]),
-            resp["Location"],
-        )
+        self.assertEqual(resp["Location"], reverse("telecom:operator_lines"))
 
-    def test_operator_overview_returns_403_with_no_linked_line(self):
+    def test_operator_lines_returns_403_with_no_linked_line(self):
         self.client.force_login(self.unlinked_operator)
-        resp = self.client.get(reverse("telecom:overview"))
+        resp = self.client.get(reverse("telecom:operator_lines"))
         self.assertEqual(resp.status_code, 403)
 
     def test_operator_overview_ajax_returns_403(self):
@@ -3736,3 +3731,117 @@ class OperatorLinkedLineAccessTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertNotContains(resp, 'aria-label="Cadastro"', html=False)
         self.assertNotContains(resp, 'aria-label="Upload"', html=False)
+
+
+@override_settings(RECONNECT_ENABLED=True)
+class OperatorLinkedLinesViewTests(TestCase):
+    """Tests for the operator-specific linked-lines landing screen."""
+
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="admin.oplines@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.operator = SystemUser.objects.create_user(
+            email="op.lines.view@test.com",
+            password="123456",
+            role=SystemUser.Role.OPERATOR,
+        )
+        self.unlinked_operator = SystemUser.objects.create_user(
+            email="op.lines.nolink@test.com",
+            password="123456",
+            role=SystemUser.Role.OPERATOR,
+        )
+        self.linked_employee = Employee.objects.create(
+            full_name="Op Lines Employee",
+            corporate_email="sup.oplines@corp.com",
+            email="op.lines.view@test.com",
+            employee_id="EMP-OPLINES-01",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        sim_a = SIMcard.objects.create(
+            iccid="8900000000000091001",
+            carrier="CarrierOL",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        sim_b = SIMcard.objects.create(
+            iccid="8900000000000091002",
+            carrier="CarrierOL",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.line_a = PhoneLine.objects.create(
+            phone_number="+5511991910001",
+            sim_card=sim_a,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_01,
+        )
+        self.line_b = PhoneLine.objects.create(
+            phone_number="+5511991910002",
+            sim_card=sim_b,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_01,
+        )
+        AllocationService.allocate_line(
+            employee=self.linked_employee,
+            phone_line=self.line_a,
+            allocated_by=self.admin,
+        )
+        AllocationService.allocate_line(
+            employee=self.linked_employee,
+            phone_line=self.line_b,
+            allocated_by=self.admin,
+        )
+
+    # --- Access control ---
+
+    def test_operator_can_access_operator_lines(self):
+        self.client.force_login(self.operator)
+        resp = self.client.get(reverse("telecom:operator_lines"))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_unlinked_operator_gets_403(self):
+        self.client.force_login(self.unlinked_operator)
+        resp = self.client.get(reverse("telecom:operator_lines"))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_admin_cannot_access_operator_lines(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("telecom:operator_lines"))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_anonymous_gets_403(self):
+        resp = self.client.get(reverse("telecom:operator_lines"))
+        self.assertEqual(resp.status_code, 403)
+
+    # --- Content: all linked lines shown ---
+
+    def test_all_linked_lines_appear_in_response(self):
+        self.client.force_login(self.operator)
+        resp = self.client.get(reverse("telecom:operator_lines"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, self.line_a.phone_number)
+        self.assertContains(resp, self.line_b.phone_number)
+
+    def test_detail_links_present_for_each_line(self):
+        self.client.force_login(self.operator)
+        resp = self.client.get(reverse("telecom:operator_lines"))
+        self.assertContains(
+            resp,
+            reverse("telecom:phoneline_detail", args=[self.line_a.pk]),
+        )
+        self.assertContains(
+            resp,
+            reverse("telecom:phoneline_detail", args=[self.line_b.pk]),
+        )
+
+    # --- Back link on detail goes to operator_lines ---
+
+    def test_phoneline_detail_back_link_points_to_operator_lines(self):
+        self.client.force_login(self.operator)
+        resp = self.client.get(
+            reverse("telecom:phoneline_detail", args=[self.line_a.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, reverse("telecom:operator_lines"))

@@ -5,6 +5,7 @@ from .views import (
     BlipConfigurationListView,
     BlipConfigurationUpdateView,
     ExportPhoneLinesCSVView,
+    OperatorLinkedLinesView,
     PhoneLineCreateView,
     PhoneLineReconnectCancelView,
     PhoneLineReconnectHistoryView,
@@ -25,6 +26,7 @@ app_name = "telecom"
 
 urlpatterns = [
     path("", TelecomOverviewView.as_view(), name="overview"),
+    path("minhas-linhas/", OperatorLinkedLinesView.as_view(), name="operator_lines"),
     path(
         "blip-configurations/",
         BlipConfigurationListView.as_view(),
