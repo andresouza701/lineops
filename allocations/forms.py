@@ -15,7 +15,7 @@ from employees.models import Employee
 from telecom.models import PhoneLine
 
 def sort_choice_pairs(choices):
-    return sorted(list(dict.fromkeys(choices)), key=lambda item: str(item[1]).casefold())
+    return sorted(list(dict.fromkeys(choices)), key=lambda item: str(item[1]))
 
 
 ALL_PORTFOLIOS = sort_choice_pairs(B2B_PORTFOLIOS + B2C_PORTFOLIOS)

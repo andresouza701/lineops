@@ -7,7 +7,7 @@ from core.normalization import normalize_email_address, normalize_full_name
 from .models import Employee
 
 def sort_choice_pairs(choices):
-    return sorted(list(dict.fromkeys(choices)), key=lambda item: str(item[1]).casefold())
+    return sorted(list(dict.fromkeys(choices)), key=lambda item: str(item[1]))
 
 
 ALL_PORTFOLIOS = sort_choice_pairs(B2B_PORTFOLIOS + B2C_PORTFOLIOS)
