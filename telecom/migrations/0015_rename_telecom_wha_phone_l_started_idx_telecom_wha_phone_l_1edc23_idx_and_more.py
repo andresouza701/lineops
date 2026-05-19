@@ -10,10 +10,15 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name='whatsappreconnecthistory',
-            new_name='telecom_wha_phone_l_1edc23_idx',
-            old_name='telecom_wha_phone_l_started_idx',
+        migrations.SeparateDatabaseAndState(
+            database_operations=[],
+            state_operations=[
+                migrations.RenameIndex(
+                    model_name='whatsappreconnecthistory',
+                    new_name='telecom_wha_phone_l_1edc23_idx',
+                    old_name='telecom_wha_phone_l_started_idx',
+                ),
+            ],
         ),
         migrations.AlterField(
             model_name='phoneline',

@@ -357,7 +357,10 @@ class WhatsappReconnectHistory(models.Model):
         verbose_name = "Histórico de Reconexão WhatsApp"
         verbose_name_plural = "Históricos de Reconexão WhatsApp"
         indexes = [
-            models.Index(fields=["phone_line", "-started_at"]),
+            models.Index(
+                fields=["phone_line", "-started_at"],
+                name="telecom_wha_phone_l_1edc23_idx",
+            ),
         ]
 
     def __str__(self):
