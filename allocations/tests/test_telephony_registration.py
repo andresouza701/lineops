@@ -80,7 +80,7 @@ class TelephonyRegistrationFlowTests(TestCase):
             list(form.fields["origem"].choices),
         )
         self.assertIn(
-            (PhoneLine.Canal.WEB, "WEB"),
+            (PhoneLine.Canal.WEB, "Whatsapp Web"),
             list(form.fields["canal"].choices),
         )
 

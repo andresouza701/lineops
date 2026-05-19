@@ -223,7 +223,7 @@ class CombinedSimLineForm(forms.Form):
 
 class BlipConfigurationForm(forms.ModelForm):
     phone_number = forms.TypedChoiceField(
-        label="Numero Telefone",
+        label="Número Telefone",
         choices=(),
         coerce=int,
     )

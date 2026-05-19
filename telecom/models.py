@@ -108,10 +108,12 @@ class PhoneLine(models.Model):
         BLIP = "BLIP", "Blip"
         APARELHO = "APARELHO", "APARELHO"
         PESSOAL = "PESSOAL", "PESSOAL"
+        APARELHO_OP = "APARELHO OP", "Aparelho OP"
 
     class Canal(models.TextChoices):
-        WEB = "WEB", "WEB"
+        WEB = "WEB", "Whatsapp Web"
         MYLOOP = "MYLOOP", "MyLoop"
+        ANYCALL = "ANYCALL", "AnyCall"
 
     phone_number = models.CharField(max_length=20, unique=True)
 
