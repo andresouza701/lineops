@@ -106,8 +106,8 @@ class PhoneLine(models.Model):
         SRVMEMU_05 = "SRVMEMU-05", "SRVMEMU-05"
         SRVMEMU_06 = "SRVMEMU-06", "SRVMEMU-06"
         BLIP = "BLIP", "Blip"
-        APARELHO = "APARELHO", "APARELHO"
-        PESSOAL = "PESSOAL", "PESSOAL"
+        APARELHO = "APARELHO", "Aparelho"
+        PESSOAL = "PESSOAL", "Aparelho Pessoal"
         APARELHO_OP = "APARELHO OP", "Aparelho OP"
 
     class Canal(models.TextChoices):
