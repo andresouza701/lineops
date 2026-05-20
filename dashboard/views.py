@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -820,6 +820,118 @@ def build_pendency_resolved_reconnect_numbers_for_day(day, employee_ids=None):
     return details
 
 
+def _phone_line_visible_at_reference_q(reference_field, prefix=""):
+    return (
+        Q(**{f"{prefix}is_deleted": False})
+        | Q(**{f"{prefix}updated_at__gt": F(reference_field)})
+    ) & (
+        Q(**{f"{prefix}sim_card__is_deleted": False})
+        | Q(**{f"{prefix}sim_card__updated_at__gt": F(reference_field)})
+    )
+
+
+def _get_single_visible_allocation_for_employee_at(employee, day, reference_time):
+    active_allocations = list(
+        LineAllocation.objects.filter(
+            employee=employee,
+            allocated_at__lte=reference_time,
+        )
+        .filter(Q(released_at__isnull=True) | Q(released_at__gt=reference_time))
+        .select_related("phone_line__sim_card")
+        .order_by("-allocated_at")[:2]
+    )
+    active_allocations = [
+        item
+        for item in active_allocations
+        if item.phone_line
+        and phone_line_is_visible_for_day(item.phone_line, day, reference_time)
+    ]
+    if len(active_allocations) == 1:
+        return active_allocations[0]
+    return None
+
+
+def count_admin_resolved_reconnect_numbers_for_day(day, employee_ids=None):
+    count = 0
+    actions = get_admin_resolved_reconnect_actions_queryset(day, employee_ids)
+    for action in actions:
+        reference_time = action.updated_at or timezone.make_aware(
+            datetime.combine(day, time.min)
+        )
+        allocation = action.allocation
+        if not allocation:
+            allocation = _get_single_visible_allocation_for_employee_at(
+                action.employee,
+                day,
+                reference_time,
+            )
+
+        if (
+            allocation
+            and allocation.phone_line
+            and phone_line_is_visible_for_day(
+                allocation.phone_line,
+                day,
+                reference_time,
+            )
+        ):
+            count += 1
+    return count
+
+
+def count_pendency_resolved_reconnect_numbers_for_day(day, employee_ids=None):
+    qs = AllocationPendency.objects.filter(
+        resolved_at__date=day,
+        last_submitted_action=AllocationPendency.ActionType.RECONNECT_WHATSAPP,
+    ).select_related("employee", "allocation__phone_line__sim_card")
+
+    if employee_ids is not None:
+        qs = qs.filter(employee_id__in=employee_ids)
+
+    count = 0
+    for pendency in qs:
+        reference_time = pendency.resolved_at or timezone.make_aware(
+            datetime.combine(day, time.min)
+        )
+        allocation = pendency.allocation
+        if not allocation or not allocation.phone_line:
+            allocation = _get_single_visible_allocation_for_employee_at(
+                pendency.employee,
+                day,
+                reference_time,
+            )
+
+        if (
+            allocation
+            and allocation.phone_line
+            and phone_line_is_visible_for_day(
+                allocation.phone_line,
+                day,
+                allocation.allocated_at or reference_time,
+            )
+        ):
+            count += 1
+    return count
+
+
+def count_reconnected_numbers_for_day(day, employee_ids=None):
+    reconnected_allocations = DailyIndicatorService.get_reconnected_allocations_queryset(
+        day
+    )
+    if employee_ids is not None:
+        reconnected_allocations = reconnected_allocations.filter(
+            employee_id__in=employee_ids
+        )
+    allocation_count = reconnected_allocations.filter(
+        _phone_line_visible_at_reference_q("allocated_at", prefix="phone_line__")
+    ).count()
+    return (
+        allocation_count
+        + count_admin_resolved_reconnect_numbers_for_day(day, employee_ids)
+        + count_pendency_resolved_reconnect_numbers_for_day(day, employee_ids)
+    )
+
+
 def build_reconnected_numbers_for_day(day, employee_ids=None):
     start_of_day = timezone.make_aware(datetime.combine(day, time.min))
     reconnected_allocations = DailyIndicatorService.get_reconnected_allocations_queryset(
@@ -857,6 +969,35 @@ def build_reconnected_numbers_for_day(day, employee_ids=None):
         build_pendency_resolved_reconnect_numbers_for_day(day, employee_ids)
     )
     return reconnected_numbers
+
+
+def build_number_counts_for_day(
+    day: date, base_lines, allocated_line_ids, employee_ids=None
+) -> tuple[int, int, int, int]:
+    """Build number counts without materializing details for summary paths."""
+    start_of_day = timezone.make_aware(datetime.combine(day, time.min))
+    end_of_day = timezone.make_aware(datetime.combine(day, time.max))
+
+    available_count = base_lines.exclude(id__in=allocated_line_ids).count()
+
+    delivered_allocations = LineAllocation.objects.filter(
+        allocated_at__range=(start_of_day, end_of_day)
+    )
+    if employee_ids is not None:
+        delivered_allocations = delivered_allocations.filter(employee_id__in=employee_ids)
+    delivered_count = delivered_allocations.filter(
+        _phone_line_visible_at_reference_q("allocated_at", prefix="phone_line__")
+    ).count()
+
+    reconnected_count = count_reconnected_numbers_for_day(day, employee_ids)
+
+    new_count = (
+        PhoneLine.all_objects.filter(created_at__range=(start_of_day, end_of_day))
+        .filter(_phone_line_visible_at_reference_q("created_at"))
+        .count()
+    )
+
+    return available_count, delivered_count, reconnected_count, new_count
 
 
 def get_visible_phone_lines_for_day(day):
@@ -1081,7 +1222,6 @@ def build_indicator_for_day(
     allocated_line_ids = global_active_allocations.values_list(
         "phone_line_id", flat=True
     ).distinct()
-    reconnected_numbers = build_reconnected_numbers_for_day(day, scoped_employee_ids)
     sem_whats_portfolios = employees_without_whats.values_list("employee_id", flat=True)
     b2b_sem_whats = 0
     b2c_sem_whats = 0
@@ -1092,16 +1232,35 @@ def build_indicator_for_day(
         elif normalized in B2C_PORTFOLIO_NAMES:
             b2c_sem_whats += 1
 
-    available_numbers, delivered_numbers, _, new_numbers = build_number_details_for_day(
-        day,
-        base_lines,
-        allocated_line_ids,
-        scoped_employee_ids,
-    )
-    numeros_disponiveis = len(available_numbers)
-    numeros_entregues = len(delivered_numbers)
-    reconectados = len(reconnected_numbers)
-    novos = len(new_numbers)
+    if include_users:
+        available_numbers, delivered_numbers, reconnected_numbers, new_numbers = (
+            build_number_details_for_day(
+                day,
+                base_lines,
+                allocated_line_ids,
+                scoped_employee_ids,
+            )
+        )
+        numeros_disponiveis = len(available_numbers)
+        numeros_entregues = len(delivered_numbers)
+        reconectados = len(reconnected_numbers)
+        novos = len(new_numbers)
+    else:
+        available_numbers = []
+        delivered_numbers = []
+        reconnected_numbers = []
+        new_numbers = []
+        (
+            numeros_disponiveis,
+            numeros_entregues,
+            reconectados,
+            novos,
+        ) = build_number_counts_for_day(
+            day,
+            base_lines,
+            allocated_line_ids,
+            scoped_employee_ids,
+        )
 
     indicator = {
         "data": day,
