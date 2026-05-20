@@ -106,14 +106,19 @@ class AllocationPendency(models.Model):
     class Meta:
         verbose_name = "Pendência de Alocação"
         verbose_name_plural = "Pendências de Alocação"
-        # Uma pendência por alocação; para funcionários sem linha, allocation=None
-        # e a unicidade é garantida por restrição parcial via signal/view.
         indexes = [
             models.Index(fields=["employee", "action"]),
             models.Index(fields=["allocation"]),
             models.Index(
                 fields=["resolved_at", "last_submitted_action"],
                 name="pendency_resolved_action_idx",
+            ),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["employee"],
+                condition=models.Q(allocation__isnull=True),
+                name="uq_pendency_employee_without_allocation",
             ),
         ]
 
