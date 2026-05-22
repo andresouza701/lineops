@@ -86,6 +86,19 @@ class EmployeeModelTest(TestCase):
 
         self.assertEqual(employee.full_name, "Deleted B2C User")
 
+    def test_save_normalizes_digital_b2c_portfolio(self) -> None:
+        employee = Employee.objects.create(
+            full_name="Digital Portfolio User",
+            corporate_email="digital.b2c@lineops.tech",
+            employee_id=" digital b2c ",
+            teams=Employee.UnitChoices.JOINVILLE,
+            status=Employee.Status.ACTIVE,
+        )
+
+        employee.refresh_from_db()
+
+        self.assertEqual(employee.employee_id, "Digital B2C")
+
     def test_employee_email_is_optional(self) -> None:
         employee = Employee.objects.create(**self.base_data)
 
@@ -582,7 +595,14 @@ class EmployeeFormPortfolioChoicesTest(TestCase):
         form = EmployeeForm()
         portfolio_html = str(form["employee_id"])
 
-        for portfolio in ["Ambiental", "Natura", "ViaSat", "Opera", "Valid"]:
+        for portfolio in [
+            "Ambiental",
+            "Digital B2C",
+            "Natura",
+            "ViaSat",
+            "Opera",
+            "Valid",
+        ]:
             self.assertIn(portfolio, portfolio_html)
 
     def test_form_requires_portfolio_and_team(self) -> None:

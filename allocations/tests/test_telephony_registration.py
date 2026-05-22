@@ -130,6 +130,10 @@ class TelephonyRegistrationFlowTests(TestCase):
             [label for _value, label in form.fields["employee_id"].choices],
             sorted([label for _value, label in form.fields["employee_id"].choices]),
         )
+        self.assertIn(
+            ("Digital B2C", "Digital B2C"),
+            list(form.fields["employee_id"].choices),
+        )
 
     def test_new_line_creation_flow_creates_sim_and_line_without_allocation(self):
         response = self.client.post(

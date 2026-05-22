@@ -61,6 +61,7 @@ B2C_SUPERVISORS = [
 
 B2C_PORTFOLIOS = [
     ("Ambiental", "Ambiental"),
+    ("Digital B2C", "Digital B2C"),
     ("Natura", "Natura"),
     ("ViaSat", "ViaSat"),
     ("Opera", "Opera"),

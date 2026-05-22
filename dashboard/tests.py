@@ -178,7 +178,15 @@ class DashboardDailyIndicatorsTests(TestCase):
         )
         self.assertEqual(
             [label for _value, label in form_b2c.fields["portfolio"].choices],
-            ["Selecione", "Ambiental", "Natura", "Opera", "Valid", "ViaSat"],
+            [
+                "Selecione",
+                "Ambiental",
+                "Digital B2C",
+                "Natura",
+                "Opera",
+                "Valid",
+                "ViaSat",
+            ],
         )
 
     def test_daily_indicator_entry_view_context_sorts_json_choice_lists(self):
