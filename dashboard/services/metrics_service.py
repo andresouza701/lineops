@@ -1,23 +1,10 @@
-from django.db.models import Q
-
-from allocations.models import LineAllocation
+from dashboard.services.action_board_metrics_service import (
+    ACTION_VALUES,
+    LINE_STATUS_VALUES,
+    summarize_action_board_responsibles,
+)
 from employees.models import Employee
 from pendencies.models import AllocationPendency
-
-
-LINE_STATUS_VALUES = {
-    LineAllocation.LineStatus.ACTIVE,
-    LineAllocation.LineStatus.UNDER_ANALYSIS,
-    LineAllocation.LineStatus.RESTRICTED,
-    LineAllocation.LineStatus.PERMANENTLY_BANNED,
-    LineAllocation.LineStatus.WAITING_OPERATOR,
-}
-
-ACTION_VALUES = {
-    AllocationPendency.ActionType.NEW_NUMBER,
-    AllocationPendency.ActionType.RECONNECT_WHATSAPP,
-    AllocationPendency.ActionType.PENDING,
-}
 
 
 def _display_name(user):
@@ -25,24 +12,6 @@ def _display_name(user):
         return "Sem responsavel"
     full_name = user.get_full_name().strip()
     return full_name or user.email or str(user.pk)
-
-
-def _empty_summary():
-    return {
-        "open_total": 0,
-        "assigned_total": 0,
-        "unassigned_total": 0,
-        "restricted_assigned_total": 0,
-        "banned_assigned_total": 0,
-    }
-
-
-def _empty_breakdown():
-    return {
-        "total": 0,
-        "restricted": 0,
-        "permanently_banned": 0,
-    }
 
 
 def _new_ranking_row(responsible):
@@ -66,24 +35,6 @@ def _resolve_line_status(pendency):
     if pendency.allocation_id and pendency.allocation:
         return pendency.allocation.line_status
     return pendency.employee.line_status
-
-
-def _apply_filters(queryset, filters):
-    filters = filters or {}
-
-    action = filters.get("action") or ""
-    if action in ACTION_VALUES:
-        queryset = queryset.filter(action=action)
-
-    technical_responsible = filters.get("technical_responsible") or ""
-    if technical_responsible:
-        queryset = queryset.filter(technical_responsible_id=technical_responsible)
-
-    supervisor = filters.get("supervisor") or ""
-    if supervisor:
-        queryset = queryset.filter(employee__corporate_email__icontains=supervisor)
-
-    return queryset
 
 
 def _apply_resolved_filters(queryset, filters):
@@ -110,91 +61,32 @@ def build_pendency_metrics(user, filters=None):
         Employee.objects.filter(is_deleted=False)
     ).values_list("id", flat=True)
 
-    pendencies = (
-        AllocationPendency.objects.filter(employee_id__in=scoped_employee_ids)
-        .filter(
-            Q(action__in=ACTION_VALUES)
-            | (
-                Q(technical_responsible_id__isnull=False)
-                & (
-                    Q(allocation__line_status__in=LINE_STATUS_VALUES - {LineAllocation.LineStatus.ACTIVE})
-                    | (
-                        Q(allocation__isnull=True)
-                        & Q(employee__line_status__in=LINE_STATUS_VALUES - {LineAllocation.LineStatus.ACTIVE})
-                    )
-                )
-            )
-        )
-        .select_related("employee", "allocation", "technical_responsible")
-        .order_by("technical_responsible_id", "pendency_submitted_at", "id")
-    )
-    pendencies = _apply_filters(pendencies, filters)
-
-    line_status_filter = filters.get("line_status") or ""
-    if line_status_filter not in LINE_STATUS_VALUES:
-        line_status_filter = ""
-
-    summary = _empty_summary()
-    unassigned = _empty_breakdown()
+    current_metrics = summarize_action_board_responsibles(user, filters)
+    line_status_filter = current_metrics["line_status_filter"]
+    action_filter = current_metrics["action_filter"]
+    summary = current_metrics["summary"]
+    unassigned = current_metrics["unassigned_breakdown"]
     rankings_by_responsible = {}
 
-    for pendency in pendencies:
-        line_status = _resolve_line_status(pendency)
-        if line_status_filter and line_status != line_status_filter:
-            continue
-
-        is_open = pendency.action != AllocationPendency.ActionType.NO_ACTION
-        if is_open:
-            summary["open_total"] += 1
-        is_restricted = line_status == LineAllocation.LineStatus.RESTRICTED
-        is_banned = line_status == LineAllocation.LineStatus.PERMANENTLY_BANNED
-
-        is_visible_responsible = pendency.technical_responsible_id and (
-            is_open or line_status != LineAllocation.LineStatus.ACTIVE
+    for responsible_id, responsible_summary in current_metrics[
+        "responsibles"
+    ].items():
+        row = rankings_by_responsible.setdefault(
+            responsible_id,
+            _new_ranking_row(responsible_summary["responsible"]),
         )
-
-        if is_visible_responsible:
-            summary["assigned_total"] += 1
-            if is_restricted:
-                summary["restricted_assigned_total"] += 1
-            if is_banned:
-                summary["banned_assigned_total"] += 1
-
-            responsible = pendency.technical_responsible
-            row = rankings_by_responsible.setdefault(
-                responsible.id,
-                _new_ranking_row(responsible),
-            )
-            row["total"] += 1
-            if line_status == LineAllocation.LineStatus.RESTRICTED:
-                row["restricted"] += 1
-            elif line_status == LineAllocation.LineStatus.PERMANENTLY_BANNED:
-                row["permanently_banned"] += 1
-            elif line_status == LineAllocation.LineStatus.UNDER_ANALYSIS:
-                row["under_analysis"] += 1
-            elif line_status == LineAllocation.LineStatus.WAITING_OPERATOR:
-                row["waiting_operator"] += 1
-
-            if pendency.action == AllocationPendency.ActionType.NEW_NUMBER:
-                row["new_number"] += 1
-            elif pendency.action == AllocationPendency.ActionType.RECONNECT_WHATSAPP:
-                row["reconnect_whatsapp"] += 1
-            elif pendency.action == AllocationPendency.ActionType.PENDING:
-                row["pending"] += 1
-
-            submitted_at = pendency.pendency_submitted_at
-            if submitted_at and (
-                row["oldest_submitted_at"] is None
-                or submitted_at < row["oldest_submitted_at"]
-            ):
-                row["oldest_submitted_at"] = submitted_at
-        elif is_open:
-            summary["unassigned_total"] += 1
-            unassigned["total"] += 1
-            if is_restricted:
-                unassigned["restricted"] += 1
-            if is_banned:
-                unassigned["permanently_banned"] += 1
+        for key in (
+            "total",
+            "restricted",
+            "permanently_banned",
+            "under_analysis",
+            "waiting_operator",
+            "new_number",
+            "reconnect_whatsapp",
+            "pending",
+        ):
+            row[key] = responsible_summary[key]
+        row["oldest_submitted_at"] = responsible_summary["oldest_submitted_at"]
 
     resolved_pendencies = (
         AllocationPendency.objects.filter(
@@ -239,11 +131,7 @@ def build_pendency_metrics(user, filters=None):
     return {
         "filters": {
             "line_status": line_status_filter,
-            "action": (
-                filters.get("action", "")
-                if filters.get("action", "") in ACTION_VALUES
-                else ""
-            ),
+            "action": action_filter,
             "technical_responsible": filters.get("technical_responsible", "") or "",
             "supervisor": filters.get("supervisor", "") or "",
         },

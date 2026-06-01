@@ -294,3 +294,23 @@ class PendencyMetricsServiceTests(TestCase):
         self.assertEqual(result["summary"]["assigned_total"], 1)
         self.assertEqual(result["responsible_rankings"][0]["responsible_id"], self.tech_a.id)
         self.assertEqual(result["responsible_rankings"][0]["total"], 1)
+
+    def test_current_total_ignores_employee_level_pendency_hidden_by_action_board(self):
+        self._create_allocation(
+            self.employee_a,
+            "601",
+            LineAllocation.LineStatus.ACTIVE,
+        )
+        AllocationPendency.objects.create(
+            employee=self.employee_a,
+            allocation=None,
+            action=AllocationPendency.ActionType.PENDING,
+            technical_responsible=self.tech_a,
+        )
+
+        result = build_pendency_metrics(self.admin)
+
+        rankings_by_id = {
+            row["responsible_id"]: row for row in result["responsible_rankings"]
+        }
+        self.assertNotIn(self.tech_a.id, rankings_by_id)
