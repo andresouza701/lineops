@@ -55,6 +55,7 @@ def _new_ranking_row(responsible):
         "new_number": 0,
         "reconnect_whatsapp": 0,
         "pending": 0,
+        "resolved_total": 0,
         "oldest_submitted_at": None,
     }
 
@@ -75,6 +76,24 @@ def _apply_filters(queryset, filters):
     technical_responsible = filters.get("technical_responsible") or ""
     if technical_responsible:
         queryset = queryset.filter(technical_responsible_id=technical_responsible)
+
+    supervisor = filters.get("supervisor") or ""
+    if supervisor:
+        queryset = queryset.filter(employee__corporate_email__icontains=supervisor)
+
+    return queryset
+
+
+def _apply_resolved_filters(queryset, filters):
+    filters = filters or {}
+
+    action = filters.get("action") or ""
+    if action in ACTION_VALUES:
+        queryset = queryset.filter(last_submitted_action=action)
+
+    technical_responsible = filters.get("technical_responsible") or ""
+    if technical_responsible:
+        queryset = queryset.filter(updated_by_id=technical_responsible)
 
     supervisor = filters.get("supervisor") or ""
     if supervisor:
@@ -157,9 +176,36 @@ def build_pendency_metrics(user, filters=None):
             if is_banned:
                 unassigned["permanently_banned"] += 1
 
+    resolved_pendencies = (
+        AllocationPendency.objects.filter(
+            employee_id__in=scoped_employee_ids,
+            resolved_at__isnull=False,
+            updated_by_id__isnull=False,
+        )
+        .select_related("employee", "allocation", "updated_by")
+        .order_by("updated_by_id", "resolved_at", "id")
+    )
+    resolved_pendencies = _apply_resolved_filters(resolved_pendencies, filters)
+
+    for pendency in resolved_pendencies:
+        line_status = _resolve_line_status(pendency)
+        if line_status_filter and line_status != line_status_filter:
+            continue
+
+        responsible = pendency.updated_by
+        row = rankings_by_responsible.setdefault(
+            responsible.id,
+            _new_ranking_row(responsible),
+        )
+        row["resolved_total"] += 1
+
     responsible_rankings = sorted(
         rankings_by_responsible.values(),
-        key=lambda item: (-item["total"], item["responsible_name"].lower()),
+        key=lambda item: (
+            -item["total"],
+            -item["resolved_total"],
+            item["responsible_name"].lower(),
+        ),
     )
 
     technical_responsible_choices = [

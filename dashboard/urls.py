@@ -54,7 +54,8 @@ urlpatterns = [
         daily_indicator_legacy_redirect,
         name="daily_indicator_edit",
     ),
-    path("metricas/", pendency_metrics, name="dashboard_metrics"),
+    path("dashboard/metricas/", pendency_metrics, name="dashboard_metrics"),
+    path("metricas/", pendency_metrics, name="dashboard_metrics_legacy"),
     # Alias de compatibilidade para acesso via /dashboard/indicadores/...
     path(
         "dashboard/indicadores/novo/",

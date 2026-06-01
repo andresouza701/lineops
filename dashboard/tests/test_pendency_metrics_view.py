@@ -32,6 +32,9 @@ class PendencyMetricsViewTests(TestCase):
         self.assertIn("summary", response.context)
         self.assertIn("responsible_rankings", response.context)
 
+    def test_metrics_route_uses_documented_dashboard_path(self):
+        self.assertEqual(reverse("dashboard_metrics"), "/dashboard/metricas/")
+
     def test_operator_cannot_open_metrics_page(self):
         self.client.force_login(self.operator)
 

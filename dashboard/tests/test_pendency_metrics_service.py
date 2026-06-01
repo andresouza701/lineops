@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.utils import timezone
 
 from allocations.models import LineAllocation
 from dashboard.services.metrics_service import build_pendency_metrics
@@ -237,3 +238,39 @@ class PendencyMetricsServiceTests(TestCase):
         self.assertEqual(result["summary"]["banned_assigned_total"], 0)
         self.assertEqual(result["responsible_rankings"][0]["total"], 1)
         self.assertEqual(result["responsible_rankings"][0]["restricted"], 1)
+
+    def test_metrics_include_resolved_total_since_start_by_user(self):
+        current = self._create_allocation(
+            self.employee_a,
+            "401",
+            LineAllocation.LineStatus.RESTRICTED,
+        )
+        resolved = self._create_allocation(
+            self.employee_b,
+            "402",
+            LineAllocation.LineStatus.PERMANENTLY_BANNED,
+        )
+        AllocationPendency.objects.create(
+            employee=self.employee_a,
+            allocation=current,
+            action=AllocationPendency.ActionType.PENDING,
+            technical_responsible=self.tech_a,
+        )
+        AllocationPendency.objects.create(
+            employee=self.employee_b,
+            allocation=resolved,
+            action=AllocationPendency.ActionType.NO_ACTION,
+            resolved_at=timezone.now(),
+            updated_by=self.tech_b,
+            last_submitted_action=AllocationPendency.ActionType.RECONNECT_WHATSAPP,
+        )
+
+        result = build_pendency_metrics(self.admin)
+
+        rankings_by_id = {
+            row["responsible_id"]: row for row in result["responsible_rankings"]
+        }
+        self.assertEqual(rankings_by_id[self.tech_a.id]["total"], 1)
+        self.assertEqual(rankings_by_id[self.tech_a.id]["resolved_total"], 0)
+        self.assertEqual(rankings_by_id[self.tech_b.id]["total"], 0)
+        self.assertEqual(rankings_by_id[self.tech_b.id]["resolved_total"], 1)
