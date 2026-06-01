@@ -32,6 +32,18 @@ class PendencyMetricsViewTests(TestCase):
         self.assertIn("summary", response.context)
         self.assertIn("responsible_rankings", response.context)
 
+    def test_responsible_table_shows_only_current_and_resolved_totals(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("dashboard_metrics"))
+
+        self.assertContains(response, "Resumo por responsavel tecnico")
+        self.assertContains(response, "Responsavel tecnico")
+        self.assertContains(response, "Esta resolvendo agora")
+        self.assertContains(response, "Ja resolveu desde inicio")
+        self.assertNotContains(response, "<th>Mais antiga</th>", html=True)
+        self.assertNotContains(response, "<th>Aguardando operador</th>", html=True)
+
     def test_metrics_route_uses_documented_dashboard_path(self):
         self.assertEqual(reverse("dashboard_metrics"), "/dashboard/metricas/")
 
