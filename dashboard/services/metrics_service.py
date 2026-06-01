@@ -1,3 +1,5 @@
+from django.db.models import Q
+
 from allocations.models import LineAllocation
 from employees.models import Employee
 from pendencies.models import AllocationPendency
@@ -110,7 +112,19 @@ def build_pendency_metrics(user, filters=None):
 
     pendencies = (
         AllocationPendency.objects.filter(employee_id__in=scoped_employee_ids)
-        .exclude(action=AllocationPendency.ActionType.NO_ACTION)
+        .filter(
+            Q(action__in=ACTION_VALUES)
+            | (
+                Q(technical_responsible_id__isnull=False)
+                & (
+                    Q(allocation__line_status__in=LINE_STATUS_VALUES - {LineAllocation.LineStatus.ACTIVE})
+                    | (
+                        Q(allocation__isnull=True)
+                        & Q(employee__line_status__in=LINE_STATUS_VALUES - {LineAllocation.LineStatus.ACTIVE})
+                    )
+                )
+            )
+        )
         .select_related("employee", "allocation", "technical_responsible")
         .order_by("technical_responsible_id", "pendency_submitted_at", "id")
     )
@@ -129,11 +143,17 @@ def build_pendency_metrics(user, filters=None):
         if line_status_filter and line_status != line_status_filter:
             continue
 
-        summary["open_total"] += 1
+        is_open = pendency.action != AllocationPendency.ActionType.NO_ACTION
+        if is_open:
+            summary["open_total"] += 1
         is_restricted = line_status == LineAllocation.LineStatus.RESTRICTED
         is_banned = line_status == LineAllocation.LineStatus.PERMANENTLY_BANNED
 
-        if pendency.technical_responsible_id:
+        is_visible_responsible = pendency.technical_responsible_id and (
+            is_open or line_status != LineAllocation.LineStatus.ACTIVE
+        )
+
+        if is_visible_responsible:
             summary["assigned_total"] += 1
             if is_restricted:
                 summary["restricted_assigned_total"] += 1
@@ -168,7 +188,7 @@ def build_pendency_metrics(user, filters=None):
                 or submitted_at < row["oldest_submitted_at"]
             ):
                 row["oldest_submitted_at"] = submitted_at
-        else:
+        elif is_open:
             summary["unassigned_total"] += 1
             unassigned["total"] += 1
             if is_restricted:

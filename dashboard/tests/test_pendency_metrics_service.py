@@ -127,7 +127,7 @@ class PendencyMetricsServiceTests(TestCase):
         self.assertEqual(result["responsible_rankings"][1]["responsible_id"], self.tech_b.id)
         self.assertEqual(result["responsible_rankings"][1]["total"], 1)
 
-    def test_metrics_exclude_no_action_and_group_unassigned(self):
+    def test_metrics_group_unassigned_and_count_actions_board_responsible(self):
         allocation = self._create_allocation(
             self.employee_a,
             "101",
@@ -153,12 +153,13 @@ class PendencyMetricsServiceTests(TestCase):
         result = build_pendency_metrics(self.admin)
 
         self.assertEqual(result["summary"]["open_total"], 1)
-        self.assertEqual(result["summary"]["assigned_total"], 0)
+        self.assertEqual(result["summary"]["assigned_total"], 1)
         self.assertEqual(result["summary"]["unassigned_total"], 1)
         self.assertEqual(result["unassigned_breakdown"]["total"], 1)
         self.assertEqual(result["unassigned_breakdown"]["restricted"], 1)
         self.assertEqual(result["unassigned_breakdown"]["permanently_banned"], 0)
-        self.assertEqual(result["responsible_rankings"], [])
+        self.assertEqual(result["responsible_rankings"][0]["responsible_id"], self.tech_a.id)
+        self.assertEqual(result["responsible_rankings"][0]["total"], 1)
 
     def test_metrics_use_employee_line_status_without_allocation(self):
         self.employee_a.line_status = Employee.LineStatus.PERMANENTLY_BANNED
@@ -274,3 +275,22 @@ class PendencyMetricsServiceTests(TestCase):
         self.assertEqual(rankings_by_id[self.tech_a.id]["resolved_total"], 0)
         self.assertEqual(rankings_by_id[self.tech_b.id]["total"], 0)
         self.assertEqual(rankings_by_id[self.tech_b.id]["resolved_total"], 1)
+
+    def test_current_total_matches_actions_board_technical_responsible_rows(self):
+        restricted = self._create_allocation(
+            self.employee_a,
+            "501",
+            LineAllocation.LineStatus.RESTRICTED,
+        )
+        AllocationPendency.objects.create(
+            employee=self.employee_a,
+            allocation=restricted,
+            action=AllocationPendency.ActionType.NO_ACTION,
+            technical_responsible=self.tech_a,
+        )
+
+        result = build_pendency_metrics(self.admin)
+
+        self.assertEqual(result["summary"]["assigned_total"], 1)
+        self.assertEqual(result["responsible_rankings"][0]["responsible_id"], self.tech_a.id)
+        self.assertEqual(result["responsible_rankings"][0]["total"], 1)
