@@ -172,6 +172,11 @@ class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
     form_class = EmployeeForm
     success_url = reverse_lazy("employees:employee_list")
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["can_edit_full_name"] = self.request.user.role == SystemUser.Role.ADMIN
+        return kwargs
+
     def get_queryset(self):
         """Filtra usuários baseado na role do usuário"""
         queryset = Employee.objects.all()

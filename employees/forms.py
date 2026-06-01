@@ -98,6 +98,7 @@ class EmployeeForm(forms.ModelForm):
         return manager_email
 
     def __init__(self, *args, **kwargs):
+        can_edit_full_name = kwargs.pop("can_edit_full_name", True)
         super().__init__(*args, **kwargs)
 
         if not self.initial.get("status"):
@@ -159,6 +160,8 @@ class EmployeeForm(forms.ModelForm):
         )
 
         self.fields["full_name"].widget.attrs.setdefault("class", "form-control")
+        if self.instance and self.instance.pk and not can_edit_full_name:
+            self.fields["full_name"].disabled = True
         self.fields["email"].required = False
         self.fields["email"].widget.attrs.setdefault("class", "form-control")
         self.fields["status"].widget.attrs.setdefault("class", "form-select")

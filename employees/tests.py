@@ -306,6 +306,49 @@ class EmployeeListViewTest(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
+    def test_super_cannot_change_employee_full_name(self) -> None:
+        self.client.force_login(self.supervisor)
+
+        response = self.client.post(
+            reverse("employees:employee_update", args=[self.supervisor_employee.pk]),
+            {
+                "full_name": "Nome Alterado Indevido",
+                "email": "negociador.super@test.com",
+                "corporate_email": self.supervisor.email,
+                "manager_email": self.manager.email,
+                "employee_id": "Ambiental",
+                "teams": Employee.UnitChoices.ARAQUARI,
+                "status": Employee.Status.ACTIVE,
+                "pa": "123",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.supervisor_employee.refresh_from_db()
+        self.assertEqual(self.supervisor_employee.full_name, "Usuario do Super")
+        self.assertEqual(self.supervisor_employee.email, "negociador.super@test.com")
+
+    def test_admin_can_change_employee_full_name(self) -> None:
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("employees:employee_update", args=[self.employee.pk]),
+            {
+                "full_name": "Nome Alterado Admin",
+                "email": "",
+                "corporate_email": self.supervisor.email,
+                "manager_email": self.manager.email,
+                "employee_id": "Ambiental",
+                "teams": Employee.UnitChoices.JOINVILLE,
+                "status": Employee.Status.ACTIVE,
+                "pa": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.full_name, "Nome Alterado Admin")
+
     def test_backoffice_can_access_employee_list_with_linked_supervisor_scope(self):
         self.client.force_login(self.backoffice)
         response = self.client.get(reverse("employees:employee_list"))
