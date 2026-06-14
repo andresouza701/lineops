@@ -1096,6 +1096,14 @@ class PhoneLineViewsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.context["form"].fields["canal"].disabled)
 
+    def test_update_view_keeps_origem_editable_for_admin(self):
+        response = self.client.get(
+            reverse("telecom:phoneline_update", args=[self.line_available.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["form"].fields["origem"].disabled)
+
     def test_update_view_persists_canal_changes_for_admin(self):
         url = reverse("telecom:phoneline_update", args=[self.line_available.pk])
         payload = {
@@ -1111,6 +1119,22 @@ class PhoneLineViewsTest(TestCase):
         self.assertRedirects(response, reverse("telecom:overview"))
         self.line_available.refresh_from_db()
         self.assertEqual(self.line_available.canal, PhoneLine.Canal.MYLOOP)
+
+    def test_update_view_persists_origem_changes_for_admin(self):
+        url = reverse("telecom:phoneline_update", args=[self.line_available.pk])
+        payload = {
+            "phone_number": self.line_available.phone_number,
+            "sim_card": self.line_available.sim_card.pk,
+            "status": PhoneLine.Status.AVAILABLE,
+            "origem": PhoneLine.Origem.SRVMEMU_02,
+        }
+
+        response = self.client.post(url, data=payload)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse("telecom:overview"))
+        self.line_available.refresh_from_db()
+        self.assertEqual(self.line_available.origem, PhoneLine.Origem.SRVMEMU_02)
 
     def test_update_view_shows_business_error_when_employee_has_four_lines(self):
         employee = Employee.objects.create(

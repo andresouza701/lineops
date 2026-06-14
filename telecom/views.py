@@ -606,6 +606,11 @@ class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
 
         return super().post(request, *args, **kwargs)
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["can_edit_origem"] = self.request.user.role == SystemUser.Role.ADMIN
+        return kwargs
+
     @transaction.atomic
     def form_valid(self, form):
         selected_employee = form.cleaned_data.get("employee")
