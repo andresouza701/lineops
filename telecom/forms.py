@@ -130,6 +130,7 @@ class PhoneLineUpdateForm(PhoneLineForm):
         fields = ["phone_number", "sim_card", "status", "origem", "canal"]
 
     def __init__(self, *args, **kwargs):
+        can_edit_origem = kwargs.pop("can_edit_origem", False)
         super().__init__(*args, **kwargs)
         self.fields["sim_card"].label = "SIM card"
         self.fields["status"].label = "Status"
@@ -138,7 +139,8 @@ class PhoneLineUpdateForm(PhoneLineForm):
         if self.instance and self.instance.pk:
             self.fields["phone_number"].disabled = True
             self.fields["sim_card"].disabled = True
-            self.fields["origem"].disabled = True
+            if not can_edit_origem:
+                self.fields["origem"].disabled = True
 
         employee_field = cast(forms.ModelChoiceField, self.fields["employee"])
         employee_field.queryset = Employee.objects.filter(
