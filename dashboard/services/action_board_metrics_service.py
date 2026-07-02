@@ -12,6 +12,7 @@ LINE_STATUS_VALUES = {
     LineAllocation.LineStatus.ACTIVE,
     LineAllocation.LineStatus.UNDER_ANALYSIS,
     LineAllocation.LineStatus.RESTRICTED,
+    LineAllocation.LineStatus.WEB_RESTRICTION,
     LineAllocation.LineStatus.PERMANENTLY_BANNED,
     LineAllocation.LineStatus.WAITING_OPERATOR,
 }
