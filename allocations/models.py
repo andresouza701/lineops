@@ -20,6 +20,7 @@ class LineAllocation(models.Model):
     class LineStatus(models.TextChoices):
         UNDER_ANALYSIS = "under_analysis", "Em análise"
         RESTRICTED = "restricted", "Restrito"
+        WEB_RESTRICTION = "web_restriction", "Restrição WEB"
         PERMANENTLY_BANNED = "permanently_banned", "Banido Permanentemente"
         WAITING_OPERATOR = "waiting_operator", "Aguardando operador"
         ACTIVE = "active", "Ativo"

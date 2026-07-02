@@ -240,6 +240,31 @@ class PendencyMetricsServiceTests(TestCase):
         self.assertEqual(result["responsible_rankings"][0]["total"], 1)
         self.assertEqual(result["responsible_rankings"][0]["restricted"], 1)
 
+    def test_filters_accept_web_restriction_line_status(self):
+        web_restriction = self._create_allocation(
+            self.employee_a,
+            "303",
+            LineAllocation.LineStatus.WEB_RESTRICTION,
+        )
+        AllocationPendency.objects.create(
+            employee=self.employee_a,
+            allocation=web_restriction,
+            action=AllocationPendency.ActionType.PENDING,
+            technical_responsible=self.tech_a,
+        )
+
+        result = build_pendency_metrics(
+            self.admin,
+            filters={"line_status": LineAllocation.LineStatus.WEB_RESTRICTION},
+        )
+
+        self.assertEqual(
+            result["filters"]["line_status"],
+            LineAllocation.LineStatus.WEB_RESTRICTION,
+        )
+        self.assertEqual(result["summary"]["open_total"], 1)
+        self.assertEqual(result["responsible_rankings"][0]["total"], 1)
+
     def test_metrics_include_resolved_total_since_start_by_user(self):
         current = self._create_allocation(
             self.employee_a,
