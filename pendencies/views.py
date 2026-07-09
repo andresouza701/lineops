@@ -323,6 +323,40 @@ class PendencyClaimView(RoleRequiredMixin, View):
         )
 
 
+class PendencyReleaseView(RoleRequiredMixin, View):
+    """POST: admin remove o Responsável Técnico atual."""
+
+    allowed_roles = [SystemUser.Role.ADMIN]
+
+    def post(self, request):
+        try:
+            body = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        pendency_id = body.get("pendency_id")
+        pendency = get_object_or_404(
+            AllocationPendency.objects.select_related(
+                "employee", "allocation__phone_line", "technical_responsible"
+            ),
+            pk=pendency_id,
+        )
+
+        # Valida escopo
+        scoped_qs = request.user.scope_employee_queryset(Employee.objects.all())
+        if not scoped_qs.filter(pk=pendency.employee_id).exists():
+            raise PermissionDenied("Sem acesso a este funcionário.")
+
+        pendency.technical_responsible = None
+        pendency.updated_by = request.user
+        pendency.save(update_fields=["technical_responsible", "updated_by"])
+
+        allocation = pendency.allocation
+        return JsonResponse(
+            {"ok": True, **_pendency_to_json(pendency, allocation)}
+        )
+
+
 class PendencyNotificationsView(LoginRequiredMixin, View):
     """
     GET: retorna notificações de observação não lidas do usuário logado

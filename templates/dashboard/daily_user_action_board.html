@@ -456,6 +456,7 @@
     const DETAIL_URL = "{% url 'pendencies:detail' %}";
     const UPDATE_URL = "{% url 'pendencies:update' %}";
     const CLAIM_URL  = "{% url 'pendencies:claim' %}";
+    const RELEASE_URL = "{% url 'pendencies:release' %}";
     const CSRF_TOKEN = "{{ csrf_token }}";
 
     // ── Linha-detail modal (inalterado) ──────────────────────────────
@@ -500,6 +501,7 @@
     let currentPendencyId   = null;
     let currentEmployeeId   = null;
     let currentAllocationId = null;
+    let currentResponsibleAction = 'claim';
 
     function showLoading() {
         loadingEl.style.display = '';
@@ -604,11 +606,22 @@
 
         // Responsável técnico
         const techNameEl = document.getElementById('pendencyTechName');
+        const hasTechnicalResponsible = Boolean(data.technical_responsible_name);
         techNameEl.textContent = data.technical_responsible_name || '-';
-        techNameEl.classList.toggle('text-muted', !data.technical_responsible_name);
+        techNameEl.classList.toggle('text-muted', !hasTechnicalResponsible);
         techNameEl.classList.remove('fst-italic');
+
+        currentResponsibleAction = hasTechnicalResponsible ? 'release' : 'claim';
         if (IS_ADMIN) {
             claimBtn.style.display = '';
+            claimBtn.textContent = hasTechnicalResponsible ? 'Liberar' : 'Assumir';
+            claimBtn.title = hasTechnicalResponsible
+                ? 'Liberar responsável técnico'
+                : 'Assumir como responsável técnico';
+            claimBtn.classList.toggle('btn-outline-primary', !hasTechnicalResponsible);
+            claimBtn.classList.toggle('btn-outline-danger', hasTechnicalResponsible);
+        } else {
+            claimBtn.style.display = 'none';
         }
 
         // Timestamps
@@ -694,10 +707,11 @@
         }
     }
 
-    async function claimPendency() {
+    async function submitResponsibleAction() {
         claimBtn.disabled = true;
+        const isRelease = currentResponsibleAction === 'release';
         try {
-            const resp = await fetch(CLAIM_URL, {
+            const resp = await fetch(isRelease ? RELEASE_URL : CLAIM_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type':     'application/json',
@@ -710,15 +724,21 @@
             if (resp.ok && data.ok) {
                 renderModal(data);
                 updateTableRow(currentEmployeeId, currentAllocationId, data);
-                saveStatusEl.textContent = 'Responsável técnico atribuído.';
-                saveStatusEl.className   = 'text-success small me-auto';
+                saveStatusEl.textContent = isRelease
+                    ? 'Responsável técnico liberado.'
+                    : 'Responsável técnico atribuído.';
+                saveStatusEl.className = 'text-success small me-auto';
             } else {
-                saveStatusEl.textContent = data.error || 'Erro ao assumir responsabilidade.';
-                saveStatusEl.className   = 'text-danger small me-auto';
+                saveStatusEl.textContent = data.error || (
+                    isRelease
+                        ? 'Erro ao liberar responsável técnico.'
+                        : 'Erro ao assumir responsabilidade.'
+                );
+                saveStatusEl.className = 'text-danger small me-auto';
             }
         } catch (err) {
             saveStatusEl.textContent = err.message;
-            saveStatusEl.className   = 'text-danger small me-auto';
+            saveStatusEl.className = 'text-danger small me-auto';
         } finally {
             claimBtn.disabled = false;
         }
@@ -802,7 +822,7 @@
     });
 
     saveBtn.addEventListener('click', savePendency);
-    claimBtn.addEventListener('click', claimPendency);
+    claimBtn.addEventListener('click', submitResponsibleAction);
 })();
 </script>
 {% endblock %}

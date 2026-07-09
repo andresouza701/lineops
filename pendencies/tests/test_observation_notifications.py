@@ -158,6 +158,8 @@ class PendencyUpdateViewNotificationTest(TestCase):
         self.client = Client()
         self.url = reverse("pendencies:update")
         self.detail_url = reverse("pendencies:detail")
+        self.claim_url = reverse("pendencies:claim")
+        self.release_url = reverse("pendencies:release")
 
     def _make_allocation(
         self,
@@ -622,6 +624,124 @@ class PendencyUpdateViewNotificationTest(TestCase):
         data = resp.json()
         self.assertIn("notifications_sent", data)
         self.assertEqual(data["notifications_sent"], 1)
+
+    def test_admin_can_release_technical_responsible_without_side_effects(self):
+        allocation = self._make_allocation(
+            phone_suffix="0301",
+            line_status=LineAllocation.LineStatus.RESTRICTED,
+        )
+        resolved_at = timezone.now()
+        last_changed_at = timezone.now()
+        submitted_at = timezone.now()
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.PENDING,
+            observation="observacao original",
+            technical_responsible=self.super_user,
+            resolved_at=resolved_at,
+            last_action_changed_at=last_changed_at,
+            pendency_submitted_at=submitted_at,
+            last_submitted_action=AllocationPendency.ActionType.PENDING,
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.release_url,
+            data=json.dumps({"pendency_id": pendency.pk}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        pendency.refresh_from_db()
+        allocation.refresh_from_db()
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["technical_responsible_name"], "")
+        self.assertIsNone(pendency.technical_responsible)
+        self.assertEqual(pendency.updated_by, self.admin)
+        self.assertEqual(pendency.action, AllocationPendency.ActionType.PENDING)
+        self.assertEqual(pendency.observation, "observacao original")
+        self.assertEqual(allocation.line_status, LineAllocation.LineStatus.RESTRICTED)
+        self.assertEqual(pendency.resolved_at, resolved_at)
+        self.assertEqual(pendency.last_action_changed_at, last_changed_at)
+        self.assertEqual(pendency.pendency_submitted_at, submitted_at)
+        self.assertEqual(
+            pendency.last_submitted_action,
+            AllocationPendency.ActionType.PENDING,
+        )
+        self.assertEqual(PendencyObservationNotification.objects.count(), 0)
+
+    def test_admin_release_unassigned_pendency_is_idempotent(self):
+        allocation = self._make_allocation(phone_suffix="0302")
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.PENDING,
+            technical_responsible=None,
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.release_url,
+            data=json.dumps({"pendency_id": pendency.pk}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        pendency.refresh_from_db()
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["technical_responsible_name"], "")
+        self.assertIsNone(pendency.technical_responsible)
+        self.assertEqual(pendency.updated_by, self.admin)
+
+    def test_non_admin_cannot_release_technical_responsible(self):
+        allocation = self._make_allocation(phone_suffix="0303")
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.PENDING,
+            technical_responsible=self.admin,
+        )
+
+        self.client.force_login(self.super_user)
+        response = self.client.post(
+            self.release_url,
+            data=json.dumps({"pendency_id": pendency.pk}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        pendency.refresh_from_db()
+        self.assertEqual(pendency.technical_responsible, self.admin)
+
+    def test_existing_claim_endpoint_still_assigns_current_admin(self):
+        allocation = self._make_allocation(phone_suffix="0304")
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.PENDING,
+            technical_responsible=None,
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.claim_url,
+            data=json.dumps({"pendency_id": pendency.pk}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        pendency.refresh_from_db()
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(pendency.technical_responsible, self.admin)
+        self.assertEqual(pendency.updated_by, self.admin)
+        self.assertNotEqual(payload["technical_responsible_name"], "")
 
 
 class PendencyDetailViewNotificationReadTest(TestCase):
