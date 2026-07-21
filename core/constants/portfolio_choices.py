@@ -33,7 +33,7 @@ B2B_PORTFOLIOS = [
     ("BAT", "BAT"),
     ("Chilli Beans", "Chilli Beans"),
     ("Femsa", "Femsa"),
-    ("Heineki", "Heineki"),
+    ("Heineken", "Heineken"),
     ("Incubadora", "Incubadora"),
     ("Industria", "Industria"),
     ("Manual Dellys", "Manual Dellys"),

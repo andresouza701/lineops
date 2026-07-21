@@ -1,5 +1,7 @@
+import importlib
 from unittest.mock import patch
 
+from django.apps import apps as django_apps
 from django.contrib import admin
 from django.db import IntegrityError
 from django.test import RequestFactory, TestCase
@@ -653,6 +655,13 @@ class EmployeeFormPortfolioChoicesTest(TestCase):
 
         self.assertIn("Incubadora", str(form["employee_id"]))
 
+    def test_form_uses_correct_heineken_portfolio_name(self) -> None:
+        form = EmployeeForm()
+        portfolio_html = str(form["employee_id"])
+
+        self.assertIn("Heineken", portfolio_html)
+        self.assertNotIn("Heineki", portfolio_html)
+
     def test_form_requires_portfolio_and_team(self) -> None:
         form = EmployeeForm(
             data={
@@ -1078,3 +1087,22 @@ class EmployeeAdminDeleteBehaviorTest(TestCase):
         self.employee_admin.delete_model(self.request, self.employee)
         self.employee.refresh_from_db()
         self.assertTrue(self.employee.is_deleted)
+
+
+class HeinekenPortfolioMigrationTest(TestCase):
+    def test_migration_renames_existing_heineki_employees_to_heineken(self) -> None:
+        employee = Employee.all_objects.create(
+            full_name="Legacy Heineki User",
+            corporate_email="legacy.heineki@test.com",
+            employee_id="Heineki",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        migration = importlib.import_module(
+            "employees.migrations.0020_rename_heineki_portfolio"
+        )
+
+        migration.rename_heineki_to_heineken(django_apps, None)
+
+        employee.refresh_from_db()
+        self.assertEqual(employee.employee_id, "Heineken")

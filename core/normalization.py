@@ -18,6 +18,7 @@ FORCE_UPPERCASE_TOKENS = {
     "vivo",
 }
 PORTFOLIO_ALIASES = {
+    "heineki": "Heineken",
     "viasata": "ViaSat",
 }
 CARRIER_ALIASES = {

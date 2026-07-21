@@ -73,6 +73,13 @@ class NormalizeDomainDataCommandTest(TestCase):
                     teams="Joinville",
                     status=Employee.Status.ACTIVE,
                 ),
+                Employee(
+                    full_name="Bruno Heineken",
+                    corporate_email="bruno@test.com",
+                    employee_id="Heineki",
+                    teams="Joinville",
+                    status=Employee.Status.ACTIVE,
+                ),
             ]
         )
         SIMcard.all_objects.bulk_create(
@@ -100,6 +107,10 @@ class NormalizeDomainDataCommandTest(TestCase):
         self.assertEqual(normalized_employee.employee_id, "ViaSat")
         self.assertEqual(normalized_employee.teams, "Joinville")
         self.assertEqual(normalized_employee.pa, "PA 01")
+        self.assertEqual(
+            Employee.all_objects.get(corporate_email="bruno@test.com").employee_id,
+            "Heineken",
+        )
         self.assertEqual(first_conflict.full_name, "Ana Paula")
         self.assertEqual(second_conflict.full_name, "Ana   Paula")
         self.assertEqual(simcard.carrier, "TIM")
