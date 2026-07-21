@@ -124,20 +124,12 @@ class SystemUser(AbstractUser):
         return self.__class__.objects.filter(email__iexact=supervisor_email).first()
 
     def get_managed_supervisor_emails(self):
-        employee_model = apps.get_model("employees", "Employee")
-        managed_supervisors = set(
+        return set(
             self.__class__.objects.filter(
                 role=self.Role.SUPER,
                 manager_email__iexact=self.email,
             ).values_list("email", flat=True)
         )
-        managed_supervisors.update(
-            employee_model.objects.filter(manager_email__iexact=self.email)
-            .exclude(corporate_email="")
-            .values_list("corporate_email", flat=True)
-            .distinct()
-        )
-        return managed_supervisors
 
     def scope_employee_queryset(self, queryset=None):
         employee_model = apps.get_model("employees", "Employee")

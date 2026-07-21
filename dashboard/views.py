@@ -1616,6 +1616,20 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        managed_supervisor_emails = set(
+            self.request.user.get_managed_supervisor_emails()
+        )
+        managed_supervisor_lookup = {
+            supervisor_email.casefold(): supervisor_email
+            for supervisor_email in managed_supervisor_emails
+        }
+
+        def get_supervisor_label(employee):
+            return managed_supervisor_lookup.get(
+                (employee.corporate_email or "").casefold(),
+                "Sem supervisor",
+            )
+
         grouped = {
             supervisor_email: {
                 "supervisor": supervisor_email,
@@ -1626,9 +1640,7 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
                 "total_reconnect": 0,
                 "total_new_number": 0,
             }
-            for supervisor_email in sorted(
-                self.request.user.get_managed_supervisor_emails()
-            )
+            for supervisor_email in sorted(managed_supervisor_emails)
         }
 
         employees = get_supervised_employees_queryset(self.request.user).filter(
@@ -1641,7 +1653,7 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
             ).values_list("employee_id", flat=True)
         )
         for employee in employees:
-            supervisor = employee.corporate_email or "Sem supervisor"
+            supervisor = get_supervisor_label(employee)
             portfolio = employee.employee_id or "Sem carteira"
             supervisor_group = grouped.setdefault(
                 supervisor,
@@ -1687,7 +1699,7 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
             employee = action.employee
             if employee.status != Employee.Status.ACTIVE:
                 continue
-            supervisor = employee.corporate_email or "Sem supervisor"
+            supervisor = get_supervisor_label(employee)
             portfolio = employee.employee_id or "Sem carteira"
 
             supervisor_group = grouped.setdefault(
