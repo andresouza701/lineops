@@ -46,6 +46,7 @@ RECONNECT_ALLOWED_ROLES = [
     SystemUser.Role.GERENTE,
     SystemUser.Role.OPERATOR,
 ]
+TELECOM_HISTORY_ALLOWED_ROLES = [role for role, _label in SystemUser.Role.choices]
 RECONNECT_ALLOWED_ORIGENS = {PhoneLine.Origem.SRVMEMU_01}
 
 
@@ -695,7 +696,7 @@ class PhoneLineDeleteView(RoleRequiredMixin, View):
 
 
 class PhoneLineHistoryView(RoleRequiredMixin, DetailView):
-    allowed_roles = [SystemUser.Role.ADMIN]
+    allowed_roles = TELECOM_HISTORY_ALLOWED_ROLES
     model = PhoneLine
     template_name = "telecom/phoneline_history.html"
     context_object_name = "phone_line"
@@ -842,6 +843,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
 
             if table_type == "main" and can_manage_telecom:
                 line_data["edit_url"] = f"/telecom/phonelines/{line.pk}/update/"
+            if table_type == "main":
                 line_data["history_url"] = f"/telecom/phonelines/{line.pk}/history/"
             if table_type == "main" and can_use_reconnect and line_can_use_reconnect(
                 line

@@ -8,18 +8,20 @@ from .models import PhoneLine, PhoneLineHistory
 
 
 class PhoneLineHistoryView(RoleRequiredMixin, ListView):
-    """View para exibir o histórico de uma linha (apenas para admin)"""
+    """View para exibir o historico de uma linha visivel ao usuario."""
 
-    allowed_roles = [SystemUser.Role.ADMIN]
+    allowed_roles = [role for role, _label in SystemUser.Role.choices]
     model = PhoneLineHistory
     template_name = "telecom/phoneline_history.html"
     context_object_name = "history"
     paginate_by = 50
 
     def get_queryset(self):
-        self.phone_line = get_object_or_404(
-            PhoneLine.objects.select_related("sim_card"), pk=self.kwargs["pk"]
+        visible_lines = PhoneLine.visible_to_user(
+            self.request.user,
+            PhoneLine.objects.select_related("sim_card"),
         )
+        self.phone_line = get_object_or_404(visible_lines, pk=self.kwargs["pk"])
         return PhoneLineHistory.objects.filter(
             phone_line=self.phone_line
         ).select_related("changed_by")

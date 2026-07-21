@@ -373,12 +373,21 @@ class PhoneLineHistoryAuditTest(TestCase):
         self.assertIsNotNone(released_event)
         self.assertEqual(released_event.changed_by, self.admin)
 
-    def test_history_view_admin_only(self):
+    def test_history_view_all_roles_can_access_visible_lines(self):
         url = reverse("telecom:phoneline_history", args=[self.phone_line.pk])
 
+        AllocationService.allocate_line(
+            employee=self.employee_a,
+            phone_line=self.phone_line,
+            allocated_by=self.admin,
+        )
+        self.employee_a.email = self.operator.email
+        self.employee_a.save(update_fields=["email"])
+
         self.client.force_login(self.operator)
-        denied = self.client.get(url)
-        self.assertEqual(denied.status_code, 403)
+        operator_response = self.client.get(url)
+        self.assertEqual(operator_response.status_code, 200)
+        self.assertIn("history", operator_response.context)
 
         self.client.force_login(self.admin)
         ok = self.client.get(url)
@@ -1512,7 +1521,7 @@ class BackofficePhoneLineVisibilityTests(TestCase):
         self.assertEqual(denied_response.status_code, 404)
 
     @override_settings(RECONNECT_ENABLED=True)
-    def test_backoffice_overview_shows_only_reconnect_action_for_scoped_lines(self):
+    def test_backoffice_overview_shows_history_and_reconnect_for_scoped_lines(self):
         self.client.force_login(self.backoffice)
 
         response = self.client.get(reverse("telecom:overview"))
@@ -1529,13 +1538,13 @@ class BackofficePhoneLineVisibilityTests(TestCase):
             response,
             reverse("telecom:phoneline_update", args=[self.managed_line.pk]),
         )
-        self.assertNotContains(
+        self.assertContains(
             response,
             reverse("telecom:phoneline_history", args=[self.managed_line.pk]),
         )
 
     @override_settings(RECONNECT_ENABLED=True)
-    def test_backoffice_ajax_overview_returns_reconnect_url_without_admin_actions(self):
+    def test_backoffice_ajax_overview_returns_history_and_reconnect_without_edit(self):
         self.client.force_login(self.backoffice)
 
         response = self.client.get(
@@ -1554,10 +1563,13 @@ class BackofficePhoneLineVisibilityTests(TestCase):
             f'{reverse("telecom:phoneline_detail", args=[self.managed_line.pk])}#reconnect-whatsapp',
         )
         self.assertNotIn("edit_url", target)
-        self.assertNotIn("history_url", target)
+        self.assertEqual(
+            target["history_url"],
+            reverse("telecom:phoneline_history", args=[self.managed_line.pk]),
+        )
 
     @override_settings(RECONNECT_ENABLED=True)
-    def test_backoffice_detail_hides_admin_only_buttons(self):
+    def test_backoffice_detail_hides_edit_and_shows_history(self):
         self.client.force_login(self.backoffice)
 
         response = self.client.get(
@@ -1570,10 +1582,23 @@ class BackofficePhoneLineVisibilityTests(TestCase):
             response,
             reverse("telecom:phoneline_update", args=[self.managed_line.pk]),
         )
-        self.assertNotContains(
+        self.assertContains(
             response,
             reverse("telecom:phoneline_history", args=[self.managed_line.pk]),
         )
+
+    def test_backoffice_can_access_scoped_history_only(self):
+        self.client.force_login(self.backoffice)
+
+        allowed_response = self.client.get(
+            reverse("telecom:phoneline_history", args=[self.managed_line.pk])
+        )
+        denied_response = self.client.get(
+            reverse("telecom:phoneline_history", args=[self.unmanaged_line.pk])
+        )
+
+        self.assertEqual(allowed_response.status_code, 200)
+        self.assertEqual(denied_response.status_code, 404)
 
     @override_settings(RECONNECT_ENABLED=True)
     def test_manager_overview_scopes_lines_and_shows_only_reconnect_action(self):
@@ -1588,6 +1613,10 @@ class BackofficePhoneLineVisibilityTests(TestCase):
             response,
             f'{reverse("telecom:phoneline_detail", args=[self.managed_line.pk])}#reconnect-whatsapp',
             html=False,
+        )
+        self.assertContains(
+            response,
+            reverse("telecom:phoneline_history", args=[self.managed_line.pk]),
         )
         self.assertNotContains(
             response,
@@ -1607,6 +1636,10 @@ class BackofficePhoneLineVisibilityTests(TestCase):
             response,
             f'{reverse("telecom:phoneline_detail", args=[self.managed_line.pk])}#reconnect-whatsapp',
             html=False,
+        )
+        self.assertContains(
+            response,
+            reverse("telecom:phoneline_history", args=[self.managed_line.pk]),
         )
         self.assertNotContains(
             response,
@@ -3416,7 +3449,7 @@ class OperatorReconnectAccessTests(TestCase):
         self.assertContains(resp, "Reconexao WhatsApp")
         self.assertContains(resp, "data-reconnect-root")
 
-    def test_operator_detail_does_not_show_edit_or_history(self):
+    def test_operator_detail_does_not_show_edit_but_shows_history(self):
         self.client.force_login(self.operator)
 
         resp = self.client.get(
@@ -3428,7 +3461,7 @@ class OperatorReconnectAccessTests(TestCase):
             resp,
             reverse("telecom:phoneline_update", args=[self.eligible_line.pk]),
         )
-        self.assertNotContains(
+        self.assertContains(
             resp,
             reverse("telecom:phoneline_history", args=[self.eligible_line.pk]),
         )
@@ -3525,14 +3558,35 @@ class OperatorReconnectAccessTests(TestCase):
 
         self.assertEqual(resp.status_code, 403)
 
-    def test_operator_is_denied_on_phoneline_history(self):
+    def test_operator_can_access_phoneline_history_for_linked_line(self):
         self.client.force_login(self.operator)
 
         resp = self.client.get(
             reverse("telecom:phoneline_history", args=[self.eligible_line.pk])
         )
 
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 200)
+
+    def test_operator_gets_404_on_unlinked_phoneline_history(self):
+        self.client.force_login(self.operator)
+
+        unlinked_sim = SIMcard.objects.create(
+            iccid="8900000000000077999",
+            carrier="CarrierOp",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        unlinked_line = PhoneLine.objects.create(
+            phone_number="+5511977779999",
+            sim_card=unlinked_sim,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_01,
+        )
+
+        resp = self.client.get(
+            reverse("telecom:phoneline_history", args=[unlinked_line.pk])
+        )
+
+        self.assertEqual(resp.status_code, 404)
 
 
 class OperatorLinkedLineAccessTests(TestCase):
