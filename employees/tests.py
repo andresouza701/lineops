@@ -648,6 +648,11 @@ class EmployeeFormPortfolioChoicesTest(TestCase):
         ]:
             self.assertIn(portfolio, portfolio_html)
 
+    def test_form_shows_incubadora_in_employee_id_choices(self) -> None:
+        form = EmployeeForm()
+
+        self.assertIn("Incubadora", str(form["employee_id"]))
+
     def test_form_requires_portfolio_and_team(self) -> None:
         form = EmployeeForm(
             data={

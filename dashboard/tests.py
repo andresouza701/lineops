@@ -154,6 +154,7 @@ class DashboardDailyIndicatorsTests(TestCase):
         portfolio_html_b2b = str(form_b2b["portfolio"])
         self.assertIn("Alex", supervisor_html_b2b)
         self.assertIn("Alimentos", portfolio_html_b2b)
+        self.assertIn("Incubadora", portfolio_html_b2b)
 
         form_b2c = DailyIndicatorForm(
             data={
