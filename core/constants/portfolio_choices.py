@@ -29,6 +29,7 @@ B2B_SUPERVISORS = [
 B2B_PORTFOLIOS = [
     ("Alimentos", "Alimentos"),
     ("Andina", "Andina"),
+    ("Atlas", "Atlas"),
     ("BackOffice", "BackOffice"),
     ("BAT", "BAT"),
     ("Chilli Beans", "Chilli Beans"),
@@ -47,6 +48,7 @@ B2B_PORTFOLIOS = [
     ("MV - Potencial", "MV - Potencial"),
     ("MV - Represado", "MV - Represado"),
     ("Pepsico", "Pepsico"),
+    ("Pes Sem Dor", "Pes Sem Dor"),
     ("Pesquisa", "Pesquisa"),
     ("Sascar", "Sascar"),
     ("Souza", "Souza"),

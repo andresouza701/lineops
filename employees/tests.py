@@ -655,6 +655,13 @@ class EmployeeFormPortfolioChoicesTest(TestCase):
 
         self.assertIn("Incubadora", str(form["employee_id"]))
 
+    def test_form_shows_new_b2b_portfolios_in_employee_id_choices(self) -> None:
+        form = EmployeeForm()
+        portfolio_html = str(form["employee_id"])
+
+        self.assertIn("Atlas", portfolio_html)
+        self.assertIn("Pes Sem Dor", portfolio_html)
+
     def test_form_uses_correct_heineken_portfolio_name(self) -> None:
         form = EmployeeForm()
         portfolio_html = str(form["employee_id"])

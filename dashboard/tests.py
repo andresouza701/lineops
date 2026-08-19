@@ -157,6 +157,8 @@ class DashboardDailyIndicatorsTests(TestCase):
         self.assertIn("Heineken", portfolio_html_b2b)
         self.assertNotIn("Heineki", portfolio_html_b2b)
         self.assertIn("Incubadora", portfolio_html_b2b)
+        self.assertIn("Atlas", portfolio_html_b2b)
+        self.assertIn("Pes Sem Dor", portfolio_html_b2b)
 
         form_b2c = DailyIndicatorForm(
             data={
