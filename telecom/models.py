@@ -6,7 +6,14 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from core.current_user import get_current_user
 from core.normalization import normalize_carrier_name
+
+
+def _current_authenticated_user():
+    """Usuário atual autenticado, ou None quando indisponível (jobs, shell)."""
+    user = get_current_user()
+    return user if getattr(user, "is_authenticated", False) else None
 
 
 class SoftDeleteQuerySet(models.QuerySet):
@@ -187,14 +194,30 @@ class PhoneLine(models.Model):
     ):
         origem = origem or None
         canal = canal or None
-        existing_line = (
-            cls.all_objects.select_related("sim_card")
-            .filter(phone_number=phone_number)
-            .first()
-        )
-        if existing_line:
+
+        with transaction.atomic():
+            existing_line = (
+                cls.all_objects.select_for_update()
+                .select_related("sim_card")
+                .filter(phone_number=phone_number)
+                .first()
+            )
+
+            if not existing_line:
+                return cls.objects.create(
+                    phone_number=phone_number,
+                    sim_card=sim_card,
+                    status=status,
+                    origem=origem,
+                    canal=canal,
+                )
+
             if not existing_line.is_deleted and not existing_line.sim_card.is_deleted:
                 raise ValidationError("Número de linha já cadastrado.")
+
+            was_deleted = existing_line.is_deleted
+            previous_status_display = existing_line.get_status_display()
+            previous_sim_iccid = existing_line.sim_card.iccid
 
             existing_line.sim_card = sim_card
             existing_line.status = status
@@ -212,15 +235,24 @@ class PhoneLine(models.Model):
                     "updated_at",
                 ]
             )
-            return existing_line
 
-        return cls.objects.create(
-            phone_number=phone_number,
-            sim_card=sim_card,
-            status=status,
-            origem=origem,
-            canal=canal,
-        )
+            if was_deleted:
+                PhoneLineHistory.objects.create(
+                    phone_line=existing_line,
+                    action=PhoneLineHistory.ActionType.REACTIVATED,
+                    old_value=(
+                        f"Status: {previous_status_display}, "
+                        f"SIM: {previous_sim_iccid} (linha excluída)"
+                    ),
+                    new_value=(
+                        f"Status: {existing_line.get_status_display()}, "
+                        f"SIM: {existing_line.sim_card.iccid} (linha ativa)"
+                    ),
+                    changed_by=_current_authenticated_user(),
+                    description=f"Linha {existing_line.phone_number} reativada",
+                )
+
+            return existing_line
 
     def delete(self, using=None, keep_parents=False, released_by=None):
         if self.is_deleted:
@@ -259,6 +291,7 @@ class PhoneLineHistory(models.Model):
         SIMCARD_CHANGED = "SIMCARD_CHANGED", "SIMcard alterado"
         EMPLOYEE_CHANGED = "EMPLOYEE_CHANGED", "Usuário alterado"
         DELETED = "DELETED", "Excluída"
+        REACTIVATED = "REACTIVATED", "Reativada"
         ALLOCATED = "ALLOCATED", "Alocada"
         RELEASED = "RELEASED", "Liberada"
         DAILY_ACTION_CHANGED = "DAILY_ACTION_CHANGED", "Ação diária alterada"

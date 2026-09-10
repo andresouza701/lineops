@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.contrib import admin
+from django.core.exceptions import ValidationError
 from django.test import RequestFactory
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -274,6 +275,7 @@ class PhoneLineHistoryAuditTest(TestCase):
             "ALLOCATED",
             "RELEASED",
             "DAILY_ACTION_CHANGED",
+            "REACTIVATED",
         }
         current = {choice[0] for choice in PhoneLineHistory.ActionType.choices}
         self.assertEqual(current, expected)
@@ -451,6 +453,206 @@ class PhoneLineHistoryAuditTest(TestCase):
             history.filter(action=PhoneLineHistory.ActionType.STATUS_CHANGED).count(),
             0,
         )
+
+
+class PhoneLineReactivationAuditTest(TestCase):
+    """Gap de auditoria: reativação de PhoneLine soft-deletada em create_or_reuse."""
+
+    def setUp(self):
+        self.user = SystemUser.objects.create_user(
+            email="reactivation.admin@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.sim_a = SIMcard.objects.create(
+            iccid="8900000000000009001",
+            carrier="CarrierA",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.sim_b = SIMcard.objects.create(
+            iccid="8900000000000009002",
+            carrier="CarrierB",
+            status=SIMcard.Status.AVAILABLE,
+        )
+
+    def _reuse_as_user(self, **kwargs):
+        set_current_user(self.user)
+        try:
+            return PhoneLine.create_or_reuse(**kwargs)
+        finally:
+            clear_current_user()
+
+    def test_existing_line_lookup_locks_row_inside_transaction(self):
+        """Busca de linha existente usa SELECT ... FOR UPDATE (lock de linha).
+
+        `select_for_update()` só executa dentro de um `transaction.atomic()`
+        aberto; caso contrário levanta TransactionManagementError. O sucesso
+        deste caminho confirma tanto o lock quanto a transação única.
+        """
+        from django.db.models.query import QuerySet
+
+        line = PhoneLine.create_or_reuse(
+            phone_number="+551190000007",
+            sim_card=self.sim_a,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        line.delete()
+
+        original = QuerySet.select_for_update
+        with patch.object(
+            QuerySet,
+            "select_for_update",
+            autospec=True,
+            side_effect=original,
+        ) as spy:
+            reused = self._reuse_as_user(
+                phone_number="+551190000007",
+                sim_card=self.sim_b,
+                status=PhoneLine.Status.NOVO,
+            )
+
+        self.assertTrue(spy.called)
+        self.assertEqual(reused.pk, line.pk)
+        self.assertEqual(
+            PhoneLineHistory.objects.filter(
+                phone_line=line,
+                action=PhoneLineHistory.ActionType.REACTIVATED,
+            ).count(),
+            1,
+        )
+
+    def test_reactivating_soft_deleted_line_records_single_reactivated_event(self):
+        line = PhoneLine.create_or_reuse(
+            phone_number="+551190000001",
+            sim_card=self.sim_a,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        original_pk = line.pk
+        line.delete()
+        self.assertTrue(PhoneLine.all_objects.get(pk=original_pk).is_deleted)
+
+        reused = self._reuse_as_user(
+            phone_number="+551190000001",
+            sim_card=self.sim_b,
+            status=PhoneLine.Status.NOVO,
+        )
+
+        self.assertEqual(reused.pk, original_pk)
+        self.assertFalse(reused.is_deleted)
+        self.assertEqual(
+            PhoneLineHistory.objects.filter(
+                phone_line_id=original_pk,
+                action=PhoneLineHistory.ActionType.REACTIVATED,
+            ).count(),
+            1,
+        )
+
+    def test_reactivated_event_captures_before_after_author_and_description(self):
+        line = PhoneLine.create_or_reuse(
+            phone_number="+551190000002",
+            sim_card=self.sim_a,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        line.delete()
+
+        reused = self._reuse_as_user(
+            phone_number="+551190000002",
+            sim_card=self.sim_b,
+            status=PhoneLine.Status.NOVO,
+        )
+
+        event = PhoneLineHistory.objects.get(
+            phone_line=reused,
+            action=PhoneLineHistory.ActionType.REACTIVATED,
+        )
+        self.assertIn(self.sim_a.iccid, event.old_value)
+        self.assertIn(str(PhoneLine.Status.AVAILABLE.label), event.old_value)
+        self.assertIn(self.sim_b.iccid, event.new_value)
+        self.assertIn(str(PhoneLine.Status.NOVO.label), event.new_value)
+        self.assertEqual(event.changed_by, self.user)
+        self.assertIn("reativada", event.description.lower())
+
+    def test_new_line_records_created_not_reactivated(self):
+        line = self._reuse_as_user(
+            phone_number="+551190000003",
+            sim_card=self.sim_a,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        actions = set(
+            PhoneLineHistory.objects.filter(phone_line=line).values_list(
+                "action", flat=True
+            )
+        )
+        self.assertIn(PhoneLineHistory.ActionType.CREATED, actions)
+        self.assertNotIn(PhoneLineHistory.ActionType.REACTIVATED, actions)
+
+    def test_active_duplicate_still_raises_without_new_event(self):
+        line = PhoneLine.create_or_reuse(
+            phone_number="+551190000004",
+            sim_card=self.sim_a,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        before = PhoneLineHistory.objects.filter(phone_line=line).count()
+
+        with self.assertRaises(ValidationError):
+            self._reuse_as_user(
+                phone_number="+551190000004",
+                sim_card=self.sim_b,
+                status=PhoneLine.Status.NOVO,
+            )
+
+        self.assertEqual(
+            PhoneLineHistory.objects.filter(phone_line=line).count(), before
+        )
+        self.assertFalse(
+            PhoneLineHistory.objects.filter(
+                phone_line=line,
+                action=PhoneLineHistory.ActionType.REACTIVATED,
+            ).exists()
+        )
+
+    def test_only_sim_soft_deleted_does_not_reactivate_line(self):
+        line = PhoneLine.create_or_reuse(
+            phone_number="+551190000005",
+            sim_card=self.sim_a,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        SIMcard.all_objects.filter(pk=self.sim_a.pk).update(is_deleted=True)
+
+        reused = self._reuse_as_user(
+            phone_number="+551190000005",
+            sim_card=self.sim_b,
+            status=PhoneLine.Status.NOVO,
+        )
+
+        self.assertEqual(reused.pk, line.pk)
+        self.assertFalse(reused.is_deleted)
+        self.assertFalse(
+            PhoneLineHistory.objects.filter(
+                phone_line=line,
+                action=PhoneLineHistory.ActionType.REACTIVATED,
+            ).exists()
+        )
+
+    def test_history_view_renders_reactivated_label(self):
+        line = PhoneLine.create_or_reuse(
+            phone_number="+551190000006",
+            sim_card=self.sim_a,
+            status=PhoneLine.Status.AVAILABLE,
+        )
+        line.delete()
+        self._reuse_as_user(
+            phone_number="+551190000006",
+            sim_card=self.sim_b,
+            status=PhoneLine.Status.NOVO,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("telecom:phoneline_history", args=[line.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Reativada")
 
 
 class ExportPhoneLineHistoryTest(TestCase):
