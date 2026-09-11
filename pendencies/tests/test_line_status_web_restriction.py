@@ -81,6 +81,11 @@ class PendencyWebRestrictionLineStatusTests(TestCase):
 
     def test_admin_can_set_web_restriction_from_pendency_status(self):
         self.client.force_login(self.admin)
+        self.client.post(
+            reverse("pendencies:claim"),
+            data=json.dumps({"pendency_id": self.pendency.pk}),
+            content_type="application/json",
+        )
         payload = {
             "pendency_id": self.pendency.pk,
             "action": self.pendency.action,

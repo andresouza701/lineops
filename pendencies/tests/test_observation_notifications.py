@@ -8,7 +8,7 @@ from allocations.models import LineAllocation
 from employees.models import Employee
 from pendencies.models import AllocationPendency, PendencyObservationNotification
 from pendencies.services import notify_observation_change
-from telecom.models import PhoneLine, SIMcard
+from telecom.models import LineDailyActionAuditEvent, PhoneLine, SIMcard
 from users.models import SystemUser
 
 
@@ -638,7 +638,7 @@ class PendencyUpdateViewNotificationTest(TestCase):
             allocation=allocation,
             action=AllocationPendency.ActionType.PENDING,
             observation="observacao original",
-            technical_responsible=self.super_user,
+            technical_responsible=self.admin,
             resolved_at=resolved_at,
             last_action_changed_at=last_changed_at,
             pendency_submitted_at=submitted_at,
@@ -673,7 +673,7 @@ class PendencyUpdateViewNotificationTest(TestCase):
         )
         self.assertEqual(PendencyObservationNotification.objects.count(), 0)
 
-    def test_admin_release_unassigned_pendency_is_idempotent(self):
+    def test_admin_cannot_release_unassigned_pendency(self):
         allocation = self._make_allocation(phone_suffix="0302")
         pendency = AllocationPendency.objects.create(
             employee=self.employee,
@@ -689,14 +689,10 @@ class PendencyUpdateViewNotificationTest(TestCase):
             content_type="application/json",
         )
 
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
+        self.assertEqual(response.status_code, 403)
         pendency.refresh_from_db()
-
-        self.assertTrue(payload["ok"])
-        self.assertEqual(payload["technical_responsible_name"], "")
         self.assertIsNone(pendency.technical_responsible)
-        self.assertEqual(pendency.updated_by, self.admin)
+        self.assertIsNone(pendency.updated_by)
 
     def test_non_admin_cannot_release_technical_responsible(self):
         allocation = self._make_allocation(phone_suffix="0303")
@@ -742,6 +738,307 @@ class PendencyUpdateViewNotificationTest(TestCase):
         self.assertEqual(pendency.technical_responsible, self.admin)
         self.assertEqual(pendency.updated_by, self.admin)
         self.assertNotEqual(payload["technical_responsible_name"], "")
+
+    def test_unassigned_pendency_can_be_claimed_by_admin(self):
+        allocation = self._make_allocation(phone_suffix="0401")
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.PENDING,
+            technical_responsible=None,
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.claim_url,
+            data=json.dumps({"pendency_id": pendency.pk}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        pendency.refresh_from_db()
+        self.assertEqual(pendency.technical_responsible, self.admin)
+
+        events = LineDailyActionAuditEvent.objects.filter(
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=pendency.pk,
+        )
+        self.assertEqual(events.count(), 1)
+        event = events.first()
+        self.assertEqual(
+            event.event_type, LineDailyActionAuditEvent.EventType.RESPONSIBLE_ASSIGNED
+        )
+        self.assertEqual(event.performed_by, self.admin)
+        self.assertIsNone(event.before_state["technical_responsible"])
+        self.assertEqual(event.after_state["technical_responsible"]["id"], self.admin.pk)
+
+    def test_assigned_pendency_cannot_be_claimed_by_second_admin(self):
+        second_admin = _make_user("admin2@t.com", SystemUser.Role.ADMIN)
+        allocation = self._make_allocation(phone_suffix="0402")
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.PENDING,
+            technical_responsible=self.admin,
+        )
+
+        self.client.force_login(second_admin)
+        response = self.client.post(
+            self.claim_url,
+            data=json.dumps({"pendency_id": pendency.pk}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        pendency.refresh_from_db()
+        self.assertEqual(pendency.technical_responsible, self.admin)
+        self.assertEqual(
+            LineDailyActionAuditEvent.objects.filter(
+                source_object_id=pendency.pk,
+                event_type=LineDailyActionAuditEvent.EventType.RESPONSIBLE_ASSIGNED,
+            ).count(),
+            0,
+        )
+
+    def test_only_current_technical_responsible_can_update_action_status_or_resolve(self):
+        second_admin = _make_user("admin2@t.com", SystemUser.Role.ADMIN)
+        allocation = self._make_allocation(phone_suffix="0403")
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.PENDING,
+            technical_responsible=self.admin,
+        )
+
+        self.client.force_login(second_admin)
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "pendency_id": pendency.pk,
+                    "action": AllocationPendency.ActionType.RECONNECT_WHATSAPP,
+                    "observation": "tentativa indevida",
+                    "line_status": LineAllocation.LineStatus.RESTRICTED,
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        pendency.refresh_from_db()
+        allocation.refresh_from_db()
+        self.assertEqual(pendency.action, AllocationPendency.ActionType.PENDING)
+        self.assertEqual(pendency.observation, "")
+        self.assertNotEqual(allocation.line_status, LineAllocation.LineStatus.RESTRICTED)
+        self.assertEqual(
+            LineDailyActionAuditEvent.objects.filter(
+                source_object_id=pendency.pk
+            ).count(),
+            0,
+        )
+
+        # O proprio responsavel consegue.
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "pendency_id": pendency.pk,
+                    "action": AllocationPendency.ActionType.RECONNECT_WHATSAPP,
+                    "observation": "",
+                    "line_status": "",
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        pendency.refresh_from_db()
+        self.assertEqual(
+            pendency.action, AllocationPendency.ActionType.RECONNECT_WHATSAPP
+        )
+
+    def test_super_can_open_and_reopen_but_cannot_change_open_action(self):
+        allocation = self._make_allocation(phone_suffix="0404")
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.NO_ACTION,
+        )
+
+        self.client.force_login(self.super_user)
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "pendency_id": pendency.pk,
+                    "action": AllocationPendency.ActionType.PENDING,
+                    "observation": "",
+                    "line_status": "",
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        pendency.refresh_from_db()
+        self.assertEqual(pendency.action, AllocationPendency.ActionType.PENDING)
+        opened_event = LineDailyActionAuditEvent.objects.get(
+            source_object_id=pendency.pk,
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+        )
+        self.assertEqual(opened_event.performed_by, self.super_user)
+
+        # Super nao pode trocar a acao ja aberta para outro valor.
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "pendency_id": pendency.pk,
+                    "action": AllocationPendency.ActionType.RECONNECT_WHATSAPP,
+                    "observation": "",
+                    "line_status": "",
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+        pendency.refresh_from_db()
+        self.assertEqual(pendency.action, AllocationPendency.ActionType.PENDING)
+
+    def test_super_can_change_note_without_becoming_responsible(self):
+        allocation = self._make_allocation(phone_suffix="0405")
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.PENDING,
+            technical_responsible=self.admin,
+        )
+
+        self.client.force_login(self.super_user)
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "pendency_id": pendency.pk,
+                    "action": pendency.action,
+                    "observation": "nota do super",
+                    "line_status": "",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        pendency.refresh_from_db()
+        self.assertEqual(pendency.observation, "nota do super")
+        self.assertEqual(pendency.technical_responsible, self.admin)
+        note_event = LineDailyActionAuditEvent.objects.get(
+            source_object_id=pendency.pk,
+            event_type=LineDailyActionAuditEvent.EventType.NOTE_CHANGED,
+        )
+        self.assertEqual(note_event.performed_by, self.super_user)
+
+    def test_explicit_release_creates_responsible_released_event(self):
+        allocation = self._make_allocation(phone_suffix="0406")
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.PENDING,
+            technical_responsible=self.admin,
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.release_url,
+            data=json.dumps({"pendency_id": pendency.pk}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        pendency.refresh_from_db()
+        self.assertIsNone(pendency.technical_responsible)
+        event = LineDailyActionAuditEvent.objects.get(
+            source_object_id=pendency.pk,
+            event_type=LineDailyActionAuditEvent.EventType.RESPONSIBLE_RELEASED,
+        )
+        self.assertEqual(event.performed_by, self.admin)
+        self.assertEqual(event.before_state["technical_responsible"]["id"], self.admin.pk)
+        self.assertIsNone(event.after_state["technical_responsible"])
+
+    def test_resolve_creates_resolved_event_with_responsible_cleared(self):
+        allocation = self._make_allocation(phone_suffix="0407")
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.PENDING,
+            technical_responsible=self.admin,
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "pendency_id": pendency.pk,
+                    "action": AllocationPendency.ActionType.NO_ACTION,
+                    "observation": "",
+                    "line_status": "",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        pendency.refresh_from_db()
+        self.assertEqual(pendency.action, AllocationPendency.ActionType.NO_ACTION)
+        self.assertIsNone(pendency.technical_responsible)
+        event = LineDailyActionAuditEvent.objects.get(
+            source_object_id=pendency.pk,
+            event_type=LineDailyActionAuditEvent.EventType.RESOLVED,
+        )
+        self.assertEqual(event.performed_by, self.admin)
+        self.assertEqual(
+            event.before_state["technical_responsible"]["id"], self.admin.pk
+        )
+        self.assertIsNone(event.after_state["technical_responsible"])
+
+    def test_reopen_creates_reopened_event_with_responsible_cleared(self):
+        allocation = self._make_allocation(phone_suffix="0408")
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.NO_ACTION,
+            technical_responsible=self.admin,
+            resolved_at=timezone.now(),
+            last_submitted_action=AllocationPendency.ActionType.PENDING,
+        )
+
+        self.client.force_login(self.super_user)
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "pendency_id": pendency.pk,
+                    "action": AllocationPendency.ActionType.PENDING,
+                    "observation": "",
+                    "line_status": "",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        pendency.refresh_from_db()
+        self.assertEqual(pendency.action, AllocationPendency.ActionType.PENDING)
+        self.assertIsNone(pendency.technical_responsible)
+        event = LineDailyActionAuditEvent.objects.get(
+            source_object_id=pendency.pk,
+            event_type=LineDailyActionAuditEvent.EventType.REOPENED,
+        )
+        self.assertEqual(event.performed_by, self.super_user)
+        self.assertEqual(
+            event.before_state["technical_responsible"]["id"], self.admin.pk
+        )
+        self.assertIsNone(event.after_state["technical_responsible"])
 
 
 class PendencyDetailViewNotificationReadTest(TestCase):
