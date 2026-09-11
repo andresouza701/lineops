@@ -10,7 +10,7 @@ overwritten data will not be inferred or backfilled.
 ## Objective
 
 Provide complete, chronological, immutable line-action timeline. An authorized
-user can identify change, before/after values, actor, source, allocation,
+user can identify change, before/after values, event executor, source, allocation,
 employee, and occurrence time.
 
 Success: calculate entries, exits, reopens, action changes, responsible
@@ -33,7 +33,7 @@ of truth for this audit.
 - Start at deployment. No inferred baseline or historical backfill.
 - Read access follows existing visible-phone-line rules.
 - Persist complete before_state and after_state; never partial deltas.
-- Actor means user who executed event. It is independent from technical
+- performed_by means user who executed event. It is independent from technical
   responsible and from user who initially opened pendency.
 
 ## Django Boundary
@@ -77,11 +77,13 @@ a resolved pendency; after reopening, they may change its note only.
 
 Examples:
 
-- OPENED.actor is requester who opened pendency.
-- RESPONSIBLE_ASSIGNED.actor is admin who assumed it.
-- technical_responsible is current admin responsible in state snapshot.
-- RESOLVED.actor is current technical responsible who resolved it.
-- REOPENED.actor is super, backoffice, or gerente who reopened it.
+- OPENED: display "Solicitado por" from performed_by.
+- RESPONSIBLE_ASSIGNED: display "Tecnico que assumiu" from performed_by.
+- technical_responsible is current admin responsible in after_state.
+- RESOLVED: display "Tecnico que resolveu" from performed_by. It must equal
+  technical_responsible in before_state.
+- REOPENED: display "Reaberto por" from performed_by.
+- Other events display performed_by with business label for event type.
 
 ### Fixed Fields
 
@@ -96,16 +98,16 @@ Examples:
     phone_line
     allocation
     employee
-    actor
+    performed_by
     phone_number_snapshot
     allocation_id_snapshot
     employee_name_snapshot
-    actor_name_snapshot
-    actor_email_snapshot
+    performed_by_name_snapshot
+    performed_by_email_snapshot
     before_state
     after_state
 
-phone_line, allocation, employee, and actor are nullable FKs with SET_NULL.
+phone_line, allocation, employee, and performed_by are nullable FKs with SET_NULL.
 Snapshots retain meaning after physical operational deletion. operation_id is
 UUID shared by all events from one user operation. occurred_at is business
 change time; recorded_at is DB write time.
@@ -164,12 +166,12 @@ to preserve historical UI.
   "phone_line_id": 102,
   "allocation_id": 455,
   "employee_id": 88,
-  "actor_id": 12,
+  "performed_by_id": 12,
   "phone_number_snapshot": "+5511999999999",
   "allocation_id_snapshot": 455,
   "employee_name_snapshot": "Maria Silva",
-  "actor_name_snapshot": "Joao Admin",
-  "actor_email_snapshot": "joao@empresa.com",
+  "performed_by_name_snapshot": "Joao Admin",
+  "performed_by_email_snapshot": "joao@empresa.com",
   "before_state": {
     "action": {"code": "no_action", "label": "Sem Acao"},
     "note": "",
@@ -254,7 +256,7 @@ code, expand read access.
 ## Success Criteria
 
 - Every approved type has full before/after states.
-- Every event identifies source, actor, time, line, allocation, employee when available.
+- Every event identifies source, event executor, time, line, allocation, employee when available.
 - Operational deletion cannot make retained event unreadable.
 - Timeline reconstructs lifecycle from deployment onward.
 - Existing workflows remain compatible outside new audit writes.
