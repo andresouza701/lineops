@@ -62,20 +62,22 @@ DAILY_USER_ACTION, ALLOCATION_PENDENCY.
 | Role | Allowed events |
 | --- | --- |
 | super, backoffice, gerente | OPENED, REOPENED, NOTE_CHANGED |
-| admin | ACTION_CHANGED, NOTE_CHANGED, RESPONSIBLE_ASSIGNED, RESPONSIBLE_RELEASED, LINE_STATUS_CHANGED, RESOLVED |
+| admin, pendency unassigned | RESPONSIBLE_ASSIGNED |
+| admin, current technical responsible | ACTION_CHANGED, NOTE_CHANGED, RESPONSIBLE_RELEASED, LINE_STATUS_CHANGED, RESOLVED |
 
 super, backoffice, and gerente create a pendency for a line. It becomes visible
-in Acoes do Dia for every admin. Any admin may assume it, release current
-technical responsible, change action/note/line status, or resolve it. Only
-super, backoffice, or gerente may reopen a resolved pendency; after reopening,
-they may change its note only.
+in Acoes do Dia for every admin. Any admin may assume an unassigned pendency.
+After assume, only admin whose id equals technical_responsible_id may change
+action, note, line status, release, or resolve it. Other admins cannot change
+or resolve an assigned pendency. Only super, backoffice, or gerente may reopen
+a resolved pendency; after reopening, they may change its note only.
 
 Examples:
 
 - OPENED.actor is requester who opened pendency.
 - RESPONSIBLE_ASSIGNED.actor is admin who assumed it.
 - technical_responsible is current admin responsible in state snapshot.
-- RESOLVED.actor is admin who resolved it.
+- RESOLVED.actor is current technical responsible who resolved it.
 - REOPENED.actor is super, backoffice, or gerente who reopened it.
 
 ### Fixed Fields
