@@ -9,13 +9,21 @@ from django.utils import timezone
 from unittest.mock import ANY, MagicMock, patch
 
 from allocations.forms import TelephonyAssignmentForm
+from allocations.models import LineAllocation
 from core.current_user import clear_current_user, set_current_user
 from core.exceptions.domain_exceptions import BusinessRuleException
 from core.services.allocation_service import AllocationService
 from employees.models import Employee
 from telecom import history as telecom_history
 from telecom.forms import BlipConfigurationForm
-from telecom.models import BlipConfiguration, PhoneLine, PhoneLineHistory, SIMcard, WhatsappReconnectHistory
+from telecom.models import (
+    BlipConfiguration,
+    LineDailyActionAuditEvent,
+    PhoneLine,
+    PhoneLineHistory,
+    SIMcard,
+    WhatsappReconnectHistory,
+)
 from users.models import SystemUser
 
 
@@ -453,6 +461,192 @@ class PhoneLineHistoryAuditTest(TestCase):
             history.filter(action=PhoneLineHistory.ActionType.STATUS_CHANGED).count(),
             0,
         )
+
+
+class LineDailyActionAuditEventTest(TestCase):
+    """Contrato do modelo append-only LineDailyActionAuditEvent."""
+
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="audit.event.admin@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.employee = Employee.objects.create(
+            full_name="Employee Audit",
+            corporate_email="audit.super@corp.com",
+            employee_id="EMPAUD1",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        self.sim_card = SIMcard.objects.create(
+            iccid="8900000000000000301",
+            carrier="CarrierAudit",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.phone_line = PhoneLine.objects.create(
+            phone_number="+551199999301",
+            sim_card=self.sim_card,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        self.allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=self.phone_line,
+            allocated_by=self.admin,
+            is_active=True,
+        )
+
+    def _state(self, **overrides):
+        state = {
+            "action": {"code": "no_action", "label": "Sem Acao"},
+            "note": "",
+            "technical_responsible": None,
+            "line_status": {"code": "active", "label": "Ativa"},
+            "resolution": {"is_resolved": False, "resolved_at": None},
+            "source_state": {
+                "day": None,
+                "pendency_submitted_at": None,
+                "last_submitted_action": None,
+                "is_resolved": None,
+            },
+        }
+        state.update(overrides)
+        return state
+
+    def test_event_stores_complete_identity_and_snapshot_fields(self):
+        state = self._state()
+        event = LineDailyActionAuditEvent.objects.create(
+            phone_line=self.phone_line,
+            allocation=self.allocation,
+            employee=self.employee,
+            performed_by=self.admin,
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=771,
+            occurred_at=timezone.now(),
+            phone_number_snapshot=self.phone_line.phone_number,
+            allocation_id_snapshot=self.allocation.pk,
+            employee_name_snapshot=self.employee.full_name,
+            performed_by_name_snapshot=self.admin.get_full_name().strip()
+            or self.admin.email,
+            performed_by_email_snapshot=self.admin.email,
+            before_state=state,
+            after_state=state,
+        )
+        self.assertEqual(event.phone_number_snapshot, self.phone_line.phone_number)
+        self.assertEqual(
+            event.performed_by_name_snapshot,
+            self.admin.get_full_name().strip() or self.admin.email,
+        )
+        self.assertIsNotNone(event.operation_id)
+        self.assertIsNotNone(event.recorded_at)
+
+    def test_event_type_and_source_choices_are_complete(self):
+        expected_event_types = {
+            "OPENED",
+            "ACTION_CHANGED",
+            "NOTE_CHANGED",
+            "RESPONSIBLE_ASSIGNED",
+            "RESPONSIBLE_RELEASED",
+            "LINE_STATUS_CHANGED",
+            "RESOLVED",
+            "REOPENED",
+        }
+        expected_sources = {"DAILY_USER_ACTION", "ALLOCATION_PENDENCY"}
+        self.assertEqual(
+            {choice[0] for choice in LineDailyActionAuditEvent.EventType.choices},
+            expected_event_types,
+        )
+        self.assertEqual(
+            {choice[0] for choice in LineDailyActionAuditEvent.Source.choices},
+            expected_sources,
+        )
+
+    def test_default_payload_version_is_one(self):
+        state = self._state()
+        event = LineDailyActionAuditEvent.objects.create(
+            phone_line=self.phone_line,
+            allocation=self.allocation,
+            employee=self.employee,
+            performed_by=self.admin,
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=771,
+            occurred_at=timezone.now(),
+            before_state=state,
+            after_state=state,
+        )
+        self.assertEqual(event.payload_version, 1)
+
+    def test_before_and_after_state_keep_full_json_keys(self):
+        expected_keys = {
+            "action",
+            "note",
+            "technical_responsible",
+            "line_status",
+            "resolution",
+            "source_state",
+        }
+        state = self._state()
+        event = LineDailyActionAuditEvent.objects.create(
+            phone_line=self.phone_line,
+            allocation=self.allocation,
+            employee=self.employee,
+            performed_by=self.admin,
+            event_type=LineDailyActionAuditEvent.EventType.NOTE_CHANGED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=772,
+            occurred_at=timezone.now(),
+            before_state=state,
+            after_state=self._state(note="Nova nota"),
+        )
+        self.assertEqual(set(event.before_state.keys()), expected_keys)
+        self.assertEqual(set(event.after_state.keys()), expected_keys)
+
+    def test_deleting_performed_by_sets_fk_null_and_keeps_snapshot(self):
+        isolated_admin = SystemUser.objects.create_user(
+            email="isolated.performer@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        state = self._state()
+        event = LineDailyActionAuditEvent.objects.create(
+            phone_line=self.phone_line,
+            allocation=self.allocation,
+            employee=self.employee,
+            performed_by=isolated_admin,
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=773,
+            occurred_at=timezone.now(),
+            performed_by_name_snapshot="Isolated Admin",
+            performed_by_email_snapshot=isolated_admin.email,
+            before_state=state,
+            after_state=state,
+        )
+        isolated_admin.delete()
+        event.refresh_from_db()
+        self.assertIsNone(event.performed_by_id)
+        self.assertEqual(event.performed_by_name_snapshot, "Isolated Admin")
+        self.assertEqual(event.performed_by_email_snapshot, isolated_admin.email)
+
+    def test_save_after_creation_raises_validation_error(self):
+        state = self._state()
+        event = LineDailyActionAuditEvent.objects.create(
+            phone_line=self.phone_line,
+            allocation=self.allocation,
+            employee=self.employee,
+            performed_by=self.admin,
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=774,
+            occurred_at=timezone.now(),
+            before_state=state,
+            after_state=state,
+        )
+        event.after_state = self._state(note="tentativa de alteracao")
+        with self.assertRaises(ValidationError):
+            event.save()
 
 
 class PhoneLineReactivationAuditTest(TestCase):

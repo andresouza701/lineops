@@ -1,3 +1,5 @@
+import uuid
+
 from django.apps import apps
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -336,6 +338,116 @@ class PhoneLineHistory(models.Model):
             f"{self.phone_line.phone_number} - "
             f"{self.get_action_display()} - {self.changed_at}"
         )
+
+
+class LineDailyActionAuditEvent(models.Model):
+    """
+    Fato de auditoria append-only para ações diárias de linha (Ações do Dia e
+    Pendências de Alocação). Cada linha registra o antes/depois completo de
+    uma mudança material. Nunca é atualizada ou apagada pela aplicação.
+    """
+
+    class EventType(models.TextChoices):
+        OPENED = "OPENED", "Aberta"
+        ACTION_CHANGED = "ACTION_CHANGED", "Acao alterada"
+        NOTE_CHANGED = "NOTE_CHANGED", "Nota alterada"
+        RESPONSIBLE_ASSIGNED = "RESPONSIBLE_ASSIGNED", "Tecnico assumiu"
+        RESPONSIBLE_RELEASED = "RESPONSIBLE_RELEASED", "Tecnico liberou"
+        LINE_STATUS_CHANGED = "LINE_STATUS_CHANGED", "Status alterado"
+        RESOLVED = "RESOLVED", "Resolvida"
+        REOPENED = "REOPENED", "Reaberta"
+
+    class Source(models.TextChoices):
+        DAILY_USER_ACTION = "DAILY_USER_ACTION", "Acao diaria"
+        ALLOCATION_PENDENCY = "ALLOCATION_PENDENCY", "Pendencia"
+
+    event_type = models.CharField(max_length=30, choices=EventType.choices)
+    source = models.CharField(max_length=30, choices=Source.choices)
+    source_object_id = models.BigIntegerField()
+    operation_id = models.UUIDField(default=uuid.uuid4, db_index=True)
+    payload_version = models.PositiveSmallIntegerField(default=1)
+
+    occurred_at = models.DateTimeField(db_index=True)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    phone_line = models.ForeignKey(
+        "PhoneLine",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="daily_action_audit_events",
+        verbose_name="Linha",
+    )
+    allocation = models.ForeignKey(
+        "allocations.LineAllocation",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="daily_action_audit_events",
+        verbose_name="Alocacao",
+    )
+    employee = models.ForeignKey(
+        "employees.Employee",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="daily_action_audit_events",
+        verbose_name="Usuario",
+    )
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="daily_action_audit_events_performed",
+        verbose_name="Executado por",
+    )
+
+    phone_number_snapshot = models.CharField(max_length=20, blank=True, default="")
+    allocation_id_snapshot = models.BigIntegerField(null=True, blank=True)
+    employee_name_snapshot = models.CharField(max_length=40, blank=True, default="")
+    performed_by_name_snapshot = models.CharField(max_length=150, blank=True, default="")
+    performed_by_email_snapshot = models.EmailField(
+        max_length=254, blank=True, default=""
+    )
+
+    before_state = models.JSONField()
+    after_state = models.JSONField()
+
+    class Meta:
+        verbose_name = "Evento de Auditoria de Acao de Linha"
+        verbose_name_plural = "Eventos de Auditoria de Acao de Linha"
+        ordering = ["-occurred_at", "-id"]
+        indexes = [
+            models.Index(
+                fields=["phone_line", "-occurred_at"],
+                name="ldaae_phone_line_idx",
+            ),
+            models.Index(
+                fields=["allocation", "-occurred_at"],
+                name="ldaae_allocation_idx",
+            ),
+            models.Index(
+                fields=["employee", "-occurred_at"],
+                name="ldaae_employee_idx",
+            ),
+            models.Index(
+                fields=["event_type", "-occurred_at"],
+                name="ldaae_event_type_idx",
+            ),
+            models.Index(
+                fields=["source", "source_object_id"],
+                name="ldaae_source_obj_idx",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Eventos de auditoria sao imutaveis.")
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.get_event_type_display()} - {self.source} #{self.source_object_id}"
 
 
 class WhatsappReconnectHistory(models.Model):
