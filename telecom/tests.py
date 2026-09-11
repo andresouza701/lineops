@@ -856,6 +856,156 @@ class LineDailyActionAuditServiceTest(TestCase):
         self.assertFalse(state["resolution"]["is_resolved"])
 
 
+class LineDailyActionAuditIntegrityTest(TestCase):
+    """Task 5: rollback atomico, retencao de FK e imutabilidade end-to-end."""
+
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="audit.integrity.admin@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.employee = Employee.objects.create(
+            full_name="Employee Integrity",
+            corporate_email="audit.integrity.super@corp.com",
+            employee_id="EMPINT1",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        self.sim_card = SIMcard.objects.create(
+            iccid="8900000000000000501",
+            carrier="CarrierIntegrity",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.phone_line = PhoneLine.objects.create(
+            phone_number="+551199999501",
+            sim_card=self.sim_card,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        self.allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=self.phone_line,
+            allocated_by=self.admin,
+            is_active=True,
+        )
+
+    def _state(self, **overrides):
+        state = {
+            "action": {"code": "pending", "label": "Pendencia"},
+            "note": "",
+            "technical_responsible": None,
+            "line_status": {"code": "active", "label": "Ativa"},
+            "resolution": {"is_resolved": False, "resolved_at": None},
+            "source_state": {
+                "day": None,
+                "pendency_submitted_at": None,
+                "last_submitted_action": None,
+            },
+        }
+        state.update(overrides)
+        return state
+
+    def test_exception_after_mutation_rolls_back_operational_change_and_event(self):
+        from django.db import transaction
+
+        from telecom.daily_action_audit import record_line_daily_action_event
+
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=self.allocation,
+            action=AllocationPendency.ActionType.PENDING,
+        )
+        original_observation = pendency.observation
+
+        class _BoomError(Exception):
+            pass
+
+        with self.assertRaises(_BoomError):
+            with transaction.atomic():
+                pendency.observation = "alterado dentro da transacao"
+                pendency.save(update_fields=["observation"])
+                record_line_daily_action_event(
+                    event_type=LineDailyActionAuditEvent.EventType.NOTE_CHANGED,
+                    source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+                    source_object_id=pendency.pk,
+                    phone_line=self.phone_line,
+                    allocation=self.allocation,
+                    employee=self.employee,
+                    performed_by=self.admin,
+                    before_state=self._state(),
+                    after_state=self._state(note="alterado dentro da transacao"),
+                    occurred_at=timezone.now(),
+                    operation_id=uuid.uuid4(),
+                )
+                raise _BoomError("falha simulada apos mutacao e evento")
+
+        pendency.refresh_from_db()
+        self.assertEqual(pendency.observation, original_observation)
+        self.assertEqual(
+            LineDailyActionAuditEvent.objects.filter(
+                source_object_id=pendency.pk,
+                event_type=LineDailyActionAuditEvent.EventType.NOTE_CHANGED,
+            ).count(),
+            0,
+        )
+
+    def test_deleting_allocation_sets_fk_null_and_keeps_snapshot(self):
+        from telecom.daily_action_audit import record_line_daily_action_event
+
+        state = self._state()
+        event = record_line_daily_action_event(
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=999,
+            phone_line=self.phone_line,
+            allocation=self.allocation,
+            employee=self.employee,
+            performed_by=self.admin,
+            before_state=state,
+            after_state=state,
+            occurred_at=timezone.now(),
+            operation_id=uuid.uuid4(),
+        )
+
+        allocation_id_snapshot = event.allocation_id_snapshot
+        # LineAllocation.delete() recusa exclusao de negocio; simula exclusao
+        # fisica real (ex.: expurgo/manutencao) via bulk delete no queryset.
+        LineAllocation.objects.filter(pk=self.allocation.pk).delete()
+        event.refresh_from_db()
+
+        self.assertIsNone(event.allocation_id)
+        self.assertEqual(event.allocation_id_snapshot, allocation_id_snapshot)
+        self.assertEqual(event.phone_number_snapshot, self.phone_line.phone_number)
+
+    def test_deleting_employee_sets_fk_null_and_keeps_snapshot(self):
+        from telecom.daily_action_audit import record_line_daily_action_event
+
+        state = self._state()
+        event = record_line_daily_action_event(
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=998,
+            phone_line=self.phone_line,
+            allocation=self.allocation,
+            employee=self.employee,
+            performed_by=self.admin,
+            before_state=state,
+            after_state=state,
+            occurred_at=timezone.now(),
+            operation_id=uuid.uuid4(),
+        )
+
+        employee_name_snapshot = event.employee_name_snapshot
+        # Employee.delete() eh soft-delete; simula exclusao fisica real via
+        # bulk delete no manager bruto (bypassa o soft-delete customizado).
+        LineAllocation.objects.filter(pk=self.allocation.pk).delete()
+        Employee.all_objects.filter(pk=self.employee.pk).delete()
+        event.refresh_from_db()
+
+        self.assertIsNone(event.employee_id)
+        self.assertEqual(event.employee_name_snapshot, employee_name_snapshot)
+
+
 class PhoneLineReactivationAuditTest(TestCase):
     """Gap de auditoria: reativação de PhoneLine soft-deletada em create_or_reuse."""
 
