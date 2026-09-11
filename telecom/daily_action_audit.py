@@ -78,7 +78,25 @@ def build_pendency_state(pendency, allocation) -> dict:
 
 
 def build_daily_user_action_state(action, allocation) -> dict:
-    """Snapshot completo do estado de um DailyUserAction (fonte legada)."""
+    """Snapshot completo do estado de um DailyUserAction (fonte legada).
+
+    ``action=None`` representa o estado "nada existia antes", usado como
+    before_state de um evento OPENED quando não havia linha prévia.
+    """
+    if action is None:
+        return {
+            "action": {"code": "", "label": "Sem acao"},
+            "note": "",
+            "technical_responsible": None,
+            "line_status": _allocation_line_status_state(allocation),
+            "resolution": {"is_resolved": False, "resolved_at": None},
+            "source_state": {
+                "day": None,
+                "pendency_submitted_at": None,
+                "last_submitted_action": None,
+                "is_resolved": False,
+            },
+        }
     return {
         "action": _choice_state(action.action_type, action.get_action_type_display()),
         "note": action.note,
