@@ -59,6 +59,9 @@ DAILY_USER_ACTION, ALLOCATION_PENDENCY.
 
 ### Permission Matrix
 
+Every technical user has admin role. technical_responsible is not a role; it is
+the specific admin currently assigned to pendency.
+
 | Role | Allowed events |
 | --- | --- |
 | super, backoffice, gerente | OPENED, REOPENED, NOTE_CHANGED |
