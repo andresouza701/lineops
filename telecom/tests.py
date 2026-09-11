@@ -554,7 +554,11 @@ class LineDailyActionAuditEventTest(TestCase):
             "RESOLVED",
             "REOPENED",
         }
-        expected_sources = {"DAILY_USER_ACTION", "ALLOCATION_PENDENCY"}
+        expected_sources = {
+            "DAILY_USER_ACTION",
+            "ALLOCATION_PENDENCY",
+            "LINE_ALLOCATION",
+        }
         self.assertEqual(
             {choice[0] for choice in LineDailyActionAuditEvent.EventType.choices},
             expected_event_types,
@@ -649,6 +653,138 @@ class LineDailyActionAuditEventTest(TestCase):
         event.after_state = self._state(note="tentativa de alteracao")
         with self.assertRaises(ValidationError):
             event.save()
+
+    def test_instance_delete_is_blocked(self):
+        state = self._state()
+        event = LineDailyActionAuditEvent.objects.create(
+            phone_line=self.phone_line,
+            allocation=self.allocation,
+            employee=self.employee,
+            performed_by=self.admin,
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=775,
+            occurred_at=timezone.now(),
+            before_state=state,
+            after_state=state,
+        )
+        with self.assertRaises(ValidationError):
+            event.delete()
+        self.assertTrue(
+            LineDailyActionAuditEvent.objects.filter(pk=event.pk).exists()
+        )
+
+    def test_queryset_delete_is_blocked(self):
+        state = self._state()
+        LineDailyActionAuditEvent.objects.create(
+            phone_line=self.phone_line,
+            allocation=self.allocation,
+            employee=self.employee,
+            performed_by=self.admin,
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=776,
+            occurred_at=timezone.now(),
+            before_state=state,
+            after_state=state,
+        )
+        with self.assertRaises(ValidationError):
+            LineDailyActionAuditEvent.objects.filter(source_object_id=776).delete()
+        self.assertTrue(
+            LineDailyActionAuditEvent.objects.filter(source_object_id=776).exists()
+        )
+
+    def test_queryset_update_of_content_field_is_blocked(self):
+        state = self._state()
+        event = LineDailyActionAuditEvent.objects.create(
+            phone_line=self.phone_line,
+            allocation=self.allocation,
+            employee=self.employee,
+            performed_by=self.admin,
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=777,
+            occurred_at=timezone.now(),
+            before_state=state,
+            after_state=state,
+        )
+        with self.assertRaises(ValidationError):
+            LineDailyActionAuditEvent.objects.filter(pk=event.pk).update(
+                after_state=self._state(note="forjado")
+            )
+        event.refresh_from_db()
+        self.assertEqual(event.after_state, state)
+
+    def test_django_set_null_cascade_still_works_despite_update_guard(self):
+        """Guard bloqueia .update() de app; nao pode quebrar o SET_NULL do
+        Django ao deletar fisicamente o registro relacionado (via bulk delete
+        no queryset, que bypassa o Model.delete() de negocio)."""
+        state = self._state()
+        event = LineDailyActionAuditEvent.objects.create(
+            phone_line=self.phone_line,
+            allocation=self.allocation,
+            employee=self.employee,
+            performed_by=self.admin,
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=778,
+            occurred_at=timezone.now(),
+            before_state=state,
+            after_state=state,
+        )
+        LineAllocation.objects.filter(pk=self.allocation.pk).delete()
+        event.refresh_from_db()
+        self.assertIsNone(event.allocation_id)
+
+    def test_postgres_trigger_blocks_raw_sql_delete_and_content_update(self):
+        """Protecao DB-level (migration 0019). So roda contra Postgres real;
+        sqlite (usado por `manage.py test`) nao tem trigger equivalente."""
+        from django.db import connection
+
+        if connection.vendor != "postgresql":
+            self.skipTest("Trigger de imutabilidade so existe em Postgres.")
+
+        state = self._state()
+        event = LineDailyActionAuditEvent.objects.create(
+            phone_line=self.phone_line,
+            allocation=self.allocation,
+            employee=self.employee,
+            performed_by=self.admin,
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=779,
+            occurred_at=timezone.now(),
+            before_state=state,
+            after_state=state,
+        )
+
+        with connection.cursor() as cursor:
+            from django.db.utils import InternalError
+
+            with self.assertRaises(InternalError):
+                cursor.execute(
+                    "DELETE FROM telecom_linedailyactionauditevent WHERE id = %s",
+                    [event.pk],
+                )
+        connection.close()  # aborta a transacao quebrada pelo RAISE EXCEPTION
+
+        with connection.cursor() as cursor:
+            with self.assertRaises(InternalError):
+                cursor.execute(
+                    "UPDATE telecom_linedailyactionauditevent "
+                    "SET source_object_id = %s WHERE id = %s",
+                    [999999, event.pk],
+                )
+        connection.close()
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE telecom_linedailyactionauditevent "
+                "SET allocation_id = NULL WHERE id = %s",
+                [event.pk],
+            )
+        event.refresh_from_db()
+        self.assertIsNone(event.allocation_id)
 
 
 class LineDailyActionAuditServiceTest(TestCase):
@@ -854,6 +990,148 @@ class LineDailyActionAuditServiceTest(TestCase):
         self.assertIsNone(state["technical_responsible"])
         self.assertEqual(state["source_state"]["day"], action.day.isoformat())
         self.assertFalse(state["resolution"]["is_resolved"])
+
+
+class ResolveOldDailyUserActionsTest(TestCase):
+    """scripts/resolve_old_actions.py delega pra esta funcao testavel:
+    resolve uma acao por vez, com lock, snapshot e evento RESOLVED — nunca
+    bulk update."""
+
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="resolve.script.admin@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.employee = Employee.objects.create(
+            full_name="Employee Script",
+            corporate_email="resolve.script.super@corp.com",
+            employee_id="EMPSCR1",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        self.sim_card = SIMcard.objects.create(
+            iccid="8900000000000000601",
+            carrier="CarrierScript",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.phone_line = PhoneLine.objects.create(
+            phone_number="+551199999601",
+            sim_card=self.sim_card,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        self.allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=self.phone_line,
+            allocated_by=self.admin,
+            is_active=True,
+        )
+
+    def _make_action(self, **overrides):
+        from dashboard.models import DailyUserAction
+
+        defaults = {
+            "day": timezone.localdate(),
+            "employee": self.employee,
+            "allocation": self.allocation,
+            "action_type": DailyUserAction.ActionType.PENDING,
+            "note": "",
+            "is_resolved": False,
+        }
+        defaults.update(overrides)
+        return DailyUserAction.objects.create(**defaults)
+
+    def test_resolves_each_open_action_and_records_resolved_event(self):
+        from telecom.daily_action_audit import resolve_old_daily_user_actions
+
+        action = self._make_action()
+
+        count = resolve_old_daily_user_actions()
+
+        self.assertEqual(count, 1)
+        action.refresh_from_db()
+        self.assertTrue(action.is_resolved)
+
+        events = LineDailyActionAuditEvent.objects.filter(
+            source=LineDailyActionAuditEvent.Source.DAILY_USER_ACTION,
+            source_object_id=action.pk,
+        )
+        self.assertEqual(events.count(), 1)
+        event = events.first()
+        self.assertEqual(event.event_type, LineDailyActionAuditEvent.EventType.RESOLVED)
+        self.assertIsNone(event.performed_by)
+        self.assertFalse(event.before_state["resolution"]["is_resolved"])
+        self.assertTrue(event.after_state["resolution"]["is_resolved"])
+        self.assertEqual(event.employee_id, self.employee.pk)
+        self.assertEqual(event.allocation_id, self.allocation.pk)
+        self.assertEqual(event.phone_line_id, self.phone_line.pk)
+
+    def test_shares_one_operation_id_across_actions_in_one_run(self):
+        from telecom.daily_action_audit import resolve_old_daily_user_actions
+
+        action_a = self._make_action()
+        employee_b = Employee.objects.create(
+            full_name="Employee Script B",
+            corporate_email="resolve.script.super.b@corp.com",
+            employee_id="EMPSCR2",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        action_b = self._make_action(employee=employee_b, allocation=None)
+
+        resolve_old_daily_user_actions()
+
+        events = LineDailyActionAuditEvent.objects.filter(
+            source_object_id__in=[action_a.pk, action_b.pk],
+            event_type=LineDailyActionAuditEvent.EventType.RESOLVED,
+        )
+        self.assertEqual(events.count(), 2)
+        operation_ids = {event.operation_id for event in events}
+        self.assertEqual(len(operation_ids), 1)
+
+    def test_does_not_touch_already_resolved_actions(self):
+        from telecom.daily_action_audit import resolve_old_daily_user_actions
+
+        resolved_action = self._make_action(is_resolved=True)
+
+        count = resolve_old_daily_user_actions()
+
+        self.assertEqual(count, 0)
+        self.assertEqual(
+            LineDailyActionAuditEvent.objects.filter(
+                source_object_id=resolved_action.pk
+            ).count(),
+            0,
+        )
+
+    def test_never_bulk_updates_daily_user_action(self):
+        """Garante que a funcao nao usa QuerySet.update() em massa: cada
+        linha resolvida deve ter seu proprio evento RESOLVED (uma linha
+        bulk-updated nao teria como gerar eventos individuais)."""
+        from telecom.daily_action_audit import resolve_old_daily_user_actions
+
+        action_a = self._make_action()
+        action_b = self._make_action(
+            employee=Employee.objects.create(
+                full_name="Employee Script C",
+                corporate_email="resolve.script.super.c@corp.com",
+                employee_id="EMPSCR3",
+                teams="Joinville",
+                status=Employee.Status.ACTIVE,
+            ),
+            allocation=None,
+        )
+
+        resolve_old_daily_user_actions()
+
+        for action_pk in (action_a.pk, action_b.pk):
+            self.assertEqual(
+                LineDailyActionAuditEvent.objects.filter(
+                    source_object_id=action_pk,
+                    event_type=LineDailyActionAuditEvent.EventType.RESOLVED,
+                ).count(),
+                1,
+            )
 
 
 class LineDailyActionAuditIntegrityTest(TestCase):

@@ -1938,44 +1938,65 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                     "Usuario nao encontrado para este supervisor.",
                 )
             else:
-              with transaction.atomic():
-                operation_id = uuid.uuid4()
-                if request.user.role == SystemUser.Role.ADMIN:
-                    line_status = form.cleaned_data.get("line_status")
-                    if line_status and line_status in dict(Employee.LineStatus.choices):
-                        if allocation_id:
-                            allocation = LineAllocation.objects.filter(
-                                pk=allocation_id, employee=employee, is_active=True
-                            ).first()
-                            if allocation and allocation.line_status != line_status:
-                                existing_action_for_status = (
-                                    DailyUserAction.objects.filter(
-                                        day=timezone.localdate(),
-                                        employee=employee,
-                                        allocation=allocation,
-                                    ).first()
-                                )
-                                before_status_state = build_daily_user_action_state(
-                                    existing_action_for_status, allocation
-                                )
-                                old_line_status = allocation.get_line_status_display()
-                                allocation.line_status = line_status
-                                allocation.save(update_fields=["line_status"])
-                                new_line_status = allocation.get_line_status_display()
-                                PhoneLineHistory.objects.create(
-                                    phone_line=allocation.phone_line,
-                                    action=PhoneLineHistory.ActionType.STATUS_CHANGED,
-                                    old_value=f"Status da linha: {old_line_status}",
-                                    new_value=f"Status da linha: {new_line_status}",
-                                    changed_by=request.user,
-                                    description=(
-                                        "Status da linha alterado em Ações do Dia de "
-                                        f"{old_line_status} para {new_line_status}"
-                                    ),
-                                )
-                                if existing_action_for_status:
+                with transaction.atomic():
+                    operation_id = uuid.uuid4()
+
+                    # Lock base: obtido antes de qualquer leitura/decisao de
+                    # snapshot, pra fechar a corrida entre requisicoes
+                    # concorrentes na mesma linha/funcionario (correcao 3).
+                    allocation_obj = None
+                    if allocation_id:
+                        allocation_obj = (
+                            LineAllocation.objects.select_for_update()
+                            .filter(pk=allocation_id, employee=employee, is_active=True)
+                            .first()
+                        )
+                    else:
+                        employee = (
+                            Employee.objects.select_for_update()
+                            .filter(pk=employee.pk)
+                            .first()
+                            or employee
+                        )
+
+                    if request.user.role == SystemUser.Role.ADMIN:
+                        line_status = form.cleaned_data.get("line_status")
+                        if line_status and line_status in dict(Employee.LineStatus.choices):
+                            if allocation_obj:
+                                if allocation_obj.line_status != line_status:
+                                    existing_action_for_status = (
+                                        DailyUserAction.objects.select_for_update()
+                                        .filter(
+                                            day=timezone.localdate(),
+                                            employee=employee,
+                                            allocation=allocation_obj,
+                                        )
+                                        .first()
+                                    )
+                                    before_status_state = build_daily_user_action_state(
+                                        existing_action_for_status, allocation_obj
+                                    )
+                                    old_line_status = allocation_obj.get_line_status_display()
+                                    allocation_obj.line_status = line_status
+                                    allocation_obj.save(update_fields=["line_status"])
+                                    new_line_status = allocation_obj.get_line_status_display()
+                                    PhoneLineHistory.objects.create(
+                                        phone_line=allocation_obj.phone_line,
+                                        action=PhoneLineHistory.ActionType.STATUS_CHANGED,
+                                        old_value=f"Status da linha: {old_line_status}",
+                                        new_value=f"Status da linha: {new_line_status}",
+                                        changed_by=request.user,
+                                        description=(
+                                            "Status da linha alterado em Ações do Dia de "
+                                            f"{old_line_status} para {new_line_status}"
+                                        ),
+                                    )
+                                    # source=LINE_ALLOCATION sempre: a mudanca de
+                                    # status pode ocorrer sem DailyUserAction, e
+                                    # nunca usamos DAILY_USER_ACTION com um id de
+                                    # allocation como fonte "falsa".
                                     after_status_state = build_daily_user_action_state(
-                                        existing_action_for_status, allocation
+                                        existing_action_for_status, allocation_obj
                                     )
                                     record_line_daily_action_event(
                                         event_type=(
@@ -1984,11 +2005,11 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                                         ),
                                         source=(
                                             LineDailyActionAuditEvent.Source
-                                            .DAILY_USER_ACTION
+                                            .LINE_ALLOCATION
                                         ),
-                                        source_object_id=existing_action_for_status.pk,
-                                        phone_line=allocation.phone_line,
-                                        allocation=allocation,
+                                        source_object_id=allocation_obj.pk,
+                                        phone_line=allocation_obj.phone_line,
+                                        allocation=allocation_obj,
                                         employee=employee,
                                         performed_by=request.user,
                                         before_state=before_status_state,
@@ -1996,6 +2017,28 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                                         occurred_at=timezone.now(),
                                         operation_id=operation_id,
                                     )
+                                    messages.success(
+                                        request,
+                                        (
+                                            "Status da linha atualizado para "
+                                            f"{employee.full_name}."
+                                        ),
+                                    )
+                            elif not allocation_id and employee.line_status != line_status:
+                                old_line_status = employee.get_line_status_display()
+                                employee.line_status = line_status
+                                employee.save(update_fields=["line_status"])
+                                EmployeeHistory.objects.create(
+                                    employee=employee,
+                                    action=EmployeeHistory.ActionType.STATUS_CHANGED,
+                                    old_value=old_line_status,
+                                    new_value=employee.get_line_status_display(),
+                                    changed_by=request.user,
+                                    description=(
+                                        "Status da linha do usuario alterado em "
+                                        "Ações do Dia"
+                                    ),
+                                )
                                 messages.success(
                                     request,
                                     (
@@ -2003,277 +2046,286 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                                         f"{employee.full_name}."
                                     ),
                                 )
-                        elif employee.line_status != line_status:
-                            old_line_status = employee.get_line_status_display()
-                            employee.line_status = line_status
-                            employee.save(update_fields=["line_status"])
-                            EmployeeHistory.objects.create(
-                                employee=employee,
-                                action=EmployeeHistory.ActionType.STATUS_CHANGED,
-                                old_value=old_line_status,
-                                new_value=employee.get_line_status_display(),
-                                changed_by=request.user,
-                                description=(
-                                    "Status da linha do usuario alterado em "
-                                    "Ações do Dia"
-                                ),
-                            )
-                            messages.success(
-                                request,
-                                (
-                                    "Status da linha atualizado para "
-                                    f"{employee.full_name}."
-                                ),
-                            )
 
-                if action_type and action_type not in dict(
-                    DailyUserAction.ActionType.choices
-                ):
-                    messages.error(request, "Tipo de ação inválido.")
-                elif not action_type:
-                    action = get_open_action_for_resolution(employee, allocation_id)
-                    if action:
-                        resolve_allocation = action.allocation
-                        action_label = dict(DailyUserAction.ActionType.choices).get(
-                            action.action_type, action.action_type
+                    if action_type and action_type not in dict(
+                        DailyUserAction.ActionType.choices
+                    ):
+                        messages.error(request, "Tipo de ação inválido.")
+                    elif not action_type:
+                        candidate_action = get_open_action_for_resolution(
+                            employee, allocation_id
                         )
-                        before_resolve_state = build_daily_user_action_state(
-                            action, resolve_allocation
+                        action = (
+                            DailyUserAction.objects.select_for_update()
+                            .filter(pk=candidate_action.pk, is_resolved=False)
+                            .first()
+                            if candidate_action
+                            else None
                         )
-                        note_changed_on_resolve = (action.note or "") != note
-                        action.note = note
-                        after_note_state = (
-                            build_daily_user_action_state(action, resolve_allocation)
-                            if note_changed_on_resolve
-                            else before_resolve_state
-                        )
-                        action.is_resolved = True
-                        action.updated_by = request.user
-                        action.updated_at = timezone.now()
-                        action.save(
-                            update_fields=[
-                                "is_resolved",
-                                "note",
-                                "updated_by",
-                                "updated_at",
-                            ]
-                        )
-                        after_resolve_state = build_daily_user_action_state(
-                            action, resolve_allocation
-                        )
-                        resolve_phone_line = (
-                            resolve_allocation.phone_line if resolve_allocation else None
-                        )
-                        if note_changed_on_resolve:
+                        if action:
+                            resolve_allocation = action.allocation
+                            action_label = dict(DailyUserAction.ActionType.choices).get(
+                                action.action_type, action.action_type
+                            )
+                            before_resolve_state = build_daily_user_action_state(
+                                action, resolve_allocation
+                            )
+                            note_changed_on_resolve = (action.note or "") != note
+                            action.note = note
+                            after_note_state = (
+                                build_daily_user_action_state(action, resolve_allocation)
+                                if note_changed_on_resolve
+                                else before_resolve_state
+                            )
+                            action.is_resolved = True
+                            action.updated_by = request.user
+                            action.updated_at = timezone.now()
+                            action.save(
+                                update_fields=[
+                                    "is_resolved",
+                                    "note",
+                                    "updated_by",
+                                    "updated_at",
+                                ]
+                            )
+                            after_resolve_state = build_daily_user_action_state(
+                                action, resolve_allocation
+                            )
+                            resolve_phone_line = (
+                                resolve_allocation.phone_line if resolve_allocation else None
+                            )
+                            if note_changed_on_resolve:
+                                record_line_daily_action_event(
+                                    event_type=LineDailyActionAuditEvent.EventType.NOTE_CHANGED,
+                                    source=LineDailyActionAuditEvent.Source.DAILY_USER_ACTION,
+                                    source_object_id=action.pk,
+                                    phone_line=resolve_phone_line,
+                                    allocation=resolve_allocation,
+                                    employee=employee,
+                                    performed_by=request.user,
+                                    before_state=before_resolve_state,
+                                    after_state=after_note_state,
+                                    occurred_at=timezone.now(),
+                                    operation_id=operation_id,
+                                )
                             record_line_daily_action_event(
-                                event_type=LineDailyActionAuditEvent.EventType.NOTE_CHANGED,
+                                event_type=LineDailyActionAuditEvent.EventType.RESOLVED,
                                 source=LineDailyActionAuditEvent.Source.DAILY_USER_ACTION,
                                 source_object_id=action.pk,
                                 phone_line=resolve_phone_line,
                                 allocation=resolve_allocation,
                                 employee=employee,
                                 performed_by=request.user,
-                                before_state=before_resolve_state,
-                                after_state=after_note_state,
+                                before_state=after_note_state,
+                                after_state=after_resolve_state,
                                 occurred_at=timezone.now(),
                                 operation_id=operation_id,
                             )
-                        record_line_daily_action_event(
-                            event_type=LineDailyActionAuditEvent.EventType.RESOLVED,
-                            source=LineDailyActionAuditEvent.Source.DAILY_USER_ACTION,
-                            source_object_id=action.pk,
-                            phone_line=resolve_phone_line,
-                            allocation=resolve_allocation,
-                            employee=employee,
-                            performed_by=request.user,
-                            before_state=after_note_state,
-                            after_state=after_resolve_state,
-                            occurred_at=timezone.now(),
-                            operation_id=operation_id,
+                            if action.allocation and action.allocation.phone_line:
+                                PhoneLineHistory.objects.create(
+                                    phone_line=action.allocation.phone_line,
+                                    action=PhoneLineHistory.ActionType.DAILY_ACTION_CHANGED,
+                                    old_value=f"Atualizar ação: {action_label}",
+                                    new_value="Atualizar ação: Sem ação",
+                                    changed_by=request.user,
+                                    description=(
+                                        "Ação da linha marcada como resolvida em "
+                                        "Ações do dia"
+                                    ),
+                                )
+                            messages.success(
+                                request,
+                                f"Ação marcada como resolvida para {employee.full_name}.",
+                            )
+                        else:
+                            messages.info(
+                                request,
+                                (
+                                    "Nenhuma ação aberta para resolver para "
+                                    f"{employee.full_name}."
+                                ),
+                            )
+                    else:
+                        effective_supervisor = request.user.get_effective_supervisor_user()
+                        if (
+                            request.user.role == SystemUser.Role.BACKOFFICE
+                            and effective_supervisor is None
+                        ):
+                            messages.error(
+                                request,
+                                "Backoffice sem supervisor vinculado nao pode criar acoes.",
+                            )
+                            query = {}
+                            if supervisor_filter:
+                                query["supervisor"] = supervisor_filter
+                            return redirect(
+                                f"{reverse('daily_user_action_board')}?{urlencode(query)}"
+                            )
+
+                        update_or_create_filter = {
+                            "day": timezone.localdate(),
+                            "employee": employee,
+                            "allocation": allocation_obj,
+                        }
+
+                        existing_action = (
+                            DailyUserAction.objects.select_for_update()
+                            .filter(**update_or_create_filter)
+                            .first()
                         )
-                        if action.allocation and action.allocation.phone_line:
+                        previous_action_type = (
+                            existing_action.action_type if existing_action else ""
+                        )
+                        previous_note = (
+                            (existing_action.note or "") if existing_action else ""
+                        )
+                        previous_is_resolved = (
+                            existing_action.is_resolved if existing_action else False
+                        )
+                        before_daily_state = build_daily_user_action_state(
+                            existing_action, allocation_obj
+                        )
+
+                        # create/update explicito (nao update_or_create): a
+                        # linha ja foi lida com select_for_update logo acima,
+                        # dentro do lock base de allocation/employee, entao o
+                        # snapshot e a decisao de evento usam estado consistente.
+                        if existing_action:
+                            action = existing_action
+                            action.supervisor = effective_supervisor or request.user
+                            action.action_type = action_type
+                            action.note = note
+                            action.updated_by = request.user
+                            action.created_by = request.user
+                            action.is_resolved = False
+                            action.save(
+                                update_fields=[
+                                    "supervisor",
+                                    "action_type",
+                                    "note",
+                                    "updated_by",
+                                    "created_by",
+                                    "is_resolved",
+                                    "updated_at",
+                                ]
+                            )
+                            created = False
+                        else:
+                            action = DailyUserAction.objects.create(
+                                day=update_or_create_filter["day"],
+                                employee=employee,
+                                allocation=allocation_obj,
+                                supervisor=effective_supervisor or request.user,
+                                action_type=action_type,
+                                note=note,
+                                updated_by=request.user,
+                                created_by=request.user,
+                                is_resolved=False,
+                            )
+                            created = True
+                        after_daily_state = build_daily_user_action_state(
+                            action, allocation_obj
+                        )
+                        daily_phone_line = (
+                            allocation_obj.phone_line if allocation_obj else None
+                        )
+
+                        if created:
+                            record_line_daily_action_event(
+                                event_type=LineDailyActionAuditEvent.EventType.OPENED,
+                                source=LineDailyActionAuditEvent.Source.DAILY_USER_ACTION,
+                                source_object_id=action.pk,
+                                phone_line=daily_phone_line,
+                                allocation=allocation_obj,
+                                employee=employee,
+                                performed_by=request.user,
+                                before_state=before_daily_state,
+                                after_state=after_daily_state,
+                                occurred_at=timezone.now(),
+                                operation_id=operation_id,
+                            )
+                        elif previous_is_resolved:
+                            record_line_daily_action_event(
+                                event_type=LineDailyActionAuditEvent.EventType.REOPENED,
+                                source=LineDailyActionAuditEvent.Source.DAILY_USER_ACTION,
+                                source_object_id=action.pk,
+                                phone_line=daily_phone_line,
+                                allocation=allocation_obj,
+                                employee=employee,
+                                performed_by=request.user,
+                                before_state=before_daily_state,
+                                after_state=after_daily_state,
+                                occurred_at=timezone.now(),
+                                operation_id=operation_id,
+                            )
+                        else:
+                            if previous_action_type != action_type:
+                                record_line_daily_action_event(
+                                    event_type=(
+                                        LineDailyActionAuditEvent.EventType.ACTION_CHANGED
+                                    ),
+                                    source=(
+                                        LineDailyActionAuditEvent.Source.DAILY_USER_ACTION
+                                    ),
+                                    source_object_id=action.pk,
+                                    phone_line=daily_phone_line,
+                                    allocation=allocation_obj,
+                                    employee=employee,
+                                    performed_by=request.user,
+                                    before_state=before_daily_state,
+                                    after_state=after_daily_state,
+                                    occurred_at=timezone.now(),
+                                    operation_id=operation_id,
+                                )
+                            if previous_note != note:
+                                record_line_daily_action_event(
+                                    event_type=(
+                                        LineDailyActionAuditEvent.EventType.NOTE_CHANGED
+                                    ),
+                                    source=(
+                                        LineDailyActionAuditEvent.Source.DAILY_USER_ACTION
+                                    ),
+                                    source_object_id=action.pk,
+                                    phone_line=daily_phone_line,
+                                    allocation=allocation_obj,
+                                    employee=employee,
+                                    performed_by=request.user,
+                                    before_state=before_daily_state,
+                                    after_state=after_daily_state,
+                                    occurred_at=timezone.now(),
+                                    operation_id=operation_id,
+                                )
+
+                        previous_action_label = dict(
+                            DailyUserAction.ActionType.choices
+                        ).get(previous_action_type, "Sem ação")
+                        current_action_label = dict(DailyUserAction.ActionType.choices).get(
+                            action_type, action_type
+                        )
+                        if (
+                            allocation_obj
+                            and allocation_obj.phone_line
+                            and (
+                                created
+                                or previous_action_type != action_type
+                                or previous_note != note
+                            )
+                        ):
                             PhoneLineHistory.objects.create(
-                                phone_line=action.allocation.phone_line,
+                                phone_line=allocation_obj.phone_line,
                                 action=PhoneLineHistory.ActionType.DAILY_ACTION_CHANGED,
-                                old_value=f"Atualizar ação: {action_label}",
-                                new_value="Atualizar ação: Sem ação",
+                                old_value=f"Atualizar acao: {previous_action_label}",
+                                new_value=f"Atualizar acao: {current_action_label}",
                                 changed_by=request.user,
                                 description=(
-                                    "Ação da linha marcada como resolvida em "
-                                    "Ações do dia"
+                                    "Ação da linha criada/atualizada em Ações do dia"
                                 ),
                             )
+                        verb = "criada" if created else "atualizada"
                         messages.success(
                             request,
-                            f"Ação marcada como resolvida para {employee.full_name}.",
+                            f"Ação {verb} para {action.employee.full_name}.",
                         )
-                    else:
-                        messages.info(
-                            request,
-                            (
-                                "Nenhuma ação aberta para resolver para "
-                                f"{employee.full_name}."
-                            ),
-                        )
-                else:
-                    effective_supervisor = request.user.get_effective_supervisor_user()
-                    if (
-                        request.user.role == SystemUser.Role.BACKOFFICE
-                        and effective_supervisor is None
-                    ):
-                        messages.error(
-                            request,
-                            "Backoffice sem supervisor vinculado nao pode criar acoes.",
-                        )
-                        query = {}
-                        if supervisor_filter:
-                            query["supervisor"] = supervisor_filter
-                        return redirect(
-                            f"{reverse('daily_user_action_board')}?{urlencode(query)}"
-                        )
-
-                    allocation_obj = None
-                    if allocation_id:
-                        allocation_obj = LineAllocation.objects.filter(
-                            pk=allocation_id, employee=employee, is_active=True
-                        ).first()
-
-                    update_or_create_filter = {
-                        "day": timezone.localdate(),
-                        "employee": employee,
-                        "allocation": allocation_obj,
-                    }
-
-                    existing_action = DailyUserAction.objects.filter(
-                        **update_or_create_filter
-                    ).first()
-                    previous_action_type = (
-                        existing_action.action_type if existing_action else ""
-                    )
-                    previous_note = (
-                        (existing_action.note or "") if existing_action else ""
-                    )
-                    previous_is_resolved = (
-                        existing_action.is_resolved if existing_action else False
-                    )
-                    before_daily_state = build_daily_user_action_state(
-                        existing_action, allocation_obj
-                    )
-
-                    action, created = DailyUserAction.objects.update_or_create(
-                        **update_or_create_filter,
-                        defaults={
-                            "supervisor": effective_supervisor or request.user,
-                            "action_type": action_type,
-                            "note": note,
-                            "updated_by": request.user,
-                            "created_by": request.user,
-                            "is_resolved": False,
-                        },
-                    )
-                    after_daily_state = build_daily_user_action_state(
-                        action, allocation_obj
-                    )
-                    daily_phone_line = (
-                        allocation_obj.phone_line if allocation_obj else None
-                    )
-
-                    if created:
-                        record_line_daily_action_event(
-                            event_type=LineDailyActionAuditEvent.EventType.OPENED,
-                            source=LineDailyActionAuditEvent.Source.DAILY_USER_ACTION,
-                            source_object_id=action.pk,
-                            phone_line=daily_phone_line,
-                            allocation=allocation_obj,
-                            employee=employee,
-                            performed_by=request.user,
-                            before_state=before_daily_state,
-                            after_state=after_daily_state,
-                            occurred_at=timezone.now(),
-                            operation_id=operation_id,
-                        )
-                    elif previous_is_resolved:
-                        record_line_daily_action_event(
-                            event_type=LineDailyActionAuditEvent.EventType.REOPENED,
-                            source=LineDailyActionAuditEvent.Source.DAILY_USER_ACTION,
-                            source_object_id=action.pk,
-                            phone_line=daily_phone_line,
-                            allocation=allocation_obj,
-                            employee=employee,
-                            performed_by=request.user,
-                            before_state=before_daily_state,
-                            after_state=after_daily_state,
-                            occurred_at=timezone.now(),
-                            operation_id=operation_id,
-                        )
-                    else:
-                        if previous_action_type != action_type:
-                            record_line_daily_action_event(
-                                event_type=(
-                                    LineDailyActionAuditEvent.EventType.ACTION_CHANGED
-                                ),
-                                source=(
-                                    LineDailyActionAuditEvent.Source.DAILY_USER_ACTION
-                                ),
-                                source_object_id=action.pk,
-                                phone_line=daily_phone_line,
-                                allocation=allocation_obj,
-                                employee=employee,
-                                performed_by=request.user,
-                                before_state=before_daily_state,
-                                after_state=after_daily_state,
-                                occurred_at=timezone.now(),
-                                operation_id=operation_id,
-                            )
-                        if previous_note != note:
-                            record_line_daily_action_event(
-                                event_type=(
-                                    LineDailyActionAuditEvent.EventType.NOTE_CHANGED
-                                ),
-                                source=(
-                                    LineDailyActionAuditEvent.Source.DAILY_USER_ACTION
-                                ),
-                                source_object_id=action.pk,
-                                phone_line=daily_phone_line,
-                                allocation=allocation_obj,
-                                employee=employee,
-                                performed_by=request.user,
-                                before_state=before_daily_state,
-                                after_state=after_daily_state,
-                                occurred_at=timezone.now(),
-                                operation_id=operation_id,
-                            )
-
-                    previous_action_label = dict(
-                        DailyUserAction.ActionType.choices
-                    ).get(previous_action_type, "Sem ação")
-                    current_action_label = dict(DailyUserAction.ActionType.choices).get(
-                        action_type, action_type
-                    )
-                    if (
-                        allocation_obj
-                        and allocation_obj.phone_line
-                        and (
-                            created
-                            or previous_action_type != action_type
-                            or previous_note != note
-                        )
-                    ):
-                        PhoneLineHistory.objects.create(
-                            phone_line=allocation_obj.phone_line,
-                            action=PhoneLineHistory.ActionType.DAILY_ACTION_CHANGED,
-                            old_value=f"Atualizar acao: {previous_action_label}",
-                            new_value=f"Atualizar acao: {current_action_label}",
-                            changed_by=request.user,
-                            description=(
-                                "Ação da linha criada/atualizada em Ações do dia"
-                            ),
-                        )
-                    verb = "criada" if created else "atualizada"
-                    messages.success(
-                        request,
-                        f"Ação {verb} para {action.employee.full_name}.",
-                    )
         else:
             messages.error(request, "Não foi possível salvar a ação.")
 

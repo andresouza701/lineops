@@ -55,7 +55,13 @@ RESPONSIBLE_RELEASED, LINE_STATUS_CHANGED, RESOLVED, REOPENED.
 
 ### Sources
 
-DAILY_USER_ACTION, ALLOCATION_PENDENCY.
+DAILY_USER_ACTION, ALLOCATION_PENDENCY, LINE_ALLOCATION.
+
+LINE_ALLOCATION is used for every LINE_STATUS_CHANGED event raised from
+Ações do Dia: `source_object_id` is the LineAllocation pk, not a
+DailyUserAction pk. A line-status change can happen with no DailyUserAction
+row at all, so DAILY_USER_ACTION must never be used with a fabricated
+allocation id as source_object_id.
 
 ### Permission Matrix
 
@@ -318,3 +324,46 @@ verification was done instead: migration 0017 applies cleanly against the
 sqlite backend `manage.py test` always uses (see the 314-test run above,
 which creates the schema from migrations on every run), and it is the only
 new/pending operation added to the `telecom` app.
+
+## P1/P2 Audit Fixes (Core, follow-up)
+
+Four gaps found in review of the Core implementation, fixed:
+
+1. **LINE_STATUS_CHANGED source.** Added `Source.LINE_ALLOCATION` (migration
+   0018, choices metadata only). Every line-status change from Ações do Dia
+   now emits exactly one LINE_STATUS_CHANGED event with
+   `source=LINE_ALLOCATION` and `source_object_id=allocation.pk`, whether or
+   not a same-day DailyUserAction exists. A new action opened in the same
+   POST still gets its own OPENED event (source=DAILY_USER_ACTION), sharing
+   the request's `operation_id`.
+2. **Real append-only.** `LineDailyActionAuditEvent` now has a custom
+   manager/queryset that raises `ValidationError` on `.update()` and
+   `.delete()` (instance and queryset), on top of the existing immutable
+   `save()` guard. Django's own `SET_NULL` cascade (phone_line/allocation/
+   employee/performed_by) bypasses the ORM queryset layer internally, so
+   retention on physical deletion still works. Migration 0019 adds the same
+   protection at the Postgres level (BEFORE DELETE/UPDATE triggers), no-op
+   on sqlite; it explicitly allows only a filled-FK-to-NULL transition.
+3. **Locking order in `daily_user_action_board`.** The view now locks the
+   `LineAllocation` (or `Employee`, when there is no allocation) row with
+   `select_for_update()` before reading or deciding anything, then reads
+   `DailyUserAction` with `select_for_update()` too. `update_or_create()` was
+   replaced with an explicit locked read + create/update to keep snapshot
+   and event decisions consistent with the locked state.
+4. **`scripts/resolve_old_actions.py`.** No longer bulk-updates. Delegates to
+   `telecom.daily_action_audit.resolve_old_daily_user_actions()`, which
+   resolves one `DailyUserAction` at a time inside `transaction.atomic()`
+   with `select_for_update()`, and records a RESOLVED event per row
+   (`performed_by=None`, one `operation_id` per script run). No backfill.
+
+Test evidence:
+
+~~~text
+manage.py test telecom pendencies dashboard.tests dashboard.tests.test_daily_line_action_audit
+  dashboard.tests.test_daily_line_action_audit_fixes --settings=config.settings_dev
+Ran 330 tests ... OK (skipped=1)
+~~~
+
+The 1 skip is `test_postgres_trigger_blocks_raw_sql_delete_and_content_update`,
+guarded to run only against a real Postgres backend (unavailable here, same
+`.env`/`docker compose` blocker as above).

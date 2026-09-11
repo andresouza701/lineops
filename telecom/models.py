@@ -340,12 +340,35 @@ class PhoneLineHistory(models.Model):
         )
 
 
+class LineDailyActionAuditEventQuerySet(models.QuerySet):
+    """Bloqueia mutação em massa. Django usa UpdateQuery/consultas internas
+    (não este QuerySet) para o SET_NULL de cascata de exclusão de FK, então
+    esse bloqueio não impede a retenção de snapshot após exclusão física."""
+
+    def delete(self):
+        raise ValidationError(
+            "Eventos de auditoria sao imutaveis: delete em massa bloqueado."
+        )
+
+    def update(self, **kwargs):
+        raise ValidationError(
+            "Eventos de auditoria sao imutaveis: update em massa bloqueado."
+        )
+
+
+class LineDailyActionAuditEventManager(models.Manager):
+    def get_queryset(self):
+        return LineDailyActionAuditEventQuerySet(self.model, using=self._db)
+
+
 class LineDailyActionAuditEvent(models.Model):
     """
     Fato de auditoria append-only para ações diárias de linha (Ações do Dia e
     Pendências de Alocação). Cada linha registra o antes/depois completo de
     uma mudança material. Nunca é atualizada ou apagada pela aplicação.
     """
+
+    objects = LineDailyActionAuditEventManager()
 
     class EventType(models.TextChoices):
         OPENED = "OPENED", "Aberta"
@@ -360,6 +383,7 @@ class LineDailyActionAuditEvent(models.Model):
     class Source(models.TextChoices):
         DAILY_USER_ACTION = "DAILY_USER_ACTION", "Acao diaria"
         ALLOCATION_PENDENCY = "ALLOCATION_PENDENCY", "Pendencia"
+        LINE_ALLOCATION = "LINE_ALLOCATION", "Status da linha"
 
     event_type = models.CharField(max_length=30, choices=EventType.choices)
     source = models.CharField(max_length=30, choices=Source.choices)
@@ -445,6 +469,9 @@ class LineDailyActionAuditEvent(models.Model):
         if self.pk:
             raise ValidationError("Eventos de auditoria sao imutaveis.")
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Eventos de auditoria sao imutaveis: delete bloqueado.")
 
     def __str__(self):
         return f"{self.get_event_type_display()} - {self.source} #{self.source_object_id}"

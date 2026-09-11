@@ -8,6 +8,11 @@ de negocio e nao abre sua propria transacao — quem chama e responsavel por
 isso.
 """
 
+import uuid
+
+from django.db import transaction
+from django.utils import timezone
+
 from telecom.models import LineDailyActionAuditEvent
 
 
@@ -149,3 +154,59 @@ def record_line_daily_action_event(
         occurred_at=occurred_at,
         operation_id=operation_id,
     )
+
+
+def resolve_old_daily_user_actions() -> int:
+    """Resolve cada DailyUserAction em aberto, uma linha por vez, com lock,
+    snapshot completo e evento RESOLVED — nunca bulk update.
+
+    Usada por scripts/resolve_old_actions.py (`manage.py shell < script`),
+    que nao tem usuario autenticado (performed_by=None). Um unico
+    operation_id e compartilhado por todas as resolucoes desta execucao.
+    Sem backfill: so gera evento para o que esta execucao realmente resolve.
+    """
+    from dashboard.models import DailyUserAction
+
+    operation_id = uuid.uuid4()
+    resolved_count = 0
+
+    old_action_ids = list(
+        DailyUserAction.objects.filter(is_resolved=False).values_list("pk", flat=True)
+    )
+
+    for action_id in old_action_ids:
+        with transaction.atomic():
+            action = (
+                DailyUserAction.objects.select_for_update()
+                .filter(pk=action_id, is_resolved=False)
+                .first()
+            )
+            if action is None:
+                # Ja resolvida por outro processo entre a leitura e o lock.
+                continue
+
+            allocation = action.allocation
+            before_state = build_daily_user_action_state(action, allocation)
+
+            action.is_resolved = True
+            action.updated_at = timezone.now()
+            action.save(update_fields=["is_resolved", "updated_at"])
+
+            after_state = build_daily_user_action_state(action, allocation)
+
+            record_line_daily_action_event(
+                event_type=LineDailyActionAuditEvent.EventType.RESOLVED,
+                source=LineDailyActionAuditEvent.Source.DAILY_USER_ACTION,
+                source_object_id=action.pk,
+                phone_line=allocation.phone_line if allocation else None,
+                allocation=allocation,
+                employee=action.employee,
+                performed_by=None,
+                before_state=before_state,
+                after_state=after_state,
+                occurred_at=timezone.now(),
+                operation_id=operation_id,
+            )
+            resolved_count += 1
+
+    return resolved_count

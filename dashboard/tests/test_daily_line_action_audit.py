@@ -63,6 +63,15 @@ class DailyLineActionAuditTest(TestCase):
             source=LineDailyActionAuditEvent.Source.DAILY_USER_ACTION
         ).order_by("id")
 
+    def _mark(self):
+        """Marca o maior id de evento existente, pra isolar a rodada de
+        interesse sem apagar historico (eventos sao append-only/imutaveis)."""
+        last = LineDailyActionAuditEvent.objects.order_by("-id").first()
+        return last.pk if last else 0
+
+    def _events_since(self, marker):
+        return self._events().filter(pk__gt=marker)
+
     def test_create_action_records_opened_event(self):
         response = self._post(action_type=DailyUserAction.ActionType.PENDING, note="obs")
         self.assertEqual(response.status_code, 302)
@@ -80,7 +89,7 @@ class DailyLineActionAuditTest(TestCase):
     def test_change_action_and_note_records_two_events_with_one_operation_id(self):
         self._post(action_type=DailyUserAction.ActionType.PENDING, note="obs original")
         action = DailyUserAction.objects.get(employee=self.employee)
-        self._events().delete()  # isola a rodada de interesse
+        marker = self._mark()
 
         response = self._post(
             action_type=DailyUserAction.ActionType.RECONNECT_WHATSAPP,
@@ -88,7 +97,7 @@ class DailyLineActionAuditTest(TestCase):
         )
         self.assertEqual(response.status_code, 302)
 
-        events = self._events()
+        events = self._events_since(marker)
         self.assertEqual(events.count(), 2)
         event_types = {event.event_type for event in events}
         self.assertEqual(
@@ -106,12 +115,12 @@ class DailyLineActionAuditTest(TestCase):
     def test_resolve_action_records_note_changed_then_resolved_event(self):
         self._post(action_type=DailyUserAction.ActionType.PENDING, note="obs original")
         action = DailyUserAction.objects.get(employee=self.employee)
-        self._events().delete()
+        marker = self._mark()
 
         response = self._post(action_type="", note="obs de resolucao")
         self.assertEqual(response.status_code, 302)
 
-        events = list(self._events())
+        events = list(self._events_since(marker))
         self.assertEqual(len(events), 2)
         self.assertEqual(
             events[0].event_type, LineDailyActionAuditEvent.EventType.NOTE_CHANGED
@@ -130,14 +139,14 @@ class DailyLineActionAuditTest(TestCase):
         action = DailyUserAction.objects.get(employee=self.employee)
         action.is_resolved = True
         action.save(update_fields=["is_resolved"])
-        self._events().delete()
+        marker = self._mark()
 
         response = self._post(
             action_type=DailyUserAction.ActionType.PENDING, note="obs original"
         )
         self.assertEqual(response.status_code, 302)
 
-        events = self._events()
+        events = self._events_since(marker)
         self.assertEqual(events.count(), 1)
         event = events.first()
         self.assertEqual(event.event_type, LineDailyActionAuditEvent.EventType.REOPENED)
@@ -145,8 +154,7 @@ class DailyLineActionAuditTest(TestCase):
 
     def test_line_status_change_records_line_status_changed_event(self):
         self._post(action_type=DailyUserAction.ActionType.PENDING, note="obs")
-        action = DailyUserAction.objects.get(employee=self.employee)
-        self._events().delete()
+        marker = self._mark()
 
         response = self._post(
             action_type=DailyUserAction.ActionType.PENDING,
@@ -155,13 +163,16 @@ class DailyLineActionAuditTest(TestCase):
         )
         self.assertEqual(response.status_code, 302)
 
-        events = self._events()
+        events = LineDailyActionAuditEvent.objects.filter(pk__gt=marker).order_by("id")
         self.assertEqual(events.count(), 1)
         event = events.first()
         self.assertEqual(
             event.event_type, LineDailyActionAuditEvent.EventType.LINE_STATUS_CHANGED
         )
-        self.assertEqual(event.source_object_id, action.pk)
+        self.assertEqual(event.source, LineDailyActionAuditEvent.Source.LINE_ALLOCATION)
+        self.assertEqual(event.source_object_id, self.allocation.pk)
+        self.assertEqual(event.allocation_id, self.allocation.pk)
+        self.assertEqual(event.phone_line_id, self.phone_line.pk)
         self.assertEqual(event.after_state["line_status"]["code"], "restricted")
 
         # Efeitos colaterais legados preservados.
