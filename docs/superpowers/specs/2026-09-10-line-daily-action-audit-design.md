@@ -33,6 +33,8 @@ of truth for this audit.
 - Start at deployment. No inferred baseline or historical backfill.
 - Read access follows existing visible-phone-line rules.
 - Persist complete before_state and after_state; never partial deltas.
+- Actor means user who executed event. It is independent from technical
+  responsible and from user who initially opened pendency.
 
 ## Django Boundary
 
@@ -54,6 +56,27 @@ RESPONSIBLE_RELEASED, LINE_STATUS_CHANGED, RESOLVED, REOPENED.
 ### Sources
 
 DAILY_USER_ACTION, ALLOCATION_PENDENCY.
+
+### Permission Matrix
+
+| Role | Allowed events |
+| --- | --- |
+| super, backoffice, gerente | OPENED, REOPENED, NOTE_CHANGED |
+| admin | ACTION_CHANGED, NOTE_CHANGED, RESPONSIBLE_ASSIGNED, RESPONSIBLE_RELEASED, LINE_STATUS_CHANGED, RESOLVED |
+
+super, backoffice, and gerente create a pendency for a line. It becomes visible
+in Acoes do Dia for every admin. Any admin may assume it, release current
+technical responsible, change action/note/line status, or resolve it. Only
+super, backoffice, or gerente may reopen a resolved pendency; after reopening,
+they may change its note only.
+
+Examples:
+
+- OPENED.actor is requester who opened pendency.
+- RESPONSIBLE_ASSIGNED.actor is admin who assumed it.
+- technical_responsible is current admin responsible in state snapshot.
+- RESOLVED.actor is admin who resolved it.
+- REOPENED.actor is super, backoffice, or gerente who reopened it.
 
 ### Fixed Fields
 
