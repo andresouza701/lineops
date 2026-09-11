@@ -1,3 +1,4 @@
+import uuid
 from datetime import timedelta
 
 from django.contrib import admin
@@ -14,6 +15,7 @@ from core.current_user import clear_current_user, set_current_user
 from core.exceptions.domain_exceptions import BusinessRuleException
 from core.services.allocation_service import AllocationService
 from employees.models import Employee
+from pendencies.models import AllocationPendency
 from telecom import history as telecom_history
 from telecom.forms import BlipConfigurationForm
 from telecom.models import (
@@ -647,6 +649,211 @@ class LineDailyActionAuditEventTest(TestCase):
         event.after_state = self._state(note="tentativa de alteracao")
         with self.assertRaises(ValidationError):
             event.save()
+
+
+class LineDailyActionAuditServiceTest(TestCase):
+    """Contrato do servico central telecom.daily_action_audit."""
+
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="audit.service.admin@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.employee = Employee.objects.create(
+            full_name="Employee Service",
+            corporate_email="audit.service.super@corp.com",
+            employee_id="EMPSVC1",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        self.sim_card = SIMcard.objects.create(
+            iccid="8900000000000000401",
+            carrier="CarrierService",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.phone_line = PhoneLine.objects.create(
+            phone_number="+551199999401",
+            sim_card=self.sim_card,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        self.allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=self.phone_line,
+            allocated_by=self.admin,
+            is_active=True,
+        )
+
+    def _state(self, **overrides):
+        state = {
+            "action": {"code": "pending", "label": "Pendencia"},
+            "note": "",
+            "technical_responsible": None,
+            "line_status": {"code": "active", "label": "Ativa"},
+            "resolution": {"is_resolved": False, "resolved_at": None},
+            "source_state": {
+                "day": None,
+                "pendency_submitted_at": None,
+                "last_submitted_action": None,
+            },
+        }
+        state.update(overrides)
+        return state
+
+    def test_record_event_uses_one_operation_id_for_related_events(self):
+        from telecom.daily_action_audit import record_line_daily_action_event
+
+        operation_id = uuid.uuid4()
+        state = self._state()
+        first = record_line_daily_action_event(
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=771,
+            phone_line=self.phone_line,
+            allocation=self.allocation,
+            employee=self.employee,
+            performed_by=self.admin,
+            before_state=state,
+            after_state=state,
+            occurred_at=timezone.now(),
+            operation_id=operation_id,
+        )
+        second = record_line_daily_action_event(
+            event_type=LineDailyActionAuditEvent.EventType.NOTE_CHANGED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=771,
+            phone_line=self.phone_line,
+            allocation=self.allocation,
+            employee=self.employee,
+            performed_by=self.admin,
+            before_state=state,
+            after_state=self._state(note="Nova nota"),
+            occurred_at=timezone.now(),
+            operation_id=operation_id,
+        )
+        self.assertEqual(first.operation_id, second.operation_id)
+
+    def test_record_event_uses_supplied_occurred_at_and_performer_snapshots(self):
+        from telecom.daily_action_audit import record_line_daily_action_event
+
+        occurred_at = timezone.now() - timedelta(hours=3)
+        state = self._state()
+        event = record_line_daily_action_event(
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            source_object_id=900,
+            phone_line=self.phone_line,
+            allocation=self.allocation,
+            employee=self.employee,
+            performed_by=self.admin,
+            before_state=state,
+            after_state=state,
+            occurred_at=occurred_at,
+            operation_id=uuid.uuid4(),
+        )
+        self.assertEqual(event.occurred_at, occurred_at)
+        self.assertEqual(event.phone_number_snapshot, self.phone_line.phone_number)
+        self.assertEqual(event.allocation_id_snapshot, self.allocation.pk)
+        self.assertEqual(event.employee_name_snapshot, self.employee.full_name)
+        self.assertEqual(
+            event.performed_by_name_snapshot,
+            self.admin.get_full_name().strip() or self.admin.email,
+        )
+        self.assertEqual(event.performed_by_email_snapshot, self.admin.email)
+
+    def test_record_event_accepts_null_phone_line_for_allocationless_daily_action(self):
+        from telecom.daily_action_audit import record_line_daily_action_event
+
+        state = self._state(line_status={"code": None, "label": None})
+        event = record_line_daily_action_event(
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+            source=LineDailyActionAuditEvent.Source.DAILY_USER_ACTION,
+            source_object_id=55,
+            phone_line=None,
+            allocation=None,
+            employee=self.employee,
+            performed_by=self.admin,
+            before_state=state,
+            after_state=state,
+            occurred_at=timezone.now(),
+            operation_id=uuid.uuid4(),
+        )
+        self.assertIsNone(event.phone_line_id)
+        self.assertEqual(event.phone_number_snapshot, "")
+        self.assertIsNone(event.allocation_id_snapshot)
+
+    def test_build_pendency_state_has_exact_top_level_keys(self):
+        from telecom.daily_action_audit import build_pendency_state
+
+        expected_keys = {
+            "action",
+            "note",
+            "technical_responsible",
+            "line_status",
+            "resolution",
+            "source_state",
+        }
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=self.allocation,
+            action=AllocationPendency.ActionType.RECONNECT_WHATSAPP,
+            observation="obs",
+        )
+        state = build_pendency_state(pendency, self.allocation)
+        self.assertEqual(set(state.keys()), expected_keys)
+        self.assertEqual(
+            state["action"], {"code": "reconnect_whatsapp", "label": "Reconectar WhatsApp"}
+        )
+        self.assertEqual(state["note"], "obs")
+        self.assertIsNone(state["technical_responsible"])
+        self.assertEqual(
+            state["line_status"],
+            {"code": self.allocation.line_status, "label": self.allocation.get_line_status_display()},
+        )
+
+    def test_build_pendency_state_serializes_technical_responsible(self):
+        from telecom.daily_action_audit import build_pendency_state
+
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=self.allocation,
+            action=AllocationPendency.ActionType.PENDING,
+            technical_responsible=self.admin,
+        )
+        state = build_pendency_state(pendency, self.allocation)
+        self.assertEqual(
+            state["technical_responsible"],
+            {
+                "id": self.admin.pk,
+                "name": self.admin.get_full_name().strip() or self.admin.email,
+                "email": self.admin.email,
+            },
+        )
+
+    def test_build_daily_user_action_state_has_exact_top_level_keys(self):
+        from dashboard.models import DailyUserAction
+        from telecom.daily_action_audit import build_daily_user_action_state
+
+        expected_keys = {
+            "action",
+            "note",
+            "technical_responsible",
+            "line_status",
+            "resolution",
+            "source_state",
+        }
+        action = DailyUserAction.objects.create(
+            day=timezone.localdate(),
+            employee=self.employee,
+            allocation=self.allocation,
+            action_type=DailyUserAction.ActionType.PENDING,
+            note="nota",
+        )
+        state = build_daily_user_action_state(action, self.allocation)
+        self.assertEqual(set(state.keys()), expected_keys)
+        self.assertIsNone(state["technical_responsible"])
+        self.assertEqual(state["source_state"]["day"], action.day.isoformat())
+        self.assertFalse(state["resolution"]["is_resolved"])
 
 
 class PhoneLineReactivationAuditTest(TestCase):
