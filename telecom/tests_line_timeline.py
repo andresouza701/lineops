@@ -183,6 +183,55 @@ class LineTimelineMixingTest(LineTimelineTestBase):
         self.assertEqual(occurred_ats, sorted(occurred_ats, reverse=True))
 
 
+class LineTimelinePresentationTest(LineTimelineTestBase):
+    def test_audit_event_exposes_changed_fields_with_human_labels(self):
+        before = self._audit_state()
+        after = self._audit_state(
+            action={"code": "reconnect_whatsapp", "label": "Reconectar WhatsApp"},
+            note="Trocar aparelho",
+            line_status={"code": "under_analysis", "label": "Em análise"},
+            technical_responsible={
+                "id": self.admin.pk,
+                "name": self.admin.email,
+                "email": self.admin.email,
+            },
+        )
+        self._make_audit(
+            when=timezone.now(),
+            event_type=LineDailyActionAuditEvent.EventType.ACTION_CHANGED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            before=before,
+            after=after,
+        )
+
+        item = get_line_timeline_page(
+            self.phone_line, LineTimelineFilters()
+        ).items[0]
+        changes = {change.label: (change.before_value, change.after_value) for change in item.changes}
+
+        self.assertEqual(changes["Ação"], ("Sem Acao", "Reconectar WhatsApp"))
+        self.assertEqual(changes["Nota"], ("Sem nota", "Trocar aparelho"))
+        self.assertEqual(changes["Status da linha"], ("Ativa", "Em análise"))
+        self.assertEqual(changes["Responsável técnico"], ("Não atribuído", self.admin.email))
+
+    def test_history_page_renders_changes_and_keeps_json_technical_collapsed(self):
+        self._make_audit(
+            when=timezone.now(),
+            event_type=LineDailyActionAuditEvent.EventType.NOTE_CHANGED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse("telecom:phoneline_history", args=[self.phone_line.pk])
+        )
+
+        self.assertContains(response, "Alterações")
+        self.assertContains(response, "Nota")
+        self.assertContains(response, "Ver JSON técnico")
+        self.assertContains(response, "<details>", html=False)
+
+
 class LineTimelinePaginationTest(LineTimelineTestBase):
     """2. Paginacao no banco: > 50 itens entre fontes, pagina 1 e 2 sem
     sobreposicao, ordenacao estavel."""

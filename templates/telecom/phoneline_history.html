@@ -91,9 +91,8 @@
                             <th>Tipo</th>
                             <th>Ator</th>
                             <th>Alocação</th>
-                            <th>Antes</th>
-                            <th>Depois</th>
-                            <th>Detalhes</th>
+                            <th>Alterações</th>
+                            <th>Detalhes técnicos</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -116,9 +115,29 @@
                                 <td class="small">{{ item.event_type_label }}</td>
                                 <td class="text-muted small">{{ item.actor_label }}</td>
                                 <td class="text-muted small">{{ item.allocation_label }}</td>
-                                <td class="small"><pre class="mb-0 small">{{ item.before_display }}</pre></td>
-                                <td class="small"><pre class="mb-0 small">{{ item.after_display }}</pre></td>
-                                <td class="small">{{ item.details|default:"-" }}</td>
+                                <td class="small">
+                                    {% for change in item.changes %}
+                                        <div class="mb-2">
+                                            <strong>{{ change.label }}</strong><br>
+                                            <span class="text-muted">{{ change.before_value }}</span>
+                                            <span aria-hidden="true">→</span>
+                                            <span>{{ change.after_value }}</span>
+                                        </div>
+                                    {% empty %}
+                                        <span class="text-muted">-</span>
+                                    {% endfor %}
+                                </td>
+                                <td class="small">
+                                    {% if item.has_technical_json %}
+                                        <details>
+                                            <summary>Ver JSON técnico</summary>
+                                            <div class="mt-2"><strong>Antes</strong><pre class="mb-2 small">{{ item.before_display }}</pre></div>
+                                            <div><strong>Depois</strong><pre class="mb-0 small">{{ item.after_display }}</pre></div>
+                                        </details>
+                                    {% else %}
+                                        {{ item.details|default:"-" }}
+                                    {% endif %}
+                                </td>
                             </tr>
                         {% endfor %}
                     </tbody>

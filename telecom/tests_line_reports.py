@@ -139,6 +139,8 @@ class LineReportsViewTest(LineReportsTestBase):
         self.assertEqual(len(response.context["timeline_items"]), 3)
         self.assertContains(response, "Relatório Operacional")
         self.assertContains(response, "Timeline da Linha")
+        self.assertContains(response, "Alterações")
+        self.assertContains(response, "Em analise")
 
     def test_rejects_line_outside_current_user_scope(self):
         self.client.force_login(self.operator)

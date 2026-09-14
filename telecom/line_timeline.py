@@ -96,6 +96,13 @@ class LineTimelineFilters:
 
 
 @dataclass(frozen=True)
+class LineTimelineChange:
+    label: str
+    before_value: str
+    after_value: str
+
+
+@dataclass(frozen=True)
 class LineTimelineItem:
     """DTO renderizavel: so tipos simples, nenhum acesso lazy a FK no
     template — tudo ja resolvido em memoria na hidratacao em lote."""
@@ -107,9 +114,11 @@ class LineTimelineItem:
     event_type_label: str
     actor_label: str
     allocation_label: str
+    changes: list
     before_display: str
     after_display: str
     details: str
+    has_technical_json: bool
 
 
 @dataclass
@@ -247,6 +256,54 @@ def _allocation_label(event: LineDailyActionAuditEvent) -> str:
     return "-"
 
 
+def _state_value(value, *, kind):
+    if kind in {"action", "line_status"}:
+        if isinstance(value, dict):
+            return value.get("label") or value.get("code") or "-"
+    elif kind == "technical_responsible":
+        if not value:
+            return "Não atribuído"
+        if isinstance(value, dict):
+            return value.get("name") or value.get("email") or "Não atribuído"
+    elif kind == "note":
+        return value or "Sem nota"
+    elif kind == "resolution":
+        if isinstance(value, dict):
+            return "Resolvida" if value.get("is_resolved") else "Aberta"
+    return str(value) if value is not None else "-"
+
+
+def _audit_changes(before_state, after_state) -> list[LineTimelineChange]:
+    changes = []
+    for key, label in (
+        ("action", "Ação"),
+        ("note", "Nota"),
+        ("line_status", "Status da linha"),
+        ("technical_responsible", "Responsável técnico"),
+        ("resolution", "Situação"),
+    ):
+        before_value = before_state.get(key)
+        after_value = after_state.get(key)
+        if before_value != after_value:
+            changes.append(
+                LineTimelineChange(
+                    label=label,
+                    before_value=_state_value(before_value, kind=key),
+                    after_value=_state_value(after_value, kind=key),
+                )
+            )
+
+    if before_state.get("source_state") != after_state.get("source_state"):
+        changes.append(
+            LineTimelineChange(
+                label="Contexto da origem",
+                before_value="Anterior",
+                after_value="Atualizado",
+            )
+        )
+    return changes
+
+
 def _item_from_legacy(history: PhoneLineHistory) -> LineTimelineItem:
     return LineTimelineItem(
         occurred_at=history.changed_at,
@@ -256,9 +313,17 @@ def _item_from_legacy(history: PhoneLineHistory) -> LineTimelineItem:
         event_type_label=history.get_action_display(),
         actor_label=_actor_label_legacy(history),
         allocation_label="-",
+        changes=[
+            LineTimelineChange(
+                label="Alteração",
+                before_value=history.old_value or "-",
+                after_value=history.new_value or "-",
+            )
+        ],
         before_display=history.old_value or "-",
         after_display=history.new_value or "-",
         details=history.description or "",
+        has_technical_json=False,
     )
 
 
@@ -271,6 +336,7 @@ def _item_from_audit(event: LineDailyActionAuditEvent) -> LineTimelineItem:
         event_type_label=event.get_event_type_display(),
         actor_label=_actor_label_audit(event),
         allocation_label=_allocation_label(event),
+        changes=_audit_changes(event.before_state, event.after_state),
         before_display=json.dumps(
             event.before_state, ensure_ascii=False, indent=2, sort_keys=True
         ),
@@ -278,6 +344,7 @@ def _item_from_audit(event: LineDailyActionAuditEvent) -> LineTimelineItem:
             event.after_state, ensure_ascii=False, indent=2, sort_keys=True
         ),
         details="",
+        has_technical_json=True,
     )
 
 
