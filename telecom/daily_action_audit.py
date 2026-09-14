@@ -10,7 +10,7 @@ isso.
 
 import uuid
 
-from django.db import transaction
+from django.db import connection, transaction
 from django.utils import timezone
 
 from telecom.models import LineDailyActionAuditEvent
@@ -130,8 +130,25 @@ def record_line_daily_action_event(
     after_state,
     occurred_at,
     operation_id,
-) -> LineDailyActionAuditEvent:
-    """Cria uma unica linha de auditoria append-only. Nao muta nada mais."""
+) -> LineDailyActionAuditEvent | None:
+    """Cria uma unica linha de auditoria append-only. Nao muta nada mais.
+
+    Exige transacao ativa: quem chama e responsavel por abrir
+    ``transaction.atomic()`` envolvendo a mutacao operacional e esta
+    chamada, para que ambas cometam ou revertam juntas. Sem transacao
+    ativa, levanta ``RuntimeError`` sem criar evento e sem gerar
+    ``operation_id`` novo — o erro nao e mascarado.
+
+    Ignora no-op material: quando ``before_state == after_state`` (igualdade
+    profunda do JSON completo), nao cria evento e retorna ``None``. Nao
+    decide ``event_type``; quem chama continua decidindo a semantica.
+    """
+    if not connection.in_atomic_block:
+        raise RuntimeError("Auditoria exige transaction.atomic().")
+
+    if before_state == after_state:
+        return None
+
     return LineDailyActionAuditEvent.objects.create(
         event_type=event_type,
         source=source,

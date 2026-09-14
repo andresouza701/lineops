@@ -367,3 +367,68 @@ Ran 330 tests ... OK (skipped=1)
 The 1 skip is `test_postgres_trigger_blocks_raw_sql_delete_and_content_update`,
 guarded to run only against a real Postgres backend (unavailable here, same
 `.env`/`docker compose` blocker as above).
+
+## T3: Service Hardening (Core, follow-up)
+
+`record_line_daily_action_event()` in `telecom/daily_action_audit.py` now
+enforces two invariants directly, instead of relying on every caller to get
+them right:
+
+1. **Active transaction required.** The service checks
+   `connection.in_atomic_block` before any insert. Outside an active
+   transaction it raises `RuntimeError("Auditoria exige transaction.atomic().")`
+   — no event is created, no `operation_id` is generated, the error is not
+   masked. **Caller opens `transaction.atomic()`; the service requires it but
+   never opens its own.** The service cannot start its own transaction around
+   just the append: the operational mutation that must land atomically with
+   the audit event is executed by the caller (a view, a script loop) before
+   the append call, so only a transaction that already encloses both can give
+   the "both commit or both roll back" guarantee. This was true before T3 too;
+   T3 only adds the explicit guard so a caller that forgets `atomic()` fails
+   loudly instead of writing an unprotected event.
+2. **Material no-op returns `None`.** When `before_state == after_state`
+   (deep equality of the full JSON), the service does not insert a row and
+   returns `None` instead of a `LineDailyActionAuditEvent`. The service still
+   does not decide `event_type` — callers keep deciding semantics — this only
+   suppresses the write when the snapshot truly did not change.
+
+No schema, migration, PostgreSQL trigger, or pendency-rule change. Every
+production caller (`dashboard.views`, `pendencies.views`,
+`scripts/resolve_old_actions.py` via `resolve_old_daily_user_actions()`) was
+already calling the service from inside `transaction.atomic()` and already
+computing before/after snapshots that materially differ before calling it, so
+no caller behavior changed.
+
+### Test evidence
+
+~~~text
+manage.py test telecom pendencies dashboard.tests dashboard.tests.test_daily_line_action_audit
+  dashboard.tests.test_daily_line_action_audit_fixes --settings=config.settings_dev -v 2
+Ran 334 tests ... OK (skipped=1)
+
+manage.py check --settings=config.settings_dev
+System check identified no issues (0 silenced).
+~~~
+
+New coverage in `telecom/tests.py`:
+
+- `LineDailyActionAuditGuardTest` (`TestCase`): identical before/after states
+  return `None` and create zero events; a material difference returns the
+  event with snapshots, actor, references, `occurred_at`, and `operation_id`
+  preserved.
+- `LineDailyActionAuditAtomicRequiredTest` (`TransactionTestCase`, not
+  `TestCase` — `TestCase` already wraps each test in an implicit transaction,
+  which would mask the guard): calling the service with no active transaction
+  raises `RuntimeError` and creates zero events.
+- Existing `LineDailyActionAuditIntegrityTest` rollback test
+  (`test_exception_after_mutation_rolls_back_operational_change_and_event`)
+  still covers mutation+event rollback together; it needed no change since it
+  already used a materially-different before/after pair.
+
+Five pre-existing tests passed identical `before_state`/`after_state` objects
+to the service to check unrelated behavior (`operation_id` sharing, snapshot
+fields, null-phone_line handling, FK-deletion retention). Under the new no-op
+guard those calls would have returned `None` where the test expected an
+event, so their `after_state` was changed to a materially different value
+(same intent, real event returned) without touching what each test actually
+asserts.

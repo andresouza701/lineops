@@ -3,8 +3,9 @@ from datetime import timedelta
 
 from django.contrib import admin
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.test import RequestFactory
-from django.test import TestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from unittest.mock import ANY, MagicMock, patch
@@ -850,7 +851,7 @@ class LineDailyActionAuditServiceTest(TestCase):
             employee=self.employee,
             performed_by=self.admin,
             before_state=state,
-            after_state=state,
+            after_state=self._state(note="Pendencia aberta"),
             occurred_at=timezone.now(),
             operation_id=operation_id,
         )
@@ -883,7 +884,7 @@ class LineDailyActionAuditServiceTest(TestCase):
             employee=self.employee,
             performed_by=self.admin,
             before_state=state,
-            after_state=state,
+            after_state=self._state(note="Pendencia aberta"),
             occurred_at=occurred_at,
             operation_id=uuid.uuid4(),
         )
@@ -910,7 +911,9 @@ class LineDailyActionAuditServiceTest(TestCase):
             employee=self.employee,
             performed_by=self.admin,
             before_state=state,
-            after_state=state,
+            after_state=self._state(
+                line_status={"code": None, "label": None}, note="Acao aberta"
+            ),
             occurred_at=timezone.now(),
             operation_id=uuid.uuid4(),
         )
@@ -1240,7 +1243,7 @@ class LineDailyActionAuditIntegrityTest(TestCase):
             employee=self.employee,
             performed_by=self.admin,
             before_state=state,
-            after_state=state,
+            after_state=self._state(note="Pendencia aberta"),
             occurred_at=timezone.now(),
             operation_id=uuid.uuid4(),
         )
@@ -1268,7 +1271,7 @@ class LineDailyActionAuditIntegrityTest(TestCase):
             employee=self.employee,
             performed_by=self.admin,
             before_state=state,
-            after_state=state,
+            after_state=self._state(note="Pendencia aberta"),
             occurred_at=timezone.now(),
             operation_id=uuid.uuid4(),
         )
@@ -1282,6 +1285,190 @@ class LineDailyActionAuditIntegrityTest(TestCase):
 
         self.assertIsNone(event.employee_id)
         self.assertEqual(event.employee_name_snapshot, employee_name_snapshot)
+
+
+class LineDailyActionAuditGuardTest(TestCase):
+    """T3: servico central ignora no-op material e preserva campos em
+    diferenca material. TestCase ja embrulha cada teste em transaction.atomic."""
+
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="audit.guard.admin@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.employee = Employee.objects.create(
+            full_name="Employee Guard",
+            corporate_email="audit.guard.super@corp.com",
+            employee_id="EMPGRD1",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        self.sim_card = SIMcard.objects.create(
+            iccid="8900000000000000701",
+            carrier="CarrierGuard",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.phone_line = PhoneLine.objects.create(
+            phone_number="+551199999701",
+            sim_card=self.sim_card,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        self.allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=self.phone_line,
+            allocated_by=self.admin,
+            is_active=True,
+        )
+
+    def _state(self, **overrides):
+        state = {
+            "action": {"code": "pending", "label": "Pendencia"},
+            "note": "",
+            "technical_responsible": None,
+            "line_status": {"code": "active", "label": "Ativa"},
+            "resolution": {"is_resolved": False, "resolved_at": None},
+            "source_state": {
+                "day": None,
+                "pendency_submitted_at": None,
+                "last_submitted_action": None,
+            },
+        }
+        state.update(overrides)
+        return state
+
+    def test_identical_states_return_none_and_create_no_event(self):
+        from telecom.daily_action_audit import record_line_daily_action_event
+
+        with transaction.atomic():
+            result = record_line_daily_action_event(
+                event_type=LineDailyActionAuditEvent.EventType.NOTE_CHANGED,
+                source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+                source_object_id=5001,
+                phone_line=self.phone_line,
+                allocation=self.allocation,
+                employee=self.employee,
+                performed_by=self.admin,
+                before_state=self._state(),
+                after_state=self._state(),  # mesmo conteudo, objeto diferente
+                occurred_at=timezone.now(),
+                operation_id=uuid.uuid4(),
+            )
+
+        self.assertIsNone(result)
+        self.assertEqual(
+            LineDailyActionAuditEvent.objects.filter(source_object_id=5001).count(),
+            0,
+        )
+
+    def test_material_difference_returns_event_with_preserved_fields(self):
+        from telecom.daily_action_audit import record_line_daily_action_event
+
+        occurred_at = timezone.now()
+        operation_id = uuid.uuid4()
+        before = self._state()
+        after = self._state(note="Nota alterada")
+
+        with transaction.atomic():
+            event = record_line_daily_action_event(
+                event_type=LineDailyActionAuditEvent.EventType.NOTE_CHANGED,
+                source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+                source_object_id=5002,
+                phone_line=self.phone_line,
+                allocation=self.allocation,
+                employee=self.employee,
+                performed_by=self.admin,
+                before_state=before,
+                after_state=after,
+                occurred_at=occurred_at,
+                operation_id=operation_id,
+            )
+
+        self.assertIsNotNone(event)
+        self.assertEqual(event.before_state, before)
+        self.assertEqual(event.after_state, after)
+        self.assertEqual(event.performed_by_id, self.admin.pk)
+        self.assertEqual(event.phone_line_id, self.phone_line.pk)
+        self.assertEqual(event.allocation_id, self.allocation.pk)
+        self.assertEqual(event.employee_id, self.employee.pk)
+        self.assertEqual(event.occurred_at, occurred_at)
+        self.assertEqual(event.operation_id, operation_id)
+
+
+class LineDailyActionAuditAtomicRequiredTest(TransactionTestCase):
+    """TransactionTestCase (nao TestCase): TestCase ja embrulha cada teste em
+    transaction.atomic implicita, o que mascararia o guard. Aqui nao ha
+    transacao ativa nenhuma ao chamar o servico."""
+
+    def setUp(self):
+        self.admin = SystemUser.objects.create_user(
+            email="audit.noatomic.admin@test.com",
+            password="123456",
+            role=SystemUser.Role.ADMIN,
+        )
+        self.employee = Employee.objects.create(
+            full_name="Employee NoAtomic",
+            corporate_email="audit.noatomic.super@corp.com",
+            employee_id="EMPNOA1",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        self.sim_card = SIMcard.objects.create(
+            iccid="8900000000000000801",
+            carrier="CarrierNoAtomic",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        self.phone_line = PhoneLine.objects.create(
+            phone_number="+551199999801",
+            sim_card=self.sim_card,
+            status=PhoneLine.Status.ALLOCATED,
+        )
+        self.allocation = LineAllocation.objects.create(
+            employee=self.employee,
+            phone_line=self.phone_line,
+            allocated_by=self.admin,
+            is_active=True,
+        )
+
+    # Sem tearDown manual: TransactionTestCase faz flush automatico das
+    # tabelas apos cada teste (nao seria possivel bulk-delete o evento de
+    # auditoria de qualquer forma — guard de imutabilidade bloqueia).
+
+    def test_calling_outside_atomic_raises_runtime_error(self):
+        from telecom.daily_action_audit import record_line_daily_action_event
+
+        state = {
+            "action": {"code": "pending", "label": "Pendencia"},
+            "note": "",
+            "technical_responsible": None,
+            "line_status": {"code": "active", "label": "Ativa"},
+            "resolution": {"is_resolved": False, "resolved_at": None},
+            "source_state": {
+                "day": None,
+                "pendency_submitted_at": None,
+                "last_submitted_action": None,
+            },
+        }
+
+        with self.assertRaises(RuntimeError):
+            record_line_daily_action_event(
+                event_type=LineDailyActionAuditEvent.EventType.NOTE_CHANGED,
+                source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+                source_object_id=6001,
+                phone_line=self.phone_line,
+                allocation=self.allocation,
+                employee=self.employee,
+                performed_by=self.admin,
+                before_state=state,
+                after_state={**state, "note": "outra nota"},
+                occurred_at=timezone.now(),
+                operation_id=uuid.uuid4(),
+            )
+
+        self.assertEqual(
+            LineDailyActionAuditEvent.objects.filter(source_object_id=6001).count(),
+            0,
+        )
 
 
 class PhoneLineReactivationAuditTest(TestCase):
