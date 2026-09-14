@@ -7,6 +7,8 @@ from .views import (
     ExportPhoneLinesCSVView,
     LineOperationalReportCSVView,
     LineOperationalReportView,
+    LineReportsCSVView,
+    LineReportsView,
     OperatorLinkedLinesView,
     PhoneLineCreateView,
     PhoneLineReconnectCancelView,
@@ -107,5 +109,11 @@ urlpatterns = [
         "relatorio-operacional/export/",
         LineOperationalReportCSVView.as_view(),
         name="line_operational_report_csv",
+    ),
+    path("relatorios-linha/", LineReportsView.as_view(), name="line_reports"),
+    path(
+        "relatorios-linha/export/",
+        LineReportsCSVView.as_view(),
+        name="line_reports_csv",
     ),
 ]

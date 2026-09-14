@@ -1,0 +1,67 @@
+{% extends "base/base.html" %}
+
+{% block title %}Relatórios da Linha{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="fw-semibold mb-0">Relatórios da Linha</h2>
+    <a href="{% url 'telecom:overview' %}" class="btn btn-outline-secondary">Voltar</a>
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label for="{{ form.phone_number.id_for_label }}" class="form-label small text-muted mb-1">Linha</label>
+                <input type="text" name="phone_number" id="{{ form.phone_number.id_for_label }}" class="form-control form-control-sm" value="{{ form.phone_number.value|default:'' }}" required>
+                {% for error in form.phone_number.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-md-3">
+                <label for="{{ form.start_date.id_for_label }}" class="form-label small text-muted mb-1">Início</label>
+                <input type="date" name="start_date" id="{{ form.start_date.id_for_label }}" class="form-control form-control-sm" value="{{ form.start_date.value|default:'' }}" required>
+                {% for error in form.start_date.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-md-3">
+                <label for="{{ form.end_date.id_for_label }}" class="form-label small text-muted mb-1">Fim</label>
+                <input type="date" name="end_date" id="{{ form.end_date.id_for_label }}" class="form-control form-control-sm" value="{{ form.end_date.value|default:'' }}" required>
+                {% for error in form.end_date.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm">Gerar relatórios</button>
+                <a href="{% url 'telecom:line_reports' %}" class="btn btn-outline-secondary btn-sm">Limpar</a>
+            </div>
+        </form>
+        {% if not reports_requested %}<p class="text-muted small mb-0 mt-2">Informe uma linha e o período para gerar os relatórios.</p>{% endif %}
+    </div>
+</div>
+
+{% if operational_row or timeline_items is not None %}
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Relatório Operacional</h5>
+            <a href="{% url 'telecom:line_reports_csv' %}?{{ querystring }}" class="btn btn-outline-success btn-sm">Exportar CSV</a>
+        </div>
+        <div class="card-body p-0">
+            {% if operational_row %}
+                <div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead class="table-light"><tr><th>Linha</th><th>Entradas</th><th>Saídas</th><th>Ciclos</th><th>Situação</th><th>Duração aberta</th><th>Última ação</th><th>Último ator</th></tr></thead><tbody><tr><td>{{ operational_row.phone_number }}</td><td>{{ operational_row.entradas }}</td><td>{{ operational_row.saidas }}</td><td>{{ operational_row.ciclos }}</td><td>{{ operational_row.situacao }}</td><td>{{ operational_row.duracao_aberta }}</td><td>{{ operational_row.ultima_acao }}</td><td>{{ operational_row.ultimo_ator }}</td></tr></tbody></table></div>
+            {% else %}
+                <p class="text-center text-muted py-4 mb-0">Nenhum ciclo operacional para o período.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Timeline da Linha</h5>
+            <a href="{% url 'telecom:phoneline_history' phone_line.pk %}?{{ querystring }}" class="btn btn-outline-secondary btn-sm">Ver timeline completa</a>
+        </div>
+        <div class="card-body p-0">
+            {% if timeline_items %}
+                <div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead class="table-light"><tr><th>Data/Hora</th><th>Fonte</th><th>Tipo</th><th>Ator</th><th>Alocação</th><th>Detalhes</th></tr></thead><tbody>{% for item in timeline_items %}<tr><td class="text-nowrap">{{ item.occurred_at|date:"d/m/Y H:i:s" }}</td><td>{{ item.source_label }}</td><td>{{ item.event_type_label }}</td><td>{{ item.actor_label }}</td><td>{{ item.allocation_label }}</td><td>{{ item.details|default:"-" }}</td></tr>{% endfor %}</tbody></table></div>
+            {% else %}
+                <p class="text-center text-muted py-4 mb-0">Nenhum evento para o período.</p>
+            {% endif %}
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

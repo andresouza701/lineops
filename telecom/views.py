@@ -39,6 +39,7 @@ from .line_operational_report import (
     LineOperationalReportFilters,
     build_line_operational_report,
 )
+from .line_reports import build_line_reports
 from .line_timeline import (
     LineTimelineFilters,
     get_line_timeline_filter_options,
@@ -123,6 +124,20 @@ class SIMCardFilterForm(forms.Form):
         choices=[("", "Todos")] + list(SIMcard.Status.choices),
         widget=forms.Select(attrs={"class": "form-select"}),
     )
+
+
+class LineReportsFilterForm(forms.Form):
+    phone_number = forms.CharField(max_length=20, strip=True)
+    start_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    end_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start_date = cleaned_data.get("start_date")
+        end_date = cleaned_data.get("end_date")
+        if start_date and end_date and end_date < start_date:
+            self.add_error("end_date", "A data final deve ser igual ou posterior ao início.")
+        return cleaned_data
 
 
 class SIMcardListView(RoleRequiredMixin, ListView):
@@ -755,6 +770,96 @@ def _build_operational_report_context(request):
     return filters, rows
 
 
+def _operational_report_csv_response(rows):
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = (
+        'attachment; filename="relatorio_operacional_linhas.csv"'
+    )
+    response.write("﻿")
+
+    writer = csv.writer(response)
+    writer.writerow(
+        [
+            "Numero",
+            "Entradas",
+            "Saidas",
+            "Ciclos",
+            "Situacao",
+            "Duracao aberta",
+            "Ultima acao",
+            "Ultimo ator",
+        ]
+    )
+    for row in rows:
+        writer.writerow(
+            [
+                row.phone_number,
+                row.entradas,
+                row.saidas,
+                row.ciclos,
+                row.situacao,
+                row.duracao_aberta,
+                row.ultima_acao,
+                row.ultimo_ator,
+            ]
+        )
+    return response
+
+
+def _build_line_reports_context(request):
+    form = LineReportsFilterForm(request.GET or None)
+    if not form.is_valid():
+        return form, None, None
+
+    phone_line = get_object_or_404(
+        get_visible_phone_lines_queryset(request.user).select_related("sim_card"),
+        phone_number=form.cleaned_data["phone_number"],
+    )
+    reports = build_line_reports(
+        phone_line,
+        start_date=form.cleaned_data["start_date"],
+        end_date=form.cleaned_data["end_date"],
+        page=LineTimelineFilters.from_get_params(request.GET).page,
+    )
+    return form, phone_line, reports
+
+
+class LineReportsView(RoleRequiredMixin, View):
+    """Central de relatorios individuais: T6 e T7 no mesmo recorte."""
+
+    allowed_roles = TELECOM_HISTORY_ALLOWED_ROLES
+    template_name = "telecom/line_reports.html"
+
+    def get(self, request):
+        form, phone_line, reports = _build_line_reports_context(request)
+        context = {"form": form, "reports_requested": bool(request.GET)}
+        if reports:
+            preserved_params = request.GET.copy()
+            preserved_params.pop("page", None)
+            context.update(
+                {
+                    "phone_line": phone_line,
+                    "operational_row": reports.operational_row,
+                    "timeline_items": reports.timeline_page.items,
+                    "page_obj": reports.timeline_page.page_obj,
+                    "is_paginated": reports.timeline_page.page_obj.paginator.num_pages > 1,
+                    "querystring": preserved_params.urlencode(),
+                }
+            )
+        return render(request, self.template_name, context)
+
+
+class LineReportsCSVView(RoleRequiredMixin, View):
+    allowed_roles = TELECOM_HISTORY_ALLOWED_ROLES
+
+    def get(self, request):
+        _form, _phone_line, reports = _build_line_reports_context(request)
+        if not reports:
+            return HttpResponse("Filtros de linha e período são obrigatórios.", status=400)
+        rows = [reports.operational_row] if reports.operational_row else []
+        return _operational_report_csv_response(rows)
+
+
 class LineOperationalReportView(RoleRequiredMixin, View):
     """Relatorio operacional por linha (T7): leitura pura, ciclos derivados
     so de LineDailyActionAuditEvent. Servico fica em
@@ -793,40 +898,7 @@ class LineOperationalReportCSVView(RoleRequiredMixin, View):
 
     def get(self, request):
         _filters, rows = _build_operational_report_context(request)
-
-        response = HttpResponse(content_type="text/csv; charset=utf-8")
-        response["Content-Disposition"] = (
-            'attachment; filename="relatorio_operacional_linhas.csv"'
-        )
-        response.write("﻿")
-
-        writer = csv.writer(response)
-        writer.writerow(
-            [
-                "Numero",
-                "Entradas",
-                "Saidas",
-                "Ciclos",
-                "Situacao",
-                "Duracao aberta",
-                "Ultima acao",
-                "Ultimo ator",
-            ]
-        )
-        for row in rows:
-            writer.writerow(
-                [
-                    row.phone_number,
-                    row.entradas,
-                    row.saidas,
-                    row.ciclos,
-                    row.situacao,
-                    row.duracao_aberta,
-                    row.ultima_acao,
-                    row.ultimo_ator,
-                ]
-            )
-        return response
+        return _operational_report_csv_response(rows)
 
 
 class OperatorLinkedLinesView(RoleRequiredMixin, TemplateView):
