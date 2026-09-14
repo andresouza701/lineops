@@ -832,22 +832,27 @@ performed as part of this task.
 
 ### 2. Migrations and dependencies
 
-Three additive migrations, already present on `main`, none yet confirmed
-applied in PRD (PRD inspection was blocked — see §4/§6):
+The initial additive rollout uses `0017`-`0019`. A corrective `0020` follows
+them: it aligns the audit event primary-key type with the project's
+`DEFAULT_AUTO_FIELD` and must be applied before treating the migration drift
+check as clean.
 
 | Migration | Effect | Depends on |
 | --- | --- | --- |
 | `telecom.0017_line_daily_action_audit_event` | Creates `LineDailyActionAuditEvent` table + indexes | `AUTH_USER_MODEL` swappable dep, `allocations.0008_alter_lineallocation_line_status`, `employees.0020_rename_heineki_portfolio`, `telecom.0016_alter_phonelinehistory_action_reactivated` |
 | `telecom.0018_linedailyactionauditevent_source_line_allocation` | Adds `LINE_ALLOCATION` to `source` choices (metadata only, no column/constraint change) | `telecom.0017` |
 | `telecom.0019_linedailyactionauditevent_db_immutability` | Postgres `BEFORE DELETE`/`BEFORE UPDATE` triggers blocking mutation of any field except the four FKs transitioning to `NULL`; no-op on sqlite | `telecom.0018` |
+| `telecom.0020_alter_linedailyactionauditevent_id` | Changes only the audit event PK from `AutoField` to the project-standard `BigAutoField`; does not write or delete audit events and does not alter trigger behavior | `telecom.0019` |
 
-All three are purely additive (new table, new trigger functions scoped to
+The first three are purely additive (new table, new trigger functions scoped to
 that one table, a choices-metadata change with no DB constraint). None
 alters an existing column, index, or table that old code reads or writes.
 This is what makes "apply 0017-0019 while the previous release is still
 serving traffic" safe: the old code never queries
 `telecom_linedailyactionauditevent` and is not affected by triggers scoped
-to it.
+to it. `0020` is a narrow schema correction: it is required only because
+`0017` was handwritten with `AutoField` while the project default is
+`BigAutoField`; it preserves every audit fact and the immutability trigger.
 
 `allocations.0008` and `employees.0020` must already be applied for `0017`
 to apply — both predate this feature branch by several commits and are
