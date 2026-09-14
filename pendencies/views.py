@@ -138,7 +138,7 @@ def _is_current_technical_responsible(pendency, user):
 def _load_locked_pendency_for_scope(request, pendency_id):
     """Carrega a pendência com lock de linha e valida escopo do usuário."""
     pendency = get_object_or_404(
-        AllocationPendency.objects.select_for_update().select_related(
+        AllocationPendency.objects.select_for_update(of=("self",)).select_related(
             "employee", "allocation__phone_line", "technical_responsible"
         ),
         pk=pendency_id,

@@ -1,5 +1,7 @@
 import json
+from unittest.mock import ANY, patch
 
+from django.db.models import QuerySet
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -216,6 +218,30 @@ class PendencyUpdateViewNotificationTest(TestCase):
         }
         self.assertIn("waiting_operator", choices)
         self.assertEqual(choices["waiting_operator"], "Aguardando operador")
+
+    def test_update_locks_only_pendency_when_related_rows_are_nullable(self):
+        """Postgres nao permite FOR UPDATE no lado nulo do LEFT OUTER JOIN.
+        A pendencia e a unica linha que precisa de lock; as relacoes carregadas
+        por select_related sao apenas leitura."""
+        allocation = self._make_allocation(phone_suffix="0099")
+        self.pendency.allocation = allocation
+        self.pendency.save(update_fields=["allocation"])
+
+        original_select_for_update = QuerySet.select_for_update
+        with patch.object(
+            QuerySet,
+            "select_for_update",
+            autospec=True,
+            side_effect=original_select_for_update,
+        ) as select_for_update:
+            response = self._post(
+                self.super_user,
+                "validacao de lock Postgres",
+                action=AllocationPendency.ActionType.PENDING,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        select_for_update.assert_any_call(ANY, of=("self",))
 
     def test_detail_marks_observation_locked_when_line_is_under_analysis(self):
         simcard = SIMcard.objects.create(
