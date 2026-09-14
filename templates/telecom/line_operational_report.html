@@ -1,0 +1,105 @@
+{% extends "base/base.html" %}
+
+{% block title %}Relatório Operacional por Linha{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2 class="fw-semibold">Relatório Operacional por Linha</h2>
+    </div>
+    <a href="{% url 'telecom:overview' %}" class="btn btn-outline-secondary">Voltar</a>
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label for="filter-start-date" class="form-label small text-muted mb-1">Início</label>
+                <input type="date" id="filter-start-date" name="start_date" class="form-control form-control-sm"
+                       value="{{ filters.start_date|default:'' }}">
+            </div>
+            <div class="col-md-3">
+                <label for="filter-end-date" class="form-label small text-muted mb-1">Fim</label>
+                <input type="date" id="filter-end-date" name="end_date" class="form-control form-control-sm"
+                       value="{{ filters.end_date|default:'' }}">
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-sm btn-primary">Filtrar</button>
+                <a href="{% url 'telecom:line_operational_report' %}" class="btn btn-sm btn-outline-secondary">Limpar</a>
+                <a href="{% url 'telecom:line_operational_report_csv' %}?{{ querystring }}" class="btn btn-sm btn-outline-success">Exportar CSV</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        {% if rows %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Número</th>
+                            <th>Entradas</th>
+                            <th>Saídas</th>
+                            <th>Ciclos</th>
+                            <th>Situação</th>
+                            <th>Duração aberta</th>
+                            <th>Última ação</th>
+                            <th>Último ator</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                            <tr>
+                                <td class="text-nowrap">{{ row.phone_number }}</td>
+                                <td>{{ row.entradas }}</td>
+                                <td>{{ row.saidas }}</td>
+                                <td>{{ row.ciclos }}</td>
+                                <td>
+                                    {% if row.situacao == 'Aberta' %}
+                                        <span class="badge bg-warning text-dark">{{ row.situacao }}</span>
+                                    {% else %}
+                                        <span class="badge bg-success">{{ row.situacao }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="small">{{ row.duracao_aberta }}</td>
+                                <td class="small">{{ row.ultima_acao }}</td>
+                                <td class="text-muted small">{{ row.ultimo_ator }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-5 text-muted">
+                <p>Nenhum item para os filtros atuais.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if is_paginated %}
+    <nav class="mt-3" aria-label="Paginação do relatório">
+        <ul class="pagination justify-content-center mb-0">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
+                </li>
+            {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+                <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                    <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ num }}">{{ num }}</a>
+                </li>
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.next_page_number }}">Próxima</a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+{% endif %}
+{% endblock %}

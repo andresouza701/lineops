@@ -543,3 +543,138 @@ not duplicated here.)
 No migration, no schema change, no change to writes, the PostgreSQL
 immutability triggers, permissions, pendencies, the dashboard, or the legacy
 CSV export.
+
+## T7: Line Operational Report (read model, follow-up)
+
+Read-only screen + CSV export: `telecom:line_operational_report` /
+`telecom:line_operational_report_csv`. One row per phone line summarizing
+**cycles** derived exclusively from `LineDailyActionAuditEvent` — never from
+`PhoneLineHistory` (legacy, T6-only), and never inferred from the current
+state of `DailyUserAction`, `AllocationPendency`, `LineAllocation`, or any
+JSON snapshot. Pure read: no `.create()`/`.update()`/`.delete()` against the
+audit table or any other model.
+
+### Cycle model
+
+- **Cycle-opening events**: `OPENED`, `REOPENED`.
+- **Cycle-closing events**: `RESOLVED`.
+- **Non-cycle events**: `RESPONSIBLE_ASSIGNED`, `RESPONSIBLE_RELEASED`,
+  `ACTION_CHANGED`, `NOTE_CHANGED`, `LINE_STATUS_CHANGED` — never open or
+  close a cycle, but are eligible as "last action."
+- **Cycle key**: `(phone_line_id, source, source_object_id)`. Sources never
+  cross, even on a colliding `source_object_id` — a `DAILY_USER_ACTION` id 7
+  and an `ALLOCATION_PENDENCY` id 7 are unrelated keys.
+- **Sequencing**: per key, events are read `occurred_at ASC, id ASC`
+  (stable order) and folded into cycles with a single pass: an
+  opening event starts a cycle if none is currently open for that key;
+  the next `RESOLVED` for that key closes the currently-open cycle.
+- **Inconsistent legacy data is preserved, not corrected**:
+  - A `RESOLVED` with no open cycle for its key is an orphan — it closes
+    nothing and creates no cycle.
+  - An opening event while a cycle is already open for that key does **not**
+    close the previous cycle — the previous cycle stays open and a second,
+    independent cycle starts. Both can be open at once for the same key.
+    This mirrors historical data quality rather than papering over it.
+
+### Temporal filter
+
+- GET `start_date`, `end_date` (`YYYY-MM-DD`), parsed the same tolerant way
+  as T6 (`LineTimelineFilters`-style): missing or unparseable is "filter
+  absent," never a 500. Bounds are inclusive full-day, in the current Django
+  timezone.
+- **Reference instant**: `timezone.now()` when `end_date` is absent;
+  otherwise the end of that day (`end_date` 23:59:59.999999 local). All
+  "current state" columns (situação, duração aberta, última ação/ator) are
+  computed **as of the reference instant** — events after it are never read,
+  so passing `end_date` reproduces the report exactly as it stood at the end
+  of that day, regardless of what happened later.
+- **Cycle/period overlap**: a cycle appears when `opened_at <= fim` and
+  (`resolved_at` is absent or `resolved_at >= inicio`), where `fim` is the
+  reference instant and `inicio` is `start_date`'s start-of-day or absent
+  (`-∞`). An open cycle started before the period still appears, since its
+  "close" is unbounded.
+- A phone line appears in the report only when at least one of its cycles
+  overlaps the period. Lines with zero qualifying audit events (or whose
+  only events are outside the period and produce no overlapping cycle) do
+  not produce an all-zero row — the report is event-driven by design, not a
+  listing of every visible line.
+
+### Columns
+
+- **Número**: `phone_line.phone_number`.
+- **Entradas**: count of `OPENED`/`REOPENED` events for the line with
+  `occurred_at` inside the filtered period (independent of which cycle they
+  belong to).
+- **Saídas**: count of `RESOLVED` events for the line inside the period
+  (orphans included — an orphan `RESOLVED` is still a fact that happened).
+- **Ciclos**: count of cycles (built up to the reference instant) that
+  overlap the period.
+- **Situação**: `Aberta` when the line has any cycle with no `RESOLVED` yet
+  as of the reference instant; otherwise `Resolvida`. This falls directly
+  out of the cycle fold — no separate "current status" query.
+- **Duração aberta**: for a line with one open cycle, `referência -
+  opened_at` of that cycle. With more than one simultaneously open cycle
+  (see inconsistent-data case above), shows the count and the duration of
+  the **oldest** open cycle. `-` when there is no open cycle.
+- **Última ação** / **Último ator**: the single most recent audit event for
+  the line with `occurred_at <= referência`, tie-broken
+  `occurred_at DESC, id DESC` — any event type qualifies, including
+  non-cycle ones. Actor resolution: live `performed_by` FK, else
+  `performed_by_name_snapshot`, else `performed_by_email_snapshot`, else
+  `"Sistema"` — same fallback chain as T6. `PhoneLineHistory` is never a
+  candidate.
+
+### Scope, routes, CSV
+
+- Scope: `get_visible_phone_lines_queryset(request.user)`, identical to T6 —
+  no new permission surface. No `phone_line_id` GET/POST parameter is
+  accepted anywhere in this feature; scope comes only from the visible
+  queryset, so it cannot be widened from outside.
+- Routes, both under `telecom/`, added to `telecom/urls.py` without touching
+  the T6 route: `telecom:line_operational_report` (HTML) and
+  `telecom:line_operational_report_csv` (CSV). View lives in
+  `telecom/views.py`; the read model lives in
+  `telecom/line_operational_report.py`; template in
+  `templates/telecom/line_operational_report.html`.
+- HTML paginates 50 rows/page (Django `Paginator`), preserving `start_date`/
+  `end_date` in pagination links, same pattern as T6's querystring
+  preservation. CSV always exports the **full** filtered+scoped result set,
+  UTF-8 with a BOM (`﻿`, matching `dashboard`'s existing CSV export
+  convention) so Excel opens accented characters correctly — independent of
+  whatever HTML page the user was on.
+
+### Read model and query cost
+
+- `telecom/line_operational_report.py` exposes: `LineOperationalReportFilters`
+  (GET parsing, mirroring `LineTimelineFilters`), `_Cycle` (internal
+  fold result), `LineOperationalReportRow` (render DTO — plain values only,
+  no lazy FK access from the template), and
+  `build_line_operational_report(phone_lines_queryset, filters)` returning
+  all matching rows (unpaginated) for both the HTML view (which paginates in
+  Python/`Paginator`) and the CSV view (which streams all of them).
+- **Query cost**: one query loads the scoped, non-deleted phone lines
+  (`values("id", "phone_number")` — no full `PhoneLine` objects). One query
+  loads every `LineDailyActionAuditEvent` for those line ids with
+  `occurred_at <= referência`, ordered `phone_line_id, occurred_at, id`,
+  projected with `.values(...)` to the handful of fields the fold needs
+  (including snapshot columns, so no second trip is needed to resolve an
+  actor). A third, small query resolves the still-live `performed_by` users
+  for the page's "last actor" column in one batch
+  (`SystemUser.objects.filter(pk__in=...)`) — never per-row. Total query
+  count is constant with respect to the number of qualifying lines or
+  events (verified via `assertNumQueries` with a small and a large fixture).
+  The event fold itself is a single Python pass over the ordered event list,
+  grouped by `(phone_line_id, source, source_object_id)` in memory — no
+  per-key queries.
+- No migration: no schema change, purely additive read-side module.
+
+### Limitations (explicit, matching the closed contract)
+
+- Reports lines with at least one overlapping cycle only — a line with only
+  non-cycle events, or with zero audit history, never appears, even inside
+  its own visible scope.
+- Simultaneous open cycles on the same key show only the oldest one's
+  duration (with a count) — the UI does not enumerate every open cycle
+  inline; the full detail remains available via the T6 timeline.
+- `PhoneLineHistory` never contributes to any column — this is intentional
+  per the closed contract, not an oversight; it remains T6-only.

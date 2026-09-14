@@ -4,6 +4,7 @@ import logging
 from django import forms
 from django.conf import settings
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q
 from django.core.exceptions import PermissionDenied
@@ -32,6 +33,11 @@ from .forms import (
     PhoneLineForm,
     PhoneLineUpdateForm,
     SIMcardCreateWithLineForm,
+)
+from .line_operational_report import (
+    PAGE_SIZE as OPERATIONAL_REPORT_PAGE_SIZE,
+    LineOperationalReportFilters,
+    build_line_operational_report,
 )
 from .line_timeline import (
     LineTimelineFilters,
@@ -737,6 +743,90 @@ class PhoneLineHistoryView(RoleRequiredMixin, View):
             "has_line_activity": has_line_activity(phone_line),
         }
         return render(request, self.template_name, context)
+
+
+def _build_operational_report_context(request):
+    """Compartilhado por HTML e CSV: mesmo escopo, mesmos filtros, mesmas
+    linhas — so muda o que cada view faz com o resultado."""
+    filters = LineOperationalReportFilters.from_get_params(request.GET)
+    rows = build_line_operational_report(
+        get_visible_phone_lines_queryset(request.user), filters
+    )
+    return filters, rows
+
+
+class LineOperationalReportView(RoleRequiredMixin, View):
+    """Relatorio operacional por linha (T7): leitura pura, ciclos derivados
+    so de LineDailyActionAuditEvent. Servico fica em
+    telecom/line_operational_report.py — a view so resolve escopo, parseia
+    filtros GET, pagina em Python e monta o contexto de template."""
+
+    allowed_roles = TELECOM_HISTORY_ALLOWED_ROLES
+    template_name = "telecom/line_operational_report.html"
+
+    def get(self, request):
+        filters, rows = _build_operational_report_context(request)
+
+        paginator = Paginator(rows, OPERATIONAL_REPORT_PAGE_SIZE)
+        page_obj = paginator.get_page(filters.page)
+
+        preserved_params = request.GET.copy()
+        preserved_params.pop("page", None)
+        querystring = preserved_params.urlencode()
+
+        context = {
+            "rows": page_obj.object_list,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "is_paginated": paginator.num_pages > 1,
+            "filters": filters,
+            "querystring": querystring,
+        }
+        return render(request, self.template_name, context)
+
+
+class LineOperationalReportCSVView(RoleRequiredMixin, View):
+    """Exportacao CSV do relatorio operacional por linha: mesmo escopo e
+    filtros da tela, conjunto completo (nao depende da pagina atual)."""
+
+    allowed_roles = TELECOM_HISTORY_ALLOWED_ROLES
+
+    def get(self, request):
+        _filters, rows = _build_operational_report_context(request)
+
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = (
+            'attachment; filename="relatorio_operacional_linhas.csv"'
+        )
+        response.write("﻿")
+
+        writer = csv.writer(response)
+        writer.writerow(
+            [
+                "Numero",
+                "Entradas",
+                "Saidas",
+                "Ciclos",
+                "Situacao",
+                "Duracao aberta",
+                "Ultima acao",
+                "Ultimo ator",
+            ]
+        )
+        for row in rows:
+            writer.writerow(
+                [
+                    row.phone_number,
+                    row.entradas,
+                    row.saidas,
+                    row.ciclos,
+                    row.situacao,
+                    row.duracao_aberta,
+                    row.ultima_acao,
+                    row.ultimo_ator,
+                ]
+            )
+        return response
 
 
 class OperatorLinkedLinesView(RoleRequiredMixin, TemplateView):

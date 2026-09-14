@@ -5,6 +5,8 @@ from .views import (
     BlipConfigurationListView,
     BlipConfigurationUpdateView,
     ExportPhoneLinesCSVView,
+    LineOperationalReportCSVView,
+    LineOperationalReportView,
     OperatorLinkedLinesView,
     PhoneLineCreateView,
     PhoneLineReconnectCancelView,
@@ -95,5 +97,15 @@ urlpatterns = [
         "phonelines/<int:pk>/history/export/",
         ExportPhoneLinesCSVView.as_view(),
         name="phoneline_history_export",
+    ),
+    path(
+        "relatorio-operacional/",
+        LineOperationalReportView.as_view(),
+        name="line_operational_report",
+    ),
+    path(
+        "relatorio-operacional/export/",
+        LineOperationalReportCSVView.as_view(),
+        name="line_operational_report_csv",
     ),
 ]

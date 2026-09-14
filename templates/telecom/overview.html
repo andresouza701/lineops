@@ -9,6 +9,9 @@
             <h1 class="h3 mb-1">Telecom</h1>
             <p class="text-muted mb-0">Painel de controle</p>
         </div>
+        <div>
+            <a href="{% url 'telecom:line_operational_report' %}" class="btn btn-outline-secondary btn-sm">Relatório Operacional</a>
+        </div>
     </div>
     <div class="row g-3">
         {% for box in line_status_boxes %}
