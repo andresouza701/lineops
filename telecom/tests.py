@@ -400,12 +400,12 @@ class PhoneLineHistoryAuditTest(TestCase):
         self.client.force_login(self.operator)
         operator_response = self.client.get(url)
         self.assertEqual(operator_response.status_code, 200)
-        self.assertIn("history", operator_response.context)
+        self.assertIn("timeline_items", operator_response.context)
 
         self.client.force_login(self.admin)
         ok = self.client.get(url)
         self.assertEqual(ok.status_code, 200)
-        self.assertIn("history", ok.context)
+        self.assertIn("timeline_items", ok.context)
 
     def test_overview_shows_history_button_for_admin(self):
         allocation = AllocationService.allocate_line(

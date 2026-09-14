@@ -271,7 +271,12 @@ code, expand read access.
 
 - Historical reconstruction before deployment.
 - Replacing PhoneLineHistory.
-- New dashboard/report UI.
+
+T6 (unified line timeline read screen) was originally listed here as "New
+dashboard/report UI" and is now implemented — see below. It extends the
+existing `telecom:phoneline_history` screen and read authorization; it does
+not replace `PhoneLineHistory` as a table, and does not touch writes,
+triggers, permissions, pendencies, dashboard, or CSV export.
 
 ## Implementation Status (Core, 2026-09-10)
 
@@ -432,3 +437,109 @@ guard those calls would have returned `None` where the test expected an
 event, so their `after_state` was changed to a materially different value
 (same intent, real event returned) without touching what each test actually
 asserts.
+
+## T6: Unified Line Timeline (Core, follow-up)
+
+Read-only screen: `telecom:phoneline_history` now shows a single timeline
+mixing `PhoneLineHistory` (legacy) and `LineDailyActionAuditEvent` (new),
+without deduplicating — the same business change can legitimately produce
+one row in each table, and both are shown as distinct facts from distinct
+sources.
+
+### Query contract
+
+- **Sources and identity**: legacy rows get a fixed `source` of
+  `PHONE_LINE_HISTORY` (not a `LineDailyActionAuditEvent.Source` choice, just
+  a literal used for timeline identity); new rows keep their real `source`
+  (`DAILY_USER_ACTION`, `ALLOCATION_PENDENCY`, `LINE_ALLOCATION`).
+- **Ordering**: `occurred_at DESC, source ASC, source-row-id DESC`, stable.
+  Legacy `occurred_at` is `PhoneLineHistory.changed_at`; new is
+  `LineDailyActionAuditEvent.occurred_at`.
+- **Filters** (GET `start_date`, `end_date`, `event_type`, `actor_id`,
+  `allocation_id`, `page`): all parsed tolerantly — an invalid value (bad
+  date, non-numeric id) becomes "filter absent," never a 500. `start_date`/
+  `end_date` are inclusive full-day bounds in the current timezone.
+  `event_type` filters `PhoneLineHistory.action` and
+  `LineDailyActionAuditEvent.event_type` independently (the two choice sets
+  never overlap). `actor_id` filters `changed_by_id` / `performed_by_id`.
+  `allocation_id` excludes the legacy source entirely (no historical
+  allocation on `PhoneLineHistory` to filter or infer) and filters
+  `LineDailyActionAuditEvent.allocation_id` on the new source; combined with
+  the existing `phone_line` scope, an allocation id from another line simply
+  matches nothing — it cannot leak another line's rows.
+- **Scope**: unchanged — `get_visible_phone_lines_queryset(request.user)`,
+  404 outside it. Events with `phone_line=None` never appear in any line's
+  timeline (existing Read Contract, unchanged).
+- **Pagination (DB-side, 50/page)**: both sources are projected to the same
+  three columns (`row_source`, `row_id`, `sort_at`) via `.values()`, filtered
+  *before* combining, then joined with `QuerySet.union(..., all=True)` (or
+  used alone when `allocation_id` drops the legacy branch) and finally
+  `.order_by(...)`. Django's `Paginator` runs against that combined
+  queryset, so `count()` and the page slice are both single SQL queries with
+  `LIMIT`/`OFFSET` — the full history is never materialized in Python.
+  A backend restriction (`ORDER BY not allowed in subqueries of compound
+  statements`) meant each branch first needed `.order_by()` (clearing the
+  model's `Meta.ordering`) before `.values()` — only the final combined
+  queryset carries an `ORDER BY`.
+- **Hydration**: only the current page's ids are split by source, then
+  loaded in at most two queries — `PhoneLineHistory.objects.filter(pk__in=...)
+  .select_related("changed_by")` and `LineDailyActionAuditEvent.objects
+  .filter(pk__in=...).select_related("performed_by", "allocation",
+  "employee")` — and assembled in memory into plain `LineTimelineItem` DTOs
+  in page order. The template only reads DTO attributes (strings/datetimes),
+  never model instances, so it cannot trigger lazy queries.
+
+### Read model
+
+- New module `telecom/line_timeline.py`: `LineTimelineFilters` (parsing/
+  validation), `LineTimelineItem` (render DTO), `get_line_timeline_page`
+  (union + paginate + hydrate), `get_line_timeline_filter_options` (dropdown
+  choices), `has_line_activity` (distinguishes "no activity at all" from "no
+  match for current filters" in the empty state).
+- `telecom.views.PhoneLineHistoryView` (the view actually wired to
+  `telecom:phoneline_history` — `telecom/views_history.py` holds an
+  unrelated, unused/orphaned `PhoneLineHistoryView` that nothing imports;
+  left untouched) changed from `DetailView` (whose `paginate_by = 50` never
+  actually paginated `context["history"]`, per the confirmed gap) to a plain
+  `View` that resolves scope, parses filters, calls the service, and renders.
+- Actor label: current FK name/email, else `performed_by_name_snapshot`,
+  else `performed_by_email_snapshot`, else "Sistema" (legacy: FK or
+  "Sistema" — it has no snapshot). Allocation label: `#<allocation_id>` when
+  the FK is live, `#<allocation_id_snapshot> (removida)` when only the
+  snapshot survives, `-` for legacy rows (no allocation concept there).
+  Before/after: legacy uses `old_value`/`new_value` plain text; new events
+  render `json.dumps(..., ensure_ascii=False, indent=2, sort_keys=True)` —
+  never `|safe`, so Django's autoescaping keeps the JSON safe in the
+  template.
+
+### Test evidence
+
+New module `telecom/tests_line_timeline.py` (not `telecom/tests.py`, which
+already has 5000+ lines; not a `telecom/tests/` package either, since
+`telecom` — unlike `dashboard` — has only `tests.py` today, and adding a
+package alongside it would reproduce the exact discovery break already
+documented above for `dashboard`). 19 tests, covering: source mixing +
+global ordering, DB-driven pagination across pages (`assertNumQueries`
+proves the query count from a page request does not depend on total row
+count), scope (200/404/cross-line isolation), all four filters including
+inclusive date bounds and the allocation/legacy exclusion and cross-line
+non-leak, phone_line-less events never appearing, legacy/new compatibility
+(original `PhoneLineHistory` rows unmodified), N+1 absence, and the UI
+(sources, filters, both tables, paginated querystring preservation, the two
+distinct empty states).
+
+~~~text
+manage.py test telecom.tests_line_timeline --settings=config.settings_dev -v 2
+Ran 19 tests ... OK
+
+manage.py test telecom --settings=config.settings_dev -v 1
+manage.py test dashboard.tests pendencies --settings=config.settings_dev -v 1
+manage.py check --settings=config.settings_dev
+~~~
+
+(Full-suite and `check` output recorded at delivery time in the task report,
+not duplicated here.)
+
+No migration, no schema change, no change to writes, the PostgreSQL
+immutability triggers, permissions, pendencies, the dashboard, or the legacy
+CSV export.

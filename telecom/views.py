@@ -8,7 +8,7 @@ from django.db import transaction
 from django.db.models import Count, Prefetch, Q
 from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils.dateparse import parse_date
 from django.views.generic import (
@@ -32,6 +32,12 @@ from .forms import (
     PhoneLineForm,
     PhoneLineUpdateForm,
     SIMcardCreateWithLineForm,
+)
+from .line_timeline import (
+    LineTimelineFilters,
+    get_line_timeline_filter_options,
+    get_line_timeline_page,
+    has_line_activity,
 )
 from .models import BlipConfiguration, PhoneLine, PhoneLineHistory, SIMcard
 from .services.reconnect_service import build_default_reconnect_service
@@ -695,30 +701,42 @@ class PhoneLineDeleteView(RoleRequiredMixin, View):
         return redirect("telecom:overview")
 
 
-class PhoneLineHistoryView(RoleRequiredMixin, DetailView):
+class PhoneLineHistoryView(RoleRequiredMixin, View):
+    """Timeline unificada da linha: PhoneLineHistory (legado) +
+    LineDailyActionAuditEvent (novo), paginada no banco, escopada por
+    permissao, com filtros de periodo/tipo/ator/alocacao. A consulta em si
+    vive em telecom/line_timeline.py — a view so resolve escopo, parseia
+    filtros GET e monta o contexto de template."""
+
     allowed_roles = TELECOM_HISTORY_ALLOWED_ROLES
-    model = PhoneLine
     template_name = "telecom/phoneline_history.html"
-    context_object_name = "phone_line"
-    paginate_by = 50
 
-    def get_queryset(self):
-        return get_visible_phone_lines_queryset(self.request.user).select_related(
-            "sim_card"
+    def get(self, request, pk):
+        phone_line = get_object_or_404(
+            get_visible_phone_lines_queryset(request.user).select_related("sim_card"),
+            pk=pk,
         )
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
+        filters = LineTimelineFilters.from_get_params(request.GET)
+        timeline_page = get_line_timeline_page(phone_line, filters)
+        filter_options = get_line_timeline_filter_options(phone_line)
 
-        # Consulta o histórico completo da linha
-        history = (
-            PhoneLineHistory.objects.filter(phone_line=context["phone_line"])
-            .select_related("changed_by")
-            .order_by("-changed_at")
-        )
+        preserved_params = request.GET.copy()
+        preserved_params.pop("page", None)
+        querystring = preserved_params.urlencode()
 
-        context["history"] = history
-        return context
+        context = {
+            "phone_line": phone_line,
+            "timeline_items": timeline_page.items,
+            "page_obj": timeline_page.page_obj,
+            "paginator": timeline_page.page_obj.paginator,
+            "is_paginated": timeline_page.page_obj.paginator.num_pages > 1,
+            "filters": filters,
+            "filter_options": filter_options,
+            "querystring": querystring,
+            "has_line_activity": has_line_activity(phone_line),
+        }
+        return render(request, self.template_name, context)
 
 
 class OperatorLinkedLinesView(RoleRequiredMixin, TemplateView):

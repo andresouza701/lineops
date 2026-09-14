@@ -1,4 +1,4 @@
-﻿{% extends "base/base.html" %}
+{% extends "base/base.html" %}
 
 {% block title %}Historico da Linha {{ phone_line.phone_number }}{% endblock %}
 
@@ -28,86 +28,135 @@
     </div>
 </div>
 
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label for="filter-start-date" class="form-label small text-muted mb-1">Início</label>
+                <input type="date" id="filter-start-date" name="start_date" class="form-control form-control-sm"
+                       value="{{ filters.start_date|default:'' }}">
+            </div>
+            <div class="col-md-2">
+                <label for="filter-end-date" class="form-label small text-muted mb-1">Fim</label>
+                <input type="date" id="filter-end-date" name="end_date" class="form-control form-control-sm"
+                       value="{{ filters.end_date|default:'' }}">
+            </div>
+            <div class="col-md-3">
+                <label for="filter-event-type" class="form-label small text-muted mb-1">Tipo</label>
+                <select id="filter-event-type" name="event_type" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    {% for code, label in filter_options.event_type_choices %}
+                        <option value="{{ code }}" {% if filters.event_type == code %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="filter-actor" class="form-label small text-muted mb-1">Ator</label>
+                <select id="filter-actor" name="actor_id" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    {% for user_id, label in filter_options.actor_choices %}
+                        <option value="{{ user_id }}" {% if filters.actor_id == user_id %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="filter-allocation" class="form-label small text-muted mb-1">Alocação</label>
+                <select id="filter-allocation" name="allocation_id" class="form-select form-select-sm">
+                    <option value="">Todas</option>
+                    {% for allocation_id, label in filter_options.allocation_choices %}
+                        <option value="{{ allocation_id }}" {% if filters.allocation_id == allocation_id %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-sm btn-primary">Filtrar</button>
+                <a href="{% url 'telecom:phoneline_history' phone_line.pk %}" class="btn btn-sm btn-outline-secondary">Limpar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="card shadow-sm border-0">
     <div class="card-header bg-transparent">
-        <h5 class="mb-0">Histórico de Alterações</h5>
+        <h5 class="mb-0">Timeline da Linha</h5>
     </div>
     <div class="card-body p-0">
-        {% if history %}
+        {% if timeline_items %}
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
                             <th>Data/Hora</th>
-                            <th>Ação</th>
-                            <th>Valor Anterior</th>
-                            <th>Novo Valor</th>
-                            <th>Alterado Por</th>
-                            <th>Descrição</th>
+                            <th>Fonte</th>
+                            <th>Tipo</th>
+                            <th>Ator</th>
+                            <th>Alocação</th>
+                            <th>Antes</th>
+                            <th>Depois</th>
+                            <th>Detalhes</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for item in history %}
+                        {% for item in timeline_items %}
                             <tr>
-                                <td class="text-nowrap">{{ item.changed_at|date:"d/m/Y H:i:s" }}</td>
+                                <td class="text-nowrap">{{ item.occurred_at|date:"d/m/Y H:i:s" }}</td>
                                 <td>
-                                    {% if item.action == 'CREATED' %}
-                                        <span class="badge bg-success">{{ item.get_action_display }}</span>
-                                    {% elif item.action == 'STATUS_CHANGED' %}
-                                        <span class="badge bg-info">{{ item.get_action_display }}</span>
-                                    {% elif item.action == 'SIMCARD_CHANGED' %}
-                                        <span class="badge bg-warning">{{ item.get_action_display }}</span>
-                                    {% elif item.action == 'EMPLOYEE_CHANGED' %}
-                                        <span class="badge bg-primary">{{ item.get_action_display }}</span>
-                                    {% elif item.action == 'DELETED' %}
-                                        <span class="badge bg-danger">{{ item.get_action_display }}</span>
-                                    {% elif item.action == 'ALLOCATED' %}
-                                        <span class="badge" style="background-color: #2563eb;">{{ item.get_action_display }}</span>
-                                    {% elif item.action == 'RELEASED' %}
-                                        <span class="badge bg-secondary">{{ item.get_action_display }}</span>
+                                    {% if item.source == 'PHONE_LINE_HISTORY' %}
+                                        <span class="badge bg-secondary">{{ item.source_label }}</span>
+                                    {% elif item.source == 'DAILY_USER_ACTION' %}
+                                        <span class="badge bg-primary">{{ item.source_label }}</span>
+                                    {% elif item.source == 'ALLOCATION_PENDENCY' %}
+                                        <span class="badge bg-warning text-dark">{{ item.source_label }}</span>
+                                    {% elif item.source == 'LINE_ALLOCATION' %}
+                                        <span class="badge bg-info text-dark">{{ item.source_label }}</span>
                                     {% else %}
-                                        <span class="badge bg-light text-dark">{{ item.get_action_display }}</span>
+                                        <span class="badge bg-light text-dark">{{ item.source_label }}</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-muted small">{{ item.old_value|default:"-" }}</td>
-                                <td class="small">{{ item.new_value|default:"-" }}</td>
-                                <td class="text-muted small">{{ item.changed_by|default:"Sistema" }}</td>
-                                <td class="small">{{ item.description }}</td>
+                                <td class="small">{{ item.event_type_label }}</td>
+                                <td class="text-muted small">{{ item.actor_label }}</td>
+                                <td class="text-muted small">{{ item.allocation_label }}</td>
+                                <td class="small"><pre class="mb-0 small">{{ item.before_display }}</pre></td>
+                                <td class="small"><pre class="mb-0 small">{{ item.after_display }}</pre></td>
+                                <td class="small">{{ item.details|default:"-" }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+        {% elif has_line_activity %}
+            <div class="text-center py-5 text-muted">
+                <p>Nenhum item para os filtros atuais.</p>
+            </div>
         {% else %}
             <div class="text-center py-5 text-muted">
-                <p>Nenhum histórico registrado para esta linha.</p>
+                <p>Nenhuma atividade registrada para esta linha.</p>
             </div>
         {% endif %}
     </div>
 </div>
 
 {% if is_paginated %}
-    <nav class="mt-3" aria-label="Paginação do histórico">
+    <nav class="mt-3" aria-label="Paginação da timeline">
         <ul class="pagination justify-content-center mb-0">
             {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                    <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
                 </li>
             {% endif %}
 
             {% for num in page_obj.paginator.page_range %}
                 <li class="page-item {% if page_obj.number == num %}active{% endif %}">
-                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ num }}">{{ num }}</a>
                 </li>
             {% endfor %}
 
             {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">Proxima</a>
+                    <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.next_page_number }}">Proxima</a>
                 </li>
             {% endif %}
         </ul>
     </nav>
 {% endif %}
 {% endblock %}
-
