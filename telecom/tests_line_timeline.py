@@ -671,6 +671,7 @@ class LineTimelineUITest(LineTimelineTestBase):
         self.assertContains(resp, "event_type")
         self.assertContains(resp, "actor_id")
         self.assertContains(resp, ">Responsável<", html=False)
+        self.assertNotContains(resp, ">Ator<", html=False)
         self.assertContains(resp, "allocation_id")
         self.assertIn("timeline_items", resp.context)
         self.assertIn("page_obj", resp.context)
