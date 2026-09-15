@@ -293,14 +293,6 @@ def _audit_changes(before_state, after_state) -> list[LineTimelineChange]:
                 )
             )
 
-    if before_state.get("source_state") != after_state.get("source_state"):
-        changes.append(
-            LineTimelineChange(
-                label="Contexto da origem",
-                before_value="Anterior",
-                after_value="Atualizado",
-            )
-        )
     return changes
 
 

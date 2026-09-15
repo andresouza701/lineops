@@ -184,6 +184,31 @@ class LineTimelineMixingTest(LineTimelineTestBase):
 
 
 class LineTimelinePresentationTest(LineTimelineTestBase):
+    def test_source_state_changes_are_not_shown_as_user_facing_changes(self):
+        self._make_audit(
+            when=timezone.now(),
+            event_type=LineDailyActionAuditEvent.EventType.OPENED,
+            source=LineDailyActionAuditEvent.Source.ALLOCATION_PENDENCY,
+            before=self._audit_state(),
+            after=self._audit_state(
+                source_state={
+                    "day": "2026-09-14",
+                    "pendency_submitted_at": "2026-09-14T12:00:00+00:00",
+                    "last_submitted_action": {
+                        "code": "reconnect_whatsapp",
+                        "label": "Reconectar WhatsApp",
+                    },
+                    "is_resolved": False,
+                }
+            ),
+        )
+
+        item = get_line_timeline_page(
+            self.phone_line, LineTimelineFilters()
+        ).items[0]
+
+        self.assertEqual(item.changes, [])
+
     def test_audit_event_exposes_changed_fields_with_human_labels(self):
         before = self._audit_state()
         after = self._audit_state(
