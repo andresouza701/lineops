@@ -214,7 +214,7 @@ class LineTimelinePresentationTest(LineTimelineTestBase):
         self.assertEqual(changes["Status da linha"], ("Ativa", "Em análise"))
         self.assertEqual(changes["Responsável técnico"], ("Não atribuído", self.admin.email))
 
-    def test_history_page_renders_changes_and_keeps_json_technical_collapsed(self):
+    def test_history_page_renders_changes_without_technical_json(self):
         self._make_audit(
             when=timezone.now(),
             event_type=LineDailyActionAuditEvent.EventType.NOTE_CHANGED,
@@ -228,8 +228,9 @@ class LineTimelinePresentationTest(LineTimelineTestBase):
 
         self.assertContains(response, "Alterações")
         self.assertContains(response, "Nota")
-        self.assertContains(response, "Ver JSON técnico")
-        self.assertContains(response, "<details>", html=False)
+        self.assertContains(response, "Responsável")
+        self.assertNotContains(response, "Ver JSON técnico")
+        self.assertNotContains(response, "Detalhes técnicos")
 
 
 class LineTimelinePaginationTest(LineTimelineTestBase):
@@ -644,6 +645,7 @@ class LineTimelineUITest(LineTimelineTestBase):
         self.assertContains(resp, "end_date")
         self.assertContains(resp, "event_type")
         self.assertContains(resp, "actor_id")
+        self.assertContains(resp, ">Responsável<", html=False)
         self.assertContains(resp, "allocation_id")
         self.assertIn("timeline_items", resp.context)
         self.assertIn("page_obj", resp.context)

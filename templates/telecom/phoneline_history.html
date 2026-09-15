@@ -51,7 +51,7 @@
                 </select>
             </div>
             <div class="col-md-3">
-                <label for="filter-actor" class="form-label small text-muted mb-1">Ator</label>
+                <label for="filter-actor" class="form-label small text-muted mb-1">Responsável</label>
                 <select id="filter-actor" name="actor_id" class="form-select form-select-sm">
                     <option value="">Todos</option>
                     {% for user_id, label in filter_options.actor_choices %}
@@ -92,7 +92,6 @@
                             <th>Ator</th>
                             <th>Alocação</th>
                             <th>Alterações</th>
-                            <th>Detalhes técnicos</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -126,17 +125,6 @@
                                     {% empty %}
                                         <span class="text-muted">-</span>
                                     {% endfor %}
-                                </td>
-                                <td class="small">
-                                    {% if item.has_technical_json %}
-                                        <details>
-                                            <summary>Ver JSON técnico</summary>
-                                            <div class="mt-2"><strong>Antes</strong><pre class="mb-2 small">{{ item.before_display }}</pre></div>
-                                            <div><strong>Depois</strong><pre class="mb-0 small">{{ item.after_display }}</pre></div>
-                                        </details>
-                                    {% else %}
-                                        {{ item.details|default:"-" }}
-                                    {% endif %}
                                 </td>
                             </tr>
                         {% endfor %}
