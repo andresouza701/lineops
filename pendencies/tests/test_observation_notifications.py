@@ -798,7 +798,7 @@ class PendencyUpdateViewNotificationTest(TestCase):
         self.assertIsNone(event.before_state["technical_responsible"])
         self.assertEqual(event.after_state["technical_responsible"]["id"], self.admin.pk)
 
-    def test_assigned_pendency_cannot_be_claimed_by_second_admin(self):
+    def test_assigned_pendency_can_be_claimed_by_second_admin(self):
         second_admin = _make_user("admin2@t.com", SystemUser.Role.ADMIN)
         allocation = self._make_allocation(phone_suffix="0402")
         pendency = AllocationPendency.objects.create(
@@ -815,16 +815,48 @@ class PendencyUpdateViewNotificationTest(TestCase):
             content_type="application/json",
         )
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
         pendency.refresh_from_db()
-        self.assertEqual(pendency.technical_responsible, self.admin)
-        self.assertEqual(
-            LineDailyActionAuditEvent.objects.filter(
-                source_object_id=pendency.pk,
-                event_type=LineDailyActionAuditEvent.EventType.RESPONSIBLE_ASSIGNED,
-            ).count(),
-            0,
+        self.assertEqual(pendency.technical_responsible, second_admin)
+        self.assertEqual(pendency.updated_by, second_admin)
+        event = LineDailyActionAuditEvent.objects.get(
+            source_object_id=pendency.pk,
+            event_type=LineDailyActionAuditEvent.EventType.RESPONSIBLE_ASSIGNED,
         )
+        self.assertEqual(event.performed_by, second_admin)
+        self.assertEqual(event.before_state["technical_responsible"]["id"], self.admin.pk)
+        self.assertEqual(
+            event.after_state["technical_responsible"]["id"], second_admin.pk
+        )
+
+    def test_second_admin_can_release_pendency_assigned_to_another_admin(self):
+        second_admin = _make_user("admin2@t.com", SystemUser.Role.ADMIN)
+        allocation = self._make_allocation(phone_suffix="0409")
+        pendency = AllocationPendency.objects.create(
+            employee=self.employee,
+            allocation=allocation,
+            action=AllocationPendency.ActionType.PENDING,
+            technical_responsible=self.admin,
+        )
+
+        self.client.force_login(second_admin)
+        response = self.client.post(
+            self.release_url,
+            data=json.dumps({"pendency_id": pendency.pk}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        pendency.refresh_from_db()
+        self.assertIsNone(pendency.technical_responsible)
+        self.assertEqual(pendency.updated_by, second_admin)
+        event = LineDailyActionAuditEvent.objects.get(
+            source_object_id=pendency.pk,
+            event_type=LineDailyActionAuditEvent.EventType.RESPONSIBLE_RELEASED,
+        )
+        self.assertEqual(event.performed_by, second_admin)
+        self.assertEqual(event.before_state["technical_responsible"]["id"], self.admin.pk)
+        self.assertIsNone(event.after_state["technical_responsible"])
 
     def test_only_current_technical_responsible_can_update_action_status_or_resolve(self):
         second_admin = _make_user("admin2@t.com", SystemUser.Role.ADMIN)

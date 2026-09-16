@@ -441,8 +441,7 @@ class PendencyUpdateView(RoleRequiredMixin, View):
 
 
 class PendencyClaimView(RoleRequiredMixin, View):
-    """POST: admin se atribui como Responsável Técnico de uma pendência aberta
-    e ainda sem responsável."""
+    """POST: admin assume pendência aberta, mesmo atribuída a outro admin."""
 
     allowed_roles = [SystemUser.Role.ADMIN]
 
@@ -461,12 +460,6 @@ class PendencyClaimView(RoleRequiredMixin, View):
                 return JsonResponse(
                     {"errors": ["Não há pendência aberta para assumir."]}, status=403
                 )
-            if pendency.technical_responsible_id is not None:
-                return JsonResponse(
-                    {"errors": ["Pendência já possui um técnico responsável."]},
-                    status=403,
-                )
-
             allocation = pendency.allocation
             before_state = build_pendency_state(pendency, allocation)
 
@@ -492,7 +485,7 @@ class PendencyClaimView(RoleRequiredMixin, View):
 
 
 class PendencyReleaseView(RoleRequiredMixin, View):
-    """POST: o próprio responsável técnico atual libera a pendência."""
+    """POST: qualquer admin libera uma pendência aberta."""
 
     allowed_roles = [SystemUser.Role.ADMIN]
 
@@ -507,14 +500,9 @@ class PendencyReleaseView(RoleRequiredMixin, View):
         with transaction.atomic():
             pendency = _load_locked_pendency_for_scope(request, pendency_id)
 
-            if not _is_current_technical_responsible(pendency, request.user):
+            if pendency.technical_responsible_id is None:
                 return JsonResponse(
-                    {
-                        "errors": [
-                            "Somente o técnico responsável atual pode liberar "
-                            "esta pendência."
-                        ]
-                    },
+                    {"errors": ["Pendência não possui técnico responsável."]},
                     status=403,
                 )
 
