@@ -1030,6 +1030,12 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
             ):
                 line_data["reconnect_url"] = build_reconnect_detail_url(line.pk)
 
+            if table_type == "main":
+                line_data["whatsapp_seal_display"] = (
+                    line.get_whatsapp_seal_display() if line.whatsapp_seal else ""
+                )
+                line_data["seal_status"] = line.seal_status
+
             data.append(line_data)
 
         return JsonResponse(

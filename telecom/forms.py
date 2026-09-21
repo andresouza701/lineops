@@ -14,6 +14,14 @@ from core.validation import (
 from employees.models import Employee
 
 from .models import BlipConfiguration, PhoneLine, SIMcard
+from .whatsapp_seal import REQUIRED_FIELD_ERRORS, WhatsAppSeal
+
+SEAL_DETAIL_FIELDS = [
+    "whatsapp_seal_activated_on",
+    "whatsapp_seal_expires_on",
+    "whatsapp_seal_email",
+    "whatsapp_seal_payment",
+]
 
 OPTIONAL_SELECT_CHOICES = [("", "---------")]
 
@@ -67,7 +75,69 @@ class SIMcardCreateWithLineForm(SIMcardForm):
 class PhoneLineForm(forms.ModelForm):
     class Meta:
         model = PhoneLine
-        fields = ["phone_number", "sim_card", "origem", "canal"]
+        fields = [
+            "phone_number",
+            "sim_card",
+            "origem",
+            "canal",
+            "whatsapp_seal",
+            "whatsapp_seal_activated_on",
+            "whatsapp_seal_expires_on",
+            "whatsapp_seal_email",
+            "whatsapp_seal_payment",
+        ]
+        widgets = {
+            "whatsapp_seal": forms.Select(attrs={"class": "form-select"}),
+            "whatsapp_seal_activated_on": forms.DateInput(
+                attrs={"class": "form-control", "type": "date"}, format="%Y-%m-%d"
+            ),
+            "whatsapp_seal_expires_on": forms.DateInput(
+                attrs={"class": "form-control", "type": "date"}, format="%Y-%m-%d"
+            ),
+            "whatsapp_seal_email": forms.EmailInput(attrs={"class": "form-control"}),
+            "whatsapp_seal_payment": forms.Select(attrs={"class": "form-select"}),
+        }
+        labels = {
+            "whatsapp_seal": "Selo",
+            "whatsapp_seal_activated_on": "Ativação",
+            "whatsapp_seal_expires_on": "Vencimento",
+            "whatsapp_seal_email": "E-mail cadastrado",
+            "whatsapp_seal_payment": "Pagamento",
+        }
+
+    def full_clean(self):
+        if self.is_bound and not self.data.get("whatsapp_seal"):
+            data = self.data.copy()
+            for field_name in SEAL_DETAIL_FIELDS:
+                data[field_name] = ""
+            self.data = data
+        return super().full_clean()
+
+    def _post_clean(self):
+        # Um campo de detalhe do selo com valor preenchido em formato
+        # inválido (ex.: e-mail sem "@") falha na validação própria do
+        # campo e fica fora de cleaned_data; construct_instance() não
+        # atualiza o atributo da instância, que permanece vazio, e
+        # PhoneLine.clean() (validate_seal_fields, disparado
+        # automaticamente por super()._post_clean()) soma "é obrigatório"
+        # à mesma lista — mensagem contraditória, pois um valor foi
+        # digitado. Registrado apenas para os campos que já tinham erro de
+        # formato antes da validação de domínio rodar.
+        fields_with_format_errors = {
+            field_name for field_name in SEAL_DETAIL_FIELDS if field_name in self.errors
+        }
+        super()._post_clean()
+        for field_name in fields_with_format_errors:
+            required_message = REQUIRED_FIELD_ERRORS.get(field_name)
+            if not required_message or field_name not in self.errors:
+                continue
+            remaining = [
+                message
+                for message in self.errors[field_name]
+                if message != required_message
+            ]
+            if remaining and len(remaining) != len(self.errors[field_name]):
+                self.errors[field_name] = self.error_class(remaining)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -86,6 +156,22 @@ class PhoneLineForm(forms.ModelForm):
         self.fields["sim_card"].widget.attrs.setdefault("class", "form-select")
         self.fields["origem"].widget.attrs.setdefault("class", "form-select")
         self.fields["canal"].widget.attrs.setdefault("class", "form-select")
+
+        for field_name in self.fields:
+            self.fields[field_name].widget.attrs.setdefault(
+                "aria-describedby", f"id_{field_name}_error"
+            )
+
+        # Progressive enhancement: os quatro campos de detalhe do selo nunca
+        # recebem `required` no HTML gerado pelo servidor. Sem JavaScript
+        # eles precisam ficar sempre preenchíveis/enviáveis (inclusive para
+        # trocar um selo existente por Sem selo); `required` é adicionado e
+        # removido só pelo JavaScript, conforme a seleção corrente no
+        # navegador. PhoneLine.clean() continua sendo a única autoridade de
+        # validação de obrigatoriedade condicional.
+        self.fields["whatsapp_seal"].choices = [("", "Sem selo")] + list(
+            WhatsAppSeal.choices
+        )
 
     def clean_phone_number(self):
         phone_number = normalize_phone_number(self.cleaned_data.get("phone_number"))
@@ -114,6 +200,17 @@ class PhoneLineForm(forms.ModelForm):
             status=PhoneLine.Status.AVAILABLE,
             origem=self.cleaned_data.get("origem"),
             canal=self.cleaned_data.get("canal"),
+            whatsapp_seal=self.cleaned_data.get("whatsapp_seal", ""),
+            whatsapp_seal_activated_on=self.cleaned_data.get(
+                "whatsapp_seal_activated_on"
+            ),
+            whatsapp_seal_expires_on=self.cleaned_data.get(
+                "whatsapp_seal_expires_on"
+            ),
+            whatsapp_seal_email=self.cleaned_data.get("whatsapp_seal_email", ""),
+            whatsapp_seal_payment=self.cleaned_data.get(
+                "whatsapp_seal_payment", ""
+            ),
         )
 
 
@@ -127,7 +224,18 @@ class PhoneLineUpdateForm(PhoneLineForm):
     )
 
     class Meta(PhoneLineForm.Meta):
-        fields = ["phone_number", "sim_card", "status", "origem", "canal"]
+        fields = [
+            "phone_number",
+            "sim_card",
+            "status",
+            "origem",
+            "canal",
+            "whatsapp_seal",
+            "whatsapp_seal_activated_on",
+            "whatsapp_seal_expires_on",
+            "whatsapp_seal_email",
+            "whatsapp_seal_payment",
+        ]
 
     def __init__(self, *args, **kwargs):
         can_edit_origem = kwargs.pop("can_edit_origem", False)

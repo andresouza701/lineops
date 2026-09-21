@@ -1,104 +1,151 @@
 {% extends "base/base.html" %}
+{% load static %}
 
-{% block title %}Linha Telefônica{% endblock %}
+{% block title %}{% if object %}Editar linha{% else %}Cadastro de linha{% endif %}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     {% if object %}
-        <h2 class="fw-semibold">Editar Linha</h2>
+        <h2 class="fw-semibold">Editar linha</h2>
     {% else %}
-        <h2 class="fw-semibold">Nova Linha</h2>
+        <h2 class="fw-semibold">Cadastro de linha</h2>
     {% endif %}
     <a href="{% url 'telecom:overview' %}" class="btn btn-outline-secondary">Voltar</a>
 </div>
 
-<div class="row g-3">
-    <div class="col-12 col-lg-7">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
-                    {{ form.non_field_errors }}
+{% if form.errors %}
+    <div class="alert alert-danger" role="alert" tabindex="-1" id="form-error-summary">
+        <h2 class="h6 mb-2">Corrija os erros abaixo</h2>
+        <ul class="mb-0">
+            {% for field in form %}
+                {% for error in field.errors %}
+                    <li><a href="#{{ field.id_for_label }}">{{ field.label }}</a>: {{ error }}</li>
+                {% endfor %}
+            {% endfor %}
+            {% for error in form.non_field_errors %}
+                <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+{% endif %}
 
+<form method="post">
+    {% csrf_token %}
+
+    <div class="row g-3 align-items-stretch">
+        <div class="col-12 col-lg-6 order-1">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-transparent border-0 pb-0">
+                    <h3 class="h6 mb-0">DADOS DA LINHA</h3>
+                </div>
+                <div class="card-body">
                     <div class="mb-3">
-                        <label class="form-label">Número</label>
+                        <label for="{{ form.phone_number.id_for_label }}" class="form-label">Número</label>
                         {{ form.phone_number }}
-                        {{ form.phone_number.errors }}
+                        <div id="id_phone_number_error" class="invalid-feedback d-block">{{ form.phone_number.errors }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">SIM card</label>
+                        <label for="{{ form.sim_card.id_for_label }}" class="form-label">SIM card</label>
                         {{ form.sim_card }}
-                        {{ form.sim_card.errors }}
+                        <div id="id_sim_card_error" class="invalid-feedback d-block">{{ form.sim_card.errors }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Origem</label>
+                        <label for="{{ form.origem.id_for_label }}" class="form-label">Origem</label>
                         {{ form.origem }}
-                        {{ form.origem.errors }}
+                        <div id="id_origem_error" class="invalid-feedback d-block">{{ form.origem.errors }}</div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Canal</label>
+                        <label for="{{ form.canal.id_for_label }}" class="form-label">Canal</label>
                         {{ form.canal }}
-                        {{ form.canal.errors }}
+                        <div id="id_canal_error" class="invalid-feedback d-block">{{ form.canal.errors }}</div>
                     </div>
 
                     {% if object %}
                         <div class="mb-3">
-                            <label class="form-label">Usuário vinculado</label>
+                            <label for="{{ form.employee.id_for_label }}" class="form-label">Usuário vinculado</label>
                             {{ form.employee }}
-                            {{ form.employee.errors }}
+                            <div id="id_employee_error" class="invalid-feedback d-block">{{ form.employee.errors }}</div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Status</label>
+                            <label for="{{ form.status.id_for_label }}" class="form-label">Status</label>
                             {{ form.status }}
-                            {{ form.status.errors }}
+                            <div id="id_status_error" class="invalid-feedback d-block">{{ form.status.errors }}</div>
                         </div>
-                    {% endif %}
 
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">{% if object %}Atualizar{% else %}Salvar{% endif %}</button>
-                        {% if object %}
-                            <button type="submit" name="action" value="release_line" class="btn btn-outline-danger">Liberar</button>
-                        {% endif %}
+                        <dl class="row mb-0 small text-muted">
+                            <dt class="col-5">ICCID atual</dt>
+                            <dd class="col-7">{{ object.sim_card.iccid|default:"-" }}</dd>
+                            <dt class="col-5">Operadora</dt>
+                            <dd class="col-7">{{ object.sim_card.carrier|default:"-" }}</dd>
+                            <dt class="col-5">Ativada em</dt>
+                            <dd class="col-7">{{ object.activated_at|date:"d/m/Y H:i"|default:"-" }}</dd>
+                            <dt class="col-5">Atualizada em</dt>
+                            <dd class="col-7">{{ object.updated_at|date:"d/m/Y H:i"|default:"-" }}</dd>
+                        </dl>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-6 order-2">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-transparent border-0 pb-0">
+                    <h3 class="h6 mb-0">SELO WHATS LINEOPS</h3>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <label for="{{ form.whatsapp_seal.id_for_label }}" class="form-label">{{ form.whatsapp_seal.label }}</label>
+                        {{ form.whatsapp_seal }}
+                        <div id="id_whatsapp_seal_error" class="invalid-feedback d-block">{{ form.whatsapp_seal.errors }}</div>
                     </div>
-                </form>
+
+                    <p class="text-muted small mb-3" id="seal-empty-hint">Nenhum selo cadastrado.</p>
+
+                    <div id="seal-detail-fields">
+                        <div class="row g-3">
+                            <div class="col-12 col-sm-6">
+                                <label for="{{ form.whatsapp_seal_activated_on.id_for_label }}" class="form-label">{{ form.whatsapp_seal_activated_on.label }} <span class="text-muted small" data-seal-required-label>(obrigatório com selo)</span></label>
+                                {{ form.whatsapp_seal_activated_on }}
+                                <div id="id_whatsapp_seal_activated_on_error" class="invalid-feedback d-block">{{ form.whatsapp_seal_activated_on.errors }}</div>
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                <label for="{{ form.whatsapp_seal_expires_on.id_for_label }}" class="form-label">{{ form.whatsapp_seal_expires_on.label }} <span class="text-muted small" data-seal-required-label>(obrigatório com selo)</span></label>
+                                {{ form.whatsapp_seal_expires_on }}
+                                <div id="id_whatsapp_seal_expires_on_error" class="invalid-feedback d-block">{{ form.whatsapp_seal_expires_on.errors }}</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3 mt-3">
+                            <label for="{{ form.whatsapp_seal_email.id_for_label }}" class="form-label">{{ form.whatsapp_seal_email.label }} <span class="text-muted small" data-seal-required-label>(obrigatório com selo)</span></label>
+                            {{ form.whatsapp_seal_email }}
+                            <div id="id_whatsapp_seal_email_error" class="invalid-feedback d-block">{{ form.whatsapp_seal_email.errors }}</div>
+                        </div>
+
+                        <div class="mb-1">
+                            <label for="{{ form.whatsapp_seal_payment.id_for_label }}" class="form-label">{{ form.whatsapp_seal_payment.label }} <span class="text-muted small" data-seal-required-label>(obrigatório com selo)</span></label>
+                            {{ form.whatsapp_seal_payment }}
+                            <div id="id_whatsapp_seal_payment_error" class="invalid-feedback d-block">{{ form.whatsapp_seal_payment.errors }}</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    {% if object %}
-        <div class="col-12 col-lg-5">
-            <div class="card shadow-sm border-0 h-100">
-                <div class="card-body">
-                    <h3 class="h6 mb-3">Informações atuais</h3>
-                    <dl class="row mb-0">
-                        <dt class="col-5">Status</dt>
-                        <dd class="col-7">{{ object.get_status_display }}</dd>
-                        <dt class="col-5">ICCID atual</dt>
-                        <dd class="col-7">{{ object.sim_card.iccid|default:"-" }}</dd>
-                        <dt class="col-5">Operadora</dt>
-                        <dd class="col-7">{{ object.sim_card.carrier|default:"-" }}</dd>
-                        <dt class="col-5">Canal</dt>
-                        <dd class="col-7">{{ object.get_canal_display|default:"-" }}</dd>
-                        <dt class="col-5">Usuário vinculado</dt>
-                        <dd class="col-7">
-                            {% if active_allocation %}
-                                {{ active_allocation.employee.full_name }}
-                            {% else %}
-                                <span class="text-muted">Sem vínculo</span>
-                            {% endif %}
-                        </dd>
-                        <dt class="col-5">Ativada em</dt>
-                        <dd class="col-7">{{ object.activated_at|date:"d/m/Y H:i"|default:"-" }}</dd>
-                        <dt class="col-5">Atualizada em</dt>
-                        <dd class="col-7">{{ object.updated_at|date:"d/m/Y H:i"|default:"-" }}</dd>
-                    </dl>
-                </div>
-            </div>
-        </div>
-    {% endif %}
-</div>
+    <div class="d-flex gap-2 mt-3">
+        <a href="{% url 'telecom:overview' %}" class="btn btn-outline-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-primary">{% if object %}Salvar alterações{% else %}Cadastrar linha{% endif %}</button>
+        {% if object %}
+            <button type="submit" name="action" value="release_line" formnovalidate class="btn btn-outline-danger">Liberar</button>
+        {% endif %}
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/phone-line-form.js' %}"></script>
 {% endblock %}

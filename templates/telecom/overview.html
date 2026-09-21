@@ -62,6 +62,7 @@
                             <th scope="col">Origem</th>
                             <th scope="col">Usuário vinculado</th>
                             <th scope="col">Status</th>
+                            <th scope="col">Selo</th>
                             <th scope="col" class="text-end">Ações</th>
                         </tr>
                     </thead>
@@ -86,6 +87,14 @@
                                         <span class="badge bg-info">{{ line.get_status_display }}</span>
                                     {% endif %}
                                 </td>
+                                <td>
+                                    {% if line.whatsapp_seal %}
+                                        <div>{{ line.get_whatsapp_seal_display }}</div>
+                                        {% include "telecom/_seal_status_badge.html" with seal_status=line.seal_status %}
+                                    {% else %}
+                                        <span class="text-muted">Sem selo</span>
+                                    {% endif %}
+                                </td>
                                 <td class="text-end">
                                     {% if can_manage_telecom %}
                                         <a href="{% url 'telecom:phoneline_update' line.pk %}" class="btn btn-outline-primary btn-sm" aria-label="Editar" title="Editar">
@@ -103,7 +112,7 @@
                                 </td>
                             </tr>
                         {% empty %}
-                            <tr id="no-data-main"><td colspan="7" class="text-center">Nenhuma linha cadastrada.</td></tr>
+                            <tr id="no-data-main"><td colspan="8" class="text-center">Nenhuma linha cadastrada.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -170,6 +179,43 @@ document.addEventListener('DOMContentLoaded', function() {
         return badge;
     }
 
+    function createSealBadge(sealStatus) {
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.textContent = sealStatus.label;
+        switch (sealStatus.tone) {
+            case 'warning':
+                badge.classList.add('seal-tone-warning', 'bg-warning', 'text-dark');
+                break;
+            case 'today':
+                badge.classList.add('seal-tone-today', 'text-dark');
+                badge.style.backgroundColor = 'orange';
+                break;
+            case 'expired':
+                badge.classList.add('seal-tone-expired', 'bg-danger');
+                break;
+            default:
+                badge.classList.add('seal-tone-neutral', 'bg-light', 'text-dark', 'border');
+        }
+        return badge;
+    }
+
+    function createSealCell(line) {
+        const td = document.createElement('td');
+        if (!line.whatsapp_seal_display) {
+            const span = document.createElement('span');
+            span.className = 'text-muted';
+            span.textContent = 'Sem selo';
+            td.appendChild(span);
+            return td;
+        }
+        const nameDiv = document.createElement('div');
+        nameDiv.textContent = line.whatsapp_seal_display;
+        td.appendChild(nameDiv);
+        td.appendChild(createSealBadge(line.seal_status));
+        return td;
+    }
+
     function createMainTableRow(line) {
         const tr = document.createElement('tr');
         const employeeText = line.employee || '<span class="text-muted">Sem vínculo</span>';
@@ -187,6 +233,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         tr.innerHTML = `<td>${line.phone_number}</td><td>${line.iccid}</td><td>${line.carrier || '-'}</td><td>${line.origem_display || '-'}</td><td>${employeeText}</td><td></td><td class="text-end">${actionsHtml}</td>`;
         tr.querySelector('td:nth-child(6)').appendChild(createStatusBadge(line.status, line.status_display));
+        tr.insertBefore(createSealCell(line), tr.querySelector('td.text-end'));
         return tr;
     }
 

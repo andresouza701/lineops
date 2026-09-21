@@ -1,0 +1,9 @@
+{% if seal_status.tone == "warning" %}
+    <span class="badge seal-tone-warning bg-warning text-dark">{{ seal_status.label }}</span>
+{% elif seal_status.tone == "today" %}
+    <span class="badge seal-tone-today text-dark" style="background-color: orange;">{{ seal_status.label }}</span>
+{% elif seal_status.tone == "expired" %}
+    <span class="badge seal-tone-expired bg-danger">{{ seal_status.label }}</span>
+{% else %}
+    <span class="badge seal-tone-neutral bg-light text-dark border">{{ seal_status.label }}</span>
+{% endif %}

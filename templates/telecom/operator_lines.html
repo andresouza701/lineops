@@ -3,19 +3,21 @@
 {% block title %}Minhas Linhas{% endblock %}
 
 {% block content %}
+<div class="telecom-content-shell">
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="fw-semibold">Minhas Linhas</h2>
 </div>
 
 <div class="card shadow-sm border-0">
     <div class="card-body p-0">
-        <div class="table-responsive">
+        <div class="table-responsive telecom-table-wrap">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
                         <th>Número</th>
                         <th>Status</th>
                         <th>Operadora</th>
+                        <th>Selo</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -25,6 +27,14 @@
                         <td class="fw-medium font-monospace">{{ line.phone_number }}</td>
                         <td>{{ line.get_status_display }}</td>
                         <td>{{ line.sim_card.carrier }}</td>
+                        <td>
+                            {% if line.whatsapp_seal %}
+                                <div>{{ line.get_whatsapp_seal_display }}</div>
+                                {% include "telecom/_seal_status_badge.html" with seal_status=line.seal_status %}
+                            {% else %}
+                                <span class="text-muted">Sem selo</span>
+                            {% endif %}
+                        </td>
                         <td class="text-end">
                             <a href="{% url 'telecom:phoneline_detail' line.pk %}#reconnect-whatsapp"
                                class="btn btn-sm btn-outline-primary">
@@ -34,7 +44,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="4" class="text-center text-muted py-4">
+                        <td colspan="5" class="text-center text-muted py-4">
                             Nenhuma linha vinculada.
                         </td>
                     </tr>
@@ -43,5 +53,6 @@
             </table>
         </div>
     </div>
+</div>
 </div>
 {% endblock %}

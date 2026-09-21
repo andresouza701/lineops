@@ -10,6 +10,12 @@ from django.utils import timezone
 
 from core.current_user import get_current_user
 from core.normalization import normalize_carrier_name
+from telecom.whatsapp_seal import (
+    WhatsAppSeal,
+    WhatsAppSealPayment,
+    compute_seal_status,
+    validate_seal_fields,
+)
 
 
 def _current_authenticated_user():
@@ -143,10 +149,34 @@ class PhoneLine(models.Model):
 
     activated_at = models.DateTimeField(null=True, blank=True)
 
+    whatsapp_seal = models.CharField(
+        max_length=20, choices=WhatsAppSeal.choices, blank=True, default=""
+    )
+    whatsapp_seal_activated_on = models.DateField(null=True, blank=True)
+    whatsapp_seal_expires_on = models.DateField(null=True, blank=True)
+    whatsapp_seal_email = models.EmailField(blank=True, default="")
+    whatsapp_seal_payment = models.CharField(
+        max_length=20, choices=WhatsAppSealPayment.choices, blank=True, default=""
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     is_deleted = models.BooleanField(default=False, db_index=True)
+
+    @property
+    def seal_status(self):
+        return compute_seal_status(self.whatsapp_seal, self.whatsapp_seal_expires_on)
+
+    def clean(self):
+        super().clean()
+        validate_seal_fields(
+            seal=self.whatsapp_seal,
+            activated_on=self.whatsapp_seal_activated_on,
+            expires_on=self.whatsapp_seal_expires_on,
+            email=self.whatsapp_seal_email,
+            payment=self.whatsapp_seal_payment,
+        )
 
     @classmethod
     def visible_to_user(cls, user, queryset=None):
@@ -192,10 +222,24 @@ class PhoneLine(models.Model):
 
     @classmethod
     def create_or_reuse(
-        cls, *, phone_number, sim_card, status, origem=None, canal=None
+        cls,
+        *,
+        phone_number,
+        sim_card,
+        status,
+        origem=None,
+        canal=None,
+        whatsapp_seal="",
+        whatsapp_seal_activated_on=None,
+        whatsapp_seal_expires_on=None,
+        whatsapp_seal_email="",
+        whatsapp_seal_payment="",
     ):
         origem = origem or None
         canal = canal or None
+        whatsapp_seal = whatsapp_seal or ""
+        whatsapp_seal_email = whatsapp_seal_email or ""
+        whatsapp_seal_payment = whatsapp_seal_payment or ""
 
         with transaction.atomic():
             existing_line = (
@@ -212,6 +256,11 @@ class PhoneLine(models.Model):
                     status=status,
                     origem=origem,
                     canal=canal,
+                    whatsapp_seal=whatsapp_seal,
+                    whatsapp_seal_activated_on=whatsapp_seal_activated_on,
+                    whatsapp_seal_expires_on=whatsapp_seal_expires_on,
+                    whatsapp_seal_email=whatsapp_seal_email,
+                    whatsapp_seal_payment=whatsapp_seal_payment,
                 )
 
             if not existing_line.is_deleted and not existing_line.sim_card.is_deleted:
@@ -226,6 +275,11 @@ class PhoneLine(models.Model):
             existing_line.origem = origem
             existing_line.canal = canal
             existing_line.is_deleted = False
+            existing_line.whatsapp_seal = whatsapp_seal
+            existing_line.whatsapp_seal_activated_on = whatsapp_seal_activated_on
+            existing_line.whatsapp_seal_expires_on = whatsapp_seal_expires_on
+            existing_line.whatsapp_seal_email = whatsapp_seal_email
+            existing_line.whatsapp_seal_payment = whatsapp_seal_payment
             existing_line.updated_at = timezone.now()
             existing_line.save(
                 update_fields=[
@@ -234,6 +288,11 @@ class PhoneLine(models.Model):
                     "origem",
                     "canal",
                     "is_deleted",
+                    "whatsapp_seal",
+                    "whatsapp_seal_activated_on",
+                    "whatsapp_seal_expires_on",
+                    "whatsapp_seal_email",
+                    "whatsapp_seal_payment",
                     "updated_at",
                 ]
             )

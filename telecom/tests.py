@@ -1,9 +1,10 @@
 import uuid
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.template.loader import render_to_string
 from django.test import RequestFactory
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
@@ -5141,3 +5142,124 @@ class OperatorLinkedLinesViewTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, reverse("telecom:operator_lines"))
+
+    # --- SEL-08 gap: selo e indicador na listagem do operador ---
+
+    def test_line_without_seal_shows_sem_selo_without_alert(self):
+        self.client.force_login(self.operator)
+        resp = self.client.get(reverse("telecom:operator_lines"))
+        self.assertContains(resp, "Sem selo")
+
+    def test_line_with_meta_one_shows_name_and_indicator(self):
+        self.line_a.whatsapp_seal = "META_ONE"
+        self.line_a.whatsapp_seal_activated_on = date(2026, 9, 1)
+        self.line_a.whatsapp_seal_expires_on = date(2026, 9, 24)
+        self.line_a.whatsapp_seal_email = "seal.a@example.com"
+        self.line_a.whatsapp_seal_payment = "CREDIT_CARD"
+        self.line_a.save()
+
+        with patch.object(timezone, "localdate", return_value=date(2026, 9, 17)):
+            self.client.force_login(self.operator)
+            resp = self.client.get(reverse("telecom:operator_lines"))
+
+        self.assertContains(resp, "META ONE")
+        self.assertContains(resp, "Vence em 7 dias")
+
+    def test_line_with_meta_verified_shows_name_and_indicator(self):
+        self.line_b.whatsapp_seal = "META_VERIFIED"
+        self.line_b.whatsapp_seal_activated_on = date(2026, 9, 1)
+        self.line_b.whatsapp_seal_expires_on = date(2026, 9, 17)
+        self.line_b.whatsapp_seal_email = "seal.b@example.com"
+        self.line_b.whatsapp_seal_payment = "GOOGLE_GIFT_CARD"
+        self.line_b.save()
+
+        with patch.object(timezone, "localdate", return_value=date(2026, 9, 17)):
+            self.client.force_login(self.operator)
+            resp = self.client.get(reverse("telecom:operator_lines"))
+
+        self.assertContains(resp, "META VERIFICADO")
+        self.assertContains(resp, "Vence hoje")
+
+    def test_seal_email_and_payment_not_shown_in_listing(self):
+        self.line_a.whatsapp_seal = "META_ONE"
+        self.line_a.whatsapp_seal_activated_on = date(2026, 9, 1)
+        self.line_a.whatsapp_seal_expires_on = date(2026, 12, 1)
+        self.line_a.whatsapp_seal_email = "hidden.seal@example.com"
+        self.line_a.whatsapp_seal_payment = "CREDIT_CARD"
+        self.line_a.save()
+
+        self.client.force_login(self.operator)
+        resp = self.client.get(reverse("telecom:operator_lines"))
+
+        self.assertNotContains(resp, "hidden.seal@example.com")
+        self.assertNotContains(resp, "CARTÃO CRÉDITO")
+
+    def test_seal_indicator_boundaries_use_distinct_tone_classes(self):
+        cases = [
+            (8, "seal-tone-neutral", "Vence em 25/09/2026"),
+            (7, "seal-tone-warning", "Vence em 7 dias"),
+            (1, "seal-tone-warning", "Vence em 1 dia"),
+            (0, "seal-tone-today", "Vence hoje"),
+            (-1, "seal-tone-expired", "Vencido há 1 dia"),
+        ]
+        for days, css_class, label in cases:
+            with self.subTest(days=days):
+                self.line_a.whatsapp_seal = "META_ONE"
+                self.line_a.whatsapp_seal_activated_on = date(2026, 8, 1)
+                self.line_a.whatsapp_seal_expires_on = date(2026, 9, 17) + timedelta(
+                    days=days
+                )
+                self.line_a.whatsapp_seal_email = "seal@example.com"
+                self.line_a.whatsapp_seal_payment = "CREDIT_CARD"
+                self.line_a.save()
+
+                with patch.object(timezone, "localdate", return_value=date(2026, 9, 17)):
+                    self.client.force_login(self.operator)
+                    resp = self.client.get(reverse("telecom:operator_lines"))
+
+                self.assertContains(resp, css_class)
+                self.assertContains(resp, label)
+
+    def test_operator_does_not_see_seal_of_other_operators_line(self):
+        other_operator = SystemUser.objects.create_user(
+            email="op.lines.other@test.com",
+            password="123456",
+            role=SystemUser.Role.OPERATOR,
+        )
+        other_employee = Employee.objects.create(
+            full_name="Op Lines Other Employee",
+            corporate_email="sup.oplines2@corp.com",
+            email="op.lines.other@test.com",
+            employee_id="EMP-OPLINES-02",
+            teams="Joinville",
+            status=Employee.Status.ACTIVE,
+        )
+        other_sim = SIMcard.objects.create(
+            iccid="8900000000000091099",
+            carrier="CarrierOL",
+            status=SIMcard.Status.AVAILABLE,
+        )
+        other_line = PhoneLine.objects.create(
+            phone_number="+5511991910099",
+            sim_card=other_sim,
+            status=PhoneLine.Status.AVAILABLE,
+            origem=PhoneLine.Origem.SRVMEMU_01,
+            whatsapp_seal="META_ONE",
+            whatsapp_seal_activated_on=date(2026, 9, 1),
+            whatsapp_seal_expires_on=date(2026, 12, 1),
+            whatsapp_seal_email="other-operator-seal@example.com",
+            whatsapp_seal_payment="CREDIT_CARD",
+        )
+        AllocationService.allocate_line(
+            employee=other_employee, phone_line=other_line, allocated_by=self.admin
+        )
+
+        self.client.force_login(self.operator)
+        resp = self.client.get(reverse("telecom:operator_lines"))
+
+        self.assertNotContains(resp, other_line.phone_number)
+        self.assertNotContains(resp, "other-operator-seal@example.com")
+
+    def test_empty_state_colspan_matches_new_column_count(self):
+        html = render_to_string("telecom/operator_lines.html", {"phone_lines": []})
+        self.assertIn('colspan="5"', html)
