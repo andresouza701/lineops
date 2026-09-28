@@ -4,15 +4,25 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.views import LogoutView
-from django.http import JsonResponse
+from django.core.paginator import EmptyPage
+from django.http import Http404, JsonResponse
 from django.shortcuts import render
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.generic import FormView, TemplateView, View
 
-from config.forms import UploadForm
+from config.forms import (
+    REPORT_CHOICES,
+    LineInventoryReportQueryForm,
+    UploadForm,
+    WhatsAppSealReportQueryForm,
+)
 from core.mixins import AuthenticadView, RoleRequiredMixin
+from core.services.line_inventory_export_service import build_line_inventory_export_response
+from core.services.line_inventory_report_service import build_line_inventory_report
+from core.services.report_export_service import build_whatsapp_seal_export_response
 from core.services.upload_service import process_upload_file
+from core.services.whatsapp_seal_report_service import build_whatsapp_seal_report
 from users.models import SystemUser
 
 logger = logging.getLogger(__name__)
@@ -32,6 +42,226 @@ class OperationsView(AuthenticadView, TemplateView):
 
 class DocumentationView(AuthenticadView, TemplateView):
     template_name = "documentation.html"
+
+
+REPORT_COMMON_PARAM_NAMES = {
+    "relatorio",
+    "data_inicial",
+    "data_final",
+    "incluir_excluidos",
+    "page",
+    "linha",
+}
+
+# Parametros que so fazem sentido para o relatorio indicado — nao entram no
+# whitelist global: cada relatorio so aceita os seus proprios, mesmo que
+# outro relatorio ja tenha um nome reservado (REL-09-T identificou o risco
+# de ampliar indiscriminadamente um unico set global).
+REPORT_SPECIFIC_PARAM_NAMES = {
+    "whatsapp_seal": {"selo", "pagamento", "situacao"},
+    "line_inventory": {
+        "status_linha",
+        "operadora",
+        "origem",
+        "canal",
+        "com_selo",
+        "com_vinculo",
+    },
+}
+
+REPORT_FORM_CLASSES = {
+    "whatsapp_seal": WhatsAppSealReportQueryForm,
+    "line_inventory": LineInventoryReportQueryForm,
+}
+
+# Relatorios com motor de consulta (Q) implementado, respectivamente com
+# motor de exportacao (E) implementado. Selos WhatsApp (REL-08-E) e
+# Inventario de linhas (REL-09-E) tem os dois.
+REPORT_QUERY_ENGINES = {"whatsapp_seal", "line_inventory"}
+REPORT_EXPORT_ENGINES = {"whatsapp_seal", "line_inventory"}
+
+# Uniao de todos os nomes possiveis, usada so para montar o dicionario `raw`
+# (eco dos valores submetidos nos campos do formulario) — nao e o whitelist
+# de validacao, que e por relatorio (ver _validate_report_query_params).
+ALL_REPORT_PARAM_NAMES = REPORT_COMMON_PARAM_NAMES.union(
+    *REPORT_SPECIFIC_PARAM_NAMES.values()
+)
+
+
+def _validate_report_query_params(get_params, *, available_relatorios):
+    """Validacao estrita comum (REL-07) dos parametros de consulta/exportacao
+    do relatorio: parametro repetido, parametro desconhecido, forma/valores
+    (via form especifico do relatorio) e relatorio ainda nao implementado
+    (`available_relatorios` distingue motor de consulta de motor de
+    exportacao — cada view chama com o conjunto que lhe cabe). Reaproveitada
+    por ReportsHomeView e ReportsExportView — nao duplicada.
+
+    O whitelist de nomes permitidos depende do `relatorio` informado (mais
+    os nomes comuns): um parametro especifico de um relatorio nunca e
+    "conhecido" para outro relatorio, mesmo que o nome exista em algum form.
+
+    Retorna (extra_context, status, cleaned_data). cleaned_data e None em
+    qualquer caso de erro (extra_context/status descrevem o motivo)."""
+    extra_context = {}
+
+    relatorio_value = get_params.get("relatorio")
+    allowed_names = REPORT_COMMON_PARAM_NAMES | REPORT_SPECIFIC_PARAM_NAMES.get(
+        relatorio_value, set()
+    )
+
+    for name in allowed_names:
+        if len(get_params.getlist(name)) > 1:
+            extra_context["query_error"] = (
+                f"Parâmetro repetido não é permitido: {name}."
+            )
+            return extra_context, 400, None
+
+    unknown_params = set(get_params.keys()) - allowed_names
+    if unknown_params:
+        extra_context["query_error"] = "Parâmetro desconhecido: {}.".format(
+            ", ".join(sorted(unknown_params))
+        )
+        return extra_context, 400, None
+
+    form_class = REPORT_FORM_CLASSES.get(relatorio_value, WhatsAppSealReportQueryForm)
+    form = form_class(data=get_params)
+    extra_context["form"] = form
+    if not form.is_valid():
+        return extra_context, 400, None
+
+    if form.cleaned_data["relatorio"] not in available_relatorios:
+        extra_context["engine_unavailable"] = True
+        if form.cleaned_data["relatorio"] in REPORT_QUERY_ENGINES:
+            # Consulta existe, exportacao ainda nao (ex.: Inventario de
+            # linhas ate REL-09-E) — mensagem distinta da de relatorio
+            # totalmente nao implementado.
+            extra_context["engine_unavailable_message"] = (
+                "A exportação deste relatório ainda não está disponível nesta etapa."
+            )
+        else:
+            extra_context["engine_unavailable_message"] = (
+                "Este relatório ainda não está disponível. Apenas Selos "
+                "WhatsApp e Inventário de linhas estão implementados nesta "
+                "etapa."
+            )
+        return extra_context, 400, None
+
+    return extra_context, 200, form.cleaned_data
+
+
+def _report_filters_from_cleaned_data(cleaned_data):
+    common = {
+        "data_inicial": cleaned_data["data_inicial"],
+        "data_final": cleaned_data["data_final"],
+        "incluir_excluidos": cleaned_data.get("incluir_excluidos") or False,
+    }
+    if cleaned_data["relatorio"] == "line_inventory":
+        common.update(
+            {
+                "status_linha": cleaned_data.get("status_linha") or "",
+                "operadora": cleaned_data.get("operadora") or "",
+                "origem": cleaned_data.get("origem") or "",
+                "canal": cleaned_data.get("canal") or "",
+                "com_selo": cleaned_data.get("com_selo") or "",
+                "com_vinculo": cleaned_data.get("com_vinculo") or "",
+                "linha": cleaned_data.get("linha") or "",
+            }
+        )
+    else:
+        common.update(
+            {
+                "selo": cleaned_data.get("selo") or "",
+                "pagamento": cleaned_data.get("pagamento") or "",
+                "situacao": cleaned_data.get("situacao") or "",
+                "linha": cleaned_data.get("linha") or "",
+            }
+        )
+    return common
+
+
+class ReportsHomeView(RoleRequiredMixin, TemplateView):
+    """Coordenacao HTTP fina do hub de relatorios (REL-01..REL-06), da
+    consulta de Selos WhatsApp (REL-08-Q) e da consulta de Inventario de
+    linhas (REL-09-Q). Sem regra de negocio: validacao de parametros fica no
+    form especifico de cada relatorio; escopo/filtros/totais no servico
+    dedicado de cada um."""
+
+    allowed_roles = [SystemUser.Role.ADMIN]
+    template_name = "reports/home.html"
+
+    def get(self, request, *args, **kwargs):
+        context = self.get_context_data(**kwargs)
+        context["report_choices"] = REPORT_CHOICES
+        context["raw"] = {
+            name: request.GET.get(name, "") for name in ALL_REPORT_PARAM_NAMES
+        }
+
+        attempted = "data_inicial" in request.GET or "data_final" in request.GET
+        context["attempted"] = attempted
+        if not attempted:
+            return self.render_to_response(context)
+
+        extra_context, status, cleaned_data = _validate_report_query_params(
+            request.GET, available_relatorios=REPORT_QUERY_ENGINES
+        )
+        context.update(extra_context)
+        if cleaned_data is None:
+            return self.render_to_response(context, status=status)
+
+        page_number = cleaned_data.get("page") or 1
+        filters = _report_filters_from_cleaned_data(cleaned_data)
+        try:
+            if cleaned_data["relatorio"] == "line_inventory":
+                result = build_line_inventory_report(page=page_number, **filters)
+            else:
+                result = build_whatsapp_seal_report(page=page_number, **filters)
+        except EmptyPage as exc:
+            raise Http404("Página fora do intervalo.") from exc
+
+        context["result"] = result
+        context["show_results"] = True
+        return self.render_to_response(context)
+
+
+EXPORT_FORMATS = {"csv", "xlsx"}
+
+
+class ReportsExportView(RoleRequiredMixin, View):
+    """Exportacao integral CSV/XLSX/ZIP dos relatorios Selos WhatsApp
+    (REL-08-E) e Inventario de linhas (REL-09-E). View fina: autorizacao
+    (mixin) e validacao dos parametros precedem qualquer leitura/geracao; a
+    serializacao dos arquivos fica em core/services/report_export_service
+    (Selos) e core/services/line_inventory_export_service (Inventario) —
+    dois modulos proprios, nenhum generalizado sobre o outro. Reutiliza a
+    mesma validacao estrita e os mesmos filtros/escopo/ordenacao da
+    consulta de cada relatorio (REL-08-Q/REL-09-Q) — `page` e aceito pela
+    validacao mas nunca usado para limitar o conjunto exportado."""
+
+    allowed_roles = [SystemUser.Role.ADMIN]
+
+    def get(self, request, *args, **kwargs):
+        formato = kwargs.get("formato")
+        if formato not in EXPORT_FORMATS:
+            raise Http404("Formato de exportação desconhecido.")
+
+        extra_context, status, cleaned_data = _validate_report_query_params(
+            request.GET, available_relatorios=REPORT_EXPORT_ENGINES
+        )
+        if cleaned_data is None:
+            context = {
+                "report_choices": REPORT_CHOICES,
+                "raw": {
+                    name: request.GET.get(name, "") for name in ALL_REPORT_PARAM_NAMES
+                },
+                "attempted": True,
+                **extra_context,
+            }
+            return render(request, "reports/home.html", context, status=status)
+
+        filters = _report_filters_from_cleaned_data(cleaned_data)
+        if cleaned_data["relatorio"] == "line_inventory":
+            return build_line_inventory_export_response(formato=formato, filters=filters)
+        return build_whatsapp_seal_export_response(formato=formato, filters=filters)
 
 
 class UploadView(RoleRequiredMixin, FormView):

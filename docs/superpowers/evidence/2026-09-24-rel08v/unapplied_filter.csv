@@ -1,0 +1,39 @@
+﻿Linha;Tipo do selo;Ativação do selo;Pagamento;E-mail cadastrado;Vencimento;Situação do vencimento;Registro
+'+5511900020058;META ONE;19/09/2026;CARTÃO CRÉDITO;volume058@example.com;04/10/2026;Vence em 04/10/2026;Não excluído
+'+5511900020038;META ONE;19/09/2026;CARTÃO CRÉDITO;volume038@example.com;04/10/2026;Vence em 04/10/2026;Não excluído
+'+5511900020018;META ONE;19/09/2026;GIFT CARD GOOGLE;volume018@example.com;04/10/2026;Vence em 04/10/2026;Não excluído
+'+5511900020056;META ONE;17/09/2026;CARTÃO CRÉDITO;volume056@example.com;02/10/2026;Vence em 02/10/2026;Não excluído
+'+5511900020036;META ONE;17/09/2026;GIFT CARD GOOGLE;volume036@example.com;02/10/2026;Vence em 02/10/2026;Não excluído
+'+5511900020016;META ONE;17/09/2026;CARTÃO CRÉDITO;volume016@example.com;02/10/2026;Vence em 02/10/2026;Não excluído
+'+5511900010052;META ONE;16/09/2026;;"ponto,e;virgula ""aspas""@example.com";07/10/2026;Vence em 07/10/2026;Não excluído
+'+5511900010051;META ONE;16/09/2026;CARTÃO CRÉDITO;'=cmd|'/c calc'!A1@example.com;07/10/2026;Vence em 07/10/2026;Não excluído
+'+5511900020054;META ONE;15/09/2026;GIFT CARD GOOGLE;volume054@example.com;05/10/2026;Vence em 05/10/2026;Não excluído
+'+5511900020034;META ONE;15/09/2026;CARTÃO CRÉDITO;volume034@example.com;05/10/2026;Vence em 05/10/2026;Não excluído
+'+5511900020014;META ONE;15/09/2026;CARTÃO CRÉDITO;volume014@example.com;05/10/2026;Vence em 05/10/2026;Não excluído
+'+5511900010041;META ONE;15/09/2026;GIFT CARD GOOGLE;empate.b@example.com;06/10/2026;Vence em 06/10/2026;Não excluído
+'+5511900010040;META ONE;15/09/2026;CARTÃO CRÉDITO;empate.a@example.com;06/10/2026;Vence em 06/10/2026;Não excluído
+'+5511900020052;META ONE;13/09/2026;CARTÃO CRÉDITO;volume052@example.com;03/10/2026;Vence em 03/10/2026;Não excluído
+'+5511900020032;META ONE;13/09/2026;CARTÃO CRÉDITO;volume032@example.com;03/10/2026;Vence em 03/10/2026;Não excluído
+'+5511900020012;META ONE;13/09/2026;GIFT CARD GOOGLE;volume012@example.com;03/10/2026;Vence em 03/10/2026;Não excluído
+'+5511900020050;META ONE;11/09/2026;CARTÃO CRÉDITO;volume050@example.com;01/10/2026;Vence em 7 dias;Não excluído
+'+5511900020030;META ONE;11/09/2026;GIFT CARD GOOGLE;volume030@example.com;01/10/2026;Vence em 7 dias;Não excluído
+'+5511900020010;META ONE;11/09/2026;CARTÃO CRÉDITO;volume010@example.com;01/10/2026;Vence em 7 dias;Não excluído
+'+5511900010014;META ONE;10/09/2026;CARTÃO CRÉDITO;vencido.menos1@example.com;23/09/2026;Vencido há 1 dia;Não excluído
+'+5511900010011;META ONE;10/09/2026;CARTÃO CRÉDITO;vence.mais7@example.com;01/10/2026;Vence em 7 dias;Não excluído
+'+5511900010010;META ONE;10/09/2026;CARTÃO CRÉDITO;vence.mais8@example.com;02/10/2026;Vence em 02/10/2026;Não excluído
+'+5511900020048;META ONE;09/09/2026;GIFT CARD GOOGLE;volume048@example.com;04/10/2026;Vence em 04/10/2026;Não excluído
+'+5511900020028;META ONE;09/09/2026;CARTÃO CRÉDITO;volume028@example.com;04/10/2026;Vence em 04/10/2026;Não excluído
+'+5511900020008;META ONE;09/09/2026;CARTÃO CRÉDITO;volume008@example.com;04/10/2026;Vence em 04/10/2026;Não excluído
+'+5511900020046;META ONE;07/09/2026;CARTÃO CRÉDITO;volume046@example.com;02/10/2026;Vence em 02/10/2026;Não excluído
+'+5511900020026;META ONE;07/09/2026;CARTÃO CRÉDITO;volume026@example.com;02/10/2026;Vence em 02/10/2026;Não excluído
+'+5511900020006;META ONE;07/09/2026;GIFT CARD GOOGLE;volume006@example.com;02/10/2026;Vence em 02/10/2026;Não excluído
+'+5511900020044;META ONE;05/09/2026;CARTÃO CRÉDITO;volume044@example.com;05/10/2026;Vence em 05/10/2026;Não excluído
+'+5511900020024;META ONE;05/09/2026;GIFT CARD GOOGLE;volume024@example.com;05/10/2026;Vence em 05/10/2026;Não excluído
+'+5511900020004;META ONE;05/09/2026;CARTÃO CRÉDITO;volume004@example.com;05/10/2026;Vence em 05/10/2026;Não excluído
+'+5511900020042;META ONE;03/09/2026;GIFT CARD GOOGLE;volume042@example.com;03/10/2026;Vence em 03/10/2026;Não excluído
+'+5511900020022;META ONE;03/09/2026;CARTÃO CRÉDITO;volume022@example.com;03/10/2026;Vence em 03/10/2026;Não excluído
+'+5511900020002;META ONE;03/09/2026;CARTÃO CRÉDITO;volume002@example.com;03/10/2026;Vence em 03/10/2026;Não excluído
+'+5511900020040;META ONE;01/09/2026;CARTÃO CRÉDITO;volume040@example.com;01/10/2026;Vence em 7 dias;Não excluído
+'+5511900020020;META ONE;01/09/2026;CARTÃO CRÉDITO;volume020@example.com;01/10/2026;Vence em 7 dias;Não excluído
+'+5511900020000;META ONE;01/09/2026;GIFT CARD GOOGLE;volume000@example.com;01/10/2026;Vence em 7 dias;Não excluído
+'+5511900010001;META ONE;01/09/2026;CARTÃO CRÉDITO;ativacao.limite.inicial@example.com;02/10/2026;Vence em 02/10/2026;Não excluído

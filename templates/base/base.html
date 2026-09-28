@@ -71,6 +71,11 @@
                         </a>
                     {% endif %}
                     {% if request.user.role == 'admin' %}
+                        <a href="{% url 'reports_home' %}" class="rail-link {% if current_name == 'reports_home' %}is-active{% endif %}" aria-label="Relatórios" title="Relatórios"{% if current_name == 'reports_home' %} aria-current="page"{% endif %}>
+                            <i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i>
+                        </a>
+                    {% endif %}
+                    {% if request.user.role == 'admin' %}
                         <a href="{% url 'allocations:allocation_list' %}" class="rail-link {% if current_ns == 'allocations' %}is-active{% endif %}" aria-label="Cadastro" title="Cadastro">
                             <i class="bi bi-diagram-3" aria-hidden="true"></i>
                         </a>

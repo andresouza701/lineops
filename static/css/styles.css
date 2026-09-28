@@ -806,6 +806,30 @@ h1, h2, h3, h4, h5, h6 {
     overflow-x: auto;
 }
 
+.reports-table-wrap {
+    width: 100%;
+}
+
+/* REL-08-V: tabela de Selos WhatsApp pode ser mais larga que o conteudo de
+   outras paginas; sem isto, o item de grid .app-main (grid-template-columns:
+   74px 1fr) nao encolhe abaixo do min-content da tabela (min-width:auto
+   padrao de item de grid), estourando a largura de toda a .app-shell em
+   telas estreitas. Escopado via :has() somente a esta tabela, sem alterar
+   .app-main para as demais paginas. */
+.app-main:has(.reports-table-wrap) {
+    min-width: 0;
+}
+
+/* REL-08-V: botao "Gerar relatorio", links de exportacao e de paginacao
+   desta pagina nao recebiam nenhum indicador visivel de foco (nem outline
+   nem box-shadow do Bootstrap chegava a aparecer aqui). Escopado a
+   .reports-page para nao alterar o foco de botoes/links de outras paginas. */
+.reports-page .btn:focus-visible,
+.reports-page a:focus-visible {
+    outline: 2px solid var(--border-focus, #2563eb);
+    outline-offset: 2px;
+}
+
 @media (max-width: 992px) {
     .users-content-shell {
         max-width: 100%;
@@ -1131,6 +1155,8 @@ textarea:disabled {
 
     .rail-nav {
         flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
     }
 
     .app-main {

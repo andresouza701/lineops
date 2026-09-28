@@ -1,0 +1,136 @@
+{
+  "login_url_after": "https://lineops.somosglobal.com.br:18443/",
+  "viewport_1280": {
+    "overflow_x": false,
+    "overflow_detail": {
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "bodyScrollWidth": 1280
+    },
+    "columns": [
+      "Linha",
+      "Status",
+      "Operadora",
+      "Origem",
+      "Canal",
+      "Selo",
+      "Vínculo atual",
+      "Data de cadastro",
+      "Registro"
+    ],
+    "columns_ok": true,
+    "filters_present": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "filters_all_present": true,
+    "dropdown_present": true,
+    "dates_present": true,
+    "pagination_present": true,
+    "export_buttons": [
+      "Exportar CSV",
+      "Exportar XLSX"
+    ],
+    "totals_present": true
+  },
+  "viewport_390": {
+    "overflow_x": false,
+    "overflow_detail": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "bodyScrollWidth": 390
+    },
+    "columns": [
+      "Linha",
+      "Status",
+      "Operadora",
+      "Origem",
+      "Canal",
+      "Selo",
+      "Vínculo atual",
+      "Data de cadastro",
+      "Registro"
+    ],
+    "columns_ok": true,
+    "filters_present": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "filters_all_present": true,
+    "dropdown_present": true,
+    "dates_present": true,
+    "pagination_present": true,
+    "export_buttons": [
+      "Exportar CSV",
+      "Exportar XLSX"
+    ],
+    "totals_present": true
+  },
+  "viewport_360": {
+    "overflow_x": false,
+    "overflow_detail": {
+      "scrollWidth": 360,
+      "clientWidth": 360,
+      "bodyScrollWidth": 360
+    },
+    "columns": [
+      "Linha",
+      "Status",
+      "Operadora",
+      "Origem",
+      "Canal",
+      "Selo",
+      "Vínculo atual",
+      "Data de cadastro",
+      "Registro"
+    ],
+    "columns_ok": true,
+    "filters_present": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "filters_all_present": true,
+    "dropdown_present": true,
+    "dates_present": true,
+    "pagination_present": true,
+    "export_buttons": [
+      "Exportar CSV",
+      "Exportar XLSX"
+    ],
+    "totals_present": true
+  },
+  "keyboard_focus": {
+    "reached_operadora_by_tab": false,
+    "active_after_first_tab": "A#",
+    "outline": {
+      "outlineStyle": "none",
+      "outlineWidth": "0px",
+      "boxShadow": "rgba(37, 99, 235, 0.24) 0px 0px 0px 3.52px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset"
+    }
+  },
+  "no_js": {
+    "rows_rendered": 50,
+    "pagination_link_present": true,
+    "export_href_present": true,
+    "export_href": "/relatorios/exportar/csv/?relatorio=line_inventory&data_inicial=2026-01-01&data_final=2026-01-10&incluir_excluidos=&status_linha=&operadora=&origem=&canal=&com_selo=&com_vinculo=&linha=",
+    "filter_submit_url_after": "https://lineops.somosglobal.com.br:18443/relatorios/?relatorio=line_inventory&data_inicial=2026-01-01&data_final=2026-01-10&status_linha=NOVO&operadora=&origem=&canal=&com_selo=&com_vinculo=&linha=",
+    "filter_applied": true
+  },
+  "console_errors": [],
+  "network_errors": []
+}

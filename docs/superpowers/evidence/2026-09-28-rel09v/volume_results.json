@@ -1,0 +1,118 @@
+{
+  "csv_100000": {
+    "label": "csv_100000",
+    "status": 200,
+    "content_type": "text/csv; charset=utf-8",
+    "content_disposition": "attachment; filename=\"inventario_linhas_20260301-20260301_20260928T131716.csv\"",
+    "ttfb_s": 3.63,
+    "total_s": 3.69,
+    "size_bytes": 11199086,
+    "is_zip": false,
+    "header": [
+      "Linha",
+      "Status",
+      "Operadora",
+      "Origem",
+      "Canal",
+      "Selo",
+      "Vínculo atual",
+      "Data de cadastro",
+      "Registro"
+    ],
+    "data_rows": 100000,
+    "unique_phones": 100000,
+    "first_phone": "+5511000000001",
+    "last_phone": "+5511000100000",
+    "monotonic_order": true
+  },
+  "csv_100001": {
+    "label": "csv_100001",
+    "status": 200,
+    "content_type": "application/zip",
+    "content_disposition": "attachment; filename=\"inventario_linhas_20260301-20260302_20260928T131720.zip\"",
+    "ttfb_s": 3.56,
+    "total_s": 3.56,
+    "size_bytes": 283012,
+    "is_zip": true,
+    "zip_check": {
+      "parts": 2,
+      "header": [
+        "Linha",
+        "Status",
+        "Operadora",
+        "Origem",
+        "Canal",
+        "Selo",
+        "Vínculo atual",
+        "Data de cadastro",
+        "Registro"
+      ],
+      "total_data_rows": 100001,
+      "unique_phones": 100001,
+      "expected_total": 100001,
+      "ok_count": true,
+      "ok_no_dup": true,
+      "first_phone": "+5511000000001",
+      "last_phone": "+5511000100001",
+      "monotonic_order": true
+    }
+  },
+  "xlsx_100000": {
+    "label": "xlsx_100000",
+    "status": 200,
+    "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "content_disposition": "attachment; filename=\"inventario_linhas_20260301-20260301_20260928T131723.xlsx\"",
+    "ttfb_s": 11.88,
+    "total_s": 11.89,
+    "size_bytes": 3233302,
+    "is_zip": false,
+    "header": [
+      "Linha",
+      "Status",
+      "Operadora",
+      "Origem",
+      "Canal",
+      "Selo",
+      "Vínculo atual",
+      "Data de cadastro",
+      "Registro"
+    ],
+    "data_rows": 100000,
+    "unique_phones": 100000,
+    "first_phone": "+5511000000001",
+    "last_phone": "+5511000100000",
+    "monotonic_order": true
+  },
+  "xlsx_100001": {
+    "label": "xlsx_100001",
+    "status": 200,
+    "content_type": "application/zip",
+    "content_disposition": "attachment; filename=\"inventario_linhas_20260301-20260302_20260928T131748.zip\"",
+    "ttfb_s": 11.65,
+    "total_s": 11.65,
+    "size_bytes": 151253,
+    "is_zip": true,
+    "zip_check": {
+      "parts": 2,
+      "header": [
+        "Linha",
+        "Status",
+        "Operadora",
+        "Origem",
+        "Canal",
+        "Selo",
+        "Vínculo atual",
+        "Data de cadastro",
+        "Registro"
+      ],
+      "total_data_rows": 100001,
+      "unique_phones": 100001,
+      "expected_total": 100001,
+      "ok_count": true,
+      "ok_no_dup": true,
+      "first_phone": "+5511000000001",
+      "last_phone": "+5511000100001",
+      "monotonic_order": true
+    }
+  }
+}

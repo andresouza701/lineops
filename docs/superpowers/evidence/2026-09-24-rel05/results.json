@@ -1,0 +1,2045 @@
+[
+  {
+    "js": true,
+    "width": 1280,
+    "client": 1280,
+    "scroll": 1280,
+    "body": {
+      "color": "rgb(226, 232, 240)",
+      "bg": "rgb(2, 6, 23)",
+      "outline": "rgb(226, 232, 240) none 3px",
+      "shadow": "none"
+    },
+    "controls": [
+      {
+        "id": "id_relatorio",
+        "value": "whatsapp_seal",
+        "label": "Relatório",
+        "rect": {
+          "x": 143,
+          "y": 272.609375,
+          "width": 345.328125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      },
+      {
+        "id": "id_data_inicial",
+        "value": "",
+        "label": "Data inicial",
+        "rect": {
+          "x": 504.328125,
+          "y": 272.609375,
+          "width": 345.328125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      },
+      {
+        "id": "id_data_final",
+        "value": "",
+        "label": "Data final",
+        "rect": {
+          "x": 865.65625,
+          "y": 272.609375,
+          "width": 345.328125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      }
+    ],
+    "texts": [
+      {
+        "text": "",
+        "style": {
+          "color": "rgb(255, 255, 255)",
+          "bg": "rgba(37, 99, 235, 0.35)",
+          "outline": "rgb(255, 255, 255) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 15.5,
+          "y": 333.578125,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "text": "Relatórios",
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 119,
+          "y": 134.21875,
+          "width": 1116,
+          "height": 38.390625
+        }
+      },
+      {
+        "text": "Consulte os relatórios disponíveis do LineOps.",
+        "style": {
+          "color": "rgb(148, 163, 184)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(148, 163, 184) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 119,
+          "y": 176.609375,
+          "width": 1116,
+          "height": 24
+        }
+      },
+      {
+        "text": "Relatório\n                    \n                        Selos WhatsApp\n                        Inventário de linhas\n                        Alocações\n                        Pendências\n                        Histórico da linha\n                        Indicadores diários\n                    \n                \n                \n                    Data inicial\n                    \n                \n                \n                    Data final\n                    \n                \n            \n\n            \n                A geração de relatórios ainda não está disponível nesta etapa.",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 119,
+          "y": 216.609375,
+          "width": 1116,
+          "height": 166
+        }
+      },
+      {
+        "text": "Relatório",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 143,
+          "y": 240.609375,
+          "width": 66.578125,
+          "height": 24
+        }
+      },
+      {
+        "text": "Data inicial",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 504.328125,
+          "y": 240.609375,
+          "width": 82.40625,
+          "height": 24
+        }
+      },
+      {
+        "text": "Data final",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 865.65625,
+          "y": 240.609375,
+          "width": 71.4375,
+          "height": 24
+        }
+      },
+      {
+        "text": "A geração de relatórios ainda não está disponível nesta etapa.",
+        "style": {
+          "color": "rgb(148, 163, 184)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(148, 163, 184) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 143,
+          "y": 334.609375,
+          "width": 1068,
+          "height": 24
+        }
+      }
+    ],
+    "nav": [
+      {
+        "name": "Dashboard",
+        "current": null,
+        "rect": {
+          "x": 15.5,
+          "y": 79.59375,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Usuários",
+        "current": null,
+        "rect": {
+          "x": 15.5,
+          "y": 130.390625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Metricas",
+        "current": null,
+        "rect": {
+          "x": 15.5,
+          "y": 181.1875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Ações do Dia",
+        "current": null,
+        "rect": {
+          "x": 15.5,
+          "y": 231.984375,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Telecom",
+        "current": null,
+        "rect": {
+          "x": 15.5,
+          "y": 282.78125,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Relatórios",
+        "current": "page",
+        "rect": {
+          "x": 15.5,
+          "y": 333.578125,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Cadastro",
+        "current": null,
+        "rect": {
+          "x": 15.5,
+          "y": 384.375,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Upload",
+        "current": null,
+        "rect": {
+          "x": 15.5,
+          "y": 435.171875,
+          "width": 42,
+          "height": 42
+        }
+      }
+    ],
+    "options": [
+      "Selos WhatsApp",
+      "Inventário de linhas",
+      "Alocações",
+      "Pendências",
+      "Histórico da linha",
+      "Indicadores diários"
+    ]
+  },
+  {
+    "js": true,
+    "width": 390,
+    "client": 390,
+    "scroll": 390,
+    "body": {
+      "color": "rgb(226, 232, 240)",
+      "bg": "rgb(2, 6, 23)",
+      "outline": "rgb(226, 232, 240) none 3px",
+      "shadow": "none"
+    },
+    "controls": [
+      {
+        "id": "id_relatorio",
+        "value": "whatsapp_seal",
+        "label": "Relatório",
+        "rect": {
+          "x": 49.59375,
+          "y": 344.6875,
+          "width": 290.8125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      },
+      {
+        "id": "id_data_inicial",
+        "value": "",
+        "label": "Data inicial",
+        "rect": {
+          "x": 49.59375,
+          "y": 430.6875,
+          "width": 290.8125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      },
+      {
+        "id": "id_data_final",
+        "value": "",
+        "label": "Data final",
+        "rect": {
+          "x": 49.59375,
+          "y": 516.6875,
+          "width": 290.8125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      }
+    ],
+    "texts": [
+      {
+        "text": "",
+        "style": {
+          "color": "rgb(255, 255, 255)",
+          "bg": "rgba(37, 99, 235, 0.35)",
+          "outline": "rgb(255, 255, 255) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 275.59375,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "text": "Relatórios",
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 25.59375,
+          "y": 191.046875,
+          "width": 338.8125,
+          "height": 29.640625
+        }
+      },
+      {
+        "text": "Consulte os relatórios disponíveis do LineOps.",
+        "style": {
+          "color": "rgb(148, 163, 184)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(148, 163, 184) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 25.59375,
+          "y": 224.6875,
+          "width": 338.8125,
+          "height": 48
+        }
+      },
+      {
+        "text": "Relatório\n                    \n                        Selos WhatsApp\n                        Inventário de linhas\n                        Alocações\n                        Pendências\n                        Histórico da linha\n                        Indicadores diários\n                    \n                \n                \n                    Data inicial\n                    \n                \n                \n                    Data final\n                    \n                \n            \n\n            \n                A geração de relatórios ainda não está disponível nesta etapa.",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 25.59375,
+          "y": 288.6875,
+          "width": 338.8125,
+          "height": 362
+        }
+      },
+      {
+        "text": "Relatório",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 312.6875,
+          "width": 66.578125,
+          "height": 24
+        }
+      },
+      {
+        "text": "Data inicial",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 398.6875,
+          "width": 82.40625,
+          "height": 24
+        }
+      },
+      {
+        "text": "Data final",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 484.6875,
+          "width": 71.4375,
+          "height": 24
+        }
+      },
+      {
+        "text": "A geração de relatórios ainda não está disponível nesta etapa.",
+        "style": {
+          "color": "rgb(148, 163, 184)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(148, 163, 184) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 578.6875,
+          "width": 290.8125,
+          "height": 48
+        }
+      }
+    ],
+    "nav": [
+      {
+        "name": "Dashboard",
+        "current": null,
+        "rect": {
+          "x": 21.609375,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Usuários",
+        "current": null,
+        "rect": {
+          "x": 72.40625,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Metricas",
+        "current": null,
+        "rect": {
+          "x": 123.203125,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Ações do Dia",
+        "current": null,
+        "rect": {
+          "x": 174,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Telecom",
+        "current": null,
+        "rect": {
+          "x": 224.796875,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Relatórios",
+        "current": "page",
+        "rect": {
+          "x": 275.59375,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Cadastro",
+        "current": null,
+        "rect": {
+          "x": 326.390625,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Upload",
+        "current": null,
+        "rect": {
+          "x": 174,
+          "y": 843.515625,
+          "width": 42,
+          "height": 42
+        }
+      }
+    ],
+    "options": [
+      "Selos WhatsApp",
+      "Inventário de linhas",
+      "Alocações",
+      "Pendências",
+      "Histórico da linha",
+      "Indicadores diários"
+    ]
+  },
+  {
+    "js": true,
+    "width": 360,
+    "client": 360,
+    "scroll": 360,
+    "body": {
+      "color": "rgb(226, 232, 240)",
+      "bg": "rgb(2, 6, 23)",
+      "outline": "rgb(226, 232, 240) none 3px",
+      "shadow": "none"
+    },
+    "controls": [
+      {
+        "id": "id_relatorio",
+        "value": "whatsapp_seal",
+        "label": "Relatório",
+        "rect": {
+          "x": 49.59375,
+          "y": 344.359375,
+          "width": 260.8125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      },
+      {
+        "id": "id_data_inicial",
+        "value": "",
+        "label": "Data inicial",
+        "rect": {
+          "x": 49.59375,
+          "y": 430.359375,
+          "width": 260.8125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      },
+      {
+        "id": "id_data_final",
+        "value": "",
+        "label": "Data final",
+        "rect": {
+          "x": 49.59375,
+          "y": 516.359375,
+          "width": 260.8125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      }
+    ],
+    "texts": [
+      {
+        "text": "",
+        "style": {
+          "color": "rgb(255, 255, 255)",
+          "bg": "rgba(37, 99, 235, 0.35)",
+          "outline": "rgb(255, 255, 255) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 285.984375,
+          "y": 792.640625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "text": "Relatórios",
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 25.59375,
+          "y": 191.046875,
+          "width": 308.8125,
+          "height": 29.3125
+        }
+      },
+      {
+        "text": "Consulte os relatórios disponíveis do LineOps.",
+        "style": {
+          "color": "rgb(148, 163, 184)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(148, 163, 184) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 25.59375,
+          "y": 224.359375,
+          "width": 308.8125,
+          "height": 48
+        }
+      },
+      {
+        "text": "Relatório\n                    \n                        Selos WhatsApp\n                        Inventário de linhas\n                        Alocações\n                        Pendências\n                        Histórico da linha\n                        Indicadores diários\n                    \n                \n                \n                    Data inicial\n                    \n                \n                \n                    Data final\n                    \n                \n            \n\n            \n                A geração de relatórios ainda não está disponível nesta etapa.",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 25.59375,
+          "y": 288.359375,
+          "width": 308.8125,
+          "height": 362
+        }
+      },
+      {
+        "text": "Relatório",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 312.359375,
+          "width": 66.578125,
+          "height": 24
+        }
+      },
+      {
+        "text": "Data inicial",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 398.359375,
+          "width": 82.40625,
+          "height": 24
+        }
+      },
+      {
+        "text": "Data final",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 484.359375,
+          "width": 71.4375,
+          "height": 24
+        }
+      },
+      {
+        "text": "A geração de relatórios ainda não está disponível nesta etapa.",
+        "style": {
+          "color": "rgb(148, 163, 184)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(148, 163, 184) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 578.359375,
+          "width": 260.8125,
+          "height": 48
+        }
+      }
+    ],
+    "nav": [
+      {
+        "name": "Dashboard",
+        "current": null,
+        "rect": {
+          "x": 32,
+          "y": 792.640625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Usuários",
+        "current": null,
+        "rect": {
+          "x": 82.796875,
+          "y": 792.640625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Metricas",
+        "current": null,
+        "rect": {
+          "x": 133.59375,
+          "y": 792.640625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Ações do Dia",
+        "current": null,
+        "rect": {
+          "x": 184.390625,
+          "y": 792.640625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Telecom",
+        "current": null,
+        "rect": {
+          "x": 235.1875,
+          "y": 792.640625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Relatórios",
+        "current": "page",
+        "rect": {
+          "x": 285.984375,
+          "y": 792.640625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Cadastro",
+        "current": null,
+        "rect": {
+          "x": 133.59375,
+          "y": 843.4375,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Upload",
+        "current": null,
+        "rect": {
+          "x": 184.390625,
+          "y": 843.4375,
+          "width": 42,
+          "height": 42
+        }
+      }
+    ],
+    "options": [
+      "Selos WhatsApp",
+      "Inventário de linhas",
+      "Alocações",
+      "Pendências",
+      "Histórico da linha",
+      "Indicadores diários"
+    ]
+  },
+  {
+    "js": true,
+    "focus": [
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Dashboard",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Usuários",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Metricas",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Ações do Dia",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Telecom",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Relatórios",
+        "outline": "rgb(255, 255, 255) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Cadastro",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Upload",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": null,
+        "outline": "rgb(220, 53, 69) none 3px",
+        "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+      },
+      {
+        "tag": "SELECT",
+        "id": "id_relatorio",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 0px",
+        "shadow": "rgba(37, 99, 235, 0.24) 0px 0px 0px 3.52px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_inicial",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 0px",
+        "shadow": "rgba(37, 99, 235, 0.24) 0px 0px 0px 3.52px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_inicial",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 0px",
+        "shadow": "rgba(37, 99, 235, 0.24) 0px 0px 0px 3.52px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_inicial",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 0px",
+        "shadow": "rgba(37, 99, 235, 0.24) 0px 0px 0px 3.52px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_inicial",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 3px",
+        "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_final",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 0px",
+        "shadow": "rgba(37, 99, 235, 0.24) 0px 0px 0px 3.52px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_final",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 0px",
+        "shadow": "rgba(37, 99, 235, 0.24) 0px 0px 0px 3.52px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_final",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 0px",
+        "shadow": "rgba(37, 99, 235, 0.24) 0px 0px 0px 3.52px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_final",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 3px",
+        "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "BODY",
+        "id": "",
+        "name": null,
+        "outline": "rgb(226, 232, 240) none 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Dashboard",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Usuários",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Metricas",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Ações do Dia",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Telecom",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Relatórios",
+        "outline": "rgb(255, 255, 255) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Cadastro",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      }
+    ],
+    "selected": "line_inventory",
+    "errors": []
+  },
+  {
+    "js": false,
+    "width": 1280,
+    "client": 1280,
+    "scroll": 1280,
+    "body": {
+      "color": "rgb(226, 232, 240)",
+      "bg": "rgb(2, 6, 23)",
+      "outline": "rgb(226, 232, 240) none 3px",
+      "shadow": "none"
+    },
+    "controls": [
+      {
+        "id": "id_relatorio",
+        "value": "whatsapp_seal",
+        "label": "Relatório",
+        "rect": {
+          "x": 143,
+          "y": 272.609375,
+          "width": 345.328125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      },
+      {
+        "id": "id_data_inicial",
+        "value": "",
+        "label": "Data inicial",
+        "rect": {
+          "x": 504.328125,
+          "y": 272.609375,
+          "width": 345.328125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      },
+      {
+        "id": "id_data_final",
+        "value": "",
+        "label": "Data final",
+        "rect": {
+          "x": 865.65625,
+          "y": 272.609375,
+          "width": 345.328125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      }
+    ],
+    "texts": [
+      {
+        "text": "",
+        "style": {
+          "color": "rgb(255, 255, 255)",
+          "bg": "rgba(37, 99, 235, 0.35)",
+          "outline": "rgb(255, 255, 255) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 15.5,
+          "y": 333.578125,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "text": "Relatórios",
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 119,
+          "y": 134.21875,
+          "width": 1116,
+          "height": 38.390625
+        }
+      },
+      {
+        "text": "Consulte os relatórios disponíveis do LineOps.",
+        "style": {
+          "color": "rgb(148, 163, 184)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(148, 163, 184) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 119,
+          "y": 176.609375,
+          "width": 1116,
+          "height": 24
+        }
+      },
+      {
+        "text": "Relatório\n                    \n                        Selos WhatsApp\n                        Inventário de linhas\n                        Alocações\n                        Pendências\n                        Histórico da linha\n                        Indicadores diários\n                    \n                \n                \n                    Data inicial\n                    \n                \n                \n                    Data final\n                    \n                \n            \n\n            \n                A geração de relatórios ainda não está disponível nesta etapa.",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 119,
+          "y": 216.609375,
+          "width": 1116,
+          "height": 166
+        }
+      },
+      {
+        "text": "Relatório",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 143,
+          "y": 240.609375,
+          "width": 66.578125,
+          "height": 24
+        }
+      },
+      {
+        "text": "Data inicial",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 504.328125,
+          "y": 240.609375,
+          "width": 82.40625,
+          "height": 24
+        }
+      },
+      {
+        "text": "Data final",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 865.65625,
+          "y": 240.609375,
+          "width": 71.4375,
+          "height": 24
+        }
+      },
+      {
+        "text": "A geração de relatórios ainda não está disponível nesta etapa.",
+        "style": {
+          "color": "rgb(148, 163, 184)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(148, 163, 184) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 143,
+          "y": 334.609375,
+          "width": 1068,
+          "height": 24
+        }
+      }
+    ],
+    "nav": [
+      {
+        "name": "Dashboard",
+        "current": null,
+        "rect": {
+          "x": 15.5,
+          "y": 79.59375,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Usuários",
+        "current": null,
+        "rect": {
+          "x": 15.5,
+          "y": 130.390625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Metricas",
+        "current": null,
+        "rect": {
+          "x": 15.5,
+          "y": 181.1875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Ações do Dia",
+        "current": null,
+        "rect": {
+          "x": 15.5,
+          "y": 231.984375,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Telecom",
+        "current": null,
+        "rect": {
+          "x": 15.5,
+          "y": 282.78125,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Relatórios",
+        "current": "page",
+        "rect": {
+          "x": 15.5,
+          "y": 333.578125,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Cadastro",
+        "current": null,
+        "rect": {
+          "x": 15.5,
+          "y": 384.375,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Upload",
+        "current": null,
+        "rect": {
+          "x": 15.5,
+          "y": 435.171875,
+          "width": 42,
+          "height": 42
+        }
+      }
+    ],
+    "options": [
+      "Selos WhatsApp",
+      "Inventário de linhas",
+      "Alocações",
+      "Pendências",
+      "Histórico da linha",
+      "Indicadores diários"
+    ]
+  },
+  {
+    "js": false,
+    "width": 390,
+    "client": 390,
+    "scroll": 390,
+    "body": {
+      "color": "rgb(226, 232, 240)",
+      "bg": "rgb(2, 6, 23)",
+      "outline": "rgb(226, 232, 240) none 3px",
+      "shadow": "none"
+    },
+    "controls": [
+      {
+        "id": "id_relatorio",
+        "value": "whatsapp_seal",
+        "label": "Relatório",
+        "rect": {
+          "x": 49.59375,
+          "y": 344.6875,
+          "width": 290.8125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      },
+      {
+        "id": "id_data_inicial",
+        "value": "",
+        "label": "Data inicial",
+        "rect": {
+          "x": 49.59375,
+          "y": 430.6875,
+          "width": 290.8125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      },
+      {
+        "id": "id_data_final",
+        "value": "",
+        "label": "Data final",
+        "rect": {
+          "x": 49.59375,
+          "y": 516.6875,
+          "width": 290.8125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      }
+    ],
+    "texts": [
+      {
+        "text": "",
+        "style": {
+          "color": "rgb(255, 255, 255)",
+          "bg": "rgba(37, 99, 235, 0.35)",
+          "outline": "rgb(255, 255, 255) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 275.59375,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "text": "Relatórios",
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 25.59375,
+          "y": 191.046875,
+          "width": 338.8125,
+          "height": 29.640625
+        }
+      },
+      {
+        "text": "Consulte os relatórios disponíveis do LineOps.",
+        "style": {
+          "color": "rgb(148, 163, 184)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(148, 163, 184) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 25.59375,
+          "y": 224.6875,
+          "width": 338.8125,
+          "height": 48
+        }
+      },
+      {
+        "text": "Relatório\n                    \n                        Selos WhatsApp\n                        Inventário de linhas\n                        Alocações\n                        Pendências\n                        Histórico da linha\n                        Indicadores diários\n                    \n                \n                \n                    Data inicial\n                    \n                \n                \n                    Data final\n                    \n                \n            \n\n            \n                A geração de relatórios ainda não está disponível nesta etapa.",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 25.59375,
+          "y": 288.6875,
+          "width": 338.8125,
+          "height": 362
+        }
+      },
+      {
+        "text": "Relatório",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 312.6875,
+          "width": 66.578125,
+          "height": 24
+        }
+      },
+      {
+        "text": "Data inicial",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 398.6875,
+          "width": 82.40625,
+          "height": 24
+        }
+      },
+      {
+        "text": "Data final",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 484.6875,
+          "width": 71.4375,
+          "height": 24
+        }
+      },
+      {
+        "text": "A geração de relatórios ainda não está disponível nesta etapa.",
+        "style": {
+          "color": "rgb(148, 163, 184)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(148, 163, 184) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 578.6875,
+          "width": 290.8125,
+          "height": 48
+        }
+      }
+    ],
+    "nav": [
+      {
+        "name": "Dashboard",
+        "current": null,
+        "rect": {
+          "x": 21.609375,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Usuários",
+        "current": null,
+        "rect": {
+          "x": 72.40625,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Metricas",
+        "current": null,
+        "rect": {
+          "x": 123.203125,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Ações do Dia",
+        "current": null,
+        "rect": {
+          "x": 174,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Telecom",
+        "current": null,
+        "rect": {
+          "x": 224.796875,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Relatórios",
+        "current": "page",
+        "rect": {
+          "x": 275.59375,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Cadastro",
+        "current": null,
+        "rect": {
+          "x": 326.390625,
+          "y": 792.71875,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Upload",
+        "current": null,
+        "rect": {
+          "x": 174,
+          "y": 843.515625,
+          "width": 42,
+          "height": 42
+        }
+      }
+    ],
+    "options": [
+      "Selos WhatsApp",
+      "Inventário de linhas",
+      "Alocações",
+      "Pendências",
+      "Histórico da linha",
+      "Indicadores diários"
+    ]
+  },
+  {
+    "js": false,
+    "width": 360,
+    "client": 360,
+    "scroll": 360,
+    "body": {
+      "color": "rgb(226, 232, 240)",
+      "bg": "rgb(2, 6, 23)",
+      "outline": "rgb(226, 232, 240) none 3px",
+      "shadow": "none"
+    },
+    "controls": [
+      {
+        "id": "id_relatorio",
+        "value": "whatsapp_seal",
+        "label": "Relatório",
+        "rect": {
+          "x": 49.59375,
+          "y": 344.359375,
+          "width": 260.8125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      },
+      {
+        "id": "id_data_inicial",
+        "value": "",
+        "label": "Data inicial",
+        "rect": {
+          "x": 49.59375,
+          "y": 430.359375,
+          "width": 260.8125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      },
+      {
+        "id": "id_data_final",
+        "value": "",
+        "label": "Data final",
+        "rect": {
+          "x": 49.59375,
+          "y": 516.359375,
+          "width": 260.8125,
+          "height": 38
+        },
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(15, 23, 42, 0.82)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+        }
+      }
+    ],
+    "texts": [
+      {
+        "text": "",
+        "style": {
+          "color": "rgb(255, 255, 255)",
+          "bg": "rgba(37, 99, 235, 0.35)",
+          "outline": "rgb(255, 255, 255) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 285.984375,
+          "y": 792.640625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "text": "Relatórios",
+        "style": {
+          "color": "rgb(248, 250, 252)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(248, 250, 252) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 25.59375,
+          "y": 191.046875,
+          "width": 308.8125,
+          "height": 29.3125
+        }
+      },
+      {
+        "text": "Consulte os relatórios disponíveis do LineOps.",
+        "style": {
+          "color": "rgb(148, 163, 184)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(148, 163, 184) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 25.59375,
+          "y": 224.359375,
+          "width": 308.8125,
+          "height": 48
+        }
+      },
+      {
+        "text": "Relatório\n                    \n                        Selos WhatsApp\n                        Inventário de linhas\n                        Alocações\n                        Pendências\n                        Histórico da linha\n                        Indicadores diários\n                    \n                \n                \n                    Data inicial\n                    \n                \n                \n                    Data final\n                    \n                \n            \n\n            \n                A geração de relatórios ainda não está disponível nesta etapa.",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 25.59375,
+          "y": 288.359375,
+          "width": 308.8125,
+          "height": 362
+        }
+      },
+      {
+        "text": "Relatório",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 312.359375,
+          "width": 66.578125,
+          "height": 24
+        }
+      },
+      {
+        "text": "Data inicial",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 398.359375,
+          "width": 82.40625,
+          "height": 24
+        }
+      },
+      {
+        "text": "Data final",
+        "style": {
+          "color": "rgb(226, 232, 240)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(226, 232, 240) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 484.359375,
+          "width": 71.4375,
+          "height": 24
+        }
+      },
+      {
+        "text": "A geração de relatórios ainda não está disponível nesta etapa.",
+        "style": {
+          "color": "rgb(148, 163, 184)",
+          "bg": "rgba(0, 0, 0, 0)",
+          "outline": "rgb(148, 163, 184) none 3px",
+          "shadow": "none"
+        },
+        "rect": {
+          "x": 49.59375,
+          "y": 578.359375,
+          "width": 260.8125,
+          "height": 48
+        }
+      }
+    ],
+    "nav": [
+      {
+        "name": "Dashboard",
+        "current": null,
+        "rect": {
+          "x": 32,
+          "y": 792.640625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Usuários",
+        "current": null,
+        "rect": {
+          "x": 82.796875,
+          "y": 792.640625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Metricas",
+        "current": null,
+        "rect": {
+          "x": 133.59375,
+          "y": 792.640625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Ações do Dia",
+        "current": null,
+        "rect": {
+          "x": 184.390625,
+          "y": 792.640625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Telecom",
+        "current": null,
+        "rect": {
+          "x": 235.1875,
+          "y": 792.640625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Relatórios",
+        "current": "page",
+        "rect": {
+          "x": 285.984375,
+          "y": 792.640625,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Cadastro",
+        "current": null,
+        "rect": {
+          "x": 133.59375,
+          "y": 843.4375,
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        "name": "Upload",
+        "current": null,
+        "rect": {
+          "x": 184.390625,
+          "y": 843.4375,
+          "width": 42,
+          "height": 42
+        }
+      }
+    ],
+    "options": [
+      "Selos WhatsApp",
+      "Inventário de linhas",
+      "Alocações",
+      "Pendências",
+      "Histórico da linha",
+      "Indicadores diários"
+    ]
+  },
+  {
+    "js": false,
+    "focus": [
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Dashboard",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Usuários",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Metricas",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Ações do Dia",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Telecom",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Relatórios",
+        "outline": "rgb(255, 255, 255) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Cadastro",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Upload",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": null,
+        "outline": "rgb(220, 53, 69) none 3px",
+        "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+      },
+      {
+        "tag": "SELECT",
+        "id": "id_relatorio",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 0px",
+        "shadow": "rgba(37, 99, 235, 0.24) 0px 0px 0px 3.52px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_inicial",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 0px",
+        "shadow": "rgba(37, 99, 235, 0.24) 0px 0px 0px 3.52px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_inicial",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 0px",
+        "shadow": "rgba(37, 99, 235, 0.24) 0px 0px 0px 3.52px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_inicial",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 0px",
+        "shadow": "rgba(37, 99, 235, 0.24) 0px 0px 0px 3.52px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_inicial",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 3px",
+        "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_final",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 0px",
+        "shadow": "rgba(37, 99, 235, 0.24) 0px 0px 0px 3.52px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_final",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 0px",
+        "shadow": "rgba(37, 99, 235, 0.24) 0px 0px 0px 3.52px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_final",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 0px",
+        "shadow": "rgba(37, 99, 235, 0.24) 0px 0px 0px 3.52px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "INPUT",
+        "id": "id_data_final",
+        "name": null,
+        "outline": "rgb(248, 250, 252) none 3px",
+        "shadow": "rgba(148, 163, 184, 0.06) 0px 1px 0px 0px inset"
+      },
+      {
+        "tag": "BODY",
+        "id": "",
+        "name": null,
+        "outline": "rgb(226, 232, 240) none 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Dashboard",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Usuários",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Metricas",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Ações do Dia",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Telecom",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Relatórios",
+        "outline": "rgb(255, 255, 255) auto 3px",
+        "shadow": "none"
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "name": "Cadastro",
+        "outline": "rgb(148, 163, 184) auto 3px",
+        "shadow": "none"
+      }
+    ],
+    "selected": "line_inventory",
+    "errors": []
+  },
+  {
+    "anonymousStatus": 403
+  }
+]

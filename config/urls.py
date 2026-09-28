@@ -5,6 +5,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from config.views import (
     HealthCheckView,
     LogoutGetView,
+    ReportsExportView,
+    ReportsHomeView,
     UploadView,
 )
 from users.views import AdminOnlyView
@@ -19,6 +21,12 @@ urlpatterns = [
     path("allocations/", include("allocations.urls")),
     path("pendencies/", include("pendencies.urls")),
     path("upload/", UploadView.as_view(), name="upload"),
+    path("relatorios/", ReportsHomeView.as_view(), name="reports_home"),
+    path(
+        "relatorios/exportar/<str:formato>/",
+        ReportsExportView.as_view(),
+        name="reports_export",
+    ),
     path("health/", HealthCheckView.as_view(), name="health"),
     path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),

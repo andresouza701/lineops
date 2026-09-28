@@ -1,0 +1,42 @@
+[
+  {
+    "js": true,
+    "keyboardDate": "2026-09-24",
+    "selected": "line_inventory",
+    "scheme": "dark"
+  },
+  {
+    "js": true,
+    "telecomUrl": "http://127.0.0.1:8775/telecom/",
+    "reportsCurrent": null
+  },
+  {
+    "js": true,
+    "baseline": {
+      "width": 360,
+      "scroll": 360
+    }
+  },
+  {
+    "js": false,
+    "keyboardDate": "2026-09-24",
+    "selected": "line_inventory",
+    "scheme": "dark"
+  },
+  {
+    "js": false,
+    "telecomUrl": "http://127.0.0.1:8775/telecom/",
+    "reportsCurrent": null
+  },
+  {
+    "js": false,
+    "baseline": {
+      "width": 360,
+      "scroll": 360
+    }
+  },
+  {
+    "superMenuCount": 0,
+    "superDirectStatus": 403
+  }
+]

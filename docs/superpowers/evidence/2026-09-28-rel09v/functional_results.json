@@ -1,0 +1,130 @@
+{
+  "login_admin": {
+    "pass": true,
+    "detail": "status=302"
+  },
+  "login_operator": {
+    "pass": true,
+    "detail": "status=302"
+  },
+  "admin_query_200": {
+    "pass": true,
+    "detail": "status=200"
+  },
+  "non_admin_query_403": {
+    "pass": true,
+    "detail": "status=403"
+  },
+  "non_admin_export_403": {
+    "pass": true,
+    "detail": "status=403"
+  },
+  "com_selo_com_200": {
+    "pass": true,
+    "detail": "status=200"
+  },
+  "com_selo_sem_200": {
+    "pass": true,
+    "detail": "status=200"
+  },
+  "com_selo_todos_200": {
+    "pass": true,
+    "detail": "status=200"
+  },
+  "com_vinculo_com_200": {
+    "pass": true,
+    "detail": "status=200"
+  },
+  "com_vinculo_sem_200": {
+    "pass": true,
+    "detail": "status=200"
+  },
+  "com_vinculo_todos_200": {
+    "pass": true,
+    "detail": "status=200"
+  },
+  "com_selo_unknown_token_400": {
+    "pass": true,
+    "detail": "status=400"
+  },
+  "operadora_substring_200": {
+    "pass": true,
+    "detail": "status=200"
+  },
+  "operadora_trim_200": {
+    "pass": true,
+    "detail": "status=200"
+  },
+  "operadora_100_chars_accepted": {
+    "pass": true,
+    "detail": "status=200"
+  },
+  "operadora_101_chars_rejected": {
+    "pass": true,
+    "detail": "status=400"
+  },
+  "origem_canal_null_label": {
+    "pass": true,
+    "detail": "count=2"
+  },
+  "historico_nao_duplica": {
+    "pass": true,
+    "detail": "count=1"
+  },
+  "multiplas_alocacoes_inconsistencia": {
+    "pass": true,
+    "detail": "checked label text"
+  },
+  "registro_linha_excluida_hidden_by_default": {
+    "pass": true,
+    "detail": "default incluir_excluidos=0"
+  },
+  "registro_linha_excluida_visible_with_flag": {
+    "pass": true,
+    "detail": "incluir_excluidos=1"
+  },
+  "registro_sim_excluido": {
+    "pass": true,
+    "detail": "incluir_excluidos=1"
+  },
+  "registro_ambos_excluidos": {
+    "pass": true,
+    "detail": "incluir_excluidos=1"
+  },
+  "periodo_limite_inicio_incluido": {
+    "pass": true,
+    "detail": "data_inicial 2026-01-01, linha as 00:00:01"
+  },
+  "periodo_antes_excluido": {
+    "pass": true,
+    "detail": "linha em 2025-12-31 23:59:59"
+  },
+  "periodo_limite_fim_incluido": {
+    "pass": true,
+    "detail": "linha em 2026-01-10 23:59:59"
+  },
+  "periodo_depois_excluido": {
+    "pass": true,
+    "detail": "linha em 2026-01-11 00:00:01"
+  },
+  "paginacao_pagina2_status": {
+    "pass": true,
+    "detail": "status=200"
+  },
+  "paginacao_paginas_diferentes": {
+    "pass": true,
+    "detail": "page1 vs page2 html differ"
+  },
+  "export_links_reflect_queried_filters": {
+    "pass": true,
+    "detail": "checked export href params in rendered page"
+  },
+  "estado_vazio_200": {
+    "pass": true,
+    "detail": "status=200"
+  },
+  "erro_data_invertida_400": {
+    "pass": true,
+    "detail": "status=400"
+  }
+}

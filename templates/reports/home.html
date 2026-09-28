@@ -1,0 +1,391 @@
+{% extends "base/base.html" %}
+
+{% block title %}Relatórios{% endblock %}
+{% block page_title %}Relatórios{% endblock %}
+{% block content %}
+<div class="container mt-4 reports-page">
+    <div class="mb-3">
+        <h2 class="mb-1">Relatórios</h2>
+        <p class="text-muted mb-0">Consulte os relatórios disponíveis do LineOps.</p>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <form class="row g-3" method="get" action="{% url 'reports_home' %}" style="color-scheme: dark;">
+                <div class="col-md-4">
+                    <label for="id_relatorio" class="form-label">Relatório</label>
+                    <select id="id_relatorio" name="relatorio" class="form-select">
+                        {% for value, label in report_choices %}
+                        <option value="{{ value }}"{% if raw.relatorio == value %} selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="id_data_inicial" class="form-label">Data inicial</label>
+                    <input type="date" id="id_data_inicial" name="data_inicial" value="{{ raw.data_inicial }}" class="form-control">
+                    {% if form.data_inicial.errors %}
+                    <div class="text-danger small mt-1">{{ form.data_inicial.errors.0 }}</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-4">
+                    <label for="id_data_final" class="form-label">Data final</label>
+                    <input type="date" id="id_data_final" name="data_final" value="{{ raw.data_final }}" class="form-control">
+                    {% if form.data_final.errors %}
+                    <div class="text-danger small mt-1">{{ form.data_final.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                {% if raw.relatorio == "line_inventory" %}
+                <div class="col-md-3">
+                    <label for="id_status_linha" class="form-label">Status</label>
+                    <select id="id_status_linha" name="status_linha" class="form-select">
+                        <option value=""{% if not raw.status_linha %} selected{% endif %}>Todos</option>
+                        <option value="AVAILABLE"{% if raw.status_linha == "AVAILABLE" %} selected{% endif %}>Disponível</option>
+                        <option value="ALLOCATED"{% if raw.status_linha == "ALLOCATED" %} selected{% endif %}>Alocado</option>
+                        <option value="SUSPENDED"{% if raw.status_linha == "SUSPENDED" %} selected{% endif %}>Quarentena</option>
+                        <option value="CANCELLED"{% if raw.status_linha == "CANCELLED" %} selected{% endif %}>Cancelado</option>
+                        <option value="AQUECENDO"{% if raw.status_linha == "AQUECENDO" %} selected{% endif %}>Aquecendo</option>
+                        <option value="NOVO"{% if raw.status_linha == "NOVO" %} selected{% endif %}>Novo</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="id_operadora" class="form-label">Operadora</label>
+                    <input type="text" id="id_operadora" name="operadora" class="form-control" maxlength="100" value="{{ raw.operadora }}" placeholder="Busca parcial">
+                </div>
+                <div class="col-md-3">
+                    <label for="id_origem" class="form-label">Origem</label>
+                    <select id="id_origem" name="origem" class="form-select">
+                        <option value=""{% if not raw.origem %} selected{% endif %}>Todos</option>
+                        <option value="SRVMEMU-01"{% if raw.origem == "SRVMEMU-01" %} selected{% endif %}>SRVMEMU-01</option>
+                        <option value="SRVMEMU-02"{% if raw.origem == "SRVMEMU-02" %} selected{% endif %}>SRVMEMU-02</option>
+                        <option value="SRVMEMU-03"{% if raw.origem == "SRVMEMU-03" %} selected{% endif %}>SRVMEMU-03</option>
+                        <option value="SRVMEMU-04"{% if raw.origem == "SRVMEMU-04" %} selected{% endif %}>SRVMEMU-04</option>
+                        <option value="SRVMEMU-05"{% if raw.origem == "SRVMEMU-05" %} selected{% endif %}>SRVMEMU-05</option>
+                        <option value="SRVMEMU-06"{% if raw.origem == "SRVMEMU-06" %} selected{% endif %}>SRVMEMU-06</option>
+                        <option value="BLIP"{% if raw.origem == "BLIP" %} selected{% endif %}>Blip</option>
+                        <option value="APARELHO"{% if raw.origem == "APARELHO" %} selected{% endif %}>Aparelho</option>
+                        <option value="PESSOAL"{% if raw.origem == "PESSOAL" %} selected{% endif %}>Aparelho Pessoal</option>
+                        <option value="APARELHO OP"{% if raw.origem == "APARELHO OP" %} selected{% endif %}>Aparelho OP</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="id_canal" class="form-label">Canal</label>
+                    <select id="id_canal" name="canal" class="form-select">
+                        <option value=""{% if not raw.canal %} selected{% endif %}>Todos</option>
+                        <option value="WEB"{% if raw.canal == "WEB" %} selected{% endif %}>Whatsapp Web</option>
+                        <option value="MYLOOP"{% if raw.canal == "MYLOOP" %} selected{% endif %}>MyLoop</option>
+                        <option value="ANYCALL"{% if raw.canal == "ANYCALL" %} selected{% endif %}>AnyCall</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="id_com_selo" class="form-label">Selo</label>
+                    <select id="id_com_selo" name="com_selo" class="form-select">
+                        <option value=""{% if not raw.com_selo %} selected{% endif %}>Todos</option>
+                        <option value="com"{% if raw.com_selo == "com" %} selected{% endif %}>Com selo</option>
+                        <option value="sem"{% if raw.com_selo == "sem" %} selected{% endif %}>Sem selo</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="id_com_vinculo" class="form-label">Vínculo</label>
+                    <select id="id_com_vinculo" name="com_vinculo" class="form-select">
+                        <option value=""{% if not raw.com_vinculo %} selected{% endif %}>Todos</option>
+                        <option value="com"{% if raw.com_vinculo == "com" %} selected{% endif %}>Com vínculo</option>
+                        <option value="sem"{% if raw.com_vinculo == "sem" %} selected{% endif %}>Sem vínculo</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="id_linha" class="form-label">Linha</label>
+                    <input type="text" id="id_linha" name="linha" class="form-control" maxlength="20" value="{{ raw.linha }}" placeholder="Busca parcial">
+                </div>
+                {% else %}
+                <div class="col-md-3">
+                    <label for="id_selo" class="form-label">Tipo do selo</label>
+                    <select id="id_selo" name="selo" class="form-select">
+                        <option value=""{% if not raw.selo %} selected{% endif %}>Todos</option>
+                        <option value="META_ONE"{% if raw.selo == "META_ONE" %} selected{% endif %}>META ONE</option>
+                        <option value="META_VERIFIED"{% if raw.selo == "META_VERIFIED" %} selected{% endif %}>META VERIFICADO</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="id_pagamento" class="form-label">Pagamento</label>
+                    <select id="id_pagamento" name="pagamento" class="form-select">
+                        <option value=""{% if not raw.pagamento %} selected{% endif %}>Todos</option>
+                        <option value="CREDIT_CARD"{% if raw.pagamento == "CREDIT_CARD" %} selected{% endif %}>CARTÃO CRÉDITO</option>
+                        <option value="GOOGLE_GIFT_CARD"{% if raw.pagamento == "GOOGLE_GIFT_CARD" %} selected{% endif %}>GIFT CARD GOOGLE</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="id_situacao" class="form-label">Situação do vencimento</label>
+                    <select id="id_situacao" name="situacao" class="form-select">
+                        <option value=""{% if not raw.situacao %} selected{% endif %}>Todas</option>
+                        <option value="regular"{% if raw.situacao == "regular" %} selected{% endif %}>Vence após 7 dias</option>
+                        <option value="warning"{% if raw.situacao == "warning" %} selected{% endif %}>Vence em até 7 dias</option>
+                        <option value="today"{% if raw.situacao == "today" %} selected{% endif %}>Vence hoje</option>
+                        <option value="expired"{% if raw.situacao == "expired" %} selected{% endif %}>Vencido</option>
+                        <option value="missing_expiry"{% if raw.situacao == "missing_expiry" %} selected{% endif %}>Sem vencimento informado</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="id_linha" class="form-label">Linha</label>
+                    <input type="text" id="id_linha" name="linha" class="form-control" maxlength="20" value="{{ raw.linha }}" placeholder="Busca parcial">
+                </div>
+                {% endif %}
+
+                <div class="col-12">
+                    <div class="form-check">
+                        <input type="checkbox" id="id_incluir_excluidos" name="incluir_excluidos" value="1" class="form-check-input"{% if raw.incluir_excluidos == "1" %} checked{% endif %}>
+                        <label for="id_incluir_excluidos" class="form-check-label">Incluir excluídos</label>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">Gerar relatório</button>
+                </div>
+            </form>
+
+            {% if not attempted %}
+            <p class="text-muted mt-4 mb-0">
+                Selecione relatório e período para consultar. A geração dos demais relatórios do catálogo ainda não está disponível.
+            </p>
+            {% endif %}
+
+            {% if query_error %}
+            <div class="alert alert-danger mt-4 mb-0" role="alert">{{ query_error }}</div>
+            {% endif %}
+
+            {% if engine_unavailable %}
+            <div class="alert alert-warning mt-4 mb-0" role="alert">
+                {{ engine_unavailable_message }}
+            </div>
+            {% endif %}
+
+            {% if form and form.errors and not engine_unavailable %}
+            <div class="alert alert-danger mt-4 mb-0" role="alert">
+                Não foi possível gerar o relatório. Confira os campos indicados acima.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if show_results and raw.relatorio == "line_inventory" %}
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <p class="text-muted small mb-3">
+                Período consultado: {{ raw.data_inicial }} a {{ raw.data_final }}. Gerado em {{ result.generated_at|date:"d/m/Y H:i" }}.
+            </p>
+
+            <div class="d-flex gap-2 mb-3">
+                <a class="btn btn-outline-light btn-sm" href="{% url 'reports_export' formato='csv' %}?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&status_linha={{ raw.status_linha }}&operadora={{ raw.operadora }}&origem={{ raw.origem }}&canal={{ raw.canal }}&com_selo={{ raw.com_selo }}&com_vinculo={{ raw.com_vinculo }}&linha={{ raw.linha }}">
+                    Exportar CSV
+                </a>
+                <a class="btn btn-outline-light btn-sm" href="{% url 'reports_export' formato='xlsx' %}?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&status_linha={{ raw.status_linha }}&operadora={{ raw.operadora }}&origem={{ raw.origem }}&canal={{ raw.canal }}&com_selo={{ raw.com_selo }}&com_vinculo={{ raw.com_vinculo }}&linha={{ raw.linha }}">
+                    Exportar XLSX
+                </a>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Total</div>
+                        <div class="fs-5">{{ result.totals.total }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Com vínculo</div>
+                        <div class="fs-5">{{ result.totals.com_vinculo }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Sem vínculo</div>
+                        <div class="fs-5">{{ result.totals.sem_vinculo }}</div>
+                    </div>
+                </div>
+                {% for status_label, status_count in result.totals.by_status %}
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">{{ status_label }}</div>
+                        <div class="fs-5">{{ status_count }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if result.rows %}
+            <div class="table-responsive reports-table-wrap">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Linha</th>
+                            <th>Status</th>
+                            <th>Operadora</th>
+                            <th>Origem</th>
+                            <th>Canal</th>
+                            <th>Selo</th>
+                            <th>Vínculo atual</th>
+                            <th>Data de cadastro</th>
+                            <th>Registro</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in result.rows %}
+                        <tr>
+                            <td>{{ row.phone_number }}</td>
+                            <td>{{ row.status_display }}</td>
+                            <td>{{ row.operadora }}</td>
+                            <td>{{ row.origem_display }}</td>
+                            <td>{{ row.canal_display }}</td>
+                            <td>{{ row.selo_display }}</td>
+                            <td>{{ row.vinculo_label }}</td>
+                            <td>{{ row.created_at|date:"d/m/Y" }}</td>
+                            <td>{{ row.registro_label }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if result.num_pages > 1 %}
+            <nav aria-label="Paginação do relatório" class="mt-3">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item {% if result.page_number <= 1 %}disabled{% endif %}">
+                        <a class="page-link" href="?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&status_linha={{ raw.status_linha }}&operadora={{ raw.operadora }}&origem={{ raw.origem }}&canal={{ raw.canal }}&com_selo={{ raw.com_selo }}&com_vinculo={{ raw.com_vinculo }}&linha={{ raw.linha }}&page={{ result.page_number|add:"-1" }}">Anterior</a>
+                    </li>
+                    <li class="page-item disabled"><span class="page-link">Página {{ result.page_number }} de {{ result.num_pages }}</span></li>
+                    <li class="page-item {% if result.page_number >= result.num_pages %}disabled{% endif %}">
+                        <a class="page-link" href="?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&status_linha={{ raw.status_linha }}&operadora={{ raw.operadora }}&origem={{ raw.origem }}&canal={{ raw.canal }}&com_selo={{ raw.com_selo }}&com_vinculo={{ raw.com_vinculo }}&linha={{ raw.linha }}&page={{ result.page_number|add:"1" }}">Próxima</a>
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
+            {% else %}
+            <p class="mb-0">Nenhum resultado para os filtros selecionados.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if show_results and raw.relatorio != "line_inventory" %}
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <p class="text-muted small mb-3">
+                Período consultado: {{ raw.data_inicial }} a {{ raw.data_final }}. Referência: {{ result.reference_date|date:"d/m/Y" }}, gerado em {{ result.generated_at|date:"d/m/Y H:i" }}.
+            </p>
+
+            <div class="d-flex gap-2 mb-3">
+                <a class="btn btn-outline-light btn-sm" href="{% url 'reports_export' formato='csv' %}?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&selo={{ raw.selo }}&pagamento={{ raw.pagamento }}&situacao={{ raw.situacao }}&linha={{ raw.linha }}">
+                    Exportar CSV
+                </a>
+                <a class="btn btn-outline-light btn-sm" href="{% url 'reports_export' formato='xlsx' %}?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&selo={{ raw.selo }}&pagamento={{ raw.pagamento }}&situacao={{ raw.situacao }}&linha={{ raw.linha }}">
+                    Exportar XLSX
+                </a>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Total</div>
+                        <div class="fs-5">{{ result.totals.total }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">META ONE</div>
+                        <div class="fs-5">{{ result.totals.meta_one }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">META VERIFICADO</div>
+                        <div class="fs-5">{{ result.totals.meta_verified }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Vence em até 7 dias</div>
+                        <div class="fs-5">{{ result.totals.warning }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Vencido</div>
+                        <div class="fs-5">{{ result.totals.expired }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Sem vencimento</div>
+                        <div class="fs-5">{{ result.totals.missing_expiry }}</div>
+                    </div>
+                </div>
+            </div>
+
+            {% if result.rows %}
+            <div class="table-responsive reports-table-wrap">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Linha</th>
+                            <th>Tipo do selo</th>
+                            <th>Ativação do selo</th>
+                            <th>Pagamento</th>
+                            <th>E-mail cadastrado</th>
+                            <th>Vencimento</th>
+                            <th>Situação do vencimento</th>
+                            <th>Registro</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in result.rows %}
+                        <tr>
+                            <td>{{ row.phone_number }}</td>
+                            <td>{{ row.seal_display }}</td>
+                            <td>
+                                {{ row.activated_on|date:"d/m/Y" }}
+                                {% if row.dates_inverted %}
+                                <i class="bi bi-exclamation-triangle text-warning" title="Vencimento anterior à ativação"></i>
+                                {% endif %}
+                            </td>
+                            <td>{{ row.payment_display }}</td>
+                            <td>{{ row.email }}</td>
+                            <td>{{ row.expires_on|date:"d/m/Y" }}</td>
+                            <td>
+                                {% if row.situation_tone == "warning" %}
+                                <span class="badge seal-tone-warning bg-warning text-dark">{{ row.situation_label }}</span>
+                                {% elif row.situation_tone == "today" %}
+                                <span class="badge seal-tone-today text-dark" style="background-color: orange;">{{ row.situation_label }}</span>
+                                {% elif row.situation_tone == "expired" %}
+                                <span class="badge seal-tone-expired bg-danger">{{ row.situation_label }}</span>
+                                {% else %}
+                                <span class="badge seal-tone-neutral bg-light text-dark border">{{ row.situation_label }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ row.registro_label }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if result.num_pages > 1 %}
+            <nav aria-label="Paginação do relatório" class="mt-3">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item {% if result.page_number <= 1 %}disabled{% endif %}">
+                        <a class="page-link" href="?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&selo={{ raw.selo }}&pagamento={{ raw.pagamento }}&situacao={{ raw.situacao }}&linha={{ raw.linha }}&page={{ result.page_number|add:"-1" }}">Anterior</a>
+                    </li>
+                    <li class="page-item disabled"><span class="page-link">Página {{ result.page_number }} de {{ result.num_pages }}</span></li>
+                    <li class="page-item {% if result.page_number >= result.num_pages %}disabled{% endif %}">
+                        <a class="page-link" href="?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&selo={{ raw.selo }}&pagamento={{ raw.pagamento }}&situacao={{ raw.situacao }}&linha={{ raw.linha }}&page={{ result.page_number|add:"1" }}">Próxima</a>
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
+            {% else %}
+            <p class="mb-0">Nenhum resultado para os filtros selecionados.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,389 @@
+"""Exportacao CSV/XLSX/ZIP do relatorio Inventario de linhas (REL-09-E).
+
+Fonte da verdade: docs/superpowers/specs/2026-09-22-reports-hub-design.md,
+secoes REL-07 (contrato comum) e REL-09-C (contrato especifico). Reaproveita
+o motor de consulta de REL-09-Q (core/services/line_inventory_report_service):
+mesmo escopo, filtros, ordenacao e projecao de linhas — nenhuma regra e
+copiada em outro queryset.
+
+Exportador PROPRIO do Inventario, nao uma generalizacao do exportador de
+Selos WhatsApp (core/services/report_export_service.py): mesmo padrao
+arquitetural (streaming + limpeza de temporarios + divisao em ZIP + protecao
+de formula), mas com seu proprio COLUMNS/slug/row-mapping, deliberadamente
+duplicado em vez de importado/generalizado, conforme decisao registrada em
+REL-09-C ("nao generalizar o modulo existente nesta task"). Somente leitura:
+nenhuma escrita de negocio, model ou migration.
+"""
+
+import csv
+import itertools
+import os
+import re
+import shutil
+import tempfile
+import zipfile
+from dataclasses import dataclass
+from datetime import date, datetime
+from typing import Iterator
+
+import openpyxl
+from openpyxl.cell import WriteOnlyCell
+from django.http import StreamingHttpResponse
+from django.utils import timezone
+
+from core.services.line_inventory_report_service import (
+    LineInventoryReportRow,
+    iter_line_inventory_report_rows,
+)
+from telecom.models import PhoneLine
+
+# Limiar de producao (REL-07/REL-09-C): ate este numero de linhas de dados
+# por arquivo; acima, ZIP com partes numeradas. Testes de fronteira usam o
+# parametro `split_threshold` das funcoes abaixo para reduzir o limiar sem
+# tocar este valor de producao.
+EXPORT_SPLIT_THRESHOLD = 100_000
+
+COLUMNS = [
+    "Linha",
+    "Status",
+    "Operadora",
+    "Origem",
+    "Canal",
+    "Selo",
+    "Vínculo atual",
+    "Data de cadastro",
+    "Registro",
+]
+
+_DATE_COLUMNS = (False, False, False, False, False, False, False, True, False)
+
+_CONTENT_TYPES = {
+    "csv": "text/csv; charset=utf-8",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+_ZIP_CONTENT_TYPE = "application/zip"
+
+_BLOCK_SIZE = 65536
+
+_LEADING_WS_CONTROL = re.compile(r"^[\s\x00-\x1f]+")
+_FORMULA_TRIGGERS = ("=", "+", "-", "@")
+
+_SLUG = "inventario_linhas"
+
+_COM_SELO_LABELS = {"": "Todos", "com": "Com selo", "sem": "Sem selo"}
+_COM_VINCULO_LABELS = {"": "Todos", "com": "Com vínculo", "sem": "Sem vínculo"}
+
+
+@dataclass
+class ExportFile:
+    path: str
+    filename: str
+    content_type: str
+    temp_dir: str
+
+
+def _looks_like_formula(value: str) -> bool:
+    trimmed = _LEADING_WS_CONTROL.sub("", value)
+    return trimmed.startswith(_FORMULA_TRIGGERS)
+
+
+def _csv_text(value) -> str:
+    if value is None:
+        return ""
+    text = str(value)
+    return f"'{text}" if _looks_like_formula(text) else text
+
+
+def _row_to_csv_cells(row: LineInventoryReportRow) -> list:
+    return [
+        _csv_text(row.phone_number),
+        _csv_text(row.status_display),
+        _csv_text(row.operadora),
+        _csv_text(row.origem_display),
+        _csv_text(row.canal_display),
+        _csv_text(row.selo_display),
+        _csv_text(row.vinculo_label),
+        row.created_at.strftime("%d/%m/%Y") if row.created_at else "",
+        _csv_text(row.registro_label),
+    ]
+
+
+def _row_to_xlsx_cells(worksheet, row: LineInventoryReportRow) -> list:
+    values = [
+        row.phone_number,
+        row.status_display,
+        row.operadora,
+        row.origem_display,
+        row.canal_display,
+        row.selo_display,
+        row.vinculo_label,
+        row.created_at.date() if row.created_at else None,
+        row.registro_label,
+    ]
+    cells = []
+    for value, is_date in zip(values, _DATE_COLUMNS):
+        if is_date:
+            if value is None:
+                cells.append(None)
+            else:
+                cell = WriteOnlyCell(worksheet, value=value)
+                cell.number_format = "DD/MM/YYYY"
+                cells.append(cell)
+        else:
+            cells.append(value)
+    return cells
+
+
+def _filters_label(filters: dict) -> str:
+    status_labels = {"": "Todos", **dict(PhoneLine.Status.choices)}
+    origem_labels = {"": "Todos", **dict(PhoneLine.Origem.choices)}
+    canal_labels = {"": "Todos", **dict(PhoneLine.Canal.choices)}
+    return (
+        f"Período: {filters['data_inicial'].strftime('%d/%m/%Y')} a "
+        f"{filters['data_final'].strftime('%d/%m/%Y')}; "
+        f"Status: {status_labels.get(filters.get('status_linha', ''), filters.get('status_linha', ''))}; "
+        f"Operadora: {filters.get('operadora') or '(vazio)'}; "
+        f"Origem: {origem_labels.get(filters.get('origem', ''), filters.get('origem', ''))}; "
+        f"Canal: {canal_labels.get(filters.get('canal', ''), filters.get('canal', ''))}; "
+        f"Selo: {_COM_SELO_LABELS.get(filters.get('com_selo', ''), filters.get('com_selo', ''))}; "
+        f"Vínculo: {_COM_VINCULO_LABELS.get(filters.get('com_vinculo', ''), filters.get('com_vinculo', ''))}; "
+        f"Linha: {filters.get('linha') or '(vazio)'}; "
+        f"Incluir excluídos: {'Sim' if filters.get('incluir_excluidos') else 'Não'}"
+    )
+
+
+def _write_csv_chunk(path: str, rows: Iterator[LineInventoryReportRow], threshold: int) -> int:
+    """Escreve ate `threshold` linhas do MESMO iterator (uma unica consulta
+    para toda a exportacao) e retorna quantas linhas foram efetivamente
+    escritas. `written < threshold` sinaliza iterator esgotado — usado pelo
+    chamador para decidir se ha mais partes, sem depender de nenhuma
+    contagem calculada antes da iteracao (mesmo padrao corrigido em
+    REL-08-E para evitar divergencia entre contagem previa e conjunto
+    realmente iterado)."""
+    written = 0
+    with open(path, "w", newline="", encoding="utf-8-sig") as handle:
+        writer = csv.writer(handle, delimiter=";")
+        writer.writerow(COLUMNS)
+        for row in itertools.islice(rows, threshold):
+            writer.writerow(_row_to_csv_cells(row))
+            written += 1
+    return written
+
+
+def _write_xlsx_chunk(path: str, rows: Iterator[LineInventoryReportRow], threshold: int):
+    """Mesmo contrato de `_write_csv_chunk`, mas para XLSX: os dados sao
+    escritos de imediato (write-only, sem materializar linhas em memoria),
+    porem a planilha "Contexto" (que depende do total/numero de partes,
+    conhecidos somente apos esgotar o iterator inteiro) e adicionada depois
+    por `_finalize_xlsx_chunk` — o workbook so e salvo nesse momento."""
+    workbook = openpyxl.Workbook(write_only=True)
+    sheet = workbook.create_sheet("Inventário de linhas")
+    sheet.append(COLUMNS)
+    written = 0
+    for row in itertools.islice(rows, threshold):
+        sheet.append(_row_to_xlsx_cells(sheet, row))
+        written += 1
+    return workbook, written
+
+
+def _finalize_xlsx_chunk(
+    workbook,
+    path: str,
+    *,
+    part_index: int,
+    num_parts: int,
+    total: int,
+    count: int,
+    generated_at: datetime,
+    filters_label: str,
+) -> None:
+    context_sheet = workbook.create_sheet("Contexto")
+    context_sheet.append(["Campo", "Valor"])
+    context_sheet.append(["Relatório", "Inventário de linhas"])
+    context_sheet.append(["Filtros", filters_label])
+    context_sheet.append(["Gerado em", generated_at.strftime("%d/%m/%Y %H:%M:%S")])
+    context_sheet.append(["Quantidade total", total])
+    context_sheet.append(["Quantidade nesta parte", count])
+    if num_parts > 1:
+        context_sheet.append(["Parte", f"{part_index} de {num_parts}"])
+
+    workbook.save(path)
+
+
+def _build_base_name(data_inicial: date, data_final: date, generated_at: datetime) -> str:
+    return (
+        f"{_SLUG}_{data_inicial.strftime('%Y%m%d')}-{data_final.strftime('%Y%m%d')}"
+        f"_{generated_at.strftime('%Y%m%dT%H%M%S')}"
+    )
+
+
+def generate_line_inventory_export(
+    *,
+    formato: str,
+    filters: dict,
+    split_threshold: int = EXPORT_SPLIT_THRESHOLD,
+) -> ExportFile:
+    """Gera o(s) arquivo(s) completo(s) do relatorio Inventario de linhas em
+    arquivos temporarios privados, ANTES de qualquer resposta HTTP ser
+    iniciada (sem envio parcial). `split_threshold` e a interface tecnica
+    explicita de teste para a fronteira de divisao/ZIP — a rota HTTP nunca
+    o passa, mantendo producao em EXPORT_SPLIT_THRESHOLD (100.000).
+
+    Uma UNICA consulta ao banco (o iterator de
+    `iter_line_inventory_report_rows`, que inclui o Prefetch do vinculo
+    atual) dirige toda a divisao em partes: nao ha `count()` previo
+    separado. Total, numero de partes e quantidade por parte sao derivados
+    do que efetivamente foi escrito, nunca de uma contagem calculada antes
+    da iteracao — mesmo raciocinio da correcao de risco documentada em
+    REL-08-E (duas consultas independentes podem divergir por mudanca de
+    dados entre elas)."""
+    if formato not in _CONTENT_TYPES:
+        raise ValueError(f"Formato de exportacao desconhecido: {formato}")
+
+    generated_at = timezone.now()
+
+    temp_dir = tempfile.mkdtemp(prefix="lineops_line_inventory_export_")
+    try:
+        rows = iter_line_inventory_report_rows(**filters)
+
+        base_name = _build_base_name(filters["data_inicial"], filters["data_final"], generated_at)
+        filters_label = _filters_label(filters)
+
+        part_paths = []
+        part_counts = []
+        xlsx_parts = []  # (workbook, path) — save() adiado ate total/num_parts conhecidos
+        part_index = 0
+        while True:
+            part_index += 1
+            part_path = os.path.join(temp_dir, f"_part_{part_index:03d}.{formato}")
+            if formato == "csv":
+                written = _write_csv_chunk(part_path, rows, split_threshold)
+            else:
+                workbook, written = _write_xlsx_chunk(part_path, rows, split_threshold)
+
+            if written == 0 and part_index > 1:
+                # Iterator esgotou exatamente no limiar da parte anterior
+                # (ex.: total multiplo exato de split_threshold): esta parte
+                # extra e vazia e espuria, nao um resultado real.
+                if formato == "csv":
+                    os.remove(part_path)
+                else:
+                    workbook.close()
+                part_index -= 1
+                break
+
+            part_paths.append(part_path)
+            part_counts.append(written)
+            if formato == "xlsx":
+                xlsx_parts.append((workbook, part_path))
+            if written < split_threshold:
+                break
+
+        total = sum(part_counts)
+        num_parts = len(part_paths)
+
+        if formato == "xlsx":
+            for index, (workbook, part_path) in enumerate(xlsx_parts, start=1):
+                _finalize_xlsx_chunk(
+                    workbook,
+                    part_path,
+                    part_index=index,
+                    num_parts=num_parts,
+                    total=total,
+                    count=part_counts[index - 1],
+                    generated_at=generated_at,
+                    filters_label=filters_label,
+                )
+
+        if num_parts == 1:
+            final_path = os.path.join(temp_dir, f"{base_name}.{formato}")
+            os.replace(part_paths[0], final_path)
+            return ExportFile(
+                path=final_path,
+                filename=os.path.basename(final_path),
+                content_type=_CONTENT_TYPES[formato],
+                temp_dir=temp_dir,
+            )
+
+        zip_path = os.path.join(temp_dir, f"{base_name}.zip")
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
+            for index, part_path in enumerate(part_paths, start=1):
+                arcname = f"{base_name}_parte{index:03d}de{num_parts:03d}.{formato}"
+                archive.write(part_path, arcname=arcname)
+        for part_path in part_paths:
+            os.remove(part_path)
+
+        return ExportFile(
+            path=zip_path,
+            filename=os.path.basename(zip_path),
+            content_type=_ZIP_CONTENT_TYPE,
+            temp_dir=temp_dir,
+        )
+    except Exception:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
+
+
+def _stream_and_cleanup(path: str, temp_dir: str, block_size: int = _BLOCK_SIZE):
+    """Gerador que serve o arquivo ja concluido e remove o diretorio
+    temporario ao fim — consumo total, parcial ou desconexao do cliente
+    APOS o primeiro chunk. Um generator so roda seu `finally` ao receber
+    `.close()` se ja estiver suspenso em algum `yield`; se `.close()` for
+    chamado ANTES de qualquer `next()`, o `finally` NAO executa — por isso
+    o caminho "fechado antes do primeiro byte" e coberto por
+    `_CleanupStreamingHttpResponse.close()`, nao por este generator (mesmo
+    raciocinio documentado na correcao de REL-08-E)."""
+    try:
+        with open(path, "rb") as handle:
+            while True:
+                chunk = handle.read(block_size)
+                if not chunk:
+                    break
+                yield chunk
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class _CleanupStreamingHttpResponse(StreamingHttpResponse):
+    """StreamingHttpResponse que garante a remocao do diretorio temporario
+    em `close()`, inclusive quando a resposta e encerrada antes de qualquer
+    iteracao. `close()` e metodo publico de HttpResponseBase, sempre
+    chamado pelo servidor WSGI real ao final de toda resposta, independente
+    de streaming_content ter sido consumido. Nao usa nenhum atributo
+    privado do Django. Idempotente via flag propria."""
+
+    def __init__(self, streaming_content, *, temp_dir: str, **kwargs):
+        super().__init__(streaming_content, **kwargs)
+        self._export_temp_dir = temp_dir
+        self._export_temp_dir_cleaned = False
+
+    def close(self):
+        try:
+            super().close()
+        finally:
+            self._cleanup_export_temp_dir()
+
+    def _cleanup_export_temp_dir(self):
+        if self._export_temp_dir_cleaned:
+            return
+        self._export_temp_dir_cleaned = True
+        shutil.rmtree(self._export_temp_dir, ignore_errors=True)
+
+
+def build_line_inventory_export_response(
+    *,
+    formato: str,
+    filters: dict,
+    split_threshold: int = EXPORT_SPLIT_THRESHOLD,
+) -> StreamingHttpResponse:
+    export = generate_line_inventory_export(
+        formato=formato, filters=filters, split_threshold=split_threshold
+    )
+    response = _CleanupStreamingHttpResponse(
+        _stream_and_cleanup(export.path, export.temp_dir),
+        temp_dir=export.temp_dir,
+        content_type=export.content_type,
+    )
+    response["Content-Disposition"] = f'attachment; filename="{export.filename}"'
+    response["Cache-Control"] = "private, no-store"
+    return response
