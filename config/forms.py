@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -8,6 +9,31 @@ from django.utils.text import get_valid_filename
 from pendencies.models import AllocationPendency
 from telecom.models import LineDailyActionAuditEvent, PhoneLine, PhoneLineHistory
 from telecom.whatsapp_seal import WhatsAppSeal, WhatsAppSealPayment
+
+# REPORTS_SENIOR_REVIEW achado 3: Alocacoes/Historico da linha/Inventario de
+# linhas/Pendencias calculam o limite exclusivo do periodo somando 1 dia a
+# `data_final` (ver `_period_bounds` em core/services/*_report_service.py).
+# Com data_final=date.max esse `+ timedelta(days=1)` estoura
+# (`OverflowError: date value out of range`) antes de qualquer consulta ao
+# banco — nunca capturado pela view. O ultimo `data_final` calculavel sem
+# estourar e portanto date.max menos 1 dia; validado aqui como erro de
+# campo (mesmo form usado por consulta e exportacao), nao como excecao
+# tratada dentro do servico. Indicadores diarios e Selos WhatsApp NAO usam
+# esse `+1 dia` (seus `_period_bounds` fecham em `time.max` do proprio
+# `data_final`, sem aritmetica de data) e por isso nao precisam deste
+# limite.
+MAX_PERIOD_END_DATE = date.max - timedelta(days=1)
+
+
+def _validate_period_end_within_representable_bound(form, cleaned_data):
+    data_final = cleaned_data.get("data_final")
+    if data_final and data_final > MAX_PERIOD_END_DATE:
+        form.add_error(
+            "data_final",
+            f"Data final não pode ser posterior a "
+            f"{MAX_PERIOD_END_DATE.strftime('%d/%m/%Y')}.",
+        )
+
 
 REPORT_CHOICES = [
     ("whatsapp_seal", "Selos WhatsApp"),
@@ -183,6 +209,7 @@ class AllocationsReportQueryForm(forms.Form):
             self.add_error(
                 "data_final", "Data final não pode ser anterior à data inicial."
             )
+        _validate_period_end_within_representable_bound(self, cleaned_data)
         return cleaned_data
 
 
@@ -255,6 +282,7 @@ class LineHistoryReportQueryForm(forms.Form):
             self.add_error(
                 "data_final", "Data final não pode ser anterior à data inicial."
             )
+        _validate_period_end_within_representable_bound(self, cleaned_data)
         return cleaned_data
 
 
@@ -403,6 +431,7 @@ class LineInventoryReportQueryForm(forms.Form):
             self.add_error(
                 "data_final", "Data final não pode ser anterior à data inicial."
             )
+        _validate_period_end_within_representable_bound(self, cleaned_data)
         return cleaned_data
 
 
@@ -477,4 +506,5 @@ class PendenciesReportQueryForm(forms.Form):
             self.add_error(
                 "data_final", "Data final não pode ser anterior à data inicial."
             )
+        _validate_period_end_within_representable_bound(self, cleaned_data)
         return cleaned_data

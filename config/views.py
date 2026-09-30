@@ -26,7 +26,10 @@ from core.services.allocations_export_service import build_allocations_export_re
 from core.services.allocations_report_service import build_allocations_report
 from core.services.daily_indicators_export_service import build_daily_indicators_export_response
 from core.services.daily_indicators_report_service import build_daily_indicators_report
-from core.services.line_history_export_service import build_line_history_export_response
+from core.services.line_history_export_service import (
+    LineHistoryExportCellTooLongError,
+    build_line_history_export_response,
+)
 from core.services.line_history_report_service import build_line_history_report
 from core.services.line_inventory_export_service import build_line_inventory_export_response
 from core.services.line_inventory_report_service import build_line_inventory_report
@@ -369,6 +372,27 @@ class ReportsExportView(RoleRequiredMixin, View):
         if cleaned_data["relatorio"] == "pendencies":
             return build_pendencies_export_response(formato=formato, filters=filters)
         if cleaned_data["relatorio"] == "line_history":
+            if formato == "xlsx":
+                # REPORTS_SENIOR_REVIEW achado 1: `changes_label` pode
+                # exceder o limite fisico de caracteres por celula do
+                # Excel (ver LineHistoryExportCellTooLongError). Excecao
+                # ESPECIFICA e esperada — nunca um `except Exception`
+                # generico que mascare outras falhas internas como 400.
+                try:
+                    return build_line_history_export_response(
+                        formato=formato, filters=filters
+                    )
+                except LineHistoryExportCellTooLongError as exc:
+                    context = {
+                        "report_choices": REPORT_CHOICES,
+                        "raw": {
+                            name: request.GET.get(name, "")
+                            for name in ALL_REPORT_PARAM_NAMES
+                        },
+                        "attempted": True,
+                        "query_error": str(exc),
+                    }
+                    return render(request, "reports/home.html", context, status=400)
             return build_line_history_export_response(formato=formato, filters=filters)
         if cleaned_data["relatorio"] == "daily_indicators":
             return build_daily_indicators_export_response(formato=formato, filters=filters)
