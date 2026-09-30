@@ -17,10 +17,12 @@ import tempfile
 import zipfile
 from dataclasses import dataclass
 from datetime import date, datetime
+from datetime import timezone as dt_timezone
 from typing import Iterator
 
 import openpyxl
 from openpyxl.cell import WriteOnlyCell
+from openpyxl.writer.excel import ExcelWriter
 from django.http import StreamingHttpResponse
 from django.utils import timezone
 
@@ -115,6 +117,17 @@ def _row_to_xlsx_cells(worksheet, row: WhatsAppSealReportRow) -> list:
                 cell = WriteOnlyCell(worksheet, value=value)
                 cell.number_format = "DD/MM/YYYY"
                 cells.append(cell)
+        elif isinstance(value, str) and _looks_like_formula(value):
+            # openpyxl infere data_type='f' (formula) para string que comece
+            # por '=' atribuida diretamente a uma celula, mesmo em
+            # WriteOnlyCell — o contrato (REL-07) exige texto puro, nunca
+            # formula, no XLSX. Forcar data_type='s' apos a construcao (nao
+            # no `value=` do construtor, que reexecuta a mesma inferencia)
+            # grava a string literal sem interpretacao. Mesmo padrao ja
+            # validado em core/services/allocations_export_service.py.
+            cell = WriteOnlyCell(worksheet, value=value)
+            cell.data_type = "s"
+            cells.append(cell)
         else:
             cells.append(value)
     return cells
@@ -163,6 +176,27 @@ def _write_csv_chunk(path: str, rows: Iterator[WhatsAppSealReportRow], threshold
     return written
 
 
+def _close_abandoned_workbook(workbook) -> None:
+    """Fecha um workbook write-only abandonado antes de `save()` — mesmo
+    raciocinio e mesma correcao de vazamento de arquivo temporario interno
+    do openpyxl (`sheet._writer.out`/`ALL_TEMP_FILES`, ver
+    REPORTS_SENIOR_REVIEW achado 2) ja documentados em
+    core/services/allocations_export_service."""
+    for sheet in workbook.worksheets:
+        if getattr(sheet, "_rows", None) is not None and not sheet.closed:
+            try:
+                sheet.close()
+            except Exception:
+                pass
+        writer = getattr(sheet, "_writer", None)
+        if writer is not None:
+            try:
+                writer.cleanup()
+            except Exception:
+                pass
+    workbook.close()
+
+
 def _write_xlsx_chunk(path: str, rows: Iterator[WhatsAppSealReportRow], threshold: int):
     """Mesmo contrato de `_write_csv_chunk`, mas para XLSX: os dados sao
     escritos de imediato (write-only, sem materializar linhas em memoria),
@@ -173,10 +207,46 @@ def _write_xlsx_chunk(path: str, rows: Iterator[WhatsAppSealReportRow], threshol
     sheet = workbook.create_sheet("Selos WhatsApp")
     sheet.append(COLUMNS)
     written = 0
-    for row in itertools.islice(rows, threshold):
-        sheet.append(_row_to_xlsx_cells(sheet, row))
-        written += 1
+    try:
+        for row in itertools.islice(rows, threshold):
+            sheet.append(_row_to_xlsx_cells(sheet, row))
+            written += 1
+    except Exception:
+        # Sem isto, uma falha no meio do iterator abandona o worksheet
+        # write-only com seu generator interno suspenso; o GC eventual o
+        # fecha fora de ordem e emite "ValueError: I/O operation on closed
+        # file" como warning nao tratado, alem de vazar o arquivo temporario
+        # interno do openpyxl (REPORTS_SENIOR_REVIEW achado 2).
+        _close_abandoned_workbook(workbook)
+        raise
     return workbook, written
+
+
+def _save_xlsx_workbook(workbook, path: str) -> None:
+    """Salva `workbook` em `path` sendo dono explicito do arquivo ZIP de
+    saida — nao apenas `workbook.save(path)` — ver docstring completa em
+    core/services/allocations_export_service. Fechamento em falha usa
+    `archive.close()` normal (metodo publico do `zipfile`), nao mais
+    manipulacao direta de `archive.fp`: essa tentativa anterior confundia
+    fechar o recurso com entregar o recurso — a entrega HTTP ja e
+    impedida pela propagacao da excecao (nunca chega a
+    `build_whatsapp_seal_export_response`) e pela remocao de `temp_dir`
+    no `except` externo de `generate_whatsapp_seal_export`, qualquer que
+    seja o conteudo do ZIP parcial no disco. Falha SECUNDARIA durante
+    este `close()` de limpeza nao substitui a excecao original (por isso
+    e engolida so aqui, ponto estreito e documentado). `archive.fp` nao
+    e mais tocado. `workbook.properties.modified` e atualizado aqui para
+    preservar o mesmo comportamento de `Workbook.save(path)`."""
+    workbook.properties.modified = datetime.now(dt_timezone.utc).replace(tzinfo=None)
+    archive = zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED, allowZip64=True)
+    try:
+        ExcelWriter(workbook, archive).save()
+    except Exception:
+        try:
+            archive.close()
+        except Exception:
+            pass
+        raise
 
 
 def _finalize_xlsx_chunk(
@@ -202,7 +272,7 @@ def _finalize_xlsx_chunk(
     if num_parts > 1:
         context_sheet.append(["Parte", f"{part_index} de {num_parts}"])
 
-    workbook.save(path)
+    _save_xlsx_workbook(workbook, path)
 
 
 def _build_base_name(data_inicial: date, data_final: date, generated_at: datetime) -> str:
@@ -245,6 +315,12 @@ def generate_whatsapp_seal_export(
     generated_at = timezone.now()
 
     temp_dir = tempfile.mkdtemp(prefix="lineops_reports_export_")
+    # Declarado ANTES do try: se uma excecao ocorrer antes/durante o
+    # preenchimento desta lista, o except abaixo ainda precisa fecha-la
+    # (workbooks write-only ja criados e ainda nao salvos nao podem ficar
+    # para o GC fechar fora de ordem, nem vazar o temporario interno do
+    # openpyxl — REPORTS_SENIOR_REVIEW achado 2).
+    xlsx_parts = []  # (workbook, path) — save() adiado ate total/num_parts conhecidos
     try:
         rows = iter_whatsapp_seal_report_rows(reference_date=reference_date, **filters)
 
@@ -253,7 +329,6 @@ def generate_whatsapp_seal_export(
 
         part_paths = []
         part_counts = []
-        xlsx_parts = []  # (workbook, path) — save() adiado ate total/num_parts conhecidos
         part_index = 0
         while True:
             part_index += 1
@@ -277,7 +352,7 @@ def generate_whatsapp_seal_export(
                 if formato == "csv":
                     os.remove(part_path)
                 else:
-                    workbook.close()
+                    _close_abandoned_workbook(workbook)
                 part_index -= 1
                 break
 
@@ -330,6 +405,15 @@ def generate_whatsapp_seal_export(
             temp_dir=temp_dir,
         )
     except Exception:
+        # O arquivo ZIP de saida de uma falha durante `_finalize_xlsx_chunk`
+        # ja e fechado explicitamente dentro de `_save_xlsx_workbook`
+        # (traceback.clear_frames foi tentado antes e descartado por nao
+        # alcancar exc.__cause__/exc.__context__ de uma excecao encadeada,
+        # ver docstring de `_save_xlsx_workbook` em
+        # core/services/allocations_export_service) — resta so fechar os
+        # worksheets write-only ainda nao salvos.
+        for pending_workbook, _pending_path in xlsx_parts:
+            _close_abandoned_workbook(pending_workbook)
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise
 

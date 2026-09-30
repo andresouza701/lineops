@@ -807,6 +807,103 @@ class WhatsAppSealExportContentTests(TestCase):
         csv_rows = self._read_csv_rows(self.client.get(_export_url("csv", _base_pairs())))
         self.assertEqual(len(csv_rows), 2)
 
+    def test_xlsx_seal_email_starting_with_equals_stored_as_plain_string_not_formula(self):
+        """Achado da auditoria pre-REL-10-V (docs/superpowers/specs/2026-09-22-
+        reports-hub-design.md): _row_to_xlsx_cells nao protegia NENHUM prefixo
+        no XLSX (so o CSV, via _csv_text). openpyxl so promove data_type='f'
+        para strings iniciadas por '=' (confirmado em Cell._bind_value,
+        venv/Lib/site-packages/openpyxl/cell/cell.py); '+'/'-'/'@' ja nascem
+        'texto' (data_type='s') mesmo sem protecao alguma, entao esta e a
+        unica entrada que reproduz o defeito real (RED antes da correcao).
+        Payload '=1+1' inofensivo: basta comecar por '=' para o openpyxl
+        promover data_type='f' — nao precisa referenciar execucao de
+        aplicativo (DDE) para comprovar o defeito de serializacao."""
+        _make_line(
+            "+5511900008001",
+            activated_on=date(2026, 9, 10),
+            expires_on=date(2026, 10, 1),
+            seal_email="=1+1",
+        )
+        response = self.client.get(_export_url("xlsx", _base_pairs()))
+        self.assertEqual(response.status_code, 200)
+        content = b"".join(response.streaming_content) if response.streaming else response.content
+        workbook = openpyxl.load_workbook(io.BytesIO(content), data_only=False)
+        sheet = workbook["Selos WhatsApp"]
+        cell = sheet.cell(row=2, column=5)  # E-mail cadastrado
+        self.assertEqual(cell.data_type, "s")
+        self.assertEqual(cell.value, "=1+1")
+
+    def test_xlsx_seal_email_plus_minus_at_prefixes_were_never_typed_as_formula(self):
+        """'+'/'-'/'@' nunca foram promovidos a formula pelo openpyxl (so
+        '=' e' o gatilho real, ver teste acima) — este teste passa tanto
+        antes quanto depois da correcao; existe para nao alegar retroativa-
+        mente que esses tres prefixos eram um defeito corrigido aqui."""
+        for index, prefixo in enumerate(("+55110000000", "-1+1", "@SUM(1,1)")):
+            _make_line(
+                f"+551190000900{index}",
+                activated_on=date(2026, 9, 10),
+                expires_on=date(2026, 10, 1),
+                seal_email=prefixo,
+            )
+            response = self.client.get(_export_url("xlsx", _base_pairs()))
+            self.assertEqual(response.status_code, 200)
+            content = b"".join(response.streaming_content) if response.streaming else response.content
+            workbook = openpyxl.load_workbook(io.BytesIO(content), data_only=False)
+            sheet = workbook["Selos WhatsApp"]
+            matches = [
+                row for row in sheet.iter_rows(min_row=2, values_only=True) if row[4] == prefixo
+            ]
+            self.assertTrue(matches, f"linha com e-mail {prefixo!r} nao encontrada no XLSX")
+            cell_row_idx = next(
+                r for r in range(2, sheet.max_row + 1) if sheet.cell(row=r, column=5).value == prefixo
+            )
+            self.assertEqual(sheet.cell(row=cell_row_idx, column=5).data_type, "s")
+
+    def test_xlsx_activation_date_remains_typed_after_formula_protection(self):
+        """A protecao de formula so se aplica as colunas de TEXTO
+        (_DATE_COLUMNS marca quais nao sao); confirma que a correcao nao
+        forcou datas legitimas a texto."""
+        _make_line(
+            "+5511900009999",
+            activated_on=date(2026, 9, 10),
+            expires_on=date(2026, 10, 1),
+            seal_email="=nao deveria virar formula, mas nao e o campo testado aqui",
+        )
+        response = self.client.get(_export_url("xlsx", _base_pairs()))
+        self.assertEqual(response.status_code, 200)
+        content = b"".join(response.streaming_content) if response.streaming else response.content
+        workbook = openpyxl.load_workbook(io.BytesIO(content), data_only=False)
+        sheet = workbook["Selos WhatsApp"]
+        cell = sheet.cell(row=2, column=3)  # Ativação do selo
+        value = cell.value.date() if hasattr(cell.value, "date") else cell.value
+        self.assertEqual(value, date(2026, 9, 10))
+        self.assertEqual(cell.number_format, "DD/MM/YYYY")
+
+    def test_xlsx_context_sheet_filters_cell_safe_with_formula_like_linha_filter(self):
+        """A aba Contexto grava ["Filtros", filters_label]; filters_label
+        sempre comeca com o texto fixo "Período: ", entao mesmo um filtro
+        `linha` iniciado por '=' nao faz a CELULA inteira comecar por '=' —
+        confirma que a composicao atual ja e segura por construcao, sem
+        exigir protecao adicional na aba Contexto."""
+        _make_line("+5511900010001", activated_on=date(2026, 9, 10), expires_on=date(2026, 10, 1))
+        response = self.client.get(
+            _export_url("xlsx", _base_pairs(linha="=1+1"))
+        )
+        self.assertEqual(response.status_code, 200)
+        content = b"".join(response.streaming_content) if response.streaming else response.content
+        workbook = openpyxl.load_workbook(io.BytesIO(content), data_only=False)
+        context_sheet = workbook["Contexto"]
+        filtros_row = next(row for row in context_sheet.iter_rows(values_only=True) if row[0] == "Filtros")
+        filtros_value = filtros_row[1]
+        self.assertFalse(filtros_value.startswith(("=", "+", "-", "@")))
+        self.assertIn("=1+1", filtros_value)
+        cell = next(
+            context_sheet.cell(row=r, column=2)
+            for r in range(1, context_sheet.max_row + 1)
+            if context_sheet.cell(row=r, column=1).value == "Filtros"
+        )
+        self.assertEqual(cell.data_type, "s")
+
 
 class WhatsAppSealExportVolumeTests(TestCase):
     """Fronteira de divisao em partes/ZIP acima de 100.000 linhas.
@@ -957,6 +1054,239 @@ class ReportExportStreamingCleanupTests(TestCase):
 
         self.assertIn("temp_dir", captured)
         self.assertFalse(os.path.exists(captured["temp_dir"]))
+
+    def test_temp_dir_removed_and_xlsx_workbook_closed_when_generation_fails(self):
+        """Repropositado no REPORTS_SENIOR_REVIEW achado 2: ate entao,
+        `_write_xlsx_chunk` deste exportador nao tinha try/except algum (o
+        unico exportador dos seis nessa condicao) — uma falha no meio da
+        escrita XLSX write-only nunca fechava o workbook abandonado, nem
+        removia `temp_dir` (o `except` externo so existia depois de
+        `xlsx_parts` ser declarado DENTRO do try, entao nem alcancava as
+        partes ja escritas). Mesmo padrao ja comprovado para os outros cinco
+        relatorios (ver AllocationsExportStreamingCleanupTests)."""
+        import os
+        from unittest import mock
+
+        from core.services import report_export_service
+
+        _make_line("+5511900009005", activated_on=date(2026, 9, 10), expires_on=date(2026, 10, 1))
+        captured = {}
+        original_mkdtemp = report_export_service.tempfile.mkdtemp
+
+        def _capture_mkdtemp(*args, **kwargs):
+            path = original_mkdtemp(*args, **kwargs)
+            captured["temp_dir"] = path
+            return path
+
+        def _boom(worksheet, row):
+            raise RuntimeError("boom")
+
+        with mock.patch.object(
+            report_export_service, "_row_to_xlsx_cells", side_effect=_boom
+        ):
+            with mock.patch.object(
+                report_export_service.tempfile, "mkdtemp", side_effect=_capture_mkdtemp
+            ):
+                with self.assertRaises(RuntimeError):
+                    report_export_service.generate_whatsapp_seal_export(
+                        formato="xlsx", filters=self._filters()
+                    )
+
+        self.assertIn("temp_dir", captured)
+        self.assertFalse(os.path.exists(captured["temp_dir"]))
+
+    def test_no_leaked_openpyxl_internal_temp_file_when_generation_fails_immediately(self):
+        """REPORTS_SENIOR_REVIEW (.git/REPORTS_SENIOR_REVIEW.md) achado 2:
+        alem de nao fechar o workbook abandonado (teste acima), o arquivo
+        temporario INTERNO do openpyxl (`sheet._writer.out`, fora de
+        `temp_dir`, registrado em `ALL_TEMP_FILES`) tambem vazava — XML de
+        927 bytes para workbook vazio abandonado, na revisao senior."""
+        from core.services import report_export_service
+        from openpyxl.worksheet._writer import ALL_TEMP_FILES
+
+        _make_line("+5511900009006", activated_on=date(2026, 9, 10), expires_on=date(2026, 10, 1))
+
+        def _boom(worksheet, row):
+            raise RuntimeError("boom")
+
+        baseline = set(ALL_TEMP_FILES)
+        with mock.patch.object(
+            report_export_service, "_row_to_xlsx_cells", side_effect=_boom
+        ):
+            with self.assertRaises(RuntimeError):
+                report_export_service.generate_whatsapp_seal_export(
+                    formato="xlsx", filters=self._filters()
+                )
+
+        leaked = set(ALL_TEMP_FILES) - baseline
+        self.assertEqual(
+            leaked, set(),
+            f"arquivo temporario interno do openpyxl nao removido: {leaked}",
+        )
+        for path in leaked:
+            self.assertFalse(os.path.exists(path))
+
+    def test_no_leaked_openpyxl_internal_temp_file_when_generation_fails_after_one_row(self):
+        """Mesmo caso acima, mas com UMA linha real escrita antes da falha
+        (XML residual de 34.208 bytes na revisao senior — nao apenas o
+        cabecalho vazio)."""
+        from core.services import report_export_service
+        from openpyxl.worksheet._writer import ALL_TEMP_FILES
+
+        _make_line("+5511900009007", activated_on=date(2026, 9, 10), expires_on=date(2026, 10, 1))
+        _make_line("+5511900009008", activated_on=date(2026, 9, 10), expires_on=date(2026, 10, 1))
+
+        real_row_to_xlsx_cells = report_export_service._row_to_xlsx_cells
+        calls = {"count": 0}
+
+        def _fail_on_second_row(worksheet, row):
+            calls["count"] += 1
+            if calls["count"] >= 2:
+                raise RuntimeError("boom")
+            return real_row_to_xlsx_cells(worksheet, row)
+
+        baseline = set(ALL_TEMP_FILES)
+        with mock.patch.object(
+            report_export_service, "_row_to_xlsx_cells", side_effect=_fail_on_second_row
+        ):
+            with self.assertRaises(RuntimeError):
+                report_export_service.generate_whatsapp_seal_export(
+                    formato="xlsx", filters=self._filters()
+                )
+
+        leaked = set(ALL_TEMP_FILES) - baseline
+        self.assertEqual(
+            leaked, set(),
+            f"arquivo temporario interno do openpyxl nao removido: {leaked}",
+        )
+        for path in leaked:
+            self.assertFalse(os.path.exists(path))
+
+    def test_temp_dir_and_internal_openpyxl_files_removed_when_xlsx_finalization_fails(self):
+        """REPORTS_SENIOR_REVIEW: os testes acima mockam `_row_to_xlsx_cells`
+        — falha durante a CONVERSAO da linha, nunca durante save()/
+        finalizacao real (`ws.close()` real + arquivamento no ZIP +
+        `writer.cleanup()`, dentro de
+        openpyxl.writer.excel.ExcelWriter.write_worksheet). Este teste
+        instrumenta `zipfile.ZipFile.write` (unico ponto de I/O usado por
+        `write_worksheet` para copiar o XML de um worksheet write-only ja
+        fechado para o arquivo final) SEM substituir o exportador. Achado
+        adicional identificado ao escrever este teste (nao um dos tres
+        originais): sem `traceback.clear_frames` no `except` de
+        `generate_whatsapp_seal_export`, o ZipFile de destino ficava aberto
+        (preso pelo traceback) e `temp_dir` sobrevivia no Windows —
+        corrigido junto com o achado 2 (mesmo mecanismo de limpeza)."""
+        import os
+        import zipfile
+
+        from core.services import report_export_service
+        from openpyxl.worksheet._writer import ALL_TEMP_FILES
+
+        _make_line("+5511900009009", activated_on=date(2026, 9, 10), expires_on=date(2026, 10, 1))
+
+        def _fail_on_archive_write(self_zip, filename, arcname=None, **kwargs):
+            raise RuntimeError("boom-disk-full-during-finalization")
+
+        baseline = set(ALL_TEMP_FILES)
+        captured = {}
+        original_mkdtemp = report_export_service.tempfile.mkdtemp
+
+        def _capture_mkdtemp(*args, **kwargs):
+            path = original_mkdtemp(*args, **kwargs)
+            captured["temp_dir"] = path
+            return path
+
+        with mock.patch.object(zipfile.ZipFile, "write", new=_fail_on_archive_write):
+            with mock.patch.object(
+                report_export_service.tempfile, "mkdtemp", side_effect=_capture_mkdtemp
+            ):
+                with self.assertRaises(RuntimeError) as ctx:
+                    report_export_service.generate_whatsapp_seal_export(
+                        formato="xlsx", filters=self._filters()
+                    )
+
+        self.assertEqual(str(ctx.exception), "boom-disk-full-during-finalization")
+        self.assertIn("temp_dir", captured)
+        self.assertFalse(
+            os.path.exists(captured["temp_dir"]),
+            "temp_dir proprio do exportador nao removido apos falha na finalizacao XLSX",
+        )
+
+        leaked = set(ALL_TEMP_FILES) - baseline
+        self.assertEqual(
+            leaked, set(),
+            f"arquivo temporario interno do openpyxl nao removido apos falha na finalizacao: {leaked}",
+        )
+        for path in leaked:
+            self.assertFalse(os.path.exists(path))
+
+    def test_temp_dir_removed_when_finalization_fails_with_chained_exception_kept_alive(self):
+        """REPORTS_SENIOR_REVIEW, secao 'Revisao especifica de
+        traceback.clear_frames': o teste acima usa excecao SIMPLES —
+        insuficiente para provar a limpeza contra uma excecao ENCADEADA
+        (`raise RuntimeError(...) from OSError(...)`), onde o `ZipFile` de
+        saida pode ficar referenciado apenas pelo traceback da CAUSA. Ver
+        docstring completa em
+        AllocationsExportStreamingCleanupTests::test_temp_dir_removed_when_finalization_fails_with_chained_exception_kept_alive.
+        Excecao e causa mantidas VIVAS (`exc_holder`, sem `del`/`gc.collect()`)
+        durante toda a verificacao."""
+        import os
+        import zipfile
+
+        from core.services import report_export_service
+        from openpyxl.worksheet._writer import ALL_TEMP_FILES
+
+        _make_line("+5511900009010", activated_on=date(2026, 9, 10), expires_on=date(2026, 10, 1))
+
+        def _raise_deep_oserror(archive_ref):
+            raise OSError("disk full (simulated, chained)")
+
+        def _fail_with_chained_exception(self_zip, filename, arcname=None, **kwargs):
+            try:
+                _raise_deep_oserror(self_zip)
+            except OSError as cause:
+                raise RuntimeError("boom-chained-during-finalization") from cause
+
+        baseline = set(ALL_TEMP_FILES)
+        captured = {}
+        original_mkdtemp = report_export_service.tempfile.mkdtemp
+
+        def _capture_mkdtemp(*args, **kwargs):
+            path = original_mkdtemp(*args, **kwargs)
+            captured["temp_dir"] = path
+            return path
+
+        exc_holder = {}
+        with mock.patch.object(zipfile.ZipFile, "write", new=_fail_with_chained_exception):
+            with mock.patch.object(
+                report_export_service.tempfile, "mkdtemp", side_effect=_capture_mkdtemp
+            ):
+                try:
+                    report_export_service.generate_whatsapp_seal_export(
+                        formato="xlsx", filters=self._filters()
+                    )
+                    self.fail("esperava RuntimeError encadeado a partir de OSError")
+                except RuntimeError as exc:
+                    exc_holder["exc"] = exc
+
+        self.assertEqual(str(exc_holder["exc"]), "boom-chained-during-finalization")
+        self.assertIsInstance(exc_holder["exc"].__cause__, OSError)
+
+        self.assertIn("temp_dir", captured)
+        self.assertFalse(
+            os.path.exists(captured["temp_dir"]),
+            "temp_dir sobrevive quando o ZipFile fica preso pelo traceback da CAUSA",
+        )
+
+        leaked = set(ALL_TEMP_FILES) - baseline
+        self.assertEqual(
+            leaked, set(),
+            f"arquivo temporario interno do openpyxl nao removido: {leaked}",
+        )
+        for path in leaked:
+            self.assertFalse(os.path.exists(path))
+
+        self.assertIsNotNone(exc_holder["exc"].__cause__)
 
 
 class WhatsAppSealExportSplitBoundaryTests(TestCase):

@@ -1,0 +1,56 @@
+[
+  {
+    "file": "full-1280-false.csv",
+    "characters": 40019,
+    "exact": true
+  },
+  {
+    "file": "full-1280-true.csv",
+    "characters": 40019,
+    "exact": true
+  },
+  {
+    "file": "full-360-false.csv",
+    "characters": 40019,
+    "exact": true
+  },
+  {
+    "file": "full-360-true.csv",
+    "characters": 40019,
+    "exact": true
+  },
+  {
+    "file": "full-390-false.csv",
+    "characters": 40019,
+    "exact": true
+  },
+  {
+    "file": "full-390-true.csv",
+    "characters": 40019,
+    "exact": true
+  },
+  {
+    "file": "normal-1280-false.xlsx",
+    "exact": true
+  },
+  {
+    "file": "normal-1280-true.xlsx",
+    "exact": true
+  },
+  {
+    "file": "normal-360-false.xlsx",
+    "exact": true
+  },
+  {
+    "file": "normal-360-true.xlsx",
+    "exact": true
+  },
+  {
+    "file": "normal-390-false.xlsx",
+    "exact": true
+  },
+  {
+    "file": "normal-390-true.xlsx",
+    "exact": true
+  }
+]

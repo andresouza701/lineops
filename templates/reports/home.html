@@ -11,7 +11,7 @@
 
     <div class="card shadow-sm border-0 mb-4">
         <div class="card-body p-4">
-            <form class="row g-3" method="get" action="{% url 'reports_home' %}" style="color-scheme: dark;">
+            <form class="row g-3 align-items-end mb-3" method="get" action="{% url 'reports_home' %}" style="color-scheme: dark;" aria-label="Selecionar relatório" data-no-loading="true">
                 <div class="col-md-4">
                     <label for="id_relatorio" class="form-label">Relatório</label>
                     <select id="id_relatorio" name="relatorio" class="form-select">
@@ -20,6 +20,16 @@
                         {% endfor %}
                     </select>
                 </div>
+                {% if raw.data_inicial %}<input type="hidden" name="data_inicial" value="{{ raw.data_inicial }}">{% endif %}
+                {% if raw.data_final %}<input type="hidden" name="data_final" value="{{ raw.data_final }}">{% endif %}
+                {% if raw.incluir_excluidos == "1" %}<input type="hidden" name="incluir_excluidos" value="1">{% endif %}
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-outline-light btn-sm">Selecionar relatório</button>
+                </div>
+            </form>
+
+            <form class="row g-3" method="get" action="{% url 'reports_home' %}" style="color-scheme: dark;" aria-label="Filtrar e gerar relatório">
+                <input type="hidden" name="relatorio" value="{{ raw.relatorio }}">
                 <div class="col-md-4">
                     <label for="id_data_inicial" class="form-label">Data inicial</label>
                     <input type="date" id="id_data_inicial" name="data_inicial" value="{{ raw.data_inicial }}" class="form-control">
@@ -97,6 +107,108 @@
                     <label for="id_linha" class="form-label">Linha</label>
                     <input type="text" id="id_linha" name="linha" class="form-control" maxlength="20" value="{{ raw.linha }}" placeholder="Busca parcial">
                 </div>
+                {% elif raw.relatorio == "allocations" %}
+                <div class="col-md-3">
+                    <label for="id_situacao_alocacao" class="form-label">Situação da alocação</label>
+                    <select id="id_situacao_alocacao" name="situacao_alocacao" class="form-select">
+                        <option value=""{% if not raw.situacao_alocacao %} selected{% endif %}>Todas</option>
+                        <option value="ativa"{% if raw.situacao_alocacao == "ativa" %} selected{% endif %}>Ativa</option>
+                        <option value="liberada"{% if raw.situacao_alocacao == "liberada" %} selected{% endif %}>Liberada</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="id_funcionario" class="form-label">Funcionário</label>
+                    <input type="text" id="id_funcionario" name="funcionario" class="form-control" maxlength="40" value="{{ raw.funcionario }}" placeholder="Nome ou carteira">
+                </div>
+                <div class="col-md-3">
+                    <label for="id_linha" class="form-label">Linha</label>
+                    <input type="text" id="id_linha" name="linha" class="form-control" maxlength="20" value="{{ raw.linha }}" placeholder="Busca parcial">
+                </div>
+                {% elif raw.relatorio == "line_history" %}
+                <div class="col-md-3">
+                    <label for="id_tipo_evento" class="form-label">Tipo de evento</label>
+                    <select id="id_tipo_evento" name="tipo_evento" class="form-select">
+                        <option value=""{% if not raw.tipo_evento %} selected{% endif %}>Todos</option>
+                        <option value="CREATED"{% if raw.tipo_evento == "CREATED" %} selected{% endif %}>Criada</option>
+                        <option value="STATUS_CHANGED"{% if raw.tipo_evento == "STATUS_CHANGED" %} selected{% endif %}>Status alterado</option>
+                        <option value="SIMCARD_CHANGED"{% if raw.tipo_evento == "SIMCARD_CHANGED" %} selected{% endif %}>SIMcard alterado</option>
+                        <option value="EMPLOYEE_CHANGED"{% if raw.tipo_evento == "EMPLOYEE_CHANGED" %} selected{% endif %}>Usuário alterado</option>
+                        <option value="DELETED"{% if raw.tipo_evento == "DELETED" %} selected{% endif %}>Excluída</option>
+                        <option value="REACTIVATED"{% if raw.tipo_evento == "REACTIVATED" %} selected{% endif %}>Reativada</option>
+                        <option value="ALLOCATED"{% if raw.tipo_evento == "ALLOCATED" %} selected{% endif %}>Alocada</option>
+                        <option value="RELEASED"{% if raw.tipo_evento == "RELEASED" %} selected{% endif %}>Liberada</option>
+                        <option value="DAILY_ACTION_CHANGED"{% if raw.tipo_evento == "DAILY_ACTION_CHANGED" %} selected{% endif %}>Ação diária alterada</option>
+                        <option value="OPENED"{% if raw.tipo_evento == "OPENED" %} selected{% endif %}>Aberta</option>
+                        <option value="ACTION_CHANGED"{% if raw.tipo_evento == "ACTION_CHANGED" %} selected{% endif %}>Acao alterada</option>
+                        <option value="NOTE_CHANGED"{% if raw.tipo_evento == "NOTE_CHANGED" %} selected{% endif %}>Nota alterada</option>
+                        <option value="RESPONSIBLE_ASSIGNED"{% if raw.tipo_evento == "RESPONSIBLE_ASSIGNED" %} selected{% endif %}>Tecnico assumiu</option>
+                        <option value="RESPONSIBLE_RELEASED"{% if raw.tipo_evento == "RESPONSIBLE_RELEASED" %} selected{% endif %}>Tecnico liberou</option>
+                        <option value="LINE_STATUS_CHANGED"{% if raw.tipo_evento == "LINE_STATUS_CHANGED" %} selected{% endif %}>Status alterado (auditoria)</option>
+                        <option value="RESOLVED"{% if raw.tipo_evento == "RESOLVED" %} selected{% endif %}>Resolvida</option>
+                        <option value="REOPENED"{% if raw.tipo_evento == "REOPENED" %} selected{% endif %}>Reaberta</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="id_fonte_evento" class="form-label">Fonte do evento</label>
+                    <select id="id_fonte_evento" name="fonte_evento" class="form-select">
+                        <option value=""{% if not raw.fonte_evento %} selected{% endif %}>Todas</option>
+                        <option value="PHONE_LINE_HISTORY"{% if raw.fonte_evento == "PHONE_LINE_HISTORY" %} selected{% endif %}>Histórico da linha</option>
+                        <option value="DAILY_USER_ACTION"{% if raw.fonte_evento == "DAILY_USER_ACTION" %} selected{% endif %}>Ações do Dia</option>
+                        <option value="ALLOCATION_PENDENCY"{% if raw.fonte_evento == "ALLOCATION_PENDENCY" %} selected{% endif %}>Pendência</option>
+                        <option value="LINE_ALLOCATION"{% if raw.fonte_evento == "LINE_ALLOCATION" %} selected{% endif %}>Status da linha</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="id_ator" class="form-label">Ator</label>
+                    <input type="text" id="id_ator" name="ator" class="form-control" maxlength="150" value="{{ raw.ator }}" placeholder="Nome ou e-mail">
+                </div>
+                <div class="col-md-3">
+                    <label for="id_linha" class="form-label">Linha</label>
+                    <input type="text" id="id_linha" name="linha" class="form-control" maxlength="20" value="{{ raw.linha }}" placeholder="Busca parcial">
+                </div>
+                {% elif raw.relatorio == "pendencies" %}
+                <div class="col-md-3">
+                    <label for="id_situacao_pendencia" class="form-label">Situação</label>
+                    <select id="id_situacao_pendencia" name="situacao_pendencia" class="form-select">
+                        <option value=""{% if not raw.situacao_pendencia %} selected{% endif %}>Todas</option>
+                        <option value="aberta"{% if raw.situacao_pendencia == "aberta" %} selected{% endif %}>Aberta</option>
+                        <option value="resolvida"{% if raw.situacao_pendencia == "resolvida" %} selected{% endif %}>Resolvida</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="id_motivo_pendencia" class="form-label">Motivo</label>
+                    <select id="id_motivo_pendencia" name="motivo_pendencia" class="form-select">
+                        <option value=""{% if not raw.motivo_pendencia %} selected{% endif %}>Todos</option>
+                        <option value="new_number"{% if raw.motivo_pendencia == "new_number" %} selected{% endif %}>Número Novo</option>
+                        <option value="reconnect_whatsapp"{% if raw.motivo_pendencia == "reconnect_whatsapp" %} selected{% endif %}>Reconectar WhatsApp</option>
+                        <option value="pending"{% if raw.motivo_pendencia == "pending" %} selected{% endif %}>Pendência</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="id_com_responsavel" class="form-label">Responsável</label>
+                    <select id="id_com_responsavel" name="com_responsavel" class="form-select">
+                        <option value=""{% if not raw.com_responsavel %} selected{% endif %}>Todos</option>
+                        <option value="com"{% if raw.com_responsavel == "com" %} selected{% endif %}>Com responsável</option>
+                        <option value="sem"{% if raw.com_responsavel == "sem" %} selected{% endif %}>Sem responsável</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="id_funcionario" class="form-label">Funcionário</label>
+                    <input type="text" id="id_funcionario" name="funcionario" class="form-control" maxlength="40" value="{{ raw.funcionario }}" placeholder="Nome">
+                </div>
+                <div class="col-md-3">
+                    <label for="id_linha" class="form-label">Linha</label>
+                    <input type="text" id="id_linha" name="linha" class="form-control" maxlength="20" value="{{ raw.linha }}" placeholder="Busca parcial">
+                </div>
+                {% elif raw.relatorio == "daily_indicators" %}
+                <div class="col-12">
+                    <p class="text-muted small mb-0">
+                        Uma linha por dia do período. Cada dia reflete a regra de visibilidade histórica já usada pelo painel:
+                        uma linha/usuário excluído hoje continua contado nos dias passados em que estava ativo; o dia atual
+                        sempre reflete o estado real. Não há checkbox "Incluir excluídos" neste relatório porque essa política
+                        não é alternável por dia.
+                    </p>
+                </div>
                 {% else %}
                 <div class="col-md-3">
                     <label for="id_selo" class="form-label">Tipo do selo</label>
@@ -131,12 +243,14 @@
                 </div>
                 {% endif %}
 
+                {% if raw.relatorio != "daily_indicators" %}
                 <div class="col-12">
                     <div class="form-check">
                         <input type="checkbox" id="id_incluir_excluidos" name="incluir_excluidos" value="1" class="form-check-input"{% if raw.incluir_excluidos == "1" %} checked{% endif %}>
                         <label for="id_incluir_excluidos" class="form-check-label">Incluir excluídos</label>
                     </div>
                 </div>
+                {% endif %}
 
                 <div class="col-12">
                     <button type="submit" class="btn btn-primary">Gerar relatório</button>
@@ -157,6 +271,10 @@
             <div class="alert alert-warning mt-4 mb-0" role="alert">
                 {{ engine_unavailable_message }}
             </div>
+            {% endif %}
+
+            {% if form.linha.errors %}
+            <div class="alert alert-danger mt-4 mb-0" role="alert">{{ form.linha.errors.0 }}</div>
             {% endif %}
 
             {% if form and form.errors and not engine_unavailable %}
@@ -266,7 +384,439 @@
     </div>
     {% endif %}
 
-    {% if show_results and raw.relatorio != "line_inventory" %}
+    {% if show_results and raw.relatorio == "allocations" %}
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <p class="text-muted small mb-3">
+                Período consultado: {{ raw.data_inicial }} a {{ raw.data_final }}. Gerado em {{ result.generated_at|date:"d/m/Y H:i" }}.
+            </p>
+
+            <div class="d-flex gap-2 mb-3">
+                <a class="btn btn-outline-light btn-sm" href="{% url 'reports_export' formato='csv' %}?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&situacao_alocacao={{ raw.situacao_alocacao }}&funcionario={{ raw.funcionario }}&linha={{ raw.linha }}">
+                    Exportar CSV
+                </a>
+                <a class="btn btn-outline-light btn-sm" href="{% url 'reports_export' formato='xlsx' %}?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&situacao_alocacao={{ raw.situacao_alocacao }}&funcionario={{ raw.funcionario }}&linha={{ raw.linha }}">
+                    Exportar XLSX
+                </a>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Total de alocações</div>
+                        <div class="fs-5">{{ result.totals.total }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Linhas distintas</div>
+                        <div class="fs-5">{{ result.totals.linhas_distintas }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Funcionários distintos</div>
+                        <div class="fs-5">{{ result.totals.funcionarios_distintos }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Ativas</div>
+                        <div class="fs-5">{{ result.totals.ativas }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Liberadas</div>
+                        <div class="fs-5">{{ result.totals.liberadas }}</div>
+                    </div>
+                </div>
+            </div>
+
+            {% if result.rows %}
+            <div class="table-responsive reports-table-wrap">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Linha</th>
+                            <th>Usuário vinculado</th>
+                            <th>Carteira</th>
+                            <th>Data de alocação</th>
+                            <th>Data de liberação</th>
+                            <th>Situação</th>
+                            <th>Registro da linha</th>
+                            <th>Funcionário excluído</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in result.rows %}
+                        <tr>
+                            <td>{{ row.phone_number }}</td>
+                            <td>{{ row.employee_full_name }}</td>
+                            <td>{{ row.employee_id }}</td>
+                            <td>{{ row.allocated_at|date:"d/m/Y" }}</td>
+                            <td>{{ row.released_at|date:"d/m/Y" }}</td>
+                            <td>{{ row.situacao_label }}</td>
+                            <td>{{ row.registro_label }}</td>
+                            <td>{{ row.funcionario_excluido_label }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if result.num_pages > 1 %}
+            <nav aria-label="Paginação do relatório" class="mt-3">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item {% if result.page_number <= 1 %}disabled{% endif %}">
+                        <a class="page-link" href="?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&situacao_alocacao={{ raw.situacao_alocacao }}&funcionario={{ raw.funcionario }}&linha={{ raw.linha }}&page={{ result.page_number|add:"-1" }}">Anterior</a>
+                    </li>
+                    <li class="page-item disabled"><span class="page-link">Página {{ result.page_number }} de {{ result.num_pages }}</span></li>
+                    <li class="page-item {% if result.page_number >= result.num_pages %}disabled{% endif %}">
+                        <a class="page-link" href="?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&situacao_alocacao={{ raw.situacao_alocacao }}&funcionario={{ raw.funcionario }}&linha={{ raw.linha }}&page={{ result.page_number|add:"1" }}">Próxima</a>
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
+            {% else %}
+            <p class="mb-0">Nenhum resultado para os filtros selecionados.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if show_results and raw.relatorio == "pendencies" %}
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <p class="text-muted small mb-3">
+                Período consultado: {{ raw.data_inicial }} a {{ raw.data_final }}. Gerado em {{ result.generated_at|date:"d/m/Y H:i" }}.
+            </p>
+
+            <div class="d-flex gap-2 mb-3">
+                <a class="btn btn-outline-light btn-sm" href="{% url 'reports_export' formato='csv' %}?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&situacao_pendencia={{ raw.situacao_pendencia }}&motivo_pendencia={{ raw.motivo_pendencia }}&com_responsavel={{ raw.com_responsavel }}&funcionario={{ raw.funcionario }}&linha={{ raw.linha }}">
+                    Exportar CSV
+                </a>
+                <a class="btn btn-outline-light btn-sm" href="{% url 'reports_export' formato='xlsx' %}?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&situacao_pendencia={{ raw.situacao_pendencia }}&motivo_pendencia={{ raw.motivo_pendencia }}&com_responsavel={{ raw.com_responsavel }}&funcionario={{ raw.funcionario }}&linha={{ raw.linha }}">
+                    Exportar XLSX
+                </a>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Total de pendências</div>
+                        <div class="fs-5">{{ result.totals.total }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Linhas distintas</div>
+                        <div class="fs-5">{{ result.totals.linhas_distintas }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Funcionários distintos</div>
+                        <div class="fs-5">{{ result.totals.funcionarios_distintos }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Abertas</div>
+                        <div class="fs-5">{{ result.totals.abertas }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Resolvidas</div>
+                        <div class="fs-5">{{ result.totals.resolvidas }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Sem responsável (abertas)</div>
+                        <div class="fs-5">{{ result.totals.sem_responsavel }}</div>
+                    </div>
+                </div>
+            </div>
+
+            {% if result.rows %}
+            <div class="table-responsive reports-table-wrap">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Linha</th>
+                            <th>Funcionário</th>
+                            <th>Solicitante</th>
+                            <th>Responsável</th>
+                            <th>Situação</th>
+                            <th>Motivo</th>
+                            <th>Tempo em aberto</th>
+                            <th>Registro</th>
+                            <th>Funcionário excluído</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in result.rows %}
+                        <tr>
+                            <td>{{ row.phone_number }}</td>
+                            <td>{{ row.employee_full_name }}</td>
+                            <td>{{ row.solicitante_label }}</td>
+                            <td>{{ row.responsavel_label }}</td>
+                            <td>{{ row.situacao_label }}</td>
+                            <td>{{ row.motivo_label }}</td>
+                            <td>{{ row.tempo_aberto_label }}</td>
+                            <td>{{ row.registro_label }}</td>
+                            <td>{{ row.funcionario_excluido_label }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if result.num_pages > 1 %}
+            <nav aria-label="Paginação do relatório" class="mt-3">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item {% if result.page_number <= 1 %}disabled{% endif %}">
+                        <a class="page-link" href="?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&situacao_pendencia={{ raw.situacao_pendencia }}&motivo_pendencia={{ raw.motivo_pendencia }}&com_responsavel={{ raw.com_responsavel }}&funcionario={{ raw.funcionario }}&linha={{ raw.linha }}&page={{ result.page_number|add:"-1" }}">Anterior</a>
+                    </li>
+                    <li class="page-item disabled"><span class="page-link">Página {{ result.page_number }} de {{ result.num_pages }}</span></li>
+                    <li class="page-item {% if result.page_number >= result.num_pages %}disabled{% endif %}">
+                        <a class="page-link" href="?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&situacao_pendencia={{ raw.situacao_pendencia }}&motivo_pendencia={{ raw.motivo_pendencia }}&com_responsavel={{ raw.com_responsavel }}&funcionario={{ raw.funcionario }}&linha={{ raw.linha }}&page={{ result.page_number|add:"1" }}">Próxima</a>
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
+            {% else %}
+            <p class="mb-0">Nenhum resultado para os filtros selecionados.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if show_results and raw.relatorio == "line_history" %}
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <p class="text-muted small mb-3">
+                Período consultado: {{ raw.data_inicial }} a {{ raw.data_final }}. Gerado em {{ result.generated_at|date:"d/m/Y H:i" }}.
+            </p>
+
+            {% if export_available %}
+            <div class="d-flex gap-2 mb-3">
+                <a class="btn btn-outline-light btn-sm" href="{% url 'reports_export' formato='csv' %}?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&tipo_evento={{ raw.tipo_evento }}&fonte_evento={{ raw.fonte_evento }}&ator={{ raw.ator }}&linha={{ raw.linha }}">
+                    Exportar CSV
+                </a>
+                <a class="btn btn-outline-light btn-sm" href="{% url 'reports_export' formato='xlsx' %}?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&tipo_evento={{ raw.tipo_evento }}&fonte_evento={{ raw.fonte_evento }}&ator={{ raw.ator }}&linha={{ raw.linha }}">
+                    Exportar XLSX
+                </a>
+            </div>
+            {% else %}
+            <p class="text-muted small mb-3">A exportação deste relatório ainda não está disponível nesta etapa.</p>
+            {% endif %}
+
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Total de eventos</div>
+                        <div class="fs-5">{{ result.totals.total_eventos }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Linhas distintas</div>
+                        <div class="fs-5">{{ result.totals.linhas_distintas }}</div>
+                    </div>
+                </div>
+            </div>
+
+            {% if result.rows %}
+            <div class="table-responsive reports-table-wrap">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Linha</th>
+                            <th>Data/hora do evento</th>
+                            <th>Fonte</th>
+                            <th>Tipo de evento</th>
+                            <th>Ator</th>
+                            <th>Alocação relacionada</th>
+                            <th>Alterações</th>
+                            <th>Registro da linha</th>
+                            <th>Funcionário excluído</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in result.rows %}
+                        <tr>
+                            <td>{{ row.phone_number }}</td>
+                            <td>{{ row.occurred_at|date:"d/m/Y H:i" }}</td>
+                            <td>{{ row.source_label }}</td>
+                            <td>{{ row.event_type_label }}</td>
+                            <td>{{ row.actor_label }}</td>
+                            <td>{{ row.allocation_label }}</td>
+                            <td>{{ row.changes_label }}</td>
+                            <td>{{ row.registro_label }}</td>
+                            <td>{{ row.funcionario_excluido_label }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if result.num_pages > 1 %}
+            <nav aria-label="Paginação do relatório" class="mt-3">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item {% if result.page_number <= 1 %}disabled{% endif %}">
+                        <a class="page-link" href="?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&tipo_evento={{ raw.tipo_evento }}&fonte_evento={{ raw.fonte_evento }}&ator={{ raw.ator }}&linha={{ raw.linha }}&page={{ result.page_number|add:"-1" }}">Anterior</a>
+                    </li>
+                    <li class="page-item disabled"><span class="page-link">Página {{ result.page_number }} de {{ result.num_pages }}</span></li>
+                    <li class="page-item {% if result.page_number >= result.num_pages %}disabled{% endif %}">
+                        <a class="page-link" href="?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}&tipo_evento={{ raw.tipo_evento }}&fonte_evento={{ raw.fonte_evento }}&ator={{ raw.ator }}&linha={{ raw.linha }}&page={{ result.page_number|add:"1" }}">Próxima</a>
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
+            {% else %}
+            <p class="mb-0">Nenhum resultado para os filtros selecionados.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if show_results and raw.relatorio == "daily_indicators" %}
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <p class="text-muted small mb-3">
+                Período consultado: {{ raw.data_inicial }} a {{ raw.data_final }}. Gerado em {{ result.generated_at|date:"d/m/Y H:i" }}.
+            </p>
+
+            {% if export_available %}
+            <div class="d-flex gap-2 mb-3">
+                <a class="btn btn-outline-light btn-sm" href="{% url 'reports_export' formato='csv' %}?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}">
+                    Exportar CSV
+                </a>
+                <a class="btn btn-outline-light btn-sm" href="{% url 'reports_export' formato='xlsx' %}?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&incluir_excluidos={{ raw.incluir_excluidos }}">
+                    Exportar XLSX
+                </a>
+            </div>
+            {% else %}
+            <p class="text-muted small mb-3">A exportação deste relatório ainda não está disponível nesta etapa.</p>
+            {% endif %}
+
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Pessoas Logadas</div>
+                        <div class="fs-6">Não aplicável</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">% sem Whats</div>
+                        <div class="fs-6">Não aplicável</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">B2B sem Whats</div>
+                        <div class="fs-6">Não aplicável</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">B2C sem Whats</div>
+                        <div class="fs-6">Não aplicável</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Números Disponíveis</div>
+                        <div class="fs-6">Não aplicável</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Total Descoberto DIA</div>
+                        <div class="fs-6">Não aplicável</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Números Entregues</div>
+                        <div class="fs-5">{{ result.totals.numeros_entregues }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Reconectados</div>
+                        <div class="fs-5">{{ result.totals.reconectados }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <div class="border rounded p-2 text-center">
+                        <div class="small text-muted">Novos</div>
+                        <div class="fs-5">{{ result.totals.novos }}</div>
+                    </div>
+                </div>
+            </div>
+
+            {% if result.rows %}
+            <div class="table-responsive reports-table-wrap">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Pessoas Logadas</th>
+                            <th>% sem Whats</th>
+                            <th>B2B sem Whats</th>
+                            <th>B2C sem Whats</th>
+                            <th>Números Disponíveis</th>
+                            <th>Números Entregues</th>
+                            <th>Reconectados</th>
+                            <th>Novos</th>
+                            <th>Total Descoberto DIA</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in result.rows %}
+                        <tr>
+                            <td>{{ row.data|date:"d/m/Y" }}</td>
+                            <td>{{ row.pessoas_logadas }}</td>
+                            <td>{{ row.perc_sem_whats|floatformat:2 }}%</td>
+                            <td>{{ row.b2b_sem_whats }}</td>
+                            <td>{{ row.b2c_sem_whats }}</td>
+                            <td>{{ row.numeros_disponiveis }}</td>
+                            <td>{{ row.numeros_entregues }}</td>
+                            <td>{{ row.reconectados }}</td>
+                            <td>{{ row.novos }}</td>
+                            <td>{{ row.total_descoberto_dia }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if result.num_pages > 1 %}
+            <nav aria-label="Paginação do relatório" class="mt-3">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item {% if result.page_number <= 1 %}disabled{% endif %}">
+                        <a class="page-link" href="?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&page={{ result.page_number|add:"-1" }}">Anterior</a>
+                    </li>
+                    <li class="page-item disabled"><span class="page-link">Página {{ result.page_number }} de {{ result.num_pages }}</span></li>
+                    <li class="page-item {% if result.page_number >= result.num_pages %}disabled{% endif %}">
+                        <a class="page-link" href="?relatorio={{ raw.relatorio }}&data_inicial={{ raw.data_inicial }}&data_final={{ raw.data_final }}&page={{ result.page_number|add:"1" }}">Próxima</a>
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
+            {% else %}
+            <p class="mb-0">Nenhum resultado para os filtros selecionados.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if show_results and raw.relatorio != "line_inventory" and raw.relatorio != "allocations" and raw.relatorio != "pendencies" and raw.relatorio != "line_history" and raw.relatorio != "daily_indicators" %}
     <div class="card shadow-sm border-0 mb-4">
         <div class="card-body p-4">
             <p class="text-muted small mb-3">

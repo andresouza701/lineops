@@ -1,0 +1,338 @@
+[
+  {
+    "width": 1280,
+    "js": true,
+    "status": 400,
+    "message": "A exportação em XLSX do Histórico da linha não está disponível para este período: um registro da linha 11990000000 (15/09/2026 12:00) tem um campo com 40019 caracteres, acima do limite de 32767 caracteres por célula do Excel. Baixe em CSV para obter o texto completo.",
+    "size": {
+      "client": 1280,
+      "scroll": 1280
+    },
+    "errors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    ],
+    "bad": [
+      {
+        "url": "http://127.0.0.1:8787/relatorios/exportar/xlsx/?relatorio=line_history&data_inicial=2026-09-15&data_final=2026-09-15&incluir_excluidos=&tipo_evento=&fonte_evento=&ator=&linha=11990000000",
+        "status": 400
+      }
+    ],
+    "focused": [
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_tipo_evento",
+        "outline": "none"
+      }
+    ],
+    "csv": "historico_linha_20260915-20260915_20260930T191438.csv",
+    "xlsx": "historico_linha_20260915-20260915_20260930T191438.xlsx"
+  },
+  {
+    "width": 390,
+    "js": true,
+    "status": 400,
+    "message": "A exportação em XLSX do Histórico da linha não está disponível para este período: um registro da linha 11990000000 (15/09/2026 12:00) tem um campo com 40019 caracteres, acima do limite de 32767 caracteres por célula do Excel. Baixe em CSV para obter o texto completo.",
+    "size": {
+      "client": 390,
+      "scroll": 390
+    },
+    "errors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    ],
+    "bad": [
+      {
+        "url": "http://127.0.0.1:8787/relatorios/exportar/xlsx/?relatorio=line_history&data_inicial=2026-09-15&data_final=2026-09-15&incluir_excluidos=&tipo_evento=&fonte_evento=&ator=&linha=11990000000",
+        "status": 400
+      }
+    ],
+    "focused": [
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_tipo_evento",
+        "outline": "none"
+      }
+    ],
+    "csv": "historico_linha_20260915-20260915_20260930T191440.csv",
+    "xlsx": "historico_linha_20260915-20260915_20260930T191440.xlsx"
+  },
+  {
+    "width": 360,
+    "js": true,
+    "status": 400,
+    "message": "A exportação em XLSX do Histórico da linha não está disponível para este período: um registro da linha 11990000000 (15/09/2026 12:00) tem um campo com 40019 caracteres, acima do limite de 32767 caracteres por célula do Excel. Baixe em CSV para obter o texto completo.",
+    "size": {
+      "client": 360,
+      "scroll": 360
+    },
+    "errors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    ],
+    "bad": [
+      {
+        "url": "http://127.0.0.1:8787/relatorios/exportar/xlsx/?relatorio=line_history&data_inicial=2026-09-15&data_final=2026-09-15&incluir_excluidos=&tipo_evento=&fonte_evento=&ator=&linha=11990000000",
+        "status": 400
+      }
+    ],
+    "focused": [
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_tipo_evento",
+        "outline": "none"
+      }
+    ],
+    "csv": "historico_linha_20260915-20260915_20260930T191442.csv",
+    "xlsx": "historico_linha_20260915-20260915_20260930T191442.xlsx"
+  },
+  {
+    "width": 1280,
+    "js": false,
+    "status": 400,
+    "message": "A exportação em XLSX do Histórico da linha não está disponível para este período: um registro da linha 11990000000 (15/09/2026 12:00) tem um campo com 40019 caracteres, acima do limite de 32767 caracteres por célula do Excel. Baixe em CSV para obter o texto completo.",
+    "size": {
+      "client": 1280,
+      "scroll": 1280
+    },
+    "errors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    ],
+    "bad": [
+      {
+        "url": "http://127.0.0.1:8787/relatorios/exportar/xlsx/?relatorio=line_history&data_inicial=2026-09-15&data_final=2026-09-15&incluir_excluidos=&tipo_evento=&fonte_evento=&ator=&linha=11990000000",
+        "status": 400
+      }
+    ],
+    "focused": [
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_tipo_evento",
+        "outline": "none"
+      }
+    ],
+    "csv": "historico_linha_20260915-20260915_20260930T191444.csv",
+    "xlsx": "historico_linha_20260915-20260915_20260930T191444.xlsx"
+  },
+  {
+    "width": 390,
+    "js": false,
+    "status": 400,
+    "message": "A exportação em XLSX do Histórico da linha não está disponível para este período: um registro da linha 11990000000 (15/09/2026 12:00) tem um campo com 40019 caracteres, acima do limite de 32767 caracteres por célula do Excel. Baixe em CSV para obter o texto completo.",
+    "size": {
+      "client": 390,
+      "scroll": 390
+    },
+    "errors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    ],
+    "bad": [
+      {
+        "url": "http://127.0.0.1:8787/relatorios/exportar/xlsx/?relatorio=line_history&data_inicial=2026-09-15&data_final=2026-09-15&incluir_excluidos=&tipo_evento=&fonte_evento=&ator=&linha=11990000000",
+        "status": 400
+      }
+    ],
+    "focused": [
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_tipo_evento",
+        "outline": "none"
+      }
+    ],
+    "csv": "historico_linha_20260915-20260915_20260930T191447.csv",
+    "xlsx": "historico_linha_20260915-20260915_20260930T191447.xlsx"
+  },
+  {
+    "width": 360,
+    "js": false,
+    "status": 400,
+    "message": "A exportação em XLSX do Histórico da linha não está disponível para este período: um registro da linha 11990000000 (15/09/2026 12:00) tem um campo com 40019 caracteres, acima do limite de 32767 caracteres por célula do Excel. Baixe em CSV para obter o texto completo.",
+    "size": {
+      "client": 360,
+      "scroll": 360
+    },
+    "errors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    ],
+    "bad": [
+      {
+        "url": "http://127.0.0.1:8787/relatorios/exportar/xlsx/?relatorio=line_history&data_inicial=2026-09-15&data_final=2026-09-15&incluir_excluidos=&tipo_evento=&fonte_evento=&ator=&linha=11990000000",
+        "status": 400
+      }
+    ],
+    "focused": [
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_inicial",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_data_final",
+        "outline": "none"
+      },
+      {
+        "id": "id_tipo_evento",
+        "outline": "none"
+      }
+    ],
+    "csv": "historico_linha_20260915-20260915_20260930T191449.csv",
+    "xlsx": "historico_linha_20260915-20260915_20260930T191449.xlsx"
+  }
+]

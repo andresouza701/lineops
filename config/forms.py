@@ -5,7 +5,8 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.utils.text import get_valid_filename
 
-from telecom.models import PhoneLine
+from pendencies.models import AllocationPendency
+from telecom.models import LineDailyActionAuditEvent, PhoneLine, PhoneLineHistory
 from telecom.whatsapp_seal import WhatsAppSeal, WhatsAppSealPayment
 
 REPORT_CHOICES = [
@@ -126,6 +127,204 @@ class WhatsAppSealReportQueryForm(forms.Form):
         return cleaned_data
 
 
+class AllocationsReportQueryForm(forms.Form):
+    """Contrato comum (REL-07) + especifico (REL-10-C) da consulta de
+    Alocacoes. Nao valida acesso/role — apenas forma e valores."""
+
+    relatorio = forms.ChoiceField(
+        choices=REPORT_CHOICES,
+        error_messages={
+            "required": "Selecione um relatório.",
+            "invalid_choice": "Relatório desconhecido.",
+        },
+    )
+    data_inicial = forms.DateField(
+        widget=forms.DateInput(attrs={"type": "date"}),
+        error_messages={
+            "required": "Data inicial é obrigatória.",
+            "invalid": "Data inicial inválida.",
+        },
+    )
+    data_final = forms.DateField(
+        widget=forms.DateInput(attrs={"type": "date"}),
+        error_messages={
+            "required": "Data final é obrigatória.",
+            "invalid": "Data final inválida.",
+        },
+    )
+    incluir_excluidos = forms.TypedChoiceField(
+        choices=[("0", "Não"), ("1", "Sim")],
+        required=False,
+        coerce=lambda value: value == "1",
+        empty_value=False,
+        error_messages={"invalid_choice": "Valor inválido para incluir excluídos."},
+    )
+    page = forms.IntegerField(
+        required=False,
+        min_value=1,
+        error_messages={
+            "invalid": "Página inválida.",
+            "min_value": "Página inválida.",
+        },
+    )
+    situacao_alocacao = forms.ChoiceField(
+        choices=[("", "Todas"), ("ativa", "Ativa"), ("liberada", "Liberada")],
+        required=False,
+        error_messages={"invalid_choice": "Situação de alocação desconhecida."},
+    )
+    funcionario = forms.CharField(required=False, max_length=40, strip=True)
+    linha = forms.CharField(required=False, max_length=20, strip=True)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        data_inicial = cleaned_data.get("data_inicial")
+        data_final = cleaned_data.get("data_final")
+        if data_inicial and data_final and data_final < data_inicial:
+            self.add_error(
+                "data_final", "Data final não pode ser anterior à data inicial."
+            )
+        return cleaned_data
+
+
+class LineHistoryReportQueryForm(forms.Form):
+    """Contrato comum (REL-07) + especifico (REL-12-C) da consulta de
+    Historico da linha. Nao valida acesso/role — apenas forma e valores.
+    tipo_evento combina os 9 ActionType (PhoneLineHistory) e os 8 EventType
+    (LineDailyActionAuditEvent), sem colisao de codigos (confirmado em
+    REL-12-C). fonte_evento cobre a fonte legada fixa mais as 3 Source de
+    auditoria — filtro `alocacao` explicitamente fora do escopo (decisao E),
+    nunca adicionado aqui."""
+
+    relatorio = forms.ChoiceField(
+        choices=REPORT_CHOICES,
+        error_messages={
+            "required": "Selecione um relatório.",
+            "invalid_choice": "Relatório desconhecido.",
+        },
+    )
+    data_inicial = forms.DateField(
+        widget=forms.DateInput(attrs={"type": "date"}),
+        error_messages={
+            "required": "Data inicial é obrigatória.",
+            "invalid": "Data inicial inválida.",
+        },
+    )
+    data_final = forms.DateField(
+        widget=forms.DateInput(attrs={"type": "date"}),
+        error_messages={
+            "required": "Data final é obrigatória.",
+            "invalid": "Data final inválida.",
+        },
+    )
+    incluir_excluidos = forms.TypedChoiceField(
+        choices=[("0", "Não"), ("1", "Sim")],
+        required=False,
+        coerce=lambda value: value == "1",
+        empty_value=False,
+        error_messages={"invalid_choice": "Valor inválido para incluir excluídos."},
+    )
+    page = forms.IntegerField(
+        required=False,
+        min_value=1,
+        error_messages={
+            "invalid": "Página inválida.",
+            "min_value": "Página inválida.",
+        },
+    )
+    tipo_evento = forms.ChoiceField(
+        choices=[("", "Todos")]
+        + list(PhoneLineHistory.ActionType.choices)
+        + list(LineDailyActionAuditEvent.EventType.choices),
+        required=False,
+        error_messages={"invalid_choice": "Tipo de evento desconhecido."},
+    )
+    fonte_evento = forms.ChoiceField(
+        choices=[("", "Todas"), ("PHONE_LINE_HISTORY", "Histórico da linha")]
+        + list(LineDailyActionAuditEvent.Source.choices),
+        required=False,
+        error_messages={"invalid_choice": "Fonte de evento desconhecida."},
+    )
+    ator = forms.CharField(required=False, max_length=150, strip=True)
+    linha = forms.CharField(required=False, max_length=20, strip=True)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        data_inicial = cleaned_data.get("data_inicial")
+        data_final = cleaned_data.get("data_final")
+        if data_inicial and data_final and data_final < data_inicial:
+            self.add_error(
+                "data_final", "Data final não pode ser anterior à data inicial."
+            )
+        return cleaned_data
+
+
+class DailyIndicatorsReportQueryForm(forms.Form):
+    """Contrato comum (REL-07) + especifico (REL-13-C) da consulta de
+    Indicadores diarios. Nao valida acesso/role — apenas forma e valores.
+    Sem filtro especifico proprio (REL-13-C secao 3): `linha` e comum a
+    todos os relatorios (REPORT_COMMON_PARAM_NAMES) mas nao tem dimensao
+    aplicavel a um indicador agregado por dia, entao e aceito pelo
+    whitelist e rejeitado explicitamente aqui (400 "nao aplicavel"), em vez
+    de simplesmente ignorado. `incluir_excluidos` continua aceito e
+    validado normalmente (0/1), mas o motor de consulta nunca o le —
+    resultado identico com ou sem o parametro (contrato HTTP documentado em
+    REL-13-C)."""
+
+    relatorio = forms.ChoiceField(
+        choices=REPORT_CHOICES,
+        error_messages={
+            "required": "Selecione um relatório.",
+            "invalid_choice": "Relatório desconhecido.",
+        },
+    )
+    data_inicial = forms.DateField(
+        widget=forms.DateInput(attrs={"type": "date"}),
+        error_messages={
+            "required": "Data inicial é obrigatória.",
+            "invalid": "Data inicial inválida.",
+        },
+    )
+    data_final = forms.DateField(
+        widget=forms.DateInput(attrs={"type": "date"}),
+        error_messages={
+            "required": "Data final é obrigatória.",
+            "invalid": "Data final inválida.",
+        },
+    )
+    incluir_excluidos = forms.TypedChoiceField(
+        choices=[("0", "Não"), ("1", "Sim")],
+        required=False,
+        coerce=lambda value: value == "1",
+        empty_value=False,
+        error_messages={"invalid_choice": "Valor inválido para incluir excluídos."},
+    )
+    page = forms.IntegerField(
+        required=False,
+        min_value=1,
+        error_messages={
+            "invalid": "Página inválida.",
+            "min_value": "Página inválida.",
+        },
+    )
+    linha = forms.CharField(required=False, max_length=20, strip=True)
+
+    def clean_linha(self):
+        linha = self.cleaned_data.get("linha")
+        if linha:
+            raise ValidationError("Parâmetro não aplicável a este relatório: linha.")
+        return linha
+
+    def clean(self):
+        cleaned_data = super().clean()
+        data_inicial = cleaned_data.get("data_inicial")
+        data_final = cleaned_data.get("data_final")
+        if data_inicial and data_final and data_final < data_inicial:
+            self.add_error(
+                "data_final", "Data final não pode ser anterior à data inicial."
+            )
+        return cleaned_data
+
+
 class LineInventoryReportQueryForm(forms.Form):
     """Contrato comum (REL-07) + especifico (REL-09-C, com as definicoes
     aprovadas em 2026-09-25: tokens com/sem para com_selo/com_vinculo e
@@ -194,6 +393,80 @@ class LineInventoryReportQueryForm(forms.Form):
         required=False,
         error_messages={"invalid_choice": "Valor inválido para vínculo."},
     )
+    linha = forms.CharField(required=False, max_length=20, strip=True)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        data_inicial = cleaned_data.get("data_inicial")
+        data_final = cleaned_data.get("data_final")
+        if data_inicial and data_final and data_final < data_inicial:
+            self.add_error(
+                "data_final", "Data final não pode ser anterior à data inicial."
+            )
+        return cleaned_data
+
+
+class PendenciesReportQueryForm(forms.Form):
+    """Contrato comum (REL-07) + especifico (REL-11-C) da consulta de
+    Pendencias. Nao valida acesso/role — apenas forma e valores."""
+
+    relatorio = forms.ChoiceField(
+        choices=REPORT_CHOICES,
+        error_messages={
+            "required": "Selecione um relatório.",
+            "invalid_choice": "Relatório desconhecido.",
+        },
+    )
+    data_inicial = forms.DateField(
+        widget=forms.DateInput(attrs={"type": "date"}),
+        error_messages={
+            "required": "Data inicial é obrigatória.",
+            "invalid": "Data inicial inválida.",
+        },
+    )
+    data_final = forms.DateField(
+        widget=forms.DateInput(attrs={"type": "date"}),
+        error_messages={
+            "required": "Data final é obrigatória.",
+            "invalid": "Data final inválida.",
+        },
+    )
+    incluir_excluidos = forms.TypedChoiceField(
+        choices=[("0", "Não"), ("1", "Sim")],
+        required=False,
+        coerce=lambda value: value == "1",
+        empty_value=False,
+        error_messages={"invalid_choice": "Valor inválido para incluir excluídos."},
+    )
+    page = forms.IntegerField(
+        required=False,
+        min_value=1,
+        error_messages={
+            "invalid": "Página inválida.",
+            "min_value": "Página inválida.",
+        },
+    )
+    situacao_pendencia = forms.ChoiceField(
+        choices=[("", "Todas"), ("aberta", "Aberta"), ("resolvida", "Resolvida")],
+        required=False,
+        error_messages={"invalid_choice": "Situação de pendência desconhecida."},
+    )
+    motivo_pendencia = forms.ChoiceField(
+        choices=[("", "Todos")]
+        + [
+            (value, label)
+            for value, label in AllocationPendency.ActionType.choices
+            if value != AllocationPendency.ActionType.NO_ACTION
+        ],
+        required=False,
+        error_messages={"invalid_choice": "Motivo de pendência desconhecido."},
+    )
+    com_responsavel = forms.ChoiceField(
+        choices=[("", "Todos"), ("com", "Com responsável"), ("sem", "Sem responsável")],
+        required=False,
+        error_messages={"invalid_choice": "Valor inválido para responsável."},
+    )
+    funcionario = forms.CharField(required=False, max_length=40, strip=True)
     linha = forms.CharField(required=False, max_length=20, strip=True)
 
     def clean(self):

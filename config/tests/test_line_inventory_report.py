@@ -287,6 +287,62 @@ class LineInventorySharedValidationAppliesTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
 
+class LineInventoryDateBoundaryOverflowTests(TestCase):
+    """REPORTS_SENIOR_REVIEW (.git/REPORTS_SENIOR_REVIEW.md) achado 3:
+    `_period_bounds` (core/services/line_inventory_report_service.py) soma
+    1 dia a `data_final` para obter o limite exclusivo do periodo (fuso
+    local) — com data_final=date.max isso e `date.max + timedelta(days=1)`,
+    que estoura (`OverflowError: date value out of range`) antes de
+    qualquer consulta ao banco, nunca capturado pela view (500 real). O
+    form agora rejeita esse valor como erro de campo, tanto na consulta
+    quanto na exportacao (mesmo LineInventoryReportQueryForm valida os
+    dois endpoints, ver _validate_report_query_params). Nenhum limite
+    arbitrario de duracao de periodo: apenas a fronteira realmente
+    representavel pelo calculo do limite exclusivo (date.max - 1 dia)."""
+
+    def setUp(self):
+        self.admin = _create_user("admin.inv.dateboundary@test.com", SystemUser.Role.ADMIN)
+        self.client.force_login(self.admin)
+
+    def test_last_supported_end_date_returns_200_on_query(self):
+        response = self.client.get(
+            _report_url(_base_pairs(data_inicial="9999-12-30", data_final="9999-12-30"))
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_last_supported_end_date_returns_200_on_export(self):
+        response = self.client.get(
+            _export_url("csv", _base_pairs(data_inicial="9999-12-30", data_final="9999-12-30"))
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_first_unsupported_end_date_rejected_as_field_error_on_query(self):
+        response = self.client.get(
+            _report_url(_base_pairs(data_inicial="9999-12-31", data_final="9999-12-31"))
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(
+            response,
+            "Data final não pode ser posterior a 30/12/9999.",
+            status_code=400,
+        )
+
+    def test_first_unsupported_end_date_rejected_as_field_error_on_export(self):
+        response = self.client.get(
+            _export_url("csv", _base_pairs(data_inicial="9999-12-31", data_final="9999-12-31"))
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(
+            response,
+            "Data final não pode ser posterior a 30/12/9999.",
+            status_code=400,
+        )
+
+    def test_normal_period_query_unaffected_by_boundary_validation(self):
+        response = self.client.get(_report_url(_base_pairs()))
+        self.assertEqual(response.status_code, 200)
+
+
 class OtherReportStillUnavailableTests(TestCase):
     """Correcao de escopo (REL-09-Q): esta classe se chamava
     LineInventoryUnavailableTodayTests e ancorava "line_inventory ainda sem
@@ -303,22 +359,75 @@ class OtherReportStillUnavailableTests(TestCase):
     exportacao) usando "allocations" — um dos quatro relatorios do
     catalogo REL-01 ainda genuinamente sem motor — em vez de line_inventory,
     preservando a cobertura da mensagem/codigo de "relatorio indisponivel"
-    sem reafirmar algo que deixou de ser verdade."""
+    sem reafirmar algo que deixou de ser verdade.
+
+    Repropositado NOVAMENTE em REL-10-Q (2026-09-28): "allocations" ganhou
+    motor de CONSULTA (REPORT_QUERY_ENGINES), entao a alegacao "nenhum
+    motor" tambem deixou de ser verdade para esse relatorio — mesma
+    divergencia documental do paragrafo acima, agora resolvida trocando o
+    exemplo para "pendencies", que continua genuinamente sem nenhum motor
+    (nem consulta nem exportacao) nesta etapa. Cobertura do pathway
+    generico preservada, nao removida.
+
+    Repropositado UMA TERCEIRA VEZ em REL-11-Q (2026-09-28): "pendencies"
+    ganhou motor de CONSULTA nesta task (REPORT_QUERY_ENGINES), entao a
+    alegacao "nenhum motor" tambem deixou de ser verdade para "pendencies"
+    — mesma divergencia documental dos dois paragrafos acima, agora
+    resolvida trocando o exemplo para "line_history", um dos dois
+    relatorios do catalogo REL-01 que continuam genuinamente sem nenhum
+    motor (nem consulta nem exportacao) nesta etapa (o outro e
+    "daily_indicators"). Cobertura do pathway generico preservada, nao
+    removida. O angulo do DOWNLOAD direto de "pendencies" (que agora cai no
+    ramo distinto "consulta existe, exportacao ainda nao") passou a ser
+    coberto por
+    config/tests/test_pendencies_report.py::PendenciesReportStillUnavailableTests.
+
+    Repropositado UMA QUARTA VEZ em REL-12-Q (2026-09-29): "line_history"
+    ganhou motor de CONSULTA nesta task (REPORT_QUERY_ENGINES), entao a
+    alegacao "nenhum motor" tambem deixou de ser verdade para "line_history"
+    — mesma divergencia documental dos tres paragrafos acima, agora
+    resolvida trocando o exemplo para "daily_indicators", o UNICO relatorio
+    do catalogo REL-01 que continuava genuinamente sem nenhum motor (nem
+    consulta nem exportacao) naquela etapa. O angulo do DOWNLOAD direto de
+    "line_history" (que passou a cair no ramo distinto "consulta existe,
+    exportacao ainda nao") passou a ser coberto por
+    config/tests/test_line_history_report.py::LineHistoryReportEngineUnavailableBaselineTests::
+    test_export_returns_400_export_engine_unavailable_message.
+
+    FECHAMENTO (REL-13-Q, 2026-09-30): "daily_indicators" ganhou motor de
+    CONSULTA nesta task — os 6 relatorios do catalogo REL-01 agora tem
+    consulta. Nao ha setimo relatorio para reproposicionar mais uma vez
+    (enunciado desta task veda inventar um), entao o pathway generico
+    "relatorio do catalogo genuinamente sem NENHUM motor" fica sem nenhum
+    exemplo real do catalogo — nao e uma lacuna de cobertura: a cobertura
+    de "identificador de relatorio desconhecido" (fora do catalogo) ja
+    existe e continua em
+    config/tests/test_whatsapp_seal_report.py::
+    WhatsAppSealReportParameterValidationTests::
+    test_unknown_relatorio_value_rejected (nao duplicada aqui); o angulo do
+    DOWNLOAD direto de "daily_indicators" (que agora cai no mesmo ramo
+    "consulta existe, exportacao ainda nao" que "pendencies"/"line_history"
+    ja cobriam) passou a ser coberto por
+    config/tests/test_daily_indicators_report.py::
+    DailyIndicatorsExportEngineUnavailableBaselineTests::
+    test_export_direct_access_still_returns_400_export_engine_unavailable_message.
+    Este teste (`test_daily_indicators_report_still_returns_400_engine_unavailable`)
+    e retirado — nao substituido por um setimo relatorio fictício — porque
+    o cenario que ele documentava (relatorio real do catalogo sem NENHUM
+    motor) deixou de existir no dominio; a classe permanece como registro
+    historico das quatro reproposicoes anteriores."""
 
     def setUp(self):
         self.admin = _create_user("admin.inv.otherunavailable@test.com", SystemUser.Role.ADMIN)
         self.client.force_login(self.admin)
 
-    def test_allocations_report_still_returns_400_engine_unavailable(self):
-        response = self.client.get(
-            _report_url([("relatorio", "allocations"), ("data_inicial", PERIOD_START), ("data_final", PERIOD_END)])
-        )
-        self.assertEqual(response.status_code, 400)
-        self.assertContains(
-            response,
-            "Este relatório ainda não está disponível.",
-            status_code=400,
-        )
+    def test_no_op_documentation_placeholder(self):
+        """Sem asserção de comportamento (mesmo padrao de
+        DailyIndicatorsCatalogClosureNote,
+        config/tests/test_daily_indicators_report.py) — existe apenas para
+        que o fechamento do pathway generico continue rastreavel por node
+        ID em vez de so em prosa nesta docstring de classe."""
+        self.assertTrue(True)
 
 
 class LineInventoryFilterParameterValidationTests(TestCase):
@@ -1367,6 +1476,93 @@ class LineInventoryExportContentTests(TestCase):
         self.assertEqual(len(csv_rows), 2)
         self.assertIn("Álgar Região Sul", csv_rows[1])
 
+    def test_xlsx_operadora_starting_with_equals_stored_as_plain_string_not_formula(self):
+        """Achado da auditoria pre-REL-10-V (docs/superpowers/specs/2026-09-22-
+        reports-hub-design.md): _row_to_xlsx_cells nao protegia NENHUM prefixo
+        no XLSX (so o CSV, via _csv_text). openpyxl so promove data_type='f'
+        para strings iniciadas por '=' (Cell._bind_value, venv/Lib/site-
+        packages/openpyxl/cell/cell.py); '+'/'-'/'@' ja nascem 'texto'
+        (data_type='s') mesmo sem protecao alguma — esta e a unica entrada
+        que reproduz o defeito real (RED antes da correcao). Payload '=1+1'
+        inofensivo: basta comecar por '=' para o openpyxl promover
+        data_type='f' — nao precisa referenciar execucao de aplicativo (DDE)
+        para comprovar o defeito de serializacao. SIMcard.save() chama
+        normalize_carrier_name(), que preserva este payload por nao ter
+        nenhum caractere alfabetico (raw.islower()/raw.isupper() sao False
+        sem caractere "cased", caindo no ramo que devolve o valor original
+        sem reformatacao) — por isso refresh_from_db() e a asserção contra
+        o valor REAL persistido, nao um literal presumido."""
+        line, sim = _make_line("+5511909000001", carrier="=1+1")
+        sim.refresh_from_db()
+        self.assertTrue(sim.carrier.startswith("="))
+        response = self.client.get(_export_url("xlsx", _base_pairs()))
+        self.assertEqual(response.status_code, 200)
+        content = b"".join(response.streaming_content) if response.streaming else response.content
+        workbook = openpyxl.load_workbook(io.BytesIO(content), data_only=False)
+        sheet = workbook["Inventário de linhas"]
+        cell = sheet.cell(row=2, column=3)  # Operadora
+        self.assertEqual(cell.data_type, "s")
+        self.assertEqual(cell.value, sim.carrier)
+
+    def test_xlsx_operadora_plus_minus_at_prefixes_were_never_typed_as_formula(self):
+        """'+'/'-'/'@' nunca foram promovidos a formula pelo openpyxl (so
+        '=' e' o gatilho real, ver teste acima) — este teste passa tanto
+        antes quanto depois da correcao; existe para nao alegar retroativa-
+        mente que esses tres prefixos eram um defeito corrigido aqui."""
+        for index, prefixo in enumerate(("+5511InjOperadora", "-OperadoraX", "@OperadoraY")):
+            line, sim = _make_line(f"+551191000000{index}", carrier=prefixo)
+            sim.refresh_from_db()
+            response = self.client.get(_export_url("xlsx", _base_pairs()))
+            self.assertEqual(response.status_code, 200)
+            content = b"".join(response.streaming_content) if response.streaming else response.content
+            workbook = openpyxl.load_workbook(io.BytesIO(content), data_only=False)
+            sheet = workbook["Inventário de linhas"]
+            cell_row_idx = next(
+                r for r in range(2, sheet.max_row + 1) if sheet.cell(row=r, column=3).value == sim.carrier
+            )
+            self.assertEqual(sheet.cell(row=cell_row_idx, column=3).data_type, "s")
+
+    def test_xlsx_created_at_date_remains_typed_after_formula_protection(self):
+        """A protecao de formula so se aplica a colunas de TEXTO
+        (_DATE_COLUMNS marca quais nao sao); confirma que a correcao nao
+        forcou datas legitimas a texto."""
+        moment = _local_midnight(date(2026, 9, 12))
+        line, _ = _make_line("+5511912000001", carrier="=nao e o campo testado aqui", created_at=moment)
+        response = self.client.get(_export_url("xlsx", _base_pairs()))
+        self.assertEqual(response.status_code, 200)
+        content = b"".join(response.streaming_content) if response.streaming else response.content
+        workbook = openpyxl.load_workbook(io.BytesIO(content), data_only=False)
+        sheet = workbook["Inventário de linhas"]
+        cell = sheet.cell(row=2, column=8)  # Data de cadastro
+        value = cell.value.date() if hasattr(cell.value, "date") else cell.value
+        self.assertEqual(value, date(2026, 9, 12))
+        self.assertEqual(cell.number_format, "DD/MM/YYYY")
+
+    def test_xlsx_context_sheet_filters_cell_safe_with_formula_like_operadora_filter(self):
+        """A aba Contexto grava ["Filtros", filters_label]; filters_label
+        sempre comeca com o texto fixo "Período: ", entao mesmo um filtro
+        `operadora` iniciado por '=' nao faz a CELULA inteira comecar por
+        '=' — confirma que a composicao atual ja e segura por construcao,
+        sem exigir protecao adicional na aba Contexto."""
+        _make_line("+5511913000001", carrier="TIM")
+        response = self.client.get(
+            _export_url("xlsx", _base_pairs(operadora="=1+1"))
+        )
+        self.assertEqual(response.status_code, 200)
+        content = b"".join(response.streaming_content) if response.streaming else response.content
+        workbook = openpyxl.load_workbook(io.BytesIO(content), data_only=False)
+        context_sheet = workbook["Contexto"]
+        filtros_row = next(row for row in context_sheet.iter_rows(values_only=True) if row[0] == "Filtros")
+        filtros_value = filtros_row[1]
+        self.assertFalse(filtros_value.startswith(("=", "+", "-", "@")))
+        self.assertIn("=1+1", filtros_value)
+        cell = next(
+            context_sheet.cell(row=r, column=2)
+            for r in range(1, context_sheet.max_row + 1)
+            if context_sheet.cell(row=r, column=1).value == "Filtros"
+        )
+        self.assertEqual(cell.data_type, "s")
+
     def test_inconsistent_link_and_registro_exported_correctly(self):
         line, _ = _make_line("+5511908000001", delete_line=False)
         _allocate(line, self.admin)
@@ -1523,6 +1719,243 @@ class LineInventoryExportStreamingCleanupTests(TestCase):
 
         self.assertIn("temp_dir", captured)
         self.assertFalse(os.path.exists(captured["temp_dir"]))
+
+    def test_temp_dir_removed_and_xlsx_workbook_closed_when_generation_fails(self):
+        """Repropositado no REPORTS_SENIOR_REVIEW achado 2: ate entao,
+        `_write_xlsx_chunk` deste exportador nao tinha try/except algum —
+        uma falha no meio da escrita XLSX write-only nunca fechava o
+        workbook abandonado, nem removia `temp_dir` (o `except` externo nao
+        alcancava as partes xlsx ja escritas, so declaradas DENTRO do try).
+        Mesmo padrao ja comprovado para os outros cinco relatorios."""
+        import os
+        from unittest import mock
+
+        from core.services import line_inventory_export_service
+
+        _make_line("+5511920001005")
+        captured = {}
+        original_mkdtemp = line_inventory_export_service.tempfile.mkdtemp
+
+        def _capture_mkdtemp(*args, **kwargs):
+            path = original_mkdtemp(*args, **kwargs)
+            captured["temp_dir"] = path
+            return path
+
+        def _boom(worksheet, row):
+            raise RuntimeError("boom")
+
+        with mock.patch.object(
+            line_inventory_export_service, "_row_to_xlsx_cells", side_effect=_boom
+        ):
+            with mock.patch.object(
+                line_inventory_export_service.tempfile, "mkdtemp", side_effect=_capture_mkdtemp
+            ):
+                with self.assertRaises(RuntimeError):
+                    line_inventory_export_service.generate_line_inventory_export(
+                        formato="xlsx", filters=self._filters()
+                    )
+
+        self.assertIn("temp_dir", captured)
+        self.assertFalse(os.path.exists(captured["temp_dir"]))
+
+    def test_no_leaked_openpyxl_internal_temp_file_when_generation_fails_immediately(self):
+        """REPORTS_SENIOR_REVIEW (.git/REPORTS_SENIOR_REVIEW.md) achado 2:
+        alem de nao fechar o workbook abandonado (teste acima), o arquivo
+        temporario INTERNO do openpyxl (`sheet._writer.out`, fora de
+        `temp_dir`, registrado em `ALL_TEMP_FILES`) tambem vazava — XML de
+        927 bytes para workbook vazio abandonado, na revisao senior."""
+        from unittest import mock
+
+        from core.services import line_inventory_export_service
+        from openpyxl.worksheet._writer import ALL_TEMP_FILES
+
+        _make_line("+5511920001006")
+
+        def _boom(worksheet, row):
+            raise RuntimeError("boom")
+
+        baseline = set(ALL_TEMP_FILES)
+        with mock.patch.object(
+            line_inventory_export_service, "_row_to_xlsx_cells", side_effect=_boom
+        ):
+            with self.assertRaises(RuntimeError):
+                line_inventory_export_service.generate_line_inventory_export(
+                    formato="xlsx", filters=self._filters()
+                )
+
+        leaked = set(ALL_TEMP_FILES) - baseline
+        self.assertEqual(
+            leaked, set(),
+            f"arquivo temporario interno do openpyxl nao removido: {leaked}",
+        )
+        for path in leaked:
+            self.assertFalse(os.path.exists(path))
+
+    def test_no_leaked_openpyxl_internal_temp_file_when_generation_fails_after_one_row(self):
+        """Mesmo caso acima, mas com UMA linha real escrita antes da falha
+        (XML residual de 34.208 bytes na revisao senior — nao apenas o
+        cabecalho vazio)."""
+        from unittest import mock
+
+        from core.services import line_inventory_export_service
+        from openpyxl.worksheet._writer import ALL_TEMP_FILES
+
+        _make_line("+5511920001007")
+        _make_line("+5511920001008")
+
+        real_row_to_xlsx_cells = line_inventory_export_service._row_to_xlsx_cells
+        calls = {"count": 0}
+
+        def _fail_on_second_row(worksheet, row):
+            calls["count"] += 1
+            if calls["count"] >= 2:
+                raise RuntimeError("boom")
+            return real_row_to_xlsx_cells(worksheet, row)
+
+        baseline = set(ALL_TEMP_FILES)
+        with mock.patch.object(
+            line_inventory_export_service, "_row_to_xlsx_cells", side_effect=_fail_on_second_row
+        ):
+            with self.assertRaises(RuntimeError):
+                line_inventory_export_service.generate_line_inventory_export(
+                    formato="xlsx", filters=self._filters()
+                )
+
+        leaked = set(ALL_TEMP_FILES) - baseline
+        self.assertEqual(
+            leaked, set(),
+            f"arquivo temporario interno do openpyxl nao removido: {leaked}",
+        )
+        for path in leaked:
+            self.assertFalse(os.path.exists(path))
+
+    def test_temp_dir_and_internal_openpyxl_files_removed_when_xlsx_finalization_fails(self):
+        """REPORTS_SENIOR_REVIEW: os testes acima mockam `_row_to_xlsx_cells`
+        — falha durante a CONVERSAO da linha, nunca durante save()/
+        finalizacao real (`ws.close()` real + arquivamento no ZIP +
+        `writer.cleanup()`, dentro de
+        openpyxl.writer.excel.ExcelWriter.write_worksheet). Este teste
+        instrumenta `zipfile.ZipFile.write` (unico ponto de I/O usado por
+        `write_worksheet` para copiar o XML de um worksheet write-only ja
+        fechado para o arquivo final) SEM substituir o exportador. Achado
+        adicional identificado ao escrever este teste (nao um dos tres
+        originais): sem `traceback.clear_frames` no `except` de
+        `generate_line_inventory_export`, o ZipFile de destino ficava
+        aberto (preso pelo traceback) e `temp_dir` sobrevivia no Windows —
+        corrigido junto com o achado 2 (mesmo mecanismo de limpeza)."""
+        import os
+        import zipfile
+        from unittest import mock
+
+        from core.services import line_inventory_export_service
+        from openpyxl.worksheet._writer import ALL_TEMP_FILES
+
+        _make_line("+5511920001009")
+
+        def _fail_on_archive_write(self_zip, filename, arcname=None, **kwargs):
+            raise RuntimeError("boom-disk-full-during-finalization")
+
+        baseline = set(ALL_TEMP_FILES)
+        captured = {}
+        original_mkdtemp = line_inventory_export_service.tempfile.mkdtemp
+
+        def _capture_mkdtemp(*args, **kwargs):
+            path = original_mkdtemp(*args, **kwargs)
+            captured["temp_dir"] = path
+            return path
+
+        with mock.patch.object(zipfile.ZipFile, "write", new=_fail_on_archive_write):
+            with mock.patch.object(
+                line_inventory_export_service.tempfile, "mkdtemp", side_effect=_capture_mkdtemp
+            ):
+                with self.assertRaises(RuntimeError) as ctx:
+                    line_inventory_export_service.generate_line_inventory_export(
+                        formato="xlsx", filters=self._filters()
+                    )
+
+        self.assertEqual(str(ctx.exception), "boom-disk-full-during-finalization")
+        self.assertIn("temp_dir", captured)
+        self.assertFalse(
+            os.path.exists(captured["temp_dir"]),
+            "temp_dir proprio do exportador nao removido apos falha na finalizacao XLSX",
+        )
+
+        leaked = set(ALL_TEMP_FILES) - baseline
+        self.assertEqual(
+            leaked, set(),
+            f"arquivo temporario interno do openpyxl nao removido apos falha na finalizacao: {leaked}",
+        )
+        for path in leaked:
+            self.assertFalse(os.path.exists(path))
+
+    def test_temp_dir_removed_when_finalization_fails_with_chained_exception_kept_alive(self):
+        """REPORTS_SENIOR_REVIEW, secao 'Revisao especifica de
+        traceback.clear_frames': o teste acima usa excecao SIMPLES —
+        insuficiente para provar a limpeza contra uma excecao ENCADEADA
+        (`raise RuntimeError(...) from OSError(...)`), onde o `ZipFile` de
+        saida pode ficar referenciado apenas pelo traceback da CAUSA. Ver
+        docstring completa em
+        AllocationsExportStreamingCleanupTests::test_temp_dir_removed_when_finalization_fails_with_chained_exception_kept_alive.
+        Excecao e causa mantidas VIVAS (`exc_holder`, sem `del`/`gc.collect()`)
+        durante toda a verificacao."""
+        import os
+        import zipfile
+        from unittest import mock
+
+        from core.services import line_inventory_export_service
+        from openpyxl.worksheet._writer import ALL_TEMP_FILES
+
+        _make_line("+5511920001010")
+
+        def _raise_deep_oserror(archive_ref):
+            raise OSError("disk full (simulated, chained)")
+
+        def _fail_with_chained_exception(self_zip, filename, arcname=None, **kwargs):
+            try:
+                _raise_deep_oserror(self_zip)
+            except OSError as cause:
+                raise RuntimeError("boom-chained-during-finalization") from cause
+
+        baseline = set(ALL_TEMP_FILES)
+        captured = {}
+        original_mkdtemp = line_inventory_export_service.tempfile.mkdtemp
+
+        def _capture_mkdtemp(*args, **kwargs):
+            path = original_mkdtemp(*args, **kwargs)
+            captured["temp_dir"] = path
+            return path
+
+        exc_holder = {}
+        with mock.patch.object(zipfile.ZipFile, "write", new=_fail_with_chained_exception):
+            with mock.patch.object(
+                line_inventory_export_service.tempfile, "mkdtemp", side_effect=_capture_mkdtemp
+            ):
+                try:
+                    line_inventory_export_service.generate_line_inventory_export(
+                        formato="xlsx", filters=self._filters()
+                    )
+                    self.fail("esperava RuntimeError encadeado a partir de OSError")
+                except RuntimeError as exc:
+                    exc_holder["exc"] = exc
+
+        self.assertEqual(str(exc_holder["exc"]), "boom-chained-during-finalization")
+        self.assertIsInstance(exc_holder["exc"].__cause__, OSError)
+
+        self.assertIn("temp_dir", captured)
+        self.assertFalse(
+            os.path.exists(captured["temp_dir"]),
+            "temp_dir sobrevive quando o ZipFile fica preso pelo traceback da CAUSA",
+        )
+
+        leaked = set(ALL_TEMP_FILES) - baseline
+        self.assertEqual(
+            leaked, set(),
+            f"arquivo temporario interno do openpyxl nao removido: {leaked}",
+        )
+        for path in leaked:
+            self.assertFalse(os.path.exists(path))
+
+        self.assertIsNotNone(exc_holder["exc"].__cause__)
 
 
 class LineInventoryExportSplitBoundaryTests(TestCase):
