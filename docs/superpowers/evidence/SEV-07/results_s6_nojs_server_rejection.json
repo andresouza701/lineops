@@ -1,0 +1,23 @@
+{
+  "clientSideValidityCheck": {
+    "formValid": false,
+    "invalid": [
+      {
+        "id": "id_whatsapp_seal_activated_on",
+        "message": "Preencha este campo."
+      },
+      {
+        "id": "id_whatsapp_seal_expires_on",
+        "message": "Preencha este campo."
+      }
+    ]
+  },
+  "serverSideNoJsAttempt": {
+    "id": "S6_nojs_server_side_rejection",
+    "statusBefore": "NOT_ACTIVATED",
+    "urlAfter": "http://127.0.0.1:8018/telecom/phonelines/1/update/",
+    "rejectedAtServer": true,
+    "errorSummaryText": "Corrija os erros abaixo Valor mensal (R$): Selo ativo exige valor mensal maior que zero. Ativação: Data de ativação do selo é obrigatória. Vencimento: Data de vencimento do selo é obrigatória. ",
+    "mentionsDateOrValue": true
+  }
+}

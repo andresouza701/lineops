@@ -1,0 +1,62 @@
+[
+  {
+    "id": "NOJS_valid_combo_saves",
+    "ok": true,
+    "detail": "url=http://127.0.0.1:8017/telecom/"
+  },
+  {
+    "id": "NOJS_incompatible_combo_rejected",
+    "ok": true,
+    "detail": "succeeded(deveria ser false)=false url=http://127.0.0.1:8017/telecom/phonelines/create/"
+  },
+  {
+    "id": "NOJS_no_partial_write",
+    "ok": false,
+    "detail": "linha da combinacao invalida nao aparece na listagem (nao foi gravada)"
+  },
+  {
+    "id": "overview_shows_nao_ativado_and_sem_selo_distinct",
+    "ok": true,
+    "detail": "overview contem rotulos 'Não ativado' e 'Sem selo' distintos"
+  },
+  {
+    "id": "overview_no_financial_value_leak",
+    "ok": true,
+    "detail": "overview nao expõe valor financeiro do selo na listagem (checagem grosseira por padrão R$ seguido de digito)"
+  },
+  {
+    "id": "overview_carregar_mais_adds_rows",
+    "ok": true,
+    "detail": "linhas antes=10 depois=20"
+  },
+  {
+    "id": "operator1_sees_own_allocated_line",
+    "ok": true,
+    "detail": "operador 1 enxerga a propria linha alocada (+5511900000020)"
+  },
+  {
+    "id": "operator1_cannot_see_other_operator_line",
+    "ok": true,
+    "detail": "operador 1 NAO enxerga a linha do outro operador (+5511900000021)"
+  },
+  {
+    "id": "operator2_sees_own_allocated_line",
+    "ok": true,
+    "detail": "operador 2 enxerga a propria linha alocada (+5511900000021)"
+  },
+  {
+    "id": "operator2_cannot_see_operator1_line",
+    "ok": true,
+    "detail": "operador 2 NAO enxerga a linha do operador 1 (+5511900000020)"
+  },
+  {
+    "id": "reports_hub_admin_allowed",
+    "ok": true,
+    "detail": "status admin=200"
+  },
+  {
+    "id": "reports_hub_operator_denied",
+    "ok": true,
+    "detail": "status operator=403 (esperado 403)"
+  }
+]

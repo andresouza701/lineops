@@ -1,0 +1,82 @@
+[
+  {
+    "id": "S1_create_not_activated_zero",
+    "ok": true,
+    "detail": "succeeded=true url=http://127.0.0.1:8017/telecom/ err="
+  },
+  {
+    "id": "S2_create_not_activated_positive",
+    "ok": true,
+    "detail": "succeeded=true url=http://127.0.0.1:8017/telecom/ err="
+  },
+  {
+    "id": "S3_create_active_equal_dates",
+    "ok": true,
+    "detail": "succeeded=true url=http://127.0.0.1:8017/telecom/ err="
+  },
+  {
+    "id": "S4_create_active_inverted_dates_rejected",
+    "ok": true,
+    "detail": "succeeded(deveria ser false)=false url=http://127.0.0.1:8017/telecom/phonelines/create/ err=\"Corrija os erros abaixo Vencimento: Data de vencimento não pode ser anterior à data de ativação.\""
+  },
+  {
+    "id": "S5_create_active_zero_value_rejected",
+    "ok": true,
+    "detail": "succeeded(deveria ser false)=false url=http://127.0.0.1:8017/telecom/phonelines/create/ err=\"Corrija os erros abaixo Valor mensal (R$): Selo ativo exige valor mensal maior que zero.\""
+  },
+  {
+    "id": "S6_transition_not_activated_to_active_requires_dates_and_value",
+    "ok": true,
+    "detail": "succeeded(deveria ser false)=false url=http://127.0.0.1:8017/telecom/phonelines/8/update/ err=\"\""
+  },
+  {
+    "id": "S7_transition_active_to_not_activated_saves",
+    "ok": false,
+    "detail": "succeeded=false url=http://127.0.0.1:8017/telecom/phonelines/10/update/ err="
+  },
+  {
+    "id": "S7_detail_shows_not_activated_no_alert",
+    "ok": false,
+    "detail": "detalhe pos-transicao contem 'Não ativado' e nao contem texto de vencido/alerta"
+  },
+  {
+    "id": "S8_remove_seal_clears_details",
+    "ok": true,
+    "detail": "succeeded=true url=http://127.0.0.1:8017/telecom/ err="
+  },
+  {
+    "id": "S8_detail_shows_sem_selo",
+    "ok": true,
+    "detail": "detalhe pos-remocao mostra 'Sem selo'"
+  },
+  {
+    "id": "S9a_legacy_save_without_new_fields_rejected",
+    "ok": true,
+    "detail": "succeeded(deveria ser false)=false url=http://127.0.0.1:8017/telecom/phonelines/5/update/ err=\"\""
+  },
+  {
+    "id": "S9b_legacy_save_with_new_fields_succeeds",
+    "ok": true,
+    "detail": "succeeded=true url=http://127.0.0.1:8017/telecom/ err="
+  },
+  {
+    "id": "S10a_release_legacy_without_completing_seal",
+    "ok": true,
+    "detail": "url apos liberar=http://127.0.0.1:8017/telecom/phonelines/20/update/ (deve permanecer na edicao, sem erro de selo)"
+  },
+  {
+    "id": "S10b_remove_seal_on_legacy_without_new_fields_succeeds",
+    "ok": true,
+    "detail": "succeeded=true url=http://127.0.0.1:8017/telecom/ err="
+  },
+  {
+    "id": "S11_edit_seal_only_on_allocated_line_saves",
+    "ok": false,
+    "detail": "succeeded=false url=http://127.0.0.1:8017/telecom/phonelines/18/update/"
+  },
+  {
+    "id": "S11_allocation_and_status_preserved",
+    "ok": true,
+    "detail": "employee antes=1 depois=1; status antes=ALLOCATED depois=ALLOCATED"
+  }
+]

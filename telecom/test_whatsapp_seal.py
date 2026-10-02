@@ -21,9 +21,20 @@ def sim(db):
 
 @pytest.fixture
 def payload(sim):
+    # Correção de fixture (SEV-05): situação/categoria/plano/valor mensal
+    # são obrigatórios com selo desde SEV-04 (telecom/whatsapp_seal.py::
+    # validate_seal_fields), mas este arquivo é anterior a esses 4 campos
+    # (SEL/SEV-02). Sem eles o form nem chega a validar os campos antigos
+    # que cada teste abaixo exercita — adicionados com a combinação ACTIVE/
+    # META_ONE do catálogo (consistente com as datas já presentes aqui),
+    # preservando intenção e asserções originais de cada teste.
     return {
         "phone_number": "+5511999998881", "sim_card": sim.pk,
         "whatsapp_seal": "META_ONE",
+        "whatsapp_seal_activation_status": "ACTIVE",
+        "whatsapp_seal_category": "CREATORS_BUSINESSES",
+        "whatsapp_seal_plan": "ONE_ESSENTIAL",
+        "whatsapp_seal_monthly_value": "59,00",
         "whatsapp_seal_activated_on": "2026-09-01",
         "whatsapp_seal_expires_on": "2026-10-17",
         "whatsapp_seal_email": "seal@example.com",
@@ -41,9 +52,24 @@ def test_seal_requires_each_field(payload, seal, missing):
     assert missing in form.errors
 
 
-@pytest.mark.parametrize("seal,payment", [("META_ONE", "CREDIT_CARD"), ("META_VERIFIED", "GOOGLE_GIFT_CARD")])
-def test_create_persists_manual_dates(payload, seal, payment):
-    payload.update(whatsapp_seal=seal, whatsapp_seal_payment=payment)
+@pytest.mark.parametrize(
+    "seal,payment,category,plan",
+    [
+        ("META_ONE", "CREDIT_CARD", "CREATORS_BUSINESSES", "ONE_ESSENTIAL"),
+        ("META_VERIFIED", "GOOGLE_GIFT_CARD", "PERSONAL_CREATOR", "STANDARD"),
+    ],
+)
+def test_create_persists_manual_dates(payload, seal, payment, category, plan):
+    # Correção de fixture (SEV-05): mesma causa de
+    # test_switching_between_seal_types_... — category/plan precisam
+    # acompanhar a troca de `seal` para permanecerem uma combinação válida
+    # do catálogo (SEV-04).
+    payload.update(
+        whatsapp_seal=seal,
+        whatsapp_seal_payment=payment,
+        whatsapp_seal_category=category,
+        whatsapp_seal_plan=plan,
+    )
     form = PhoneLineForm(data=payload)
     assert form.is_valid(), form.errors
     line = form.save()
@@ -158,10 +184,19 @@ def test_switching_between_seal_types_persists_new_values_without_mixing_old(pay
     line = form.save()
     assert line.whatsapp_seal == "META_ONE"
 
+    # Correção de fixture (SEV-05): category/plan são validados contra o
+    # catálogo (SEV-04) e são específicos de cada selo — trocar só
+    # whatsapp_seal sem trocar category/plan para uma combinação válida de
+    # META_VERIFIED é agora uma combinação cruzada inválida, não o cenário
+    # de troca de selo que este teste pretende provar. Acrescentado
+    # category/plan válidos para META_VERIFIED; demais campos e asserções
+    # originais inalterados.
     edit_payload = dict(payload)
     edit_payload.update(
         status="AVAILABLE",
         whatsapp_seal="META_VERIFIED",
+        whatsapp_seal_category="PERSONAL_CREATOR",
+        whatsapp_seal_plan="STANDARD",
         whatsapp_seal_activated_on="2026-09-05",
         whatsapp_seal_expires_on="2026-11-20",
         whatsapp_seal_email="verified@example.com",
@@ -243,8 +278,18 @@ def test_without_seal_has_no_alert():
 
 
 def test_model_validation_requires_seal_details(sim):
+    """Correção de fixture (SEV-05): validate_seal_fields só exige as datas
+    quando whatsapp_seal_activation_status == ACTIVE (situação NOT_ACTIVATED
+    rejeita datas; situação ausente/inválida erra nela própria, sem
+    sub-checar datas). Sem activation_status="ACTIVE" aqui, a instância
+    erraria por falta de situação (e de categoria/plano/e-mail/pagamento),
+    mas nunca chegaria a comprovar a exigência de data que este teste
+    pretende provar. Acrescentado o único campo necessário para isso;
+    asserção original inalterada (outros campos obrigatórios também erram,
+    mas não são o que este teste verifica)."""
     line = PhoneLine(phone_number="+5511999998881", sim_card=sim)
     line.whatsapp_seal = "META_ONE"
+    line.whatsapp_seal_activation_status = "ACTIVE"
     with pytest.raises(ValidationError) as exc:
         line.full_clean()
     assert "whatsapp_seal_expires_on" in exc.value.message_dict
@@ -289,13 +334,22 @@ def test_invalid_http_post_keeps_errors(admin_client, payload):
 
 @pytest.mark.django_db(transaction=True)
 def test_migration_preserves_existing_lines_as_no_seal():
+    """SEV-04 (01/10/2026): alvo intermediário ajustado de "0021" para
+    "0022" — 0022 adicionou 4 colunas novas a PhoneLine; o model Python real
+    (não histórico) usado por este teste sempre as declara, então parar em
+    "0021" faz refresh_from_db() tentar selecionar colunas inexistentes
+    nesse estado de schema (OperationalError). 0022 não altera nenhum dos 5
+    campos antigos de selo nem o comportamento aqui testado (ver
+    telecom/test_whatsapp_seal_activation_migration.py para a cobertura
+    completa de 0022); mesmas asserções, mesmo propósito, apenas apontando
+    para o HEAD real do app."""
     sim = SIMcard.objects.create(iccid="8900000000000099991", carrier="TIM")
     line = PhoneLine.objects.create(
         phone_number="+5511999990000", sim_card=sim, status="AVAILABLE"
     )
     try:
         call_command("migrate", "telecom", "0020", verbosity=0)
-        call_command("migrate", "telecom", "0021", verbosity=0)
+        call_command("migrate", "telecom", "0022", verbosity=0)
         line.refresh_from_db()
         assert line.whatsapp_seal == ""
         assert line.whatsapp_seal_activated_on is None

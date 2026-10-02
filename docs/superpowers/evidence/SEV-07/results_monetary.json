@@ -1,0 +1,122 @@
+[
+  {
+    "id": "M01_not_activated_zero_comma",
+    "ok": true,
+    "detail": "succeeded=true (esperado=true) url=http://127.0.0.1:8017/telecom/"
+  },
+  {
+    "id": "M02_not_activated_zero_dot",
+    "ok": true,
+    "detail": "succeeded=true (esperado=true) url=http://127.0.0.1:8017/telecom/"
+  },
+  {
+    "id": "M03_active_001_comma",
+    "ok": true,
+    "detail": "succeeded=true (esperado=true) url=http://127.0.0.1:8017/telecom/"
+  },
+  {
+    "id": "M04_active_299_comma",
+    "ok": true,
+    "detail": "succeeded=true (esperado=true) url=http://127.0.0.1:8017/telecom/"
+  },
+  {
+    "id": "M05_active_299_dot",
+    "ok": true,
+    "detail": "succeeded=true (esperado=true) url=http://127.0.0.1:8017/telecom/"
+  },
+  {
+    "id": "M06_active_minus_001",
+    "ok": true,
+    "detail": "succeeded=false (esperado=false) url=http://127.0.0.1:8017/telecom/phonelines/create/ err=\"Corrija os erros abaixo Valor mensal (R$): Valor mensal inválido. Use um número com até duas casas decimais, sem separador de milhar nem símbolo de moeda (ex.: 59,00).\" valor_preservado_no_campo=\"-0,01\""
+  },
+  {
+    "id": "M06_active_minus_001_preserves_entry",
+    "ok": true,
+    "detail": "campo preservou a entrada digitada para revisao: \"-0,01\" (digitado \"-0,01\")"
+  },
+  {
+    "id": "M07_not_activated_minus_zero",
+    "ok": true,
+    "detail": "succeeded=false (esperado=false) url=http://127.0.0.1:8017/telecom/phonelines/create/ err=\"Corrija os erros abaixo Valor mensal (R$): Valor mensal inválido. Use um número com até duas casas decimais, sem separador de milhar nem símbolo de moeda (ex.: 59,00).\" valor_preservado_no_campo=\"-0,00\""
+  },
+  {
+    "id": "M07_not_activated_minus_zero_preserves_entry",
+    "ok": true,
+    "detail": "campo preservou a entrada digitada para revisao: \"-0,00\" (digitado \"-0,00\")"
+  },
+  {
+    "id": "M08_active_299_01_over_limit",
+    "ok": true,
+    "detail": "succeeded=false (esperado=false) url=http://127.0.0.1:8017/telecom/phonelines/create/ err=\"Corrija os erros abaixo Valor mensal (R$): Valor mensal do selo não pode ultrapassar R$ 299.00.\" valor_preservado_no_campo=\"299,01\""
+  },
+  {
+    "id": "M08_active_299_01_over_limit_preserves_entry",
+    "ok": true,
+    "detail": "campo preservou a entrada digitada para revisao: \"299,01\" (digitado \"299,01\")"
+  },
+  {
+    "id": "M09_thousand_separator_comma",
+    "ok": true,
+    "detail": "succeeded=false (esperado=false) url=http://127.0.0.1:8017/telecom/phonelines/create/ err=\"Corrija os erros abaixo Valor mensal (R$): Valor mensal inválido. Use um número com até duas casas decimais, sem separador de milhar nem símbolo de moeda (ex.: 59,00).\" valor_preservado_no_campo=\"1.000\""
+  },
+  {
+    "id": "M09_thousand_separator_comma_preserves_entry",
+    "ok": true,
+    "detail": "campo preservou a entrada digitada para revisao: \"1.000\" (digitado \"1.000\")"
+  },
+  {
+    "id": "M10_thousand_separator_dot_as_decimal_ambiguous",
+    "ok": true,
+    "detail": "succeeded=false (esperado=false) url=http://127.0.0.1:8017/telecom/phonelines/create/ err=\"Corrija os erros abaixo Valor mensal (R$): Valor mensal inválido. Use um número com até duas casas decimais, sem separador de milhar nem símbolo de moeda (ex.: 59,00).\" valor_preservado_no_campo=\"1,000\""
+  },
+  {
+    "id": "M10_thousand_separator_dot_as_decimal_ambiguous_preserves_entry",
+    "ok": true,
+    "detail": "campo preservou a entrada digitada para revisao: \"1,000\" (digitado \"1,000\")"
+  },
+  {
+    "id": "M11_currency_symbol",
+    "ok": true,
+    "detail": "succeeded=false (esperado=false) url=http://127.0.0.1:8017/telecom/phonelines/create/ err=\"Corrija os erros abaixo Valor mensal (R$): Valor mensal inválido. Use um número com até duas casas decimais, sem separador de milhar nem símbolo de moeda (ex.: 59,00).\" valor_preservado_no_campo=\"R$ 59,00\""
+  },
+  {
+    "id": "M11_currency_symbol_preserves_entry",
+    "ok": true,
+    "detail": "campo preservou a entrada digitada para revisao: \"R$ 59,00\" (digitado \"R$ 59,00\")"
+  },
+  {
+    "id": "M12_scientific_notation",
+    "ok": true,
+    "detail": "succeeded=false (esperado=false) url=http://127.0.0.1:8017/telecom/phonelines/create/ err=\"Corrija os erros abaixo Valor mensal (R$): Valor mensal inválido. Use um número com até duas casas decimais, sem separador de milhar nem símbolo de moeda (ex.: 59,00).\" valor_preservado_no_campo=\"1e2\""
+  },
+  {
+    "id": "M12_scientific_notation_preserves_entry",
+    "ok": true,
+    "detail": "campo preservou a entrada digitada para revisao: \"1e2\" (digitado \"1e2\")"
+  },
+  {
+    "id": "M13_nan",
+    "ok": true,
+    "detail": "succeeded=false (esperado=false) url=http://127.0.0.1:8017/telecom/phonelines/create/ err=\"Corrija os erros abaixo Valor mensal (R$): Valor mensal inválido. Use um número com até duas casas decimais, sem separador de milhar nem símbolo de moeda (ex.: 59,00).\" valor_preservado_no_campo=\"NaN\""
+  },
+  {
+    "id": "M13_nan_preserves_entry",
+    "ok": true,
+    "detail": "campo preservou a entrada digitada para revisao: \"NaN\" (digitado \"NaN\")"
+  },
+  {
+    "id": "M14_infinity",
+    "ok": true,
+    "detail": "succeeded=false (esperado=false) url=http://127.0.0.1:8017/telecom/phonelines/create/ err=\"Corrija os erros abaixo Valor mensal (R$): Valor mensal inválido. Use um número com até duas casas decimais, sem separador de milhar nem símbolo de moeda (ex.: 59,00).\" valor_preservado_no_campo=\"Infinity\""
+  },
+  {
+    "id": "M14_infinity_preserves_entry",
+    "ok": true,
+    "detail": "campo preservou a entrada digitada para revisao: \"Infinity\" (digitado \"Infinity\")"
+  },
+  {
+    "id": "M15_missing_with_seal",
+    "ok": true,
+    "detail": "succeeded=false (esperado=false) url=http://127.0.0.1:8017/telecom/phonelines/create/ err=\"\" valor_preservado_no_campo=\"\""
+  }
+]

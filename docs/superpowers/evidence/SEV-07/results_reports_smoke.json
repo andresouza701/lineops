@@ -1,0 +1,27 @@
+[
+  {
+    "id": "reports_smoke_selo_excludes_not_activated",
+    "ok": true,
+    "detail": "relatorio de Selos nao lista as linhas Nao ativado (sem data de ativacao) criadas no dataset"
+  },
+  {
+    "id": "reports_smoke_selo_includes_active",
+    "ok": true,
+    "detail": "relatorio de Selos lista pelo menos uma linha Ativo dentro do periodo"
+  },
+  {
+    "id": "reports_smoke_selo_no_financial_column",
+    "ok": true,
+    "detail": "relatorio de Selos nao exibe coluna/valor financeiro novo"
+  },
+  {
+    "id": "reports_smoke_inventory_counts_not_activated_as_has_seal",
+    "ok": true,
+    "detail": "inventario lista a linha Nao ativado (possui selo mesmo sem estar ativado)"
+  },
+  {
+    "id": "reports_smoke_inventory_no_new_financial_column",
+    "ok": true,
+    "detail": "inventario nao exibe coluna de valor financeiro novo"
+  }
+]

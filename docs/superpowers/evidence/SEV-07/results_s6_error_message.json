@@ -1,0 +1,8 @@
+{
+  "id": "S6_redo2_error_message_captured",
+  "statusBefore": "NOT_ACTIVATED",
+  "urlAfter": "http://127.0.0.1:8018/telecom/phonelines/1/update/",
+  "errorSummaryRaw": null,
+  "errorSummaryNormalized": null,
+  "ok": false
+}

@@ -58,11 +58,31 @@
                 <dt class="col-sm-3">Selo</dt>
                 <dd class="col-sm-9">{{ phone_line.get_whatsapp_seal_display }}</dd>
 
-                <dt class="col-sm-3">Data da ativação</dt>
-                <dd class="col-sm-9">{{ phone_line.whatsapp_seal_activated_on|date:"d/m/Y" }}</dd>
+                <dt class="col-sm-3">Situação</dt>
+                <dd class="col-sm-9">{{ phone_line.get_whatsapp_seal_activation_status_display|default:"Não informado" }}</dd>
 
-                <dt class="col-sm-3">Data do vencimento</dt>
-                <dd class="col-sm-9">{{ phone_line.whatsapp_seal_expires_on|date:"d/m/Y" }}</dd>
+                <dt class="col-sm-3">Categoria</dt>
+                <dd class="col-sm-9">{{ phone_line.get_whatsapp_seal_category_display|default:"Não informado" }}</dd>
+
+                <dt class="col-sm-3">Plano</dt>
+                <dd class="col-sm-9">{{ phone_line.get_whatsapp_seal_plan_display|default:"Não informado" }}</dd>
+
+                <dt class="col-sm-3">Valor mensal (R$)</dt>
+                <dd class="col-sm-9">{{ phone_line.whatsapp_seal_monthly_value_display|default:"Não informado" }}</dd>
+
+                {% if phone_line.whatsapp_seal_activation_status == "NOT_ACTIVATED" %}
+                    <dt class="col-sm-3">Data da ativação</dt>
+                    <dd class="col-sm-9">Não aplicável</dd>
+
+                    <dt class="col-sm-3">Data do vencimento</dt>
+                    <dd class="col-sm-9">Não aplicável</dd>
+                {% else %}
+                    <dt class="col-sm-3">Data da ativação</dt>
+                    <dd class="col-sm-9">{{ phone_line.whatsapp_seal_activated_on|date:"d/m/Y" }}</dd>
+
+                    <dt class="col-sm-3">Data do vencimento</dt>
+                    <dd class="col-sm-9">{{ phone_line.whatsapp_seal_expires_on|date:"d/m/Y" }}</dd>
+                {% endif %}
 
                 <dt class="col-sm-3">E-mail cadastrado</dt>
                 <dd class="col-sm-9">{{ phone_line.whatsapp_seal_email }}</dd>

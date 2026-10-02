@@ -106,16 +106,44 @@
                     <p class="text-muted small mb-3" id="seal-empty-hint">Nenhum selo cadastrado.</p>
 
                     <div id="seal-detail-fields">
-                        <div class="row g-3">
-                            <div class="col-12 col-sm-6">
-                                <label for="{{ form.whatsapp_seal_activated_on.id_for_label }}" class="form-label">{{ form.whatsapp_seal_activated_on.label }} <span class="text-muted small" data-seal-required-label>(obrigatório com selo)</span></label>
-                                {{ form.whatsapp_seal_activated_on }}
-                                <div id="id_whatsapp_seal_activated_on_error" class="invalid-feedback d-block">{{ form.whatsapp_seal_activated_on.errors }}</div>
-                            </div>
-                            <div class="col-12 col-sm-6">
-                                <label for="{{ form.whatsapp_seal_expires_on.id_for_label }}" class="form-label">{{ form.whatsapp_seal_expires_on.label }} <span class="text-muted small" data-seal-required-label>(obrigatório com selo)</span></label>
-                                {{ form.whatsapp_seal_expires_on }}
-                                <div id="id_whatsapp_seal_expires_on_error" class="invalid-feedback d-block">{{ form.whatsapp_seal_expires_on.errors }}</div>
+                        <div class="mb-3">
+                            <label for="{{ form.whatsapp_seal_category.id_for_label }}" class="form-label">{{ form.whatsapp_seal_category.label }} <span class="text-muted small" data-seal-required-label>(obrigatório com selo)</span></label>
+                            {{ form.whatsapp_seal_category }}
+                            <div id="id_whatsapp_seal_category_error" class="invalid-feedback d-block">{{ form.whatsapp_seal_category.errors }}</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.whatsapp_seal_plan.id_for_label }}" class="form-label">{{ form.whatsapp_seal_plan.label }} <span class="text-muted small" data-seal-required-label>(obrigatório com selo)</span></label>
+                            {{ form.whatsapp_seal_plan }}
+                            <p class="text-muted small mb-0 mt-1" id="seal-price-reference" hidden></p>
+                            <div id="id_whatsapp_seal_plan_error" class="invalid-feedback d-block">{{ form.whatsapp_seal_plan.errors }}</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.whatsapp_seal_activation_status.id_for_label }}" class="form-label">{{ form.whatsapp_seal_activation_status.label }} <span class="text-muted small" data-seal-required-label>(obrigatório com selo)</span></label>
+                            {{ form.whatsapp_seal_activation_status }}
+                            <div id="id_whatsapp_seal_activation_status_error" class="invalid-feedback d-block">{{ form.whatsapp_seal_activation_status.errors }}</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.whatsapp_seal_monthly_value.id_for_label }}" class="form-label">{{ form.whatsapp_seal_monthly_value.label }} <span class="text-muted small" data-seal-required-label>(obrigatório com selo)</span></label>
+                            {{ form.whatsapp_seal_monthly_value }}
+                            <div class="form-text">{{ form.whatsapp_seal_monthly_value.help_text }}</div>
+                            <div id="id_whatsapp_seal_monthly_value_error" class="invalid-feedback d-block">{{ form.whatsapp_seal_monthly_value.errors }}</div>
+                        </div>
+
+                        <div id="seal-dates-fields">
+                            <div class="row g-3">
+                                <div class="col-12 col-sm-6">
+                                    <label for="{{ form.whatsapp_seal_activated_on.id_for_label }}" class="form-label">{{ form.whatsapp_seal_activated_on.label }} <span class="text-muted small">(obrigatório quando ativo)</span></label>
+                                    {{ form.whatsapp_seal_activated_on }}
+                                    <div id="id_whatsapp_seal_activated_on_error" class="invalid-feedback d-block">{{ form.whatsapp_seal_activated_on.errors }}</div>
+                                </div>
+                                <div class="col-12 col-sm-6">
+                                    <label for="{{ form.whatsapp_seal_expires_on.id_for_label }}" class="form-label">{{ form.whatsapp_seal_expires_on.label }} <span class="text-muted small">(obrigatório quando ativo)</span></label>
+                                    {{ form.whatsapp_seal_expires_on }}
+                                    <div id="id_whatsapp_seal_expires_on_error" class="invalid-feedback d-block">{{ form.whatsapp_seal_expires_on.errors }}</div>
+                                </div>
                             </div>
                         </div>
 
@@ -135,6 +163,8 @@
             </div>
         </div>
     </div>
+
+    {{ seal_catalog_entries|json_script:"seal-catalog-data" }}
 
     <div class="d-flex gap-2 mt-3">
         <a href="{% url 'telecom:overview' %}" class="btn btn-outline-secondary">Cancelar</a>

@@ -48,6 +48,7 @@ from .line_timeline import (
 )
 from .models import BlipConfiguration, PhoneLine, PhoneLineHistory, SIMcard
 from .services.reconnect_service import build_default_reconnect_service
+from .whatsapp_seal import seal_catalog_entries
 
 logger = logging.getLogger(__name__)
 
@@ -592,7 +593,18 @@ class PhoneLineReconnectCancelView(PhoneLineReconnectBaseView):
         return JsonResponse(payload)
 
 
-class PhoneLineCreateView(RoleRequiredMixin, CreateView):
+class SealCatalogContextMixin:
+    """Catálogo selo/categoria/plano/referência de preço para o JS do
+    formulário (SEV-06) — serializado com segurança no template via
+    json_script; não amplia o payload de nenhuma listagem/relatório."""
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["seal_catalog_entries"] = seal_catalog_entries()
+        return context
+
+
+class PhoneLineCreateView(SealCatalogContextMixin, RoleRequiredMixin, CreateView):
     allowed_roles = [SystemUser.Role.ADMIN]
     model = PhoneLine
     form_class = PhoneLineForm
@@ -604,7 +616,7 @@ class PhoneLineCreateView(RoleRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class PhoneLineUpdateView(RoleRequiredMixin, UpdateView):
+class PhoneLineUpdateView(SealCatalogContextMixin, RoleRequiredMixin, UpdateView):
     allowed_roles = [SystemUser.Role.ADMIN]
     model = PhoneLine
     form_class = PhoneLineUpdateForm

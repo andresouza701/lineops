@@ -14,14 +14,32 @@ from core.validation import (
 from employees.models import Employee
 
 from .models import BlipConfiguration, PhoneLine, SIMcard
-from .whatsapp_seal import REQUIRED_FIELD_ERRORS, WhatsAppSeal
+from .whatsapp_seal import (
+    REQUIRED_FIELD_ERRORS,
+    WhatsAppSeal,
+    WhatsAppSealActivationStatus,
+    parse_seal_monthly_value,
+)
 
+# Todo campo "próprio" do selo (além do seletor whatsapp_seal em si):
+# limpo incondicionalmente quando o POST indica Sem selo, antes de qualquer
+# parsing de formato — ver full_clean(). Inclui os 4 campos novos de SEV-05
+# junto aos 4 antigos de SEL para que um resíduo de edição anterior (ex.:
+# e-mail inválido, valor com formato quebrado) nunca impeça salvar Sem selo.
 SEAL_DETAIL_FIELDS = [
+    "whatsapp_seal_activation_status",
+    "whatsapp_seal_category",
+    "whatsapp_seal_plan",
+    "whatsapp_seal_monthly_value",
     "whatsapp_seal_activated_on",
     "whatsapp_seal_expires_on",
     "whatsapp_seal_email",
     "whatsapp_seal_payment",
 ]
+
+# Datas do selo: inaplicáveis quando a situação é Não ativado. Limpas no
+# POST antes do parsing de data, inclusive resíduo em formato inválido.
+SEAL_DATE_FIELDS = ["whatsapp_seal_activated_on", "whatsapp_seal_expires_on"]
 
 OPTIONAL_SELECT_CHOICES = [("", "---------")]
 
@@ -73,6 +91,24 @@ class SIMcardCreateWithLineForm(SIMcardForm):
 
 
 class PhoneLineForm(forms.ModelForm):
+    # DecimalField auto-gerado pelo ModelForm usaria o parser localizado
+    # padrão do Django (ambíguo entre separador decimal/milhar); o contrato
+    # de SEV-02 exige um parsing textual explícito (ver
+    # telecom/whatsapp_seal.py::parse_seal_monthly_value), por isso o campo
+    # é declarado aqui como texto livre e convertido em clean_
+    # whatsapp_seal_monthly_value.
+    whatsapp_seal_monthly_value = forms.CharField(
+        required=False,
+        label="Valor mensal (R$)",
+        help_text=(
+            "Use vírgula ou ponto para os centavos, sem separador de "
+            "milhar nem símbolo de moeda. Ex.: 59,00."
+        ),
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "inputmode": "decimal"}
+        ),
+    )
+
     class Meta:
         model = PhoneLine
         fields = [
@@ -81,6 +117,10 @@ class PhoneLineForm(forms.ModelForm):
             "origem",
             "canal",
             "whatsapp_seal",
+            "whatsapp_seal_activation_status",
+            "whatsapp_seal_category",
+            "whatsapp_seal_plan",
+            "whatsapp_seal_monthly_value",
             "whatsapp_seal_activated_on",
             "whatsapp_seal_expires_on",
             "whatsapp_seal_email",
@@ -88,6 +128,11 @@ class PhoneLineForm(forms.ModelForm):
         ]
         widgets = {
             "whatsapp_seal": forms.Select(attrs={"class": "form-select"}),
+            "whatsapp_seal_activation_status": forms.Select(
+                attrs={"class": "form-select"}
+            ),
+            "whatsapp_seal_category": forms.Select(attrs={"class": "form-select"}),
+            "whatsapp_seal_plan": forms.Select(attrs={"class": "form-select"}),
             "whatsapp_seal_activated_on": forms.DateInput(
                 attrs={"class": "form-control", "type": "date"}, format="%Y-%m-%d"
             ),
@@ -99,6 +144,9 @@ class PhoneLineForm(forms.ModelForm):
         }
         labels = {
             "whatsapp_seal": "Selo",
+            "whatsapp_seal_activation_status": "Situação de ativação",
+            "whatsapp_seal_category": "Categoria",
+            "whatsapp_seal_plan": "Plano",
             "whatsapp_seal_activated_on": "Ativação",
             "whatsapp_seal_expires_on": "Vencimento",
             "whatsapp_seal_email": "E-mail cadastrado",
@@ -106,12 +154,34 @@ class PhoneLineForm(forms.ModelForm):
         }
 
     def full_clean(self):
-        if self.is_bound and not self.data.get("whatsapp_seal"):
+        if self.is_bound:
             data = self.data.copy()
-            for field_name in SEAL_DETAIL_FIELDS:
-                data[field_name] = ""
-            self.data = data
+            changed = False
+            if not data.get("whatsapp_seal"):
+                for field_name in SEAL_DETAIL_FIELDS:
+                    data[field_name] = ""
+                changed = True
+            elif (
+                data.get("whatsapp_seal_activation_status")
+                == WhatsAppSealActivationStatus.NOT_ACTIVATED
+            ):
+                for field_name in SEAL_DATE_FIELDS:
+                    data[field_name] = ""
+                changed = True
+            if changed:
+                self.data = data
         return super().full_clean()
+
+    def clean_whatsapp_seal_monthly_value(self):
+        raw = self.cleaned_data.get("whatsapp_seal_monthly_value", "")
+        try:
+            return parse_seal_monthly_value(raw)
+        except ValueError:
+            raise forms.ValidationError(
+                "Valor mensal inválido. Use um número com até duas casas "
+                "decimais, sem separador de milhar nem símbolo de moeda "
+                "(ex.: 59,00)."
+            )
 
     def _post_clean(self):
         # Um campo de detalhe do selo com valor preenchido em formato
@@ -173,6 +243,15 @@ class PhoneLineForm(forms.ModelForm):
             WhatsAppSeal.choices
         )
 
+        # Default de apresentação (spec SEV-02, aprovado): formulário de
+        # linha nova pré-seleciona Não ativado. Nunca substitui um POST sem
+        # o campo — initial só afeta a renderização de formulário não
+        # vinculado; o binding usa exclusivamente os dados enviados.
+        if not (self.instance and self.instance.pk):
+            self.fields["whatsapp_seal_activation_status"].initial = (
+                WhatsAppSealActivationStatus.NOT_ACTIVATED
+            )
+
     def clean_phone_number(self):
         phone_number = normalize_phone_number(self.cleaned_data.get("phone_number"))
         validate_phone_number_format(phone_number)
@@ -201,6 +280,16 @@ class PhoneLineForm(forms.ModelForm):
             origem=self.cleaned_data.get("origem"),
             canal=self.cleaned_data.get("canal"),
             whatsapp_seal=self.cleaned_data.get("whatsapp_seal", ""),
+            whatsapp_seal_activation_status=self.cleaned_data.get(
+                "whatsapp_seal_activation_status", ""
+            ),
+            whatsapp_seal_category=self.cleaned_data.get(
+                "whatsapp_seal_category", ""
+            ),
+            whatsapp_seal_plan=self.cleaned_data.get("whatsapp_seal_plan", ""),
+            whatsapp_seal_monthly_value=self.cleaned_data.get(
+                "whatsapp_seal_monthly_value"
+            ),
             whatsapp_seal_activated_on=self.cleaned_data.get(
                 "whatsapp_seal_activated_on"
             ),
@@ -231,6 +320,10 @@ class PhoneLineUpdateForm(PhoneLineForm):
             "origem",
             "canal",
             "whatsapp_seal",
+            "whatsapp_seal_activation_status",
+            "whatsapp_seal_category",
+            "whatsapp_seal_plan",
+            "whatsapp_seal_monthly_value",
             "whatsapp_seal_activated_on",
             "whatsapp_seal_expires_on",
             "whatsapp_seal_email",

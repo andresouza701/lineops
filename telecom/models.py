@@ -12,8 +12,12 @@ from core.current_user import get_current_user
 from core.normalization import normalize_carrier_name
 from telecom.whatsapp_seal import (
     WhatsAppSeal,
+    WhatsAppSealActivationStatus,
+    WhatsAppSealCategory,
     WhatsAppSealPayment,
+    WhatsAppSealPlan,
     compute_seal_status,
+    normalize_seal_fields,
     validate_seal_fields,
 )
 
@@ -158,6 +162,18 @@ class PhoneLine(models.Model):
     whatsapp_seal_payment = models.CharField(
         max_length=20, choices=WhatsAppSealPayment.choices, blank=True, default=""
     )
+    whatsapp_seal_activation_status = models.CharField(
+        max_length=20, choices=WhatsAppSealActivationStatus.choices, blank=True, default=""
+    )
+    whatsapp_seal_category = models.CharField(
+        max_length=30, choices=WhatsAppSealCategory.choices, blank=True, default=""
+    )
+    whatsapp_seal_plan = models.CharField(
+        max_length=30, choices=WhatsAppSealPlan.choices, blank=True, default=""
+    )
+    whatsapp_seal_monthly_value = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -166,16 +182,36 @@ class PhoneLine(models.Model):
 
     @property
     def seal_status(self):
-        return compute_seal_status(self.whatsapp_seal, self.whatsapp_seal_expires_on)
+        return compute_seal_status(
+            self.whatsapp_seal,
+            self.whatsapp_seal_expires_on,
+            activation_status=self.whatsapp_seal_activation_status,
+        )
+
+    @property
+    def whatsapp_seal_monthly_value_display(self):
+        """Moeda brasileira para o detalhe (SEV-06). Ausência (None — legado
+        antes da primeira edição) nunca é convertida em zero: retorna None,
+        não "R$ 0,00". Zero explícito (Decimal("0.00"), válido para selo Não
+        ativado) é um valor, não ausência, e é exibido como "R$ 0,00" —
+        distinção feita por `is None`, nunca por truthiness do Decimal."""
+        if self.whatsapp_seal_monthly_value is None:
+            return None
+        return f"R$ {self.whatsapp_seal_monthly_value:.2f}".replace(".", ",")
 
     def clean(self):
         super().clean()
+        normalize_seal_fields(self)
         validate_seal_fields(
             seal=self.whatsapp_seal,
+            activation_status=self.whatsapp_seal_activation_status,
             activated_on=self.whatsapp_seal_activated_on,
             expires_on=self.whatsapp_seal_expires_on,
             email=self.whatsapp_seal_email,
             payment=self.whatsapp_seal_payment,
+            category=self.whatsapp_seal_category,
+            plan=self.whatsapp_seal_plan,
+            monthly_value=self.whatsapp_seal_monthly_value,
         )
 
     @classmethod
@@ -230,6 +266,10 @@ class PhoneLine(models.Model):
         origem=None,
         canal=None,
         whatsapp_seal="",
+        whatsapp_seal_activation_status="",
+        whatsapp_seal_category="",
+        whatsapp_seal_plan="",
+        whatsapp_seal_monthly_value=None,
         whatsapp_seal_activated_on=None,
         whatsapp_seal_expires_on=None,
         whatsapp_seal_email="",
@@ -238,8 +278,51 @@ class PhoneLine(models.Model):
         origem = origem or None
         canal = canal or None
         whatsapp_seal = whatsapp_seal or ""
+        whatsapp_seal_activation_status = whatsapp_seal_activation_status or ""
+        whatsapp_seal_category = whatsapp_seal_category or ""
+        whatsapp_seal_plan = whatsapp_seal_plan or ""
         whatsapp_seal_email = whatsapp_seal_email or ""
         whatsapp_seal_payment = whatsapp_seal_payment or ""
+
+        # Normaliza e valida via o mesmo domínio usado por PhoneLine.clean()
+        # (telecom/whatsapp_seal.py), sem duplicar nenhuma regra de negócio:
+        # uma instância descartável (nunca salva) serve só de veículo para
+        # reaproveitar normalize_seal_fields/validate_seal_fields antes de
+        # qualquer escrita. Chamador sem selo nunca aciona validação
+        # (normalize_seal_fields limpa tudo); chamador com selo precisa de
+        # dados completos e válidos, sem inferência de situação/plano/valor.
+        seal_probe = cls(
+            whatsapp_seal=whatsapp_seal,
+            whatsapp_seal_activation_status=whatsapp_seal_activation_status,
+            whatsapp_seal_category=whatsapp_seal_category,
+            whatsapp_seal_plan=whatsapp_seal_plan,
+            whatsapp_seal_monthly_value=whatsapp_seal_monthly_value,
+            whatsapp_seal_activated_on=whatsapp_seal_activated_on,
+            whatsapp_seal_expires_on=whatsapp_seal_expires_on,
+            whatsapp_seal_email=whatsapp_seal_email,
+            whatsapp_seal_payment=whatsapp_seal_payment,
+        )
+        normalize_seal_fields(seal_probe)
+        validate_seal_fields(
+            seal=seal_probe.whatsapp_seal,
+            activation_status=seal_probe.whatsapp_seal_activation_status,
+            activated_on=seal_probe.whatsapp_seal_activated_on,
+            expires_on=seal_probe.whatsapp_seal_expires_on,
+            email=seal_probe.whatsapp_seal_email,
+            payment=seal_probe.whatsapp_seal_payment,
+            category=seal_probe.whatsapp_seal_category,
+            plan=seal_probe.whatsapp_seal_plan,
+            monthly_value=seal_probe.whatsapp_seal_monthly_value,
+        )
+        whatsapp_seal = seal_probe.whatsapp_seal
+        whatsapp_seal_activation_status = seal_probe.whatsapp_seal_activation_status
+        whatsapp_seal_category = seal_probe.whatsapp_seal_category
+        whatsapp_seal_plan = seal_probe.whatsapp_seal_plan
+        whatsapp_seal_monthly_value = seal_probe.whatsapp_seal_monthly_value
+        whatsapp_seal_activated_on = seal_probe.whatsapp_seal_activated_on
+        whatsapp_seal_expires_on = seal_probe.whatsapp_seal_expires_on
+        whatsapp_seal_email = seal_probe.whatsapp_seal_email
+        whatsapp_seal_payment = seal_probe.whatsapp_seal_payment
 
         with transaction.atomic():
             existing_line = (
@@ -257,6 +340,10 @@ class PhoneLine(models.Model):
                     origem=origem,
                     canal=canal,
                     whatsapp_seal=whatsapp_seal,
+                    whatsapp_seal_activation_status=whatsapp_seal_activation_status,
+                    whatsapp_seal_category=whatsapp_seal_category,
+                    whatsapp_seal_plan=whatsapp_seal_plan,
+                    whatsapp_seal_monthly_value=whatsapp_seal_monthly_value,
                     whatsapp_seal_activated_on=whatsapp_seal_activated_on,
                     whatsapp_seal_expires_on=whatsapp_seal_expires_on,
                     whatsapp_seal_email=whatsapp_seal_email,
@@ -276,6 +363,10 @@ class PhoneLine(models.Model):
             existing_line.canal = canal
             existing_line.is_deleted = False
             existing_line.whatsapp_seal = whatsapp_seal
+            existing_line.whatsapp_seal_activation_status = whatsapp_seal_activation_status
+            existing_line.whatsapp_seal_category = whatsapp_seal_category
+            existing_line.whatsapp_seal_plan = whatsapp_seal_plan
+            existing_line.whatsapp_seal_monthly_value = whatsapp_seal_monthly_value
             existing_line.whatsapp_seal_activated_on = whatsapp_seal_activated_on
             existing_line.whatsapp_seal_expires_on = whatsapp_seal_expires_on
             existing_line.whatsapp_seal_email = whatsapp_seal_email
@@ -289,6 +380,10 @@ class PhoneLine(models.Model):
                     "canal",
                     "is_deleted",
                     "whatsapp_seal",
+                    "whatsapp_seal_activation_status",
+                    "whatsapp_seal_category",
+                    "whatsapp_seal_plan",
+                    "whatsapp_seal_monthly_value",
                     "whatsapp_seal_activated_on",
                     "whatsapp_seal_expires_on",
                     "whatsapp_seal_email",

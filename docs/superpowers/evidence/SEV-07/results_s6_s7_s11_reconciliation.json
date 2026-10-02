@@ -1,0 +1,169 @@
+[
+  {
+    "id": "S6_initial_state_is_not_activated",
+    "ok": true,
+    "expected": "NOT_ACTIVATED",
+    "obtained": "NOT_ACTIVATED",
+    "origin": "formulario (GET, estado inicial)",
+    "criterion": "igualdade exata — pre-condicao do cenario, nao o resultado"
+  },
+  {
+    "id": "S6_active_without_dates_and_value_rejected",
+    "ok": true,
+    "expected": "permanece na pagina de edicao (POST invalido)",
+    "obtained": "http://127.0.0.1:8018/telecom/phonelines/1/update/",
+    "origin": "navegador (URL pos-submit)",
+    "criterion": "transicao NOT_ACTIVATED->ACTIVE sem datas/valor positivo deve ser rejeitada pelo contrato"
+  },
+  {
+    "id": "S6_error_mentions_date_or_value",
+    "ok": false,
+    "expected": "mensagem de erro cita data/vencimento/valor",
+    "obtained": "",
+    "origin": "navegador (resumo de erros)",
+    "criterion": "a rejeicao deve ser pela causa de negocio (datas/valor), nao por campo generico"
+  },
+  {
+    "id": "S6_detail_still_not_activated_no_partial_write",
+    "ok": true,
+    "expected": "detalhe continua mostrando 'Não ativado'",
+    "obtained": "Não ativado presente",
+    "origin": "navegador (GET detalhe pos-tentativa)",
+    "criterion": "nenhuma gravacao parcial: tentativa rejeitada nao deve alterar o estado persistido"
+  },
+  {
+    "id": "S7_initial_state_is_active",
+    "ok": true,
+    "expected": "ACTIVE",
+    "obtained": "ACTIVE",
+    "origin": "formulario (GET, estado inicial)",
+    "criterion": "pre-condicao do cenario"
+  },
+  {
+    "id": "S7_transition_saves",
+    "ok": true,
+    "expected": "redireciona para /telecom/ (sucesso)",
+    "obtained": "http://127.0.0.1:8018/telecom/",
+    "origin": "navegador (URL pos-submit)",
+    "criterion": "Ativo->Nao ativado e permitido e deve salvar"
+  },
+  {
+    "id": "S7_detail_shows_not_activated",
+    "ok": true,
+    "expected": "'Não ativado' no detalhe",
+    "obtained": true,
+    "origin": "navegador (GET detalhe pos-save)",
+    "criterion": "situacao deve refletir a transicao"
+  },
+  {
+    "id": "S7_detail_preserves_value_59",
+    "ok": true,
+    "expected": "R$ 59,00 preservado",
+    "obtained": true,
+    "origin": "navegador (GET detalhe pos-save)",
+    "criterion": "valor efetivo preservado na transicao Ativo->Nao ativado"
+  },
+  {
+    "id": "S7_detail_preserves_category_plan",
+    "ok": true,
+    "expected": "categoria/plano preservados",
+    "obtained": {
+      "categoria": true,
+      "plano": true
+    },
+    "origin": "navegador (GET detalhe pos-save)",
+    "criterion": "categoria/plano preservados na transicao"
+  },
+  {
+    "id": "S7_dates_cleared_in_db",
+    "ok": true,
+    "expected": "ambas as datas vazias",
+    "obtained": {
+      "ativacao": "",
+      "vencimento": ""
+    },
+    "origin": "formulario (GET pos-save, campos de data)",
+    "criterion": "datas devem ser limpas ao salvar Nao ativado"
+  },
+  {
+    "id": "S11_initial_value_is_59",
+    "ok": true,
+    "expected": "59.00 (redisplay do form, ver nota de formato)",
+    "obtained": "59.00",
+    "origin": "formulario (GET, estado inicial)",
+    "criterion": "confirma estado inicial antes da edicao"
+  },
+  {
+    "id": "S11_initial_activated_at_populated",
+    "ok": true,
+    "expected": "15/08/2026 10:30 (fixture, America/Sao_Paulo = UTC-3)",
+    "obtained": "15/08/2026 10:30",
+    "origin": "navegador (GET formulario, campo 'Ativada em')",
+    "criterion": "pre-condicao: activated_at deve estar preenchido para a checagem de preservacao ser significativa"
+  },
+  {
+    "id": "S11_edit_saves",
+    "ok": true,
+    "expected": "redireciona para /telecom/",
+    "obtained": "http://127.0.0.1:8018/telecom/",
+    "origin": "navegador (URL pos-submit)",
+    "criterion": "edicao de valor deve salvar com sucesso"
+  },
+  {
+    "id": "S11_detail_shows_65_00",
+    "ok": true,
+    "expected": "R$ 65,00 no detalhe",
+    "obtained": true,
+    "origin": "navegador (GET detalhe pos-save)",
+    "criterion": "contrato explicito: detalhe exibe valor em formato R$ XX,XX"
+  },
+  {
+    "id": "S11_form_redisplay_value_is_decimal_str_not_comma",
+    "ok": true,
+    "expected": "65.00 (str(Decimal), NAO 65,00) — comportamento demonstrado, nao falha de contrato",
+    "obtained": "65.00",
+    "origin": "formulario (GET pos-save, campo de valor)",
+    "criterion": "ver nota de formato: contrato aceita '65.00' e '65,00' como formas equivalentes (secao Entrada monetaria da spec); nenhuma regra exige que o campo de EDICAO redisplay-e especificamente com virgula — apenas o DETALHE tem formato R$ explicito no contrato"
+  },
+  {
+    "id": "S11_employee_preserved",
+    "ok": true,
+    "expected": "mesmo employee id antes/depois",
+    "obtained": {
+      "antes": "1",
+      "depois": "1"
+    },
+    "origin": "formulario (GET, campo employee)",
+    "criterion": "vinculo nao deve mudar ao editar so o selo"
+  },
+  {
+    "id": "S11_status_preserved",
+    "ok": true,
+    "expected": "mesmo status (ALLOCATED) antes/depois",
+    "obtained": {
+      "antes": "ALLOCATED",
+      "depois": "ALLOCATED"
+    },
+    "origin": "formulario (GET, campo status)",
+    "criterion": "status nao deve mudar ao editar so o selo"
+  },
+  {
+    "id": "S11_activated_at_preserved_non_empty",
+    "ok": true,
+    "expected": "mesmo valor preenchido antes/depois (nao vazio->vazio)",
+    "obtained": {
+      "antes": "15/08/2026 10:30",
+      "depois": "15/08/2026 10:30"
+    },
+    "origin": "navegador (GET formulario, campo 'Ativada em')",
+    "criterion": "preservacao de dado operacional real, nao trivial"
+  },
+  {
+    "id": "S11_roundtrip_resubmit_unchanged_value_still_valid",
+    "ok": true,
+    "expected": "resubmeter o valor exibido (65.00) sem alteracao deve salvar sem erro",
+    "obtained": "http://127.0.0.1:8018/telecom/",
+    "origin": "navegador (resubmissao real)",
+    "criterion": "comprova que o formato de redisplay e uma representacao Decimal equivalente aceita pelo parser, nao um valor invalido/corrompido"
+  }
+]

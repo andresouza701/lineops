@@ -1,0 +1,52 @@
+[
+  {
+    "id": "S6_redo_transition_not_activated_to_active_requires_dates_and_value",
+    "ok": true,
+    "detail": "succeeded(deveria ser false)=false url=http://127.0.0.1:8017/telecom/phonelines/8/update/ err=\"\""
+  },
+  {
+    "id": "S7_redo_transition_active_to_not_activated_saves",
+    "ok": true,
+    "detail": "succeeded=true url=http://127.0.0.1:8017/telecom/ err=\"\""
+  },
+  {
+    "id": "S7_redo_detail_shows_not_activated",
+    "ok": true,
+    "detail": "detalhe mostra 'Não ativado' apos a transicao"
+  },
+  {
+    "id": "S7_redo_detail_preserves_value",
+    "ok": true,
+    "detail": "valor mensal (R$ 59,00) preservado no detalhe apos a transicao"
+  },
+  {
+    "id": "S7_redo_detail_preserves_category_plan",
+    "ok": true,
+    "detail": "categoria/plano preservados no detalhe apos a transicao"
+  },
+  {
+    "id": "S11_redo_edit_seal_only_on_allocated_line_saves",
+    "ok": true,
+    "detail": "succeeded=true url=http://127.0.0.1:8017/telecom/"
+  },
+  {
+    "id": "S11_redo_value_updated",
+    "ok": false,
+    "detail": "valor apos edicao=65.00"
+  },
+  {
+    "id": "S11_redo_employee_preserved",
+    "ok": true,
+    "detail": "employee antes=1 depois=1"
+  },
+  {
+    "id": "S11_redo_status_preserved",
+    "ok": true,
+    "detail": "status antes=ALLOCATED depois=ALLOCATED"
+  },
+  {
+    "id": "S11_redo_activated_at_preserved",
+    "ok": true,
+    "detail": "activated_at antes=  depois= "
+  }
+]

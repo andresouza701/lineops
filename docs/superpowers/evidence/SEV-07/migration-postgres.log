@@ -1,0 +1,72 @@
+SEV-07 — Validação real da migration 0022 em Postgres descartável
+===================================================================
+
+Ambiente: container Docker `sev07-disposable-pg` (imagem postgres:15.8),
+porta 55432, banco `sev07`, usuário `sev07` (credenciais descartáveis,
+sem relação com nenhum ambiente real). Separado dos recursos
+pré-existentes `lineops-db` (porta 5433) e `postgres`/pgvector (porta
+5432), que não foram tocados nesta task.
+
+Comando de criação do container:
+  docker run -d --name sev07-disposable-pg \
+    -e POSTGRES_USER=sev07 -e POSTGRES_PASSWORD=sev07_disposable_pw \
+    -e POSTGRES_DB=sev07 -p 55432:5432 postgres:15.8
+
+Script executado: scratchpad/sev07_pg_migration_check.py (via
+venv/Scripts/python.exe, variáveis de ambiente DB_HOST=localhost
+DB_PORT=55432 DB_NAME=sev07 DB_USER=sev07 DB_PASSWORD=sev07_disposable_pw
+APP_ENV=dev DJANGO_SETTINGS_MODULE=config.settings_dev — nenhum arquivo
+de configuração versionado foi alterado).
+
+Saída real (trechos relevantes, íntegra na transcrição da task):
+
+  DB settings in use: sev07 localhost 55432
+
+  == 1. migrate para HEAD (cria schema completo) ==
+  Applying telecom.0021_phoneline_whatsapp_seal_and_more... OK
+  Applying telecom.0022_phoneline_whatsapp_seal_activation_status_and_more... OK
+  [... demais migrations de todos os apps aplicadas sem erro ...]
+
+  == 2. cols ANTES de descer (deve ter os 4 campos novos) ==
+  OK, colunas novas presentes no HEAD: {whatsapp_seal_activation_status,
+  whatsapp_seal_plan, whatsapp_seal_category, whatsapp_seal_monthly_value}
+
+  == 3. criar dataset legado via ORM (ainda no HEAD) ==
+  Dataset criado: 1 2 3 4
+  (4 linhas: com selo, sem selo, com selo + excluída logicamente,
+  selo inconsistente sem e-mail/pagamento)
+
+  == 4. migrate telecom 0021 (desce) ==
+  OK, schema real em 0021 (sem as 4 colunas novas) confirmado por
+  information_schema.columns
+
+  == 5. migrate telecom 0022 (sobe de novo — RunPython de backfill real) ==
+  OK — with_seal classificado ACTIVE, datas preservadas, categoria/plano
+  vazios, valor null
+  OK — without_seal permanece sem situação, sem valor
+  OK — registro logicamente excluído também classificado pelo backfill
+  OK — legado inconsistente (selo sem e-mail/pagamento) classificado sem
+  "corrigir" dados ausentes
+
+  == 6. migrate telecom 0021 de novo (reversão real) ==
+  OK — reversão real: colunas novas removidas, 5 campos antigos
+  preservados exatos (leitura SQL crua via information_schema +
+  SELECT direto)
+  OK — registro excluído logicamente também preservado na reversão
+
+  == 7. migrate para HEAD de novo ==
+  OK — após reaplicar 0022, backfill roda novamente e classifica ACTIVE
+  (idempotente)
+
+  === VALIDACAO POSTGRES DA MIGRATION 0022: TODAS AS ASSERCOES PASSARAM ===
+
+Conclusão: a pendência de validação Postgres registrada nas rodadas
+anteriores de SEV-04 está resolvida nesta task — forward, backfill e
+reversão foram exercitados em Postgres real (não SQLite), em banco
+descartável isolado, com preservação dos 5 campos antigos comprovada por
+leitura crua pós-reversão.
+
+Encerramento do container (ao final de toda a task SEV-07):
+  docker stop sev07-disposable-pg && docker rm sev07-disposable-pg
+  docker volume: nenhum volume nomeado foi criado (container efêmero,
+  sem -v), portanto não há volume para remover.

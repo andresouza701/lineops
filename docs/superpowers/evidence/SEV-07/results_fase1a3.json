@@ -1,0 +1,112 @@
+[
+  {
+    "id": "visual_overflow_w1280_json",
+    "ok": true,
+    "detail": "clientWidth=1280 scrollWidth=1280 bodyBg=rgb(2, 6, 23)"
+  },
+  {
+    "id": "visual_dark_bg_w1280_json",
+    "ok": true,
+    "detail": "body background-color computado: rgb(2, 6, 23) (esperado rgb(2, 6, 23))"
+  },
+  {
+    "id": "visual_field_order_w1280_json",
+    "ok": true,
+    "detail": "posicoes verticais Selo/Categoria/Plano/Situacao/Valor: [263.796875,341.796875,427.796875,513.796875,599.796875]"
+  },
+  {
+    "id": "visual_overflow_w1280_jsoff",
+    "ok": true,
+    "detail": "clientWidth=1280 scrollWidth=1280 bodyBg=rgb(2, 6, 23)"
+  },
+  {
+    "id": "visual_dark_bg_w1280_jsoff",
+    "ok": true,
+    "detail": "body background-color computado: rgb(2, 6, 23) (esperado rgb(2, 6, 23))"
+  },
+  {
+    "id": "visual_overflow_w390_json",
+    "ok": true,
+    "detail": "clientWidth=390 scrollWidth=390 bodyBg=rgb(2, 6, 23)"
+  },
+  {
+    "id": "visual_dark_bg_w390_json",
+    "ok": true,
+    "detail": "body background-color computado: rgb(2, 6, 23) (esperado rgb(2, 6, 23))"
+  },
+  {
+    "id": "visual_field_order_w390_json",
+    "ok": true,
+    "detail": "posicoes verticais Selo/Categoria/Plano/Situacao/Valor: [731.421875,809.421875,895.421875,981.421875,1067.421875]"
+  },
+  {
+    "id": "visual_overflow_w390_jsoff",
+    "ok": true,
+    "detail": "clientWidth=390 scrollWidth=390 bodyBg=rgb(2, 6, 23)"
+  },
+  {
+    "id": "visual_dark_bg_w390_jsoff",
+    "ok": true,
+    "detail": "body background-color computado: rgb(2, 6, 23) (esperado rgb(2, 6, 23))"
+  },
+  {
+    "id": "visual_overflow_w360_json",
+    "ok": true,
+    "detail": "clientWidth=360 scrollWidth=360 bodyBg=rgb(2, 6, 23)"
+  },
+  {
+    "id": "visual_dark_bg_w360_json",
+    "ok": true,
+    "detail": "body background-color computado: rgb(2, 6, 23) (esperado rgb(2, 6, 23))"
+  },
+  {
+    "id": "visual_field_order_w360_json",
+    "ok": true,
+    "detail": "posicoes verticais Selo/Categoria/Plano/Situacao/Valor: [731.421875,809.421875,895.421875,1005.421875,1091.421875]"
+  },
+  {
+    "id": "visual_overflow_w360_jsoff",
+    "ok": true,
+    "detail": "clientWidth=360 scrollWidth=360 bodyBg=rgb(2, 6, 23)"
+  },
+  {
+    "id": "visual_dark_bg_w360_jsoff",
+    "ok": true,
+    "detail": "body background-color computado: rgb(2, 6, 23) (esperado rgb(2, 6, 23))"
+  },
+  {
+    "id": "legacy_detail_nao_informado",
+    "ok": true,
+    "detail": "texto 'Não informado' presente no detalhe do legado"
+  },
+  {
+    "id": "legacy_detail_sem_zero_inventado",
+    "ok": true,
+    "detail": "detalhe do legado nao mostra 'R$ 0,00' para valor ausente"
+  },
+  {
+    "id": "catalog_meta_one_category_filtered",
+    "ok": true,
+    "detail": "opcoes visiveis de categoria para META_ONE: [\"CREATORS_BUSINESSES\"]"
+  },
+  {
+    "id": "catalog_meta_one_plan_filtered",
+    "ok": true,
+    "detail": "opcoes visiveis de plano: [\"ONE_ESSENTIAL\"]"
+  },
+  {
+    "id": "catalog_price_reference_shown_and_separate",
+    "ok": true,
+    "detail": "referencia='Referência de preço: R$ 59,00' valor_efetivo='' (deve ficar vazio, plano nao preenche valor)"
+  },
+  {
+    "id": "catalog_switch_type_invalidates_incompatible_keeps_value",
+    "ok": true,
+    "detail": "apos trocar para META_VERIFIED: categoria='' plano='' valor preservado='59,00'"
+  },
+  {
+    "id": "catalog_not_activated_hides_dates_block_js",
+    "ok": true,
+    "detail": "bloco de datas oculto quando Situacao=Nao ativado (JS)"
+  }
+]

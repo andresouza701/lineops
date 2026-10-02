@@ -7,6 +7,7 @@ cobertas por telecom/test_whatsapp_seal.py.
 
 import re
 from datetime import date
+from decimal import Decimal
 
 import pytest
 from django.urls import reverse
@@ -53,10 +54,19 @@ def admin_client(client, db):
 
 @pytest.fixture
 def payload(sim):
+    # Correção de fixture (SEV-05): situação/categoria/plano/valor mensal
+    # são obrigatórios com selo desde SEV-04; este arquivo (SEL-07) é
+    # anterior a esses 4 campos. Adicionados com a combinação ACTIVE/
+    # META_ONE do catálogo, consistente com as datas já presentes;
+    # intenção e asserções de cada teste (apresentação/HTML) inalteradas.
     return {
         "phone_number": "+5511999997771",
         "sim_card": sim.pk,
         "whatsapp_seal": "META_ONE",
+        "whatsapp_seal_activation_status": "ACTIVE",
+        "whatsapp_seal_category": "CREATORS_BUSINESSES",
+        "whatsapp_seal_plan": "ONE_ESSENTIAL",
+        "whatsapp_seal_monthly_value": "59,00",
         "whatsapp_seal_activated_on": "2026-09-01",
         "whatsapp_seal_expires_on": "2026-10-17",
         "whatsapp_seal_email": "seal@example.com",
@@ -92,11 +102,19 @@ def test_seal_detail_fields_accessible_without_js_by_default(admin_client, sim, 
     for field_name in SEAL_DETAIL_FIELD_NAMES:
         assert "required" not in field_tag(create_content, field_name)
 
+    # Correção de fixture (SEV-05): create_or_reuse agora exige dados
+    # completos de selo (situação/categoria/plano/valor); sem eles
+    # levantaria ValidationError antes mesmo da verificação de HTML sob
+    # teste. Acrescentada a combinação ACTIVE/META_ONE do catálogo.
     line = PhoneLine.create_or_reuse(
         phone_number="+5511999995551",
         sim_card=sim,
         status=PhoneLine.Status.AVAILABLE,
         whatsapp_seal="META_ONE",
+        whatsapp_seal_activation_status="ACTIVE",
+        whatsapp_seal_category="CREATORS_BUSINESSES",
+        whatsapp_seal_plan="ONE_ESSENTIAL",
+        whatsapp_seal_monthly_value=Decimal("59.00"),
         whatsapp_seal_activated_on=date(2026, 9, 1),
         whatsapp_seal_expires_on=date(2026, 10, 17),
         whatsapp_seal_email="seal@example.com",
@@ -125,11 +143,18 @@ def test_seal_fields_rendered_with_labels_and_widgets(admin_client):
 
 
 def test_get_edit_preserves_seal_data(admin_client, sim, payload):
+    # Correção de fixture (SEV-05): mesma causa de
+    # test_seal_detail_fields_accessible_without_js_by_default — adicionada
+    # a combinação ACTIVE/META_VERIFIED válida do catálogo.
     line = PhoneLine.create_or_reuse(
         phone_number="+5511999996661",
         sim_card=sim,
         status=PhoneLine.Status.AVAILABLE,
         whatsapp_seal="META_VERIFIED",
+        whatsapp_seal_activation_status="ACTIVE",
+        whatsapp_seal_category="PERSONAL_CREATOR",
+        whatsapp_seal_plan="STANDARD",
+        whatsapp_seal_monthly_value=Decimal("53.90"),
         whatsapp_seal_activated_on=date(2026, 9, 1),
         whatsapp_seal_expires_on=date(2026, 10, 17),
         whatsapp_seal_email="edit-seal@example.com",
