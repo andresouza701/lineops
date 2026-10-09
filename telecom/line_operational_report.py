@@ -23,6 +23,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from telecom.models import LineDailyActionAuditEvent
+from telecom.seal_indicator import build_seal_indicator
 from users.models import SystemUser
 
 PAGE_SIZE = 50
@@ -93,7 +94,12 @@ class _Cycle:
 
 @dataclass(frozen=True)
 class LineOperationalReportRow:
-    """DTO renderizavel: so tipos simples, reutilizavel por HTML e CSV."""
+    """DTO renderizavel: so tipos simples, reutilizavel por HTML e CSV.
+
+    seal_indicator (SVI-05) e enriquecimento exclusivo de tela: o
+    exportador CSV (telecom/views.py::_operational_report_csv_response)
+    seleciona colunas explicitamente e ignora este campo, preservando as
+    colunas/valores ja aprovados."""
 
     phone_number: str
     entradas: int
@@ -103,6 +109,7 @@ class LineOperationalReportRow:
     duracao_aberta: str
     ultima_acao: str
     ultimo_ator: str
+    seal_indicator: object = None
 
 
 def _format_duration(delta: timedelta) -> str:
@@ -130,12 +137,29 @@ def build_line_operational_report(phone_lines_queryset, filters: LineOperational
     """Retorna todas as linhas do relatorio (nao paginado) para o escopo e
     filtros dados — usado tanto pela view HTML (que pagina em Python) quanto
     pela exportacao CSV (que exporta o conjunto completo)."""
-    lines = list(phone_lines_queryset.values("id", "phone_number"))
+    lines = list(
+        phone_lines_queryset.values(
+            "id",
+            "phone_number",
+            "whatsapp_seal",
+            "whatsapp_seal_activation_status",
+            "whatsapp_seal_expires_on",
+        )
+    )
     if not lines:
         return []
 
     line_ids = [line["id"] for line in lines]
     phone_number_by_id = {line["id"]: line["phone_number"] for line in lines}
+    seal_indicator_by_id = {
+        line["id"]: build_seal_indicator(
+            identified=True,
+            seal=line["whatsapp_seal"],
+            activation_status=line["whatsapp_seal_activation_status"],
+            expires_on=line["whatsapp_seal_expires_on"],
+        )
+        for line in lines
+    }
 
     reference_at = filters.reference_at
     start_at = filters.start_at
@@ -253,6 +277,7 @@ def build_line_operational_report(phone_lines_queryset, filters: LineOperational
                 duracao_aberta=duracao_aberta,
                 ultima_acao=ultima_acao,
                 ultimo_ator=ultimo_ator,
+                seal_indicator=seal_indicator_by_id[line_id],
             )
         )
 

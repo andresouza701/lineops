@@ -46,7 +46,9 @@ from .line_timeline import (
     get_line_timeline_page,
     has_line_activity,
 )
+from .blip_lines import build_authorized_blip_line_index
 from .models import BlipConfiguration, PhoneLine, PhoneLineHistory, SIMcard
+from .seal_indicator import seal_indicator_for_phone_line
 from .services.reconnect_service import build_default_reconnect_service
 from .whatsapp_seal import seal_catalog_entries
 
@@ -1047,6 +1049,7 @@ class TelecomOverviewView(RoleRequiredMixin, TemplateView):
                     line.get_whatsapp_seal_display() if line.whatsapp_seal else ""
                 )
                 line_data["seal_status"] = line.seal_status
+                line_data["seal_indicator"] = seal_indicator_for_phone_line(line).as_dict()
 
             data.append(line_data)
 
@@ -1298,6 +1301,16 @@ class BlipConfigurationListView(RoleRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["blip_id_filter"] = getattr(self, "blip_id_filter", "")
         context["phone_number_filter"] = getattr(self, "phone_number_filter", "")
+        # Uma unica consulta em lote (nao uma por configuracao) resolve o
+        # indice numero->PhoneLine autorizada; ambiguo/ausente vira None,
+        # tratado por seal_indicator_for_phone_line como nao identificado.
+        blip_line_index = build_authorized_blip_line_index(self.request.user)
+        context["seal_indicator_by_phone_number"] = {
+            config.phone_number: seal_indicator_for_phone_line(
+                blip_line_index.get(config.phone_number)
+            )
+            for config in context["configurations"]
+        }
         return context
 
 
@@ -1317,6 +1330,14 @@ class BlipConfigurationCreateView(RoleRequiredMixin, CreateView):
         messages.success(self.request, "Configuracao Blip cadastrada com sucesso.")
         return super().form_valid(form)
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Criacao: nenhuma selecao salva ainda — nunca associa um
+        # indicador a uma escolha nao confirmada (borda aprovada #3).
+        context["has_saved_phone_line"] = False
+        context["saved_phone_line"] = None
+        return context
+
 
 class BlipConfigurationUpdateView(RoleRequiredMixin, UpdateView):
     allowed_roles = [SystemUser.Role.DEV]
@@ -1333,3 +1354,29 @@ class BlipConfigurationUpdateView(RoleRequiredMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Configuracao Blip atualizada com sucesso.")
         return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # O indicador reflete sempre o DADO SALVO, nunca a selecao
+        # corrente ainda nao submetida do <select> — unico jeito, sem JS,
+        # de nunca mostrar o circulo de uma selecao anterior/nao
+        # confirmada (borda aprovada #3).
+        # SVI-07 (revisao final do diff): nao usar self.object.phone_number
+        # aqui. Em POST invalido, ModelForm._post_clean (chamado por
+        # form.is_valid(), antes de form_invalid renderizar esta pagina)
+        # ja escreveu os campos validos submetidos — inclusive
+        # phone_number — na MESMA instancia que e self.object, mesmo sem
+        # nada ter sido salvo no banco. Ler self.object aqui mostraria a
+        # selecao nao salva (B) como se fosse o dado salvo. Resolvido
+        # buscando o valor persistido diretamente no banco pelo pk, sem
+        # depender da instancia em memoria do form; nenhuma escrita.
+        persisted_phone_number = (
+            BlipConfiguration.objects.filter(pk=self.object.pk)
+            .values_list("phone_number", flat=True)
+            .first()
+        )
+        blip_line_index = build_authorized_blip_line_index(self.request.user)
+        context["has_saved_phone_line"] = True
+        context["saved_phone_number"] = persisted_phone_number
+        context["saved_phone_line"] = blip_line_index.get(persisted_phone_number)
+        return context

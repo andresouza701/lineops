@@ -1,4 +1,5 @@
 {% extends "base/base.html" %}
+{% load seal_indicator_tags %}
 
 {% block title %}Detalhe do Usuário{% endblock %}
 
@@ -104,7 +105,7 @@
                 <tbody>
                     {% for allocation in allocations %}
                         <tr>
-                            <td>{{ allocation.phone_line.phone_number }}</td>
+                            <td>{{ allocation.phone_line.phone_number }}{% seal_indicator allocation.phone_line|to_seal_indicator:True %}</td>
                             <td>{{ allocation.phone_line.sim_card.iccid }}</td>
                             <td>{{ allocation.allocated_at }}</td>
                             <td>

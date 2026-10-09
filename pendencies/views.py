@@ -14,6 +14,7 @@ from core.mixins import RoleRequiredMixin
 from employees.models import Employee
 from telecom.daily_action_audit import build_pendency_state, record_line_daily_action_event
 from telecom.models import LineDailyActionAuditEvent, PhoneLineHistory
+from telecom.seal_indicator import seal_indicator_for_phone_line
 from users.models import SystemUser
 
 from .models import AllocationPendency, PendencyObservationNotification
@@ -98,6 +99,9 @@ def _pendency_to_json(pendency, allocation):
         "carteira": employee.employee_id,
         "supervisor": _supervisor_name(employee),
         "linha": line_number or "-",
+        "linha_selo": seal_indicator_for_phone_line(
+            allocation.phone_line if allocation else None
+        ).as_dict(),
         # Campos editáveis
         "action": pendency.action,
         "action_display": pendency.get_action_display(),

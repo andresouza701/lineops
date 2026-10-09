@@ -17,6 +17,8 @@ from core.services.allocation_service import AllocationService
 from core.validation import parse_non_negative_int
 from users.models import SystemUser
 
+from telecom.seal_indicator import seal_indicator_for_phone_line
+
 from .models import Employee, EmployeeHistory
 
 DUPLICATE_EMPLOYEE_NAME_MESSAGE = "Já existe um usuário cadastrado com este nome."
@@ -58,6 +60,7 @@ class EmployeeListView(RoleRequiredMixin, ListView):
                     "corporate_email": emp.corporate_email,
                     "full_name": emp.full_name,
                     "line": lines,
+                    "lines": self._get_employee_lines_with_seal(emp),
                     "employee_id": emp.employee_id,
                     "pa": emp.pa or "",
                     "teams": emp.teams,
@@ -73,15 +76,35 @@ class EmployeeListView(RoleRequiredMixin, ListView):
 
     @staticmethod
     def _get_employee_lines(employee):
-        """Extract phone numbers from prefetched allocations to avoid N+1."""
-        # Use prefetched allocations (already loaded via prefetch_related)
+        """Extract phone numbers (+ situação textual do selo, SVI-05) from
+        prefetched allocations to avoid N+1. Mesma regra usada pelo render
+        inicial (template) e pelo AJAX (campo "line"), reaproveitando
+        PhoneLine.seal_status ja carregado na instancia (sem query extra)."""
         allocations = employee.allocations.all()
-        active_numbers = [
-            allocation.phone_line.phone_number
-            for allocation in allocations
+        parts = []
+        for allocation in allocations:
+            phone_line = allocation.phone_line
+            if not (phone_line and phone_line.phone_number):
+                continue
+            if phone_line.whatsapp_seal:
+                parts.append(f"{phone_line.phone_number} ({phone_line.seal_status['label']})")
+            else:
+                parts.append(phone_line.phone_number)
+        return ", ".join(parts) if parts else "-"
+
+    @staticmethod
+    def _get_employee_lines_with_seal(employee):
+        """Mesma identidade de linha do método acima, estruturada por linha
+        (não string concatenada) para o render dinâmico seguro (JS usa
+        createElement/textContent, não concatenação de HTML — I08 AJAX)."""
+        return [
+            {
+                "phone_number": allocation.phone_line.phone_number,
+                "seal_indicator": seal_indicator_for_phone_line(allocation.phone_line).as_dict(),
+            }
+            for allocation in employee.allocations.all()
             if allocation.phone_line and allocation.phone_line.phone_number
         ]
-        return ", ".join(active_numbers) if active_numbers else "-"
 
     def _build_queryset(self, request):
         """Constrói o queryset baseado nos filtros"""

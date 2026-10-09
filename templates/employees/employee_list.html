@@ -1,4 +1,6 @@
 ﻿{% extends "base/base.html" %}
+{% load seal_indicator_tags %}
+{% load static %}
 
 {% block title %}Usuários LineOps{% endblock %}
 
@@ -76,7 +78,13 @@
                                 <td>{{ employee.corporate_email }}</td>
                                 <td>{{ employee.email|default:"-" }}</td>
                                 <td>{{ employee.full_name }}</td>
-                                <td class="metric-mono">{{ employee.line_display }}</td>
+                                <td class="metric-mono">
+                                    {% for allocation in employee.allocations.all %}
+                                        {% if allocation.phone_line %}{{ allocation.phone_line.phone_number }}{% seal_indicator allocation.phone_line|to_seal_indicator %}{% if not forloop.last %}, {% endif %}{% endif %}
+                                    {% empty %}
+                                        -
+                                    {% endfor %}
+                                </td>
                                 <td>{{ employee.employee_id }}</td>
                                 <td>{{ employee.pa|default:"-" }}</td>
                                 <td>{{ employee.teams }}</td>
@@ -131,6 +139,7 @@
     </div>
 </div>
 
+<script src="{% static 'js/seal_indicator.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const tbody = document.getElementById('employee-table-body');
@@ -161,6 +170,22 @@ document.addEventListener('DOMContentLoaded', function() {
         return params.toString();
     }
 
+    function buildLineCell(lines) {
+        const td = document.createElement('td');
+        td.className = 'metric-mono';
+        if (!lines || !lines.length) {
+            td.textContent = '-';
+            return td;
+        }
+        lines.forEach((line, index) => {
+            td.appendChild(document.createTextNode(line.phone_number));
+            const node = SealIndicator.createNode(line.seal_indicator);
+            if (node) td.appendChild(node);
+            if (index < lines.length - 1) td.appendChild(document.createTextNode(', '));
+        });
+        return td;
+    }
+
     function renderStatus(status) {
         if (status === 'active') {
             return '<span class="badge bg-success">Ativo</span>';
@@ -188,14 +213,15 @@ document.addEventListener('DOMContentLoaded', function() {
             <td>${employee.corporate_email}</td>
             <td>${employee.email || '-'}</td>
             <td>${employee.full_name}</td>
-            <td class=\"metric-mono\">${employee.line || '-'}</td>
+            <td class=\"metric-mono\"></td>
             <td>${employee.employee_id}</td>
             <td>${employee.pa || '-'}</td>
             <td>${employee.teams}</td>
             <td>${renderStatus(employee.status)}</td>
             <td class=\"text-end\">${actionsHtml}</td>
         `;
-        
+        tr.replaceChild(buildLineCell(employee.lines), tr.querySelector('td.metric-mono'));
+
         return tr;
     }
     

@@ -1,4 +1,5 @@
 {% extends "base/base.html" %}
+{% load seal_indicator_tags %}
 
 {% block title %}Minhas Linhas{% endblock %}
 
@@ -24,7 +25,7 @@
                 <tbody>
                     {% for line in phone_lines %}
                     <tr>
-                        <td class="fw-medium font-monospace">{{ line.phone_number }}</td>
+                        <td class="fw-medium font-monospace">{{ line.phone_number }}{% seal_indicator line|to_seal_indicator %}</td>
                         <td>{{ line.get_status_display }}</td>
                         <td>{{ line.sim_card.carrier }}</td>
                         <td>

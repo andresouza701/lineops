@@ -1,4 +1,5 @@
 {% extends "base/base.html" %}
+{% load seal_indicator_tags %}
 
 {% block title %}Cadastro Blip{% endblock %}
 
@@ -39,6 +40,11 @@
                         <label class="form-label">Numero Telefone</label>
                         {{ form.phone_number }}
                         {{ form.phone_number.errors }}
+                        {% if has_saved_phone_line %}
+                        <div class="form-text seal-indicator-saved-block">
+                            Dado salvo: {{ saved_phone_number }}{% seal_indicator saved_phone_line|to_seal_indicator %}
+                        </div>
+                        {% endif %}
                     </div>
                     <div class="col-12 col-md-6">
                         <label class="form-label">Chave</label>

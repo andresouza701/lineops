@@ -81,6 +81,7 @@ import io
 import itertools
 import json
 import os
+import re
 import shutil
 import zipfile
 from datetime import date, datetime, time, timedelta
@@ -1069,7 +1070,12 @@ class PendenciesSolicitanteResponsavelTests(TestCase):
         content = response.content.decode()
         row_start = content.rindex("<tr>", 0, content.index("+5511933000008"))
         row_end = content.index("</tr>", row_start)
-        cells = [cell.split("</td>")[0] for cell in content[row_start:row_end].split("<td>")[1:]]
+        # Extracao tolerante a atributos no <td> (SVI-05 acrescentou um
+        # atributo title/coluna de indicador de selo na mesma linha, sem
+        # mudar a identidade/ordem das colunas pre-existentes referenciadas
+        # por indice aqui); o parsing antigo exigia "<td>" literal, sem
+        # nenhum atributo, o que nunca foi o contrato real da tela.
+        cells = re.findall(r"<td[^>]*>(.*?)</td>", content[row_start:row_end], re.DOTALL)
         solicitante_cell = cells[2]
         self.assertEqual(solicitante_cell, opener_name)
         self.assertNotEqual(solicitante_cell, "Helio")

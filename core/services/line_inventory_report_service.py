@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from allocations.models import LineAllocation
 from telecom.models import PhoneLine
+from telecom.seal_indicator import build_seal_indicator
 
 PAGE_SIZE = 50
 
@@ -31,6 +32,7 @@ class LineInventoryReportRow:
     vinculo_label: str
     created_at: datetime
     registro_label: str
+    seal_indicator: object = None
 
 
 @dataclass
@@ -159,6 +161,12 @@ def _row_from_line(line: PhoneLine) -> LineInventoryReportRow:
         vinculo_label=_vinculo_label(active_allocations),
         created_at=timezone.localtime(line.created_at),
         registro_label=_registro_label(line.is_deleted, line.sim_card.is_deleted),
+        seal_indicator=build_seal_indicator(
+            identified=True,
+            seal=line.whatsapp_seal,
+            activation_status=line.whatsapp_seal_activation_status,
+            expires_on=line.whatsapp_seal_expires_on,
+        ),
     )
 
 

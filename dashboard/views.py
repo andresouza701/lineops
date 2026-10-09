@@ -40,6 +40,7 @@ from telecom.daily_action_audit import (
     record_line_daily_action_event,
 )
 from telecom.models import LineDailyActionAuditEvent, PhoneLine, PhoneLineHistory, SIMcard
+from telecom.seal_indicator import build_seal_indicator
 from users.models import SystemUser
 
 from .forms import (
@@ -2462,6 +2463,46 @@ def dashboard_daily_snapshot_report(request):
     return response
 
 
+def build_seal_indicator_index_for_breakdown(indicator):
+    """Resolve, em UMA única consulta em lote (nao uma por numero/linha),
+    o indicador de selo de cada numero que aparece no detalhamento diario
+    (I13-I17). Os numeros ja vieram de pipelines de negocio proprios
+    (disponiveis/entregues/reconectados/novos/usuarios com linha) — esta
+    consulta apenas recupera os MESMOS campos de selo dessas linhas ja
+    identificadas, nunca uma busca nova por texto digitado."""
+    numbers = set(indicator.get("available_numbers") or [])
+    numbers.update(indicator.get("new_numbers") or [])
+    numbers.update(
+        item["numero"] for item in (indicator.get("delivered_numbers") or [])
+    )
+    numbers.update(
+        item["numero"] for item in (indicator.get("reconnected_numbers") or [])
+    )
+    numbers.update(
+        user["linha"]
+        for user in (indicator.get("users_with_line") or [])
+        if user.get("linha") and user["linha"] != "-"
+    )
+    if not numbers:
+        return {}
+
+    rows = PhoneLine.all_objects.filter(phone_number__in=numbers).values(
+        "phone_number",
+        "whatsapp_seal",
+        "whatsapp_seal_activation_status",
+        "whatsapp_seal_expires_on",
+    )
+    return {
+        row["phone_number"]: build_seal_indicator(
+            identified=True,
+            seal=row["whatsapp_seal"],
+            activation_status=row["whatsapp_seal_activation_status"],
+            expires_on=row["whatsapp_seal_expires_on"],
+        )
+        for row in rows
+    }
+
+
 @login_required
 @roles_required(*DASHBOARD_ALLOWED_ROLES)
 def daily_indicator_day_breakdown(request, day):
@@ -2480,6 +2521,7 @@ def daily_indicator_day_breakdown(request, day):
         "selected_day": selected_day,
         "indicator": indicator,
         "users": indicator.get("users", []),
+        "seal_indicator_by_number": build_seal_indicator_index_for_breakdown(indicator),
     }
     return render(request, "dashboard/daily_indicator_day_breakdown.html", context)
 

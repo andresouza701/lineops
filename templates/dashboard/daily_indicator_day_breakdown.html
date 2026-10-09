@@ -1,4 +1,5 @@
 {% extends "base/base.html" %}
+{% load seal_indicator_tags %}
 
 {% block title %}{{ title }}{% endblock %}
 {% block page_title %}Detalhes dos Indicadores{% endblock %}
@@ -109,7 +110,7 @@
                     <ul class="detail-list">
                         {% for number in indicator.available_numbers %}
                             <li class="detail-list-item">
-                                <span class="detail-list-main metric-mono">{{ number }}</span>
+                                <span class="detail-list-main metric-mono">{{ number }}</span>{% seal_indicator seal_indicator_by_number|dict_get:number %}
                             </li>
                         {% endfor %}
                     </ul>
@@ -129,7 +130,7 @@
                     <ul class="detail-list">
                         {% for item in indicator.delivered_numbers %}
                             <li class="detail-list-item">
-                                <span class="detail-list-main metric-mono">{{ item.numero }}</span>
+                                <span class="detail-list-main metric-mono">{{ item.numero }}</span>{% seal_indicator seal_indicator_by_number|dict_get:item.numero %}
                                 <span class="detail-list-meta">{{ item.usuario }} ({{ item.carteira }})</span>
                             </li>
                         {% endfor %}
@@ -150,7 +151,7 @@
                     <ul class="detail-list">
                         {% for item in indicator.reconnected_numbers %}
                             <li class="detail-list-item">
-                                <span class="detail-list-main metric-mono">{{ item.numero }}</span>
+                                <span class="detail-list-main metric-mono">{{ item.numero }}</span>{% seal_indicator seal_indicator_by_number|dict_get:item.numero %}
                                 <span class="detail-list-meta">{{ item.usuario }} ({{ item.carteira }})</span>
                             </li>
                         {% endfor %}
@@ -171,7 +172,7 @@
                     <ul class="detail-list">
                         {% for number in indicator.new_numbers %}
                             <li class="detail-list-item">
-                                <span class="detail-list-main metric-mono">{{ number }}</span>
+                                <span class="detail-list-main metric-mono">{{ number }}</span>{% seal_indicator seal_indicator_by_number|dict_get:number %}
                             </li>
                         {% endfor %}
                     </ul>
@@ -212,7 +213,7 @@
                         {% for user in indicator.users_with_line %}
                             <li class="detail-list-item">
                                 <span class="detail-list-main">{{ user.nome }}</span>
-                                <span class="detail-list-meta metric-mono">{{ user.linha }}</span>
+                                <span class="detail-list-meta metric-mono">{{ user.linha }}</span>{% seal_indicator seal_indicator_by_number|dict_get:user.linha %}
                             </li>
                         {% endfor %}
                     </ul>

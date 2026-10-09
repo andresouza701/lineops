@@ -1,11 +1,16 @@
+import threading
+
 from django import forms
 from django.contrib import admin
 from django.db import transaction
+from django.utils.html import format_html
 
 from core.normalization import normalize_carrier_name
 from core.validation import normalize_phone_number, validate_phone_number_format
 
+from .blip_lines import build_authorized_blip_line_index
 from .models import BlipConfiguration, PhoneLine, SIMcard
+from .seal_indicator import render_seal_indicator_html
 
 OPTIONAL_SELECT_CHOICES = [("", "---------")]
 
@@ -67,6 +72,18 @@ class SIMcardAdminForm(forms.ModelForm):
 @admin.register(SIMcard)
 class SIMcardAdmin(admin.ModelAdmin):
     form = SIMcardAdminForm
+    list_select_related = ("phone_line",)
+
+    class Media:
+        # SVI-07 (checagem final): so o CSS ESCOPADO do indicador — o
+        # Admin do Django nao carrega CSS do projeto por padrao, e
+        # carregar static/css/styles.css INTEIRO vazava regras globais
+        # (body/input/select/h1/table) para os controles nativos do
+        # Admin (achado real, texto quase ilegivel em <input> — ver
+        # docs/superpowers/evidence/SVI-07/admin_css_check/). Sem este
+        # arquivo, o indicador fica no DOM mas sem forma/cor/foco (ver
+        # telecom/test_seal_indicator_admin_styles_svi07.py).
+        css = {"all": ("css/seal_indicator.css",)}
     list_display = (
         "iccid",
         "carrier",
@@ -88,7 +105,11 @@ class SIMcardAdmin(admin.ModelAdmin):
 
     @admin.display(description="Linha")
     def phone_number(self, obj):
-        return getattr(getattr(obj, "phone_line", None), "phone_number", "-")
+        phone_line = getattr(obj, "phone_line", None)
+        number = getattr(phone_line, "phone_number", "-")
+        if phone_line is None:
+            return number
+        return format_html("{}{}", number, render_seal_indicator_html(phone_line))
 
     @admin.display(description="Status da linha")
     def line_status(self, obj):
@@ -172,6 +193,65 @@ class SIMcardAdmin(admin.ModelAdmin):
 
 @admin.register(BlipConfiguration)
 class BlipConfigurationAdmin(admin.ModelAdmin):
-    list_display = ("blip_id", "type", "description", "phone_number", "key", "value")
+    class Media:
+        # SVI-07 (checagem final): ver SIMcardAdmin.Media acima — mesma
+        # causa/correcao (so o CSS escopado, nao o arquivo inteiro).
+        css = {"all": ("css/seal_indicator.css",)}
+
+    list_display = (
+        "blip_id",
+        "type",
+        "description",
+        "phone_number_display",
+        "key",
+        "value",
+    )
     search_fields = ("blip_id", "description", "value")
     list_filter = ("type", "key")
+
+    # SVI-07: nao usar atributo de instancia (self) para este cache. A
+    # instancia de ModelAdmin e um singleton por processo (registrado uma
+    # vez em admin.site), compartilhado entre threads do mesmo worker
+    # gunicorn (--threads 2..4, ver Dockerfile/docker-compose.yml; gunicorn
+    # promove automaticamente sync->gthread quando threads>1, confirmado
+    # no source de gunicorn/config.py instalado no venv — ver docstring de
+    # telecom/test_seal_indicator_admin_concurrency_svi07.py). Duas
+    # requisicoes concorrentes (inclusive de usuarios com roles/escopos
+    # diferentes) podiam sobrescrever o indice uma da outra antes da
+    # renderizacao terminar (defeito confirmado e corrigido em SVI-07).
+    # threading.local() isola por thread; Django chama get_queryset(request)
+    # exatamente uma vez por requisicao de changelist, sincronamente, antes
+    # de qualquer list_display (django/contrib/admin/views/main.py,
+    # ChangeList.__init__) — sob gthread (threads de SO reais, sem
+    # corrotinas que intercalem dentro de uma thread), isolar por thread
+    # equivale a isolar por requisicao. RETIFICACAO (checagem final
+    # SVI-07): essa equivalencia e CONDICIONAL, nao automatica — gthread
+    # REUTILIZA threads entre requisicoes ao longo da vida do worker (nao
+    # e thread nova por requisicao); a seguranca vem de get_queryset
+    # SEMPRE substituir o indice ANTES de qualquer leitura por
+    # phone_number_display PARA A MESMA requisicao (garantido pelo
+    # ChangeList do Django, nao por threading.local em si). Se esse
+    # invariante de ordem de chamada for quebrado no futuro, a protecao
+    # deixa de valer mesmo com threading.local() em uso. Testado:
+    # concorrencia real entre threads (test_second_thread_request_...),
+    # reuso sequencial na mesma thread
+    # (test_successive_requests_on_same_thread_...), e caminho de excecao
+    # (test_failed_get_queryset_...) — ver
+    # telecom/test_seal_indicator_admin_concurrency_svi07.py.
+    _blip_line_index_storage = threading.local()
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        # BlipConfiguration.phone_number nao tem FK (I26, mesma lacuna de
+        # I23): resolve em UMA consulta em lote por changelist, nunca por
+        # linha.
+        self._blip_line_index_storage.index = build_authorized_blip_line_index(request.user)
+        return queryset
+
+    @admin.display(description="Numero Telefone")
+    def phone_number_display(self, obj):
+        index = getattr(self._blip_line_index_storage, "index", None) or {}
+        phone_line = index.get(obj.phone_number)
+        return format_html(
+            "{}{}", obj.phone_number, render_seal_indicator_html(phone_line)
+        )

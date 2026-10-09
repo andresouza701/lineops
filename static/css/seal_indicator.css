@@ -1,0 +1,110 @@
+@charset "UTF-8";
+
+/* Indicador visual de selo (SVI-04/05/07) — arquivo PROPRIO, sem nenhum
+   seletor de elemento global (body/h1-h6/input/select/table), para poder
+   ser carregado isoladamente no Django Admin (I25-I28) sem vazar estilo
+   para os controles nativos do Admin (achado real, checagem final
+   SVI-07 — ver docs/superpowers/evidence/SVI-07/admin_css_check/).
+   static/css/styles.css importa este mesmo arquivo (@import) para o app
+   principal — fonte unica das regras, sem copia/divergencia. Cada var()
+   de cor tem fallback explicito com o mesmo valor do :root de
+   styles.css, para funcionar sozinho quando esse :root nao esta
+   presente na pagina (caso do Admin). Nome de classe = "seal-indicator--"
+   + estado da projecao (telecom/seal_indicator.py), unica fonte entre
+   Python e CSS. */
+.seal-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    cursor: default;
+}
+
+.seal-indicator__dot {
+    display: inline-block;
+    width: 0.7em;
+    height: 0.7em;
+    min-width: 10px;
+    min-height: 10px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(248, 250, 252, 0.65);
+}
+
+.seal-indicator:focus {
+    outline: 2px solid var(--border-focus, #2563eb);
+    outline-offset: 2px;
+}
+
+/* SVI-07 (checagem final): foco por teclado e toque nao expunham nenhuma
+   informacao visivel alem da cor — confirmado em Chrome real (teclado via
+   Tab e toque emulado) que o title nativo nao aparece de forma confiavel
+   nessas duas vias de interacao, violando "nao depender apenas do
+   atributo title para acesso por teclado/toque" (contrato aprovado,
+   SVI-01). O texto acessivel ja existe e ja e aprovado (visually-hidden,
+   SVI-04); esta regra so muda QUANDO ele fica visivel para quem nao usa
+   leitor de tela — ao focar o componente — mesma tecnica que o Bootstrap
+   usa em .visually-hidden-focusable, adaptada porque aqui quem recebe
+   foco e o wrapper (.seal-indicator), nao o proprio span de texto.
+   Usa :focus (nao :focus-visible) de proposito: confirmado em Chrome real
+   que toque (tap) aciona foco no elemento (document.activeElement) mas
+   NAO aciona :focus-visible (heuristica do navegador trata toque como
+   "o usuario ja sabe o que tocou", mesmo em elementos nao-nativamente
+   interativos como <span tabindex>) — so :focus cobre teclado E toque
+   nesta estrutura. Mostrar o anel/texto tambem em clique de mouse e
+   aceitavel aqui (elemento pequeno, informativo, sem ring annoyance de
+   formulario grande). */
+.seal-indicator:focus .visually-hidden {
+    /* !important necessario: Bootstrap define .visually-hidden com
+       !important em toda propriedade; precisamos vencer por
+       especificidade (2 classes + pseudo-classe > 1 classe), nao por
+       ordem de carga. No Admin (sem Bootstrap), este seletor ainda
+       funciona porque .visually-hidden la e definida pelo proprio CSS
+       base do Django Admin (ver achado documentado nos testes de
+       foco/toque) — mesma logica de override por especificidade. */
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 0 0 0.3em !important;
+    overflow: visible !important;
+    clip: auto !important;
+    white-space: normal !important;
+    border: 0 !important;
+    font-size: 0.82rem;
+    /* SVI-07 (revisao final do diff): var(--text-strong, #f8fafc) e um
+       fallback claro, pensado so para o fundo escuro do app principal —
+       no Admin (tema claro: fundo branco; --text-strong nao existe la),
+       o texto ficava quase branco sobre fundo branco (~1.05:1, medido em
+       Chrome real). "color: inherit" usa a MESMA cor de texto que o
+       numero da linha ao lado ja usa em qualquer contexto (app principal
+       escuro: --text-main/--text-strong herdado de ancestral; Admin
+       claro/escuro: --body-fg do proprio Django, que o tema dele ja
+       ajusta) — sem token novo, sem depender de qualquer variavel que
+       so exista em um dos dois CSS. */
+    color: inherit;
+}
+
+.seal-indicator--green .seal-indicator__dot {
+    background-color: var(--status-success, #10b981);
+}
+
+.seal-indicator--yellow .seal-indicator__dot {
+    background-color: var(--status-warning, #f59e0b);
+}
+
+.seal-indicator--orange .seal-indicator__dot {
+    background-color: var(--status-today, #ff8c00);
+}
+
+.seal-indicator--red .seal-indicator__dot {
+    background-color: var(--status-danger, #ef4444);
+}
+
+.seal-indicator--gray_not_activated .seal-indicator__dot,
+.seal-indicator--gray_inconsistent .seal-indicator__dot {
+    background-color: var(--status-neutral-dot, #9aa5b1);
+}
+
+.seal-indicator--unidentified {
+    color: var(--text-muted, #94a3b8);
+    font-size: 0.82rem;
+}

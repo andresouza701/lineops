@@ -285,6 +285,32 @@ def normalize_seal_fields(instance):
         instance.whatsapp_seal_expires_on = None
 
 
+def classify_seal_expiry(expires_on):
+    """Classifica um vencimento em faixa relativa a hoje (timezone.localdate()).
+
+    Única rotina de cálculo de dias restantes do domínio de selo: fonte
+    única reaproveitada por compute_seal_status (rótulo textual, abaixo) e
+    pela projeção de apresentação (SVI-04, cor do indicador), para que a
+    fronteira de dias nunca seja recalculada em dois lugares.
+
+    Retorna {"bucket": ..., "days": delta}. bucket é "ok" (> 7 dias),
+    "warning" (1 a 7 dias), "today" (vence hoje) ou "expired" (vencido).
+    Não trata Sem selo/Não ativado: responsabilidade de quem chama.
+    """
+    today = timezone.localdate()
+    delta = (expires_on - today).days
+
+    if delta > 7:
+        bucket = "ok"
+    elif delta > 0:
+        bucket = "warning"
+    elif delta == 0:
+        bucket = "today"
+    else:
+        bucket = "expired"
+    return {"bucket": bucket, "days": delta}
+
+
 def compute_seal_status(seal, expires_on, activation_status=""):
     """Indicador calculado pela data local da aplicação; nada é persistido.
 
@@ -299,15 +325,15 @@ def compute_seal_status(seal, expires_on, activation_status=""):
     if activation_status == WhatsAppSealActivationStatus.NOT_ACTIVATED or not expires_on:
         return {"tone": "neutral", "label": "Não ativado"}
 
-    today = timezone.localdate()
-    delta = (expires_on - today).days
+    classification = classify_seal_expiry(expires_on)
+    delta = classification["days"]
 
-    if delta > 7:
+    if classification["bucket"] == "ok":
         return {"tone": "neutral", "label": f"Vence em {expires_on.strftime('%d/%m/%Y')}"}
-    if delta > 0:
+    if classification["bucket"] == "warning":
         unit = "dia" if delta == 1 else "dias"
         return {"tone": "warning", "label": f"Vence em {delta} {unit}"}
-    if delta == 0:
+    if classification["bucket"] == "today":
         return {"tone": "today", "label": "Vence hoje"}
 
     overdue = abs(delta)

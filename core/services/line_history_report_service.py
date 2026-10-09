@@ -44,6 +44,7 @@ from telecom.line_timeline import (
     _audit_changes,
 )
 from telecom.models import LineDailyActionAuditEvent, PhoneLineHistory
+from telecom.seal_indicator import build_seal_indicator
 
 PAGE_SIZE = 50
 
@@ -84,6 +85,7 @@ class LineHistoryReportRow:
     changes_label: str
     registro_label: str
     funcionario_excluido_label: str
+    seal_indicator: object = None
 
 
 @dataclass
@@ -321,6 +323,13 @@ def _row_from_legacy(history: PhoneLineHistory) -> LineHistoryReportRow:
         changes_label=_format_changes(changes),
         registro_label=_registro_label(line.is_deleted, line.sim_card.is_deleted),
         funcionario_excluido_label=FUNCIONARIO_NAO_APLICAVEL,
+        seal_indicator=build_seal_indicator(
+            identified=True,
+            seal=line.whatsapp_seal,
+            activation_status=line.whatsapp_seal_activation_status,
+            expires_on=line.whatsapp_seal_expires_on,
+            is_historical=True,
+        ),
     )
 
 
@@ -328,9 +337,20 @@ def _row_from_audit(event: LineDailyActionAuditEvent) -> LineHistoryReportRow:
     if event.phone_line_id:
         phone_number = event.phone_line.phone_number
         registro_label = _registro_label(event.phone_line.is_deleted, event.phone_line.sim_card.is_deleted)
+        seal_indicator = build_seal_indicator(
+            identified=True,
+            seal=event.phone_line.whatsapp_seal,
+            activation_status=event.phone_line.whatsapp_seal_activation_status,
+            expires_on=event.phone_line.whatsapp_seal_expires_on,
+            is_historical=True,
+        )
     else:
+        # Snapshot sem FK (phone_number_snapshot): nunca herda selo por
+        # coincidencia de numero com outra PhoneLine (borda aprovada
+        # fechamento SVI-02 #2) — sempre "nao identificado".
         phone_number = event.phone_number_snapshot
         registro_label = "-"
+        seal_indicator = build_seal_indicator(identified=False)
 
     if event.employee_id:
         funcionario_excluido_label = "Sim" if event.employee.is_deleted else "Não"
@@ -347,6 +367,7 @@ def _row_from_audit(event: LineDailyActionAuditEvent) -> LineHistoryReportRow:
         changes_label=_format_changes(_audit_changes(event.before_state, event.after_state)),
         registro_label=registro_label,
         funcionario_excluido_label=funcionario_excluido_label,
+        seal_indicator=seal_indicator,
     )
 
 

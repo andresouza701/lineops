@@ -1,4 +1,5 @@
 {% extends "base/base.html" %}
+{% load seal_indicator_tags %}
 
 {% block title %}Relatórios{% endblock %}
 {% block page_title %}Relatórios{% endblock %}
@@ -349,7 +350,7 @@
                     <tbody>
                         {% for row in result.rows %}
                         <tr>
-                            <td>{{ row.phone_number }}</td>
+                            <td>{{ row.phone_number }}{% seal_indicator row.seal_indicator %}</td>
                             <td>{{ row.status_display }}</td>
                             <td>{{ row.operadora }}</td>
                             <td>{{ row.origem_display }}</td>
@@ -451,7 +452,7 @@
                     <tbody>
                         {% for row in result.rows %}
                         <tr>
-                            <td>{{ row.phone_number }}</td>
+                            <td>{{ row.phone_number }}{% seal_indicator row.seal_indicator %}</td>
                             <td>{{ row.employee_full_name }}</td>
                             <td>{{ row.employee_id }}</td>
                             <td>{{ row.allocated_at|date:"d/m/Y" }}</td>
@@ -559,7 +560,7 @@
                     <tbody>
                         {% for row in result.rows %}
                         <tr>
-                            <td>{{ row.phone_number }}</td>
+                            <td>{{ row.phone_number }}{% seal_indicator row.seal_indicator %}</td>
                             <td>{{ row.employee_full_name }}</td>
                             <td>{{ row.solicitante_label }}</td>
                             <td>{{ row.responsavel_label }}</td>
@@ -648,7 +649,7 @@
                     <tbody>
                         {% for row in result.rows %}
                         <tr>
-                            <td>{{ row.phone_number }}</td>
+                            <td>{{ row.phone_number }}{% seal_indicator row.seal_indicator %}</td>
                             <td>{{ row.occurred_at|date:"d/m/Y H:i" }}</td>
                             <td>{{ row.source_label }}</td>
                             <td>{{ row.event_type_label }}</td>
@@ -889,7 +890,7 @@
                     <tbody>
                         {% for row in result.rows %}
                         <tr>
-                            <td>{{ row.phone_number }}</td>
+                            <td>{{ row.phone_number }}{% seal_indicator row.seal_indicator %}</td>
                             <td>{{ row.seal_display }}</td>
                             <td>
                                 {{ row.activated_on|date:"d/m/Y" }}

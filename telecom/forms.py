@@ -13,6 +13,7 @@ from core.validation import (
 )
 from employees.models import Employee
 
+from .blip_lines import get_authorized_blip_lines_queryset
 from .models import BlipConfiguration, PhoneLine, SIMcard
 from .whatsapp_seal import (
     REQUIRED_FIELD_ERRORS,
@@ -445,13 +446,8 @@ class BlipConfigurationForm(forms.ModelForm):
         for field_name in ["type", "key"]:
             self.fields[field_name].widget.attrs.setdefault("class", "form-select")
 
-        available_lines = PhoneLine.visible_to_user(
-            self.user,
-            PhoneLine.objects.filter(
-                is_deleted=False,
-                sim_card__is_deleted=False,
-                origem=PhoneLine.Origem.BLIP,
-            ).order_by("phone_number"),
+        available_lines = get_authorized_blip_lines_queryset(self.user).order_by(
+            "phone_number"
         )
         phone_choices = [
             (line.phone_number, line.phone_number) for line in available_lines

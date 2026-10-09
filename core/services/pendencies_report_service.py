@@ -29,6 +29,7 @@ from django.utils import timezone
 
 from pendencies.models import AllocationPendency
 from telecom.models import LineDailyActionAuditEvent
+from telecom.seal_indicator import build_seal_indicator
 
 PAGE_SIZE = 50
 
@@ -54,6 +55,7 @@ class PendenciesReportRow:
     tempo_aberto_label: str
     registro_label: str
     funcionario_excluido_label: str
+    seal_indicator: object = None
 
 
 @dataclass
@@ -215,9 +217,19 @@ def _row_from_pendency(pendency: AllocationPendency, *, generated_at, open_event
         line = allocation.phone_line
         phone_number = line.phone_number
         registro_label = _registro_label(line.is_deleted, line.sim_card.is_deleted)
+        seal_indicator = build_seal_indicator(
+            identified=True,
+            seal=line.whatsapp_seal,
+            activation_status=line.whatsapp_seal_activation_status,
+            expires_on=line.whatsapp_seal_expires_on,
+        )
     else:
+        # Sem linha (allocation ausente/sem FK): nunca "Selo indisponível"
+        # (reservado a linha identificada porem irresolvivel) nem resolvido
+        # pelo funcionario atual — nenhum icone (I21, inventario SVI-02).
         phone_number = NO_LINE_LABEL
         registro_label = NO_LINE_LABEL
+        seal_indicator = build_seal_indicator(identified=True, seal="")
 
     return PendenciesReportRow(
         phone_number=phone_number,
@@ -229,6 +241,7 @@ def _row_from_pendency(pendency: AllocationPendency, *, generated_at, open_event
         tempo_aberto_label=_tempo_aberto_label(pendency, generated_at),
         registro_label=registro_label,
         funcionario_excluido_label="Sim" if employee.is_deleted else "Não",
+        seal_indicator=seal_indicator,
     )
 
 

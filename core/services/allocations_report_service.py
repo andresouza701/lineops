@@ -19,6 +19,7 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from allocations.models import LineAllocation
+from telecom.seal_indicator import build_seal_indicator
 
 PAGE_SIZE = 50
 
@@ -33,6 +34,7 @@ class AllocationsReportRow:
     situacao_label: str
     registro_label: str
     funcionario_excluido_label: str
+    seal_indicator: object = None
 
 
 @dataclass
@@ -131,6 +133,12 @@ def _row_from_allocation(allocation: LineAllocation) -> AllocationsReportRow:
         situacao_label="Ativa" if allocation.is_active else "Liberada",
         registro_label=_registro_label(line.is_deleted, line.sim_card.is_deleted),
         funcionario_excluido_label="Sim" if employee.is_deleted else "Não",
+        seal_indicator=build_seal_indicator(
+            identified=True,
+            seal=line.whatsapp_seal,
+            activation_status=line.whatsapp_seal_activation_status,
+            expires_on=line.whatsapp_seal_expires_on,
+        ),
     )
 
 

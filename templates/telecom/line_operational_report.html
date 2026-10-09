@@ -1,4 +1,5 @@
 {% extends "base/base.html" %}
+{% load seal_indicator_tags %}
 
 {% block title %}Relatório Operacional por Linha{% endblock %}
 
@@ -52,7 +53,7 @@
                     <tbody>
                         {% for row in rows %}
                             <tr>
-                                <td class="text-nowrap">{{ row.phone_number }}</td>
+                                <td class="text-nowrap">{{ row.phone_number }}{% seal_indicator row.seal_indicator %}</td>
                                 <td>{{ row.entradas }}</td>
                                 <td>{{ row.saidas }}</td>
                                 <td>{{ row.ciclos }}</td>

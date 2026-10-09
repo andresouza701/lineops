@@ -1,4 +1,6 @@
 {% extends "base/base.html" %}
+{% load seal_indicator_tags %}
+{% load static %}
 
 {% block title %}Telecom{% endblock %}
 
@@ -69,7 +71,7 @@
                     <tbody id="main-table-body">
                         {% for line in initial_lines %}
                             <tr>
-                                <td>{{ line.phone_number }}</td>
+                                <td>{{ line.phone_number }}{% seal_indicator line|to_seal_indicator %}</td>
                                 <td>{{ line.sim_card.iccid }}</td>
                                 <td>{{ line.sim_card.carrier|default:"-" }}</td>
                                 <td>{{ line.get_origem_display|default:"-" }}</td>
@@ -129,6 +131,7 @@
     </div>
 </div>
 
+<script src="{% static 'js/seal_indicator.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const mainTable = {
@@ -232,6 +235,8 @@ document.addEventListener('DOMContentLoaded', function() {
             actionsHtml += `<a href="${line.reconnect_url}" class="btn btn-outline-success btn-sm ms-1" aria-label="Reconnect" title="Reconnect">Reconnect</a>`;
         }
         tr.innerHTML = `<td>${line.phone_number}</td><td>${line.iccid}</td><td>${line.carrier || '-'}</td><td>${line.origem_display || '-'}</td><td>${employeeText}</td><td></td><td class="text-end">${actionsHtml}</td>`;
+        const indicatorNode = SealIndicator.createNode(line.seal_indicator);
+        if (indicatorNode) tr.querySelector('td:first-child').appendChild(indicatorNode);
         tr.querySelector('td:nth-child(6)').appendChild(createStatusBadge(line.status, line.status_display));
         tr.insertBefore(createSealCell(line), tr.querySelector('td.text-end'));
         return tr;
