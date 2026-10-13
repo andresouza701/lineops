@@ -57,8 +57,17 @@ class AllocationPendencyAdmin(admin.ModelAdmin):
         # display), nao um telefone/selo inventado.
         if obj.allocation is None:
             return self.get_empty_value_display()
+        # Mesmo texto do __str__ de LineAllocation (nao alterado:
+        # "funcionario - numero - status"), com o indicador colado ao
+        # NUMERO (ajuste aprovado 2026-10-11), nao ao inicio da string
+        # composta inteira (que comecaria pelo funcionario).
+        phone_line = obj.allocation.phone_line
         return format_html(
-            "{}{}", str(obj.allocation), render_seal_indicator_html(obj.allocation.phone_line)
+            "{} - {}{} - {}",
+            obj.allocation.employee,
+            render_seal_indicator_html(phone_line),
+            phone_line.phone_number,
+            phone_line.status,
         )
     readonly_fields = (
         "created_at",

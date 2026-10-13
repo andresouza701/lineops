@@ -58,6 +58,20 @@ def _window(html, marker, length=500):
     return html[idx : idx + length]
 
 
+def _window_around(html, marker, before=200, after=600):
+    """Janela de texto ANTES e DEPOIS de `marker`, para blocos sem fronteira
+    td/dd clara onde o indicador pode estar antes OU depois do marcador
+    (ajuste aprovado 2026-10-11: indicador passa a vir ANTES do numero —
+    ver docs/superpowers/specs/2026-10-05-phone-line-seal-indicator-design.md,
+    secao "Ajuste aprovado"). `_window` (so depois) presumia a ordem antiga
+    e quebraria aqui por motivo correto (ordem mudou de proposito), nao por
+    regressao de adjacencia."""
+    idx = html.index(marker)
+    start = max(0, idx - before)
+    end = idx + len(marker) + after
+    return html[start:end]
+
+
 @pytest.fixture
 def sim(db):
     return SIMcard.objects.create(iccid="8900000000000088001", carrier="TIM")
@@ -478,7 +492,7 @@ def test_edit_form_shows_indicator_adjacent_to_saved_line(admin_client, line_gre
     response = admin_client.get(reverse("telecom:phoneline_update", args=[line_green.pk]))
     content = response.content.decode()
 
-    window = _window(content, 'name="phone_number"', length=600)
+    window = _window_around(content, 'name="phone_number"', before=200, after=400)
 
     assert line_green.seal_status["label"] in window
     # Nunca dentro do value do proprio input.
@@ -495,7 +509,7 @@ def test_history_shows_current_seal_labeled_as_such(admin_client, line_green):
     response = admin_client.get(reverse("telecom:phoneline_history", args=[line_green.pk]))
     content = response.content.decode()
 
-    window = _window(content, line_green.phone_number, length=800)
+    window = _window_around(content, line_green.phone_number, before=400, after=800)
 
     assert "Selo atual" in window
     assert line_green.seal_status["label"] in window

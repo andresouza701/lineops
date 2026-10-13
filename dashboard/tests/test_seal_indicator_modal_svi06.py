@@ -90,11 +90,16 @@ def test_daily_user_action_board_line_button_carries_seal_json_for_modal(
     assert line.seal_status["label"] in payload["accessible_text"]
 
 
-def test_daily_user_action_board_modal_has_seal_target_slot(client, db):
-    """I11 · apresentacao/HTTP · o modal de detalhes precisa de um elemento
-    dedicado (data-line-detail="seal") para o JS anexar o no do indicador —
-    sem repetir o numero como texto decorativo e sem reescrever os demais
-    campos ja existentes do modal."""
+def test_daily_user_action_board_modal_has_number_target_slot(client, db):
+    """I11 · apresentacao/HTTP · SUPERSEDE a versao original deste teste
+    (que exigia um slot "Selo" SEPARADO do slot "Numero") — revisao
+    SVI-P06 (docs/superpowers/specs/2026-10-05-phone-line-seal-indicator-
+    design.md, secao "SVI-P06 — Achados de disposicao visual", achado A)
+    apontou que um campo "Selo" isolado viola o contrato aprovado
+    (indicador + espaco + telefone no MESMO campo). O slot "Selo" foi
+    removido; o JS agora constroi o indicador dentro do proprio slot
+    "Numero" (data-line-detail="number"), mesmo padrao ja usado em
+    pendencyLinha neste arquivo."""
     admin = SystemUser.objects.create_user(
         email="svi06-dash-super2@example.com", password=PASSWORD, role=SystemUser.Role.SUPER
     )
@@ -103,4 +108,5 @@ def test_daily_user_action_board_modal_has_seal_target_slot(client, db):
     response = client.get(reverse("daily_user_action_board"))
     content = response.content.decode()
 
-    assert 'data-line-detail="seal"' in content
+    assert 'data-line-detail="number"' in content
+    assert 'data-line-detail="seal"' not in content

@@ -25,7 +25,7 @@
                 <tbody>
                     {% for line in phone_lines %}
                     <tr>
-                        <td class="fw-medium font-monospace">{{ line.phone_number }}{% seal_indicator line|to_seal_indicator %}</td>
+                        <td class="fw-medium font-monospace">{% seal_indicator line|to_seal_indicator %}{{ line.phone_number }}</td>
                         <td>{{ line.get_status_display }}</td>
                         <td>{{ line.sim_card.carrier }}</td>
                         <td>

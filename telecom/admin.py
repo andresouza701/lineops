@@ -109,7 +109,7 @@ class SIMcardAdmin(admin.ModelAdmin):
         number = getattr(phone_line, "phone_number", "-")
         if phone_line is None:
             return number
-        return format_html("{}{}", number, render_seal_indicator_html(phone_line))
+        return format_html("{}{}", render_seal_indicator_html(phone_line), number)
 
     @admin.display(description="Status da linha")
     def line_status(self, obj):
@@ -253,5 +253,5 @@ class BlipConfigurationAdmin(admin.ModelAdmin):
         index = getattr(self._blip_line_index_storage, "index", None) or {}
         phone_line = index.get(obj.phone_number)
         return format_html(
-            "{}{}", obj.phone_number, render_seal_indicator_html(phone_line)
+            "{}{}", render_seal_indicator_html(phone_line), obj.phone_number
         )

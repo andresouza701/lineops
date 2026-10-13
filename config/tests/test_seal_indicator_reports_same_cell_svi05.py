@@ -90,8 +90,12 @@ def _headers(html):
 def _phone_cell(html, phone_number):
     import re
 
+    # Ajuste aprovado 2026-10-11 (indicador a esquerda do numero): o
+    # indicador passou a vir ANTES do numero na mesma celula, entao o
+    # numero nao fica mais logo depois da abertura do <td> — exige-se
+    # agora que o numero venha logo ANTES do fechamento da tag.
     pattern = re.compile(
-        rf"<td[^>]*>\s*{re.escape(phone_number)}.*?</td>", re.DOTALL
+        rf"<td[^>]*>.*?{re.escape(phone_number)}(?=\s*</td>).*?</td>", re.DOTALL
     )
     match = pattern.search(html)
     if not match:

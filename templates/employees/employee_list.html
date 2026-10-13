@@ -80,7 +80,7 @@
                                 <td>{{ employee.full_name }}</td>
                                 <td class="metric-mono">
                                     {% for allocation in employee.allocations.all %}
-                                        {% if allocation.phone_line %}{{ allocation.phone_line.phone_number }}{% seal_indicator allocation.phone_line|to_seal_indicator %}{% if not forloop.last %}, {% endif %}{% endif %}
+                                        {% if allocation.phone_line %}{% seal_indicator allocation.phone_line|to_seal_indicator %}{{ allocation.phone_line.phone_number }}{% if not forloop.last %}, {% endif %}{% endif %}
                                     {% empty %}
                                         -
                                     {% endfor %}
@@ -178,9 +178,12 @@ document.addEventListener('DOMContentLoaded', function() {
             return td;
         }
         lines.forEach((line, index) => {
-            td.appendChild(document.createTextNode(line.phone_number));
             const node = SealIndicator.createNode(line.seal_indicator);
-            if (node) td.appendChild(node);
+            if (node) {
+                td.appendChild(node);
+                td.appendChild(document.createTextNode(' '));
+            }
+            td.appendChild(document.createTextNode(line.phone_number));
             if (index < lines.length - 1) td.appendChild(document.createTextNode(', '));
         });
         return td;

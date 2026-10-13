@@ -35,13 +35,18 @@ class LineAllocationAdmin(admin.ModelAdmin):
 
     @admin.display(description="Phone line")
     def phone_line_display(self, obj):
-        # Mesmo __str__ de PhoneLine (nao alterado) + indicador
-        # compartilhado de SVI-04 (I27). Objeto ja carregado via
-        # list_select_related: sem consulta adicional por linha.
+        # Mesmo texto do __str__ de PhoneLine (nao alterado: "numero -
+        # status"), com o indicador compartilhado de SVI-04 (I27) colado
+        # ao NUMERO (ajuste aprovado 2026-10-11: indicador a esquerda do
+        # numero, nao no inicio da string composta inteira). Objeto ja
+        # carregado via list_select_related: sem consulta adicional por
+        # linha.
         indicator_html = mark_safe(
             render_to_string(
                 "telecom/_seal_indicator.html",
                 {"indicator": seal_indicator_for_phone_line(obj.phone_line)},
             )
         )
-        return format_html("{}{}", str(obj.phone_line), indicator_html)
+        return format_html(
+            "{}{} - {}", indicator_html, obj.phone_line.phone_number, obj.phone_line.status
+        )

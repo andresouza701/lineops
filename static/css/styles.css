@@ -1005,6 +1005,42 @@ textarea::placeholder {
     opacity: 1;
 }
 
+/* SVI-P06 (achado C): compoe indicador de selo + controle de formulario
+   lado a lado. O .form-control do Bootstrap e display:block com largura
+   100% — sem este wrapper, o indicador fica empurrado para fora da linha
+   visual do campo. Espaco em branco puro entre itens flex e colapsado
+   pelo navegador (nao gera caixa), por isso o `gap` abaixo e o UNICO
+   separador visual aqui — substitui, nao soma, o espaco de texto que
+   seria colapsado de qualquer forma neste contexto. */
+.seal-field-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+}
+
+/* SVI-P06 (pendencia de foco, 2026-10-12): ao focar o indicador, o texto
+   acessivel escondido fica visivel (SVI-07, `.seal-indicator:focus
+   .visually-hidden`) e o indicador cresce bastante — o texto mais longo
+   produzido pelo dominio ("META VERIFICADO — Situação do selo
+   indisponível") mede ~320px expandido. Com `flex: 0 0 auto` o indicador
+   nunca cedia espaco, e o input (min-width: 0, sem piso) era espremido
+   para larguras inuteis (26px medido em 390/360px) — reproduzido em
+   navegador real com Tab ate o proprio circulo, nao so no campo de
+   status (docs/superpowers/evidence/SVI-P06/focus_smoke.cjs). Agora o
+   indicador pode encolher (flex-shrink: 1, min-width: 0) e o texto
+   revelado QUEBRA LINHA dentro do proprio indicador (herda
+   `white-space: normal` de SVI-07) em vez de espremer o input, que
+   mantem um piso de largura utilizavel. */
+.seal-field-inline .seal-indicator {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.seal-field-inline .form-control {
+    flex: 1 1 auto;
+    min-width: 4.5rem;
+}
+
 .form-label,
 label {
     color: var(--text-main);

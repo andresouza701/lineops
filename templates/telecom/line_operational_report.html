@@ -53,7 +53,7 @@
                     <tbody>
                         {% for row in rows %}
                             <tr>
-                                <td class="text-nowrap">{{ row.phone_number }}{% seal_indicator row.seal_indicator %}</td>
+                                <td class="text-nowrap">{% seal_indicator row.seal_indicator %}{{ row.phone_number }}</td>
                                 <td>{{ row.entradas }}</td>
                                 <td>{{ row.saidas }}</td>
                                 <td>{{ row.ciclos }}</td>

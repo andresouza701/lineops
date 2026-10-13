@@ -42,7 +42,7 @@
                         {{ form.phone_number.errors }}
                         {% if has_saved_phone_line %}
                         <div class="form-text seal-indicator-saved-block">
-                            Dado salvo: {{ saved_phone_number }}{% seal_indicator saved_phone_line|to_seal_indicator %}
+                            Dado salvo: {% seal_indicator saved_phone_line|to_seal_indicator %}{{ saved_phone_number }}
                         </div>
                         {% endif %}
                     </div>

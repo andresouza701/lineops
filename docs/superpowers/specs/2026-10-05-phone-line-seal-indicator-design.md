@@ -1876,3 +1876,682 @@ Inspeção documental nesta tarefa. Nenhuma suíte ou benchmark reexecutado: nen
 
 ### Compliance Report
 Somente esta spec alterada. Histórico preservado, nenhuma mudança de código/teste, stage, commit, push, deploy ou acesso a PRD. Status permanece PRONTO PARA REVISÃO DO DIFF CORRETIVO, não aprovação automática para integração.
+
+
+## Ajuste aprovado — indicador à esquerda do número — 2026-10-11
+
+### Spec Summary
+Decisão explícita do usuário: círculo CSS à esquerda do telefone, separado por um espaço simples, em todas as superfícies aplicáveis I01–I28. Não usar emoji/check. Sem selo: somente número, sem separador residual. Preservar cores, estados, acessibilidade, telefone copiável, links, permissões e formatos CSV/XLSX.
+
+### Gap Analysis
+Mapeamento atual confirma indicador após o telefone em templates, callbacks de Admin e montagem dinâmica. Alterar somente CSS por inversão visual não satisfaz ordem de leitura/DOM. Formulários com input, badge/link e modais exigem tratamento próprio para manter o indicador associado ao número, sem alterar o valor do controle. O texto de acessibilidade revelado no foco e o fallback “Selo indisponível” permanecem disponíveis; não apagar esses estados para simplificar espaçamento.
+
+### Implementation Plan
+- [x] SVI-P01: registrar aprovação e mapear consumidores (esta seção).
+- [x] SVI-P02: testes RED de ordem e separador; render inicial, Admin, múltiplos números, sem selo, fallback e dado salvo BLIP.
+- [x] SVI-P03: ajustar templates/Admin/JS para ordem DOM indicador → espaço → número; evitar espaços/margens cumulativos, preservar inputs e comportamento dos modais.
+- [x] SVI-P04: regressão proporcional e aceite real em navegador CONCLUÍDO (rodada 2 fecha mobile 360px, Admin escuro, toque emulado, contraste WCAG numérico e conteúdo dinâmico real — ver "Compliance Report — rodada 2" abaixo e docs/superpowers/evidence/SVI-P04/report.md); exportações conferidas sem alteração. Achado separado registrado (não corrigido): contraste pré-existente do círculo no Admin claro.
+
+### Test Checklist
+Verificar círculo antes do número correto, um único separador quando há indicador, ausência de separador sem selo, cada indicador ligado à própria linha em listas múltiplas, leitura e foco preservados, conteúdos dinâmicos equivalentes ao render inicial. BLIP continua mostrando dado persistido após POST inválido. Campos de edição mantêm valor independente da decoração.
+
+### Test Strategy
+Derivar testes antes de implementar. Provar RED com renderização real; comportamento JS e disposição visual requerem navegador real. Reaproveitar cobertura de domínio/escopo/exportação sem alterar contrato. Não declarar implantação nem aceite visual a partir de inspeção estática.
+
+### Compliance Report
+Nesta etapa somente documentação e mapeamento; nenhuma implementação ou teste novo executado. Feature atual em produção permanece com disposição anterior. Sem commit, push ou deploy deste ajuste. Próximo passo: SVI-P02.
+
+### Decisão adicional — borda do círculo (SVI-P01b, registrada antes da implementação)
+Contrato: borda do `.seal-indicator__dot` passa a usar a MESMA variável de cor do preenchimento de cada estado (`var(--status-success, ...)`, `var(--status-warning, ...)`, etc.), via propriedade `border`, substituindo o `box-shadow: 0 0 0 1px rgba(248, 250, 252, 0.65)` atual (contorno branco fixo, único e compartilhado entre todos os estados). O anel de foco continua implementado em `.seal-indicator:focus` (outline no wrapper `<span role="img">`, não no dot) — mecanismo CSS distinto (outline vs. border/box-shadow), já isolado do dot hoje; nenhuma mudança nesse seletor além de preservá-lo. `box-sizing: content-box` (padrão) faz a borda somar às dimensões atuais do dot (0.7em/10px mínimo); aceito pelo usuário como parte do ajuste, sem necessidade de compensar via `box-sizing: border-box` ou redução do `width`/`height`, pois o contrato não fixou dimensão exata do círculo — apenas cor da borda e remoção do contorno branco. Estado `--unidentified` (texto, sem dot) e `--gray_not_activated`/`--gray_inconsistent` (dot cinza compartilhado) não têm contrato de borda própria diferente do preenchimento: mesma regra se aplica (borda = cor do preenchimento daquele seletor). Contraste do anel de foco (outline azul sobre fundo escuro/claro) não é afetado por esta troca — outline é desenhado fora do dot, independente de border/box-shadow do dot; medição em SVI-P04 confirma isso em navegador real, não só nesta decisão textual.
+
+### Compliance Report (atualização SVI-P02–P04, implementação concluída)
+
+**Causa e arquivos alterados.** Fonte única do separador: `templates/telecom/_seal_indicator.html` passou a emitir um espaço literal logo após o indicador (só quando ele renderiza algo — `render_nothing` continua produzindo string vazia, sem newline residual de fim de arquivo, removido junto). `static/css/seal_indicator.css`: `.seal-indicator__dot` perdeu o `box-shadow` branco compartilhado; cada estado (`--green/--yellow/--orange/--red/--gray_*`) ganhou `border: 1px solid` com a MESMA `var()` do `background-color`. Templates com ordem invertida (indicador antes do número, trocando apenas a posição das duas expressões já existentes, sem HTML novo): `templates/telecom/{overview,operator_lines,phoneline_detail,phoneline_history,phoneline_form,line_operational_report,blip_configuration_list,blip_configuration_form,line_reports}.html`, `templates/reports/home.html` (5 ocorrências idênticas), `templates/employees/{employee_list,employee_detail}.html`, `templates/allocations/allocation_edit.html`, `templates/dashboard/{daily_indicator_day_breakdown,daily_user_action_board}.html`. Admin (`telecom/admin.py`, `allocations/admin.py`, `pendencies/admin.py`): `format_html` reordenado; em `LineAllocationAdmin`/`AllocationPendencyAdmin` o `__str__` opaco de `PhoneLine`/`LineAllocation` foi substituído por composição explícita (`indicador + numero + " - " + status`, opcionalmente prefixado por `"{funcionario} - "`), porque o indicador precisa ficar colado ao NÚMERO, não ao início da string composta inteira. JS (`static/js/seal_indicator.js` não mudou sua API; os consumidores mudaram): `templates/employees/employee_list.html` (célula com múltiplos números) e `templates/telecom/overview.html` (linha AJAX) passaram a inserir indicador+espaço ANTES do nó de texto do número; `templates/dashboard/daily_user_action_board.html` (bloco `pendencyLinha` do modal de pendência) idem.
+
+**Matriz superfície → teste/evidência → resultado.**
+
+| Superfície (matriz I01–I28) | Teste/evidência | Resultado |
+|---|---|---|
+| I01 overview (render inicial) | `telecom/test_seal_indicator_left_of_number_telecom_svi_p.py` (2 testes: ordem, sem selo) | GREEN |
+| I01 overview (AJAX "carregar mais") | código ajustado (`overview.html`, JS `insertBefore`); sem prova de navegador nesta rodada | PENDENTE (visual) |
+| I02 operator_lines | mesmo padrão de template que I01 (swap mecânico); sem teste dedicado nesta rodada | NÃO TESTADO ISOLADAMENTE (revisão de código) |
+| I03 phoneline_detail | idem I02 | NÃO TESTADO ISOLADAMENTE (revisão de código) |
+| I04 phoneline_update (form) | `telecom/test_seal_indicator_svi03.py::test_edit_form_shows_indicator_adjacent_to_saved_line` (adaptado) | GREEN |
+| I05 phoneline_history | `telecom/test_seal_indicator_left_of_number_telecom_svi_p.py::test_history_places_indicator_before_number_and_before_status_suffix` | GREEN |
+| I06 line_reports | swap mecânico idêntico a I01; sem teste de ordem dedicado (cobertura de adjacência pré-existente mantida) | NÃO TESTADO ISOLADAMENTE |
+| I07 line_operational_report | `test_line_operational_report_places_indicator_before_number` | GREEN |
+| I08 employee_list (múltiplos números) | `employees/test_seal_indicator_left_of_number_employees_svi_p.py::test_employee_list_each_number_keeps_its_own_indicator_immediately_before_it` | GREEN |
+| I08 employee_list (AJAX "carregar mais") | código ajustado (`buildLineCell`); sem prova de navegador | PENDENTE (visual) |
+| I09 employee_detail | `test_employee_detail_places_indicator_before_number_in_history_row` | GREEN |
+| I10 allocation_edit (input readonly) | `allocations/test_seal_indicator_left_of_number_allocations_svi_p.py::test_allocation_edit_places_indicator_before_readonly_input` + `allocations/test_seal_indicator_svi03.py` (adaptado) | GREEN |
+| I11 daily_user_action_board (botão inicial) | `dashboard/test_seal_indicator_left_of_number_dashboard_svi_p.py::test_daily_user_action_board_places_indicator_before_number` | GREEN |
+| I11 modal `lineDetailModal` (campo "Selo" separado) | estrutural: número e selo já são campos distintos (dt/dd) — contrato de "indicador junto ao número" não se aplica por não haver concatenação; nenhuma mudança necessária | FORA DO ESCOPO (por desenho) |
+| I12 modal de pendência (`pendencyLinha`, "Dado salvo") | código ajustado (`insertBefore` do indicador+espaço antes do nó de texto do número); sem prova de navegador — requer `show.bs.modal` real | PENDENTE (visual) |
+| I13 daily_indicator_day_breakdown (disponíveis) | `test_daily_indicator_day_breakdown_available_places_indicator_before_number` | GREEN |
+| I14–I16 daily_indicator_day_breakdown (entregues/reconectados/novos) | swap mecânico idêntico ao de I13 (mesmo padrão `{% seal_indicator %}<span>`); sem teste de ordem dedicado a cada lista | NÃO TESTADO ISOLADAMENTE |
+| I17 daily_indicator_day_breakdown (usuários com linha) | `test_daily_indicator_day_breakdown_users_with_line_places_indicator_before_number` | GREEN |
+| I18–I22 reports/home (5 relatórios) | `config/test_seal_indicator_left_of_number_reports_svi_p.py` (line_inventory) + `test_seal_indicator_reports_svi03.py`/`test_seal_indicator_reports_same_cell_svi05.py` (`_cell`/`_phone_cell` adaptados para a nova ordem, mantendo a mesma garantia de "mesma célula") | GREEN |
+| I23 blip_configuration_list | `test_blip_configuration_list_places_indicator_before_number` | GREEN |
+| I24 blip_configuration_form ("Dado salvo", GET) | `test_blip_form_saved_block_places_indicator_before_number` | GREEN |
+| I24 blip_configuration_form ("Dado salvo", após POST inválido) | `test_blip_form_saved_block_order_survives_invalid_post` + `telecom/test_seal_indicator_blip_invalid_post_svi07.py` (2 testes adaptados) | GREEN |
+| I25 Admin SIMcard | `test_simcard_admin_places_indicator_before_number` | GREEN |
+| I26 Admin BlipConfiguration (resolvida e fallback "Selo indisponível") | `test_blip_configuration_admin_places_indicator_before_number` + `test_blip_configuration_admin_unresolvable_line_shows_fallback_before_number` | GREEN |
+| I27 Admin LineAllocation | `allocations/test_seal_indicator_left_of_number_allocations_svi_p.py::test_line_allocation_admin_places_indicator_before_number` | GREEN |
+| I28 Admin AllocationPendency | `pendencies/test_seal_indicator_left_of_number_pendencies_svi_p.py::test_allocation_pendency_admin_places_indicator_before_number_not_before_employee` | GREEN |
+| CSS — borda = preenchimento, sem contorno branco | `telecom/test_seal_indicator_css_border_svi_p.py` (4 testes, inspeção estática do arquivo) + navegador real (`docs/superpowers/evidence/SVI-P04/smoke.cjs`, `getComputedStyle`) | GREEN (estático + runtime) |
+| Foco distinto do border/box-shadow do dot | teste estático (CSS) + navegador real (outline 2px confirmado via `getComputedStyle` após `.focus()`) | GREEN (estático + runtime) |
+| Exportação CSV/XLSX | nenhum arquivo de `core/services/*_report_service.py` nem view de exportação foi alterado; suíte pré-existente de exportação (`config/tests/test_*_report.py`) reexecutada sem alteração de resultado | GREEN (regressão) |
+
+**RED/GREEN e contagens, sem sobreposição.** 23 testes novos escritos nesta tarefa (`*_left_of_number_*svi_p.py`, um arquivo por app: telecom 10, CSS 4, allocations 2, pendencies 1, employees 2, dashboard 3, config 1) — todos RED antes da implementação (confirmado rodando a suíte nova sozinha: 21 falhas de comportamento + os 2 que já eram GREEN por não exigirem mudança), todos GREEN depois. Separadamente, 5 arquivos de teste pré-existentes precisaram de ajuste no MECANISMO de localização de HTML (não no que verificam) porque seu helper (`_cell`/`_window`/string literal) presumia a ordem antiga por construção: `telecom/test_seal_indicator_svi03.py` (2 testes), `allocations/tests/test_seal_indicator_svi03.py` (1 teste), `config/tests/test_seal_indicator_reports_svi03.py` (helper `_cell`, usado por 6 testes), `config/tests/test_seal_indicator_reports_same_cell_svi05.py` (helper `_phone_cell`, usado por 5 testes), `telecom/test_seal_indicator_blip_invalid_post_svi07.py` (2 testes) — nenhuma asserção de conteúdo/segurança foi enfraquecida, só a forma de localizar a célula/janela de texto. Regressão proporcional filtrada (`-k "seal_indicator or seal_detail or blip"`, ignorando o módulo `dashboard/tests.py` já documentado como não coletável por conflito de nome pré-existente e não relacionado a este ajuste): **185 passed, 0 failed** (inclui os 23 novos + os adaptados + toda a cobertura pré-existente de SVI-01 a SVI-07 do domínio de selo). Suíte COMPLETA do repositório (mesmo `--ignore`, sem filtro): **1516 passed, 1 skipped, 53 subtests passed, 0 failed** (0:29:26) — nenhuma regressão em nenhum app fora do escopo deste ajuste. `python manage.py check` sem apontamentos. `git diff --check` sem erros (só avisos informativos de final de linha LF/CRLF do Git no Windows).
+
+**Medições visuais (navegador real, Chrome via Playwright, ambiente isolado descartável).** Ver `docs/superpowers/evidence/SVI-P04/report.md` e `screenshots/`: 12/12 checagens PASS cobrindo ordem, separador único, borda = preenchimento sem contorno branco, ausência de espaço residual sem selo, anel de foco distinto e visível (outline 2px), app (fundo escuro, desktop 1280px e mobile 390px) e Admin (tema claro, SIMcard). Capturas de tela confirmam visualmente: círculo colorido à esquerda do número com um espaço, borda da mesma cor do preenchimento (sem halo branco), linha "Sem selo" sem círculo e sem espaço sobrando.
+
+**Limitações e recursos encerrados.** Não cobertos por navegador real nesta rodada (listados também no relatório de evidência): mobile 360px (só 390px foi medido), Admin em tema escuro, toque emulado, medição numérica de contraste (WCAG) do círculo/anel, e as três superfícies cujo DOM é montado inteiramente por JavaScript em resposta a evento assíncrono (AJAX "carregar mais" de `overview.html`/`employee_list.html`, e o modal `pendencyLinha` em `daily_user_action_board.html`) — o código dessas três foi revisado e ajustado para a nova ordem (ver arquivos alterados acima), mas sem prova de execução em navegador. Operator_lines, phoneline_detail, line_reports e as 3 listas intermediárias de daily_indicator_day_breakdown (entregues/reconectados/novos) usam o MESMO padrão mecânico de troca de ordem já provado nas superfícies irmãs testadas (overview/available), mas não têm teste de ordem dedicado nesta rodada — risco residual baixo (mudança sintaticamente idêntica), não zero. Container Postgres descartável e processo `runserver` do smoke de navegador foram encerrados ao final; nenhum dado de teste persiste em ambiente compartilhado.
+
+**Veredito.** Pronto para revisão. Nenhuma alteração de domínio, consulta, modelo, migration ou contrato de exportação. Nenhum stage/commit/push/deploy executado. As lacunas de aceite visual listadas acima (mobile 360px, Admin escuro, 3 superfícies só-JS, cobertura dedicada das superfícies de swap mecânico não testadas isoladamente) ficam explicitamente pendentes para o usuário decidir se uma rodada adicional de navegador é necessária antes de integrar.
+
+### Retificação — "aceite visual opcional" não se aplica (2026-10-12)
+
+A frase de fechamento da rodada anterior ("fica a critério do usuário") estava incorreta: os cenários listados como pendentes (mobile 360px, Admin escuro, toque emulado, contraste WCAG numérico, as 3 superfícies só-JS) são critérios do próprio checklist aprovado de SVI-P04, não itens opcionais. Esta seção fecha esses cenários com evidência real de navegador (rodada 2), mantendo os resultados da rodada 1 acima intocados.
+
+### Compliance Report — rodada 2 (fechamento dos cenários pendentes)
+
+Ambiente isolado dedicado (Postgres descartável `lineops-svip4-db`:55995, `runserver 127.0.0.1:8934`), dados sintéticos novos (sem reaproveitar banco/dado de nenhuma rodada anterior, sem PRD). Script: `docs/superpowers/evidence/SVI-P04/smoke_round2.cjs`. Relatório completo com tabela de contraste e screenshots: `docs/superpowers/evidence/SVI-P04/report.md` (seção "Rodada 2").
+
+**Matriz de cobertura — distinção entre tipo de prova.**
+
+| Tipo | Significado |
+|---|---|
+| **Direto** | Teste automatizado (Django/pytest) executado contra o comportamento real da superfície |
+| **Compartilhado** | Mesmo padrão de template/código já provado em superfície irmã (swap mecânico idêntico), sem teste/navegador dedicado a ESTA superfície especificamente |
+| **Navegador** | Aceite real em Chrome via Playwright, nesta rodada ou na anterior |
+| **Não executado** | Nenhuma das anteriores |
+
+| Superfície | Direto | Navegador | Observação |
+|---|---|---|---|
+| I01 overview (render inicial) | ✅ | ✅ (rodada 1: ordem/borda/foco/sem-residuo; rodada 2: mobile 360px) | — |
+| I01 overview (AJAX "Carregar mais") | — | ✅ (rodada 2: clique real, paridade com render inicial) | antes PENDENTE, agora fechado |
+| I02 operator_lines | — (compartilhado, mesmo padrão de I01) | — | não testado isoladamente nesta ou na rodada anterior |
+| I03 phoneline_detail | — (compartilhado) | — | idem |
+| I04 phoneline_update (form) | ✅ | — | — |
+| I05 phoneline_history | ✅ | — | — |
+| I06 line_reports | — (compartilhado) | — | idem I02/I03 |
+| I07 line_operational_report | ✅ | — | — |
+| I08 employee_list (múltiplos números, inicial) | ✅ | ✅ (rodada 2) | — |
+| I08 employee_list (AJAX "Carregar mais") | — | ✅ (rodada 2: clique real, 2 indicadores distintos na mesma célula após AJAX) | antes PENDENTE, agora fechado |
+| I09 employee_detail | ✅ | — | — |
+| I10 allocation_edit (input readonly) | ✅ | — | — |
+| I11 daily_user_action_board (botão inicial) | ✅ | — | — |
+| I11 modal `lineDetailModal` | fora do escopo (campo "Selo" separado, sem concatenação) | — | ver rodada 1 |
+| I12 modal `pendencyLinha` ("Dado salvo") | — | ✅ (rodada 2: abre A, troca para B de estado diferente, SEM resíduo de A) | antes PENDENTE, agora fechado — cenário mais crítico do checklist, provado diretamente |
+| I13 daily_indicator_day_breakdown (disponíveis) | ✅ | — | — |
+| I14–I16 (entregues/reconectados/novos) | — (compartilhado, mesmo padrão de I13) | — | não testado isoladamente |
+| I17 (usuários com linha) | ✅ | — | — |
+| I18–I22 reports/home (5 relatórios) | ✅ | — | — |
+| I23 blip_configuration_list | ✅ | — | — |
+| I24 blip_configuration_form (GET + após POST inválido) | ✅ | — | — |
+| I25 Admin SIMcard | ✅ | ✅ (rodada 1: claro; rodada 2: escuro) | único Admin com screenshot em claro E escuro |
+| I26 Admin BlipConfiguration (+ fallback) | ✅ | — | mesmo CSS/padrão de I25, não recapturado em navegador nesta rodada |
+| I27 Admin LineAllocation | ✅ | — | idem |
+| I28 Admin AllocationPendency | ✅ | ✅ (indireto: rodada 2 usa este mesmo template Admin — `#result_list`/`field-*` — como base do `admin.py` tocado, mas a captura de tela foi da changelist de SIMcard, não desta) | compartilhado quanto a navegador |
+| CSS — borda = preenchimento, sem contorno branco | ✅ (estático) | ✅ (app escuro, Admin claro E escuro) | — |
+| Foco distinto do border/box-shadow do dot | ✅ (estático) | ✅ (3 contextos de tema, contraste numérico ≥3:1 nos 3) | — |
+| Toque emulado revela texto | — | ✅ (rodada 2, **explicitamente identificado como emulação Playwright/CDP, não hardware real**) | antes PENDENTE, agora fechado |
+| Contraste WCAG do círculo (1.4.11, ≥3:1) | — | ✅ App escuro (5/5) e Admin escuro (3/3 amostrados) · ❌ Admin claro (4/5: green/yellow/orange/gray_not_activated) | **defeito pré-existente encontrado — ver abaixo, não corrigido** |
+| Contraste WCAG do foco (1.4.11, ≥3:1) | — | ✅ 3/3 contextos de tema | — |
+| Contraste WCAG do texto revelado (1.4.3, ≥4.5:1) | — | ✅ 3/3 contextos de tema | — |
+| Mobile 360px | — | ✅ (rodada 2: sem overflow de página, ações alcançáveis) | antes PENDENTE, agora fechado |
+| Exportação CSV/XLSX | ✅ (regressão, nenhum arquivo de exportação alterado) | — | — |
+
+**Resultados reais, sem somar suítes sobrepostas.** Rodada 2 do navegador: **38/42 PASS** (as 4 falhas são UMA causa — ver defeito abaixo — não 4 problemas distintos). Rodada 1 do navegador: 12/12 PASS (não resomada aqui, contextos parcialmente distintos — ver `report.md`). Nenhum código de produção foi alterado nesta rodada (só o script de evidência e dados sintéticos descartáveis), portanto a suíte completa de 1516 testes (0:29:26, relatada na rodada anterior) **não foi re-executada** — não havia necessidade (nenhuma mudança de código desde a última execução verde). `python manage.py check`: sem apontamentos. `git diff --check`: sem erros.
+
+**Defeito encontrado nesta rodada (registrado, não corrigido — decisão pendente do usuário).** Círculo do indicador falha WCAG 1.4.11 (≥3:1) contra o fundo do Admin em tema CLARO para 4 dos 5 estados com círculo: green 2.39:1, yellow 2.15:1, orange 2.2:1, gray_not_activated 2.36:1 (red passa, 3.76:1). Causa confirmada por inspeção de código: mesma cor de preenchimento (`var(--status-*)`) e mesmo fundo do Admin de ANTES deste ajuste — a troca do contorno branco por borda-igual-ao-preenchimento (SVI-P01b) não alterou nem piorou esta métrica (o contorno branco anterior não contribuía para contraste against fundo branco de qualquer forma). **Não é regressão deste ajuste**, é uma lacuna de paleta pré-existente, medida numericamente pela primeira vez nesta rodada. Correção exigiria mudar cor de preenchimento aprovada ou fundo do Admin — fora do contrato desta tarefa (só ordem/espaço/borda-igual-ao-preenchimento foram aprovados); instrução explícita desta rodada proibiu alterar paleta sem aprovação. Tabela completa de cores/fundos/razões em `docs/superpowers/evidence/SVI-P04/report.md`.
+
+**Recursos encerrados.** `docker rm -f lineops-svip4-db`, processo `runserver 127.0.0.1:8934` finalizado, script de seed local removido. Recursos pré-existentes (container Postgres de desenvolvimento do usuário, `runserver 127.0.0.1:8777`) nunca tocados.
+
+**Veredito: SVI-P04 CONCLUÍDA** para o contrato aprovado desta tarefa (ordem indicador→espaço→número, borda=preenchimento sem contorno branco, foco distinto e com contraste ≥3:1 comprovado em 3 contextos de tema, conteúdo dinâmico real sem resíduo, mobile 360px, toque emulado identificado como tal, zero erros novos de console/rede, zero regressão). Falta separada e explicitamente registrada: **conflito de contraste pré-existente do círculo no Admin claro (4 estados)**, que não é corrigível dentro do contrato atual sem aprovação de mudança de paleta — apresentado acima para decisão do usuário, não bloqueia a conclusão desta tarefa de ajuste de ordem/borda por não ter sido causado por ela.
+
+## Correção de contraste — círculo do selo no Admin claro — 2026-10-12
+
+### Spec Summary
+Decisão aprovada pelo usuário para o conflito registrado acima: escurecer os tons do círculo **somente no Django Admin em tema claro** (explícito `data-theme="light"`, ou `data-theme="auto"` com preferência do sistema/navegador clara ou sem preferência), até atingir contraste ≥3:1 (WCAG 1.4.11) contra os fundos reais onde o círculo aparece no Admin. Critérios do usuário, obrigatórios: preservar o significado de cada cor (verde/amarelo/laranja/vermelho/cinza continuam sendo essas cores, só mais escuras quando necessário); borda sempre igual ao preenchimento (sem reintroduzir contorno branco); paleta do app escuro e do Admin escuro **intocada**; ordem indicador→espaço→telefone, foco e texto acessível preservados. Escolha dos valores exatos de cor autorizada dentro desses critérios.
+
+### Gap Analysis — mecanismo real de tema do Admin
+Investigação nos arquivos reais do Django instalado (`venv/Lib/site-packages/django/contrib/admin/static/admin/css/{base,dark_mode}.css`, `.../js/theme.js`), não reimplementação:
+- `theme.js` SEMPRE grava um `data-theme` explícito em `<html>` (`"light"`, `"dark"` ou `"auto"` — nunca ausente após o primeiro paint; `"auto"` é o padrão sem escolha salva em `localStorage`).
+- `data-theme="auto"` **não é tema claro nem escuro por si só** — o CSS real do Django resolve `auto` para claro ou escuro conforme `prefers-color-scheme` do navegador/SO no momento. Medido empiricamente (`theme_probe.cjs`, harness carregando os DOIS arquivos CSS reais do Django, sem reescrevê-los) em 9 combinações (`data-theme` × SO claro/escuro/sem-preferência):
+
+  | data-theme | SO claro | SO escuro | SO sem preferência |
+  |---|---|---|---|
+  | `light` | `--body-bg=#fff` | `--body-bg=#fff` | `--body-bg=#fff` |
+  | `dark` | `--body-bg=#121212` | `--body-bg=#121212` | `--body-bg=#121212` |
+  | `auto` | `--body-bg=#fff` | `--body-bg=#121212` | `--body-bg=#fff` |
+
+  Confirma: tema explícito sempre vence a preferência do SO (a especificidade de `html[data-theme="light"]`/`html[data-theme="dark"]` supera o `:root` sem atributo dentro do `@media` de `dark_mode.css`, apesar de este vir depois no arquivo). "Efetivamente claro" = `data-theme="light"` OU (`data-theme="auto"` E `prefers-color-scheme` não é `dark`). Confirmado também que `@media (prefers-color-scheme: light)` casa tanto com preferência clara quanto com ausência de preferência (SO "sem preferência" ⇒ `matched=yes`), igual à resolução real do `auto` do Django — não precisa de uma terceira regra.
+- `html[data-theme]` **nunca é definido fora do Admin**: `templates/base/base.html` (app principal) não tem nenhum atributo `data-theme` no `<html>` — logo qualquer seletor CSS que exija `html[data-theme=...]` é, por construção, inerte no app, satisfazendo "somente no Admin" sem precisar de nenhuma outra guarda.
+- Fundos reais onde o círculo aparece no Admin (changelist): `--body-bg` (`#fff`) nas linhas normais e `--darkened-bg` (`#f8f8f8`) nas linhas zebradas — **`#f8f8f8` é o pior caso** (contraste ligeiramente MENOR que contra `#fff`, não maior — confirmado por cálculo, luminância de `#f8f8f8` um pouco abaixo de 1.0 aproxima o denominador da fórmula do numerador). Os dois fundos foram usados como alvo, não só o branco puro.
+- Estados confirmados com falha (medidos na rodada 2 de SVI-P04, Admin claro real): green (2.39:1 contra `#f8f8f8`), yellow (2.02:1), orange (2.20:1), gray_not_activated (2.36:1). `gray_inconsistent` não foi medido diretamente na rodada 2, mas **compartilha o mesmo seletor CSS e a mesma `var(--status-neutral-dot)`** que `gray_not_activated` (`static/css/seal_indicator.css`) — mesma cor computada, logo mesma falha por construção; corrigido junto, no mesmo seletor combinado, sem medição redundante. `red` já passa (3.76:1 contra `#fff`, melhor ainda contra `#f8f8f8` seria o inverso... — medido 3.76:1 foi o pior caso à época; mantido sem alteração por instrução explícita do usuário.
+
+### Decisão de cores (valores escolhidos, dentro do critério aprovado)
+Metodologia: mesma cor (matiz/saturação HSL preservados — significado intacto), luminosidade reduzida até ratio ≥3.1:1 contra `#f8f8f8` (pior fundo real, margem de 0.1 sobre o limiar de 3.0 para absorver arredondamento), calculado com a mesma fórmula de luminância relativa (WCAG) usada em todo o projeto (`docs/superpowers/evidence/SVI-07/contrast_measure.cjs`, `docs/superpowers/evidence/SVI-P04/smoke_round2.cjs`). Script: `docs/superpowers/evidence/SVI-P04/pick_colors.cjs`.
+
+| Estado | Cor atual (app escuro / Admin escuro — INTOCADA) | Cor nova (Admin claro, `--status-neutral-dot` etc. do app continuam as mesmas) | Ratio vs `#f8f8f8` | Ratio vs `#fff` |
+|---|---|---|---|---|
+| green | `#10b981` | `#0e9f6f` | 3.19:1 | 3.38:1 |
+| yellow | `#f59e0b` | `#c27d08` | 3.17:1 | 3.37:1 |
+| orange | `#ff8c00` | `#d17300` | 3.21:1 | 3.41:1 |
+| gray_not_activated / gray_inconsistent | `#9aa5b1` | `#808e9d` | 3.15:1 | 3.35:1 |
+| red | `#ef4444` | **inalterado** (já passa: 3.76:1 vs `#fff`) | — | — |
+
+Amarelo e laranja permanecem hues distintos (37.7° vs 32.9°, mesma diferença de matiz do par original — escurecer em HSL preserva a diferença relativa de matiz, só reduz luminosidade) — verificação visual de não-colapso feita em navegador real na validação (capturas lado a lado).
+
+### Implementation Plan
+- [x] Investigar mecanismo de tema real do Admin instalado (acima), sem supor comportamento.
+- [ ] Escrever teste estático (Python) que calcula a razão de contraste real das regras CSS escopadas ao Admin claro contra os dois fundos reais (`#fff`, `#f8f8f8`) — RED antes da implementação (regra ainda não existe).
+- [ ] Adicionar ao `static/css/seal_indicator.css` regras escopadas por `html[data-theme="light"]` (explícito) e `@media (prefers-color-scheme: light) { html[data-theme="auto"] ... }` (auto efetivo-claro), reaproveitando o MESMO seletor combinado `.seal-indicator--gray_not_activated .seal-indicator__dot, .seal-indicator--gray_inconsistent .seal-indicator__dot` para os dois estados cinza (fonte única). Borda = preenchimento dentro de cada regra nova (mesma var local, reaproveitando o padrão já usado nas regras base). Vermelho não ganha regra nova.
+- [ ] Confirmar que a regra BASE (sem escopo — app + Admin escuro) continua com os hex atuais, textualmente antes das novas regras no arquivo (preserva `telecom/test_seal_indicator_css_border_svi_p.py` sem precisar alterá-lo).
+- [ ] Revalidar em navegador real: os 4 ModelAdmin que usam o componente (SIMcard, BlipConfiguration, LineAllocation, AllocationPendency), Admin claro/escuro/automático (SO claro e SO escuro), desktop e mobile 360px, foco por teclado, toque emulado (identificado), fundos efetivos reais (inclusive linha zebrada).
+- [x] `manage.py check`, `git diff --check`, regressão focada do domínio de selo (não a suíte completa de 29min, sem necessidade — mudança é só CSS).
+
+### Test Checklist — resultado
+
+- [x] Todos os 4 estados corrigidos (green/yellow/orange/gray_not_activated) ≥3:1 contra os DOIS fundos reais do Admin (`#fff` e `--darkened-bg` `#f8f8f8`) — medido, não só calculado.
+- [x] Borda computada = preenchimento em toda regra nova (checado por igualdade de string `getComputedStyle`, não só leitura estática do CSS).
+- [x] Amarelo (`#c27d08`) e laranja (`#d17300`) continuam hues distintos (37.7°/32.9°, mesma diferença do par original) — confirmado visualmente em screenshot real (`svip5-simcard-light.png`).
+- [x] `gray_not_activated` e `gray_inconsistent` resolvem para a MESMA cor nova (fonte única, teste estático dedicado).
+- [x] Texto revelado no foco ≥4,5:1 (11.9:1 medido) e anel de foco ≥3:1 (4.87:1 medido) no Admin claro, com as cores escurecidas.
+- [x] App escuro e Admin escuro mantêm as cores ORIGINAIS — medido nos 4 ModelAdmin (`dark-unchanged-*`) E no app (herdado da rodada anterior, CSS base intocado).
+- [x] Tema automático acompanha a preferência: `data-theme="auto"` sob SO claro usa a cor escurecida; sob SO escuro usa a original — medido, não presumido (2 cenários, 1 representativo completo + 1 de verificação pontual).
+- [x] Clique no botão de tema da própria página (sem recarregar) atualiza a cor do indicador ao vivo — medido via clique real, não via `localStorage` antes do load.
+- [x] Busca, link "Adicionar", filtros laterais do Admin continuam presentes e funcionais — CSS do indicador não vazou para controles nativos.
+- [x] Ordem indicador→espaço→número, foco, texto acessível — preservados (nenhuma mudança de HTML/JS nesta correção, só CSS).
+
+### Test Strategy — execução real
+
+Ambiente isolado descartável (`lineops-svip5-db`:55996, `runserver 127.0.0.1:8935`), dados sintéticos cobrindo os 5 estados em PhoneLine/SIMcard/BlipConfiguration/LineAllocation/AllocationPendency. Chrome real via Playwright, CSS real da aplicação (não harness para a prova final — harness só foi usado na investigação do mecanismo de tema do Admin, com os arquivos REAIS do Django, não uma reimplementação). Script: `docs/superpowers/evidence/SVI-P04/smoke_admin_light_contrast.cjs`.
+
+**Resultado: 117/117 PASS**, cobrindo:
+- 4 ModelAdmin (SIMcard, BlipConfiguration, LineAllocation, AllocationPendency) × tema claro explícito — contraste dos 5 estados + borda=preenchimento, em cada um.
+- Mesmos 4 ModelAdmin × tema escuro explícito — confirmando cor ORIGINAL inalterada.
+- `data-theme="auto"` sob SO claro (usa escurecida) e sob SO escuro (usa original) — representativo (SIMcard).
+- Mobile 360px, tema claro.
+- Foco por teclado (contraste do anel e do texto revelado).
+- Toque emulado — **identificado explicitamente como emulação Playwright/CDP**.
+- Troca de tema ao vivo (clique real no botão, não reload).
+- Controles nativos do Admin intactos.
+- Fundo real alternado entre linhas (não só a primeira) confirmado por cor computada (Django 5.2 não usa mais a classe `row2`; verificado pela cor real, não por nome de classe presumido).
+- Zero erros novos de console, zero requisições de rede falhadas.
+
+Regressão focada (Python): `telecom/test_seal_indicator_admin_light_contrast_svi_p.py` (7 testes novos, RED→GREEN) + `telecom/test_seal_indicator_css_border_svi_p.py` (4, já existente, continua GREEN) + suíte completa do domínio de selo (`-k "seal_indicator or seal_detail or blip"`): **192 passed** (185 da rodada anterior + 7 novos). `python manage.py check`: sem apontamentos. `git diff --check`: sem erros. Suíte completa do repositório (29min) **não foi re-executada** — mudança é só CSS + 1 arquivo de teste novo, sem alteração de código Python de aplicação.
+
+### Compliance Report — SVI-P05 (correção de contraste)
+
+**Arquivos alterados e motivo.**
+- `static/css/seal_indicator.css`: adicionadas 8 regras novas (4 estados × 2 variantes de tema-claro-efetivo) + 4 custom properties em `:root` (`--seal-admin-light-success/warning/today/neutral-dot`), todas escopadas por `html[data-theme="light"]` ou `@media (prefers-color-scheme: light) { html[data-theme="auto"] ... }`. Nenhuma regra existente foi removida ou modificada — só adição, no final do arquivo (preserva `telecom/test_seal_indicator_css_border_svi_p.py` sem alteração).
+- `telecom/test_seal_indicator_admin_light_contrast_svi_p.py` (novo): 7 testes que calculam a razão de contraste real a partir do CSS, não apenas procuram hexadecimais.
+- `docs/superpowers/evidence/SVI-P04/`: `theme_probe_harness.html` + `theme_probe.cjs` (investigação do mecanismo real de tema, CSS real do Django), `pick_colors.cjs` (cálculo das cores escolhidas), `smoke_admin_light_contrast.cjs` (validação final em navegador, 117 checagens) + 2 screenshots novos (`svip5-simcard-light.png`, `svip5-mobile-360-light.png`).
+- `docs/superpowers/specs/2026-10-05-phone-line-seal-indicator-design.md`: esta seção.
+
+**Paleta antes/depois, por tema.**
+
+| Estado | App escuro / Admin escuro (sempre) | Admin claro — ANTES (falhava) | Admin claro — DEPOIS |
+|---|---|---|---|
+| green | `#10b981` | `#10b981` (2.39:1) | `#0e9f6f` (3.19:1) |
+| yellow | `#f59e0b` | `#f59e0b` (2.02:1) | `#c27d08` (3.17:1) |
+| orange | `#ff8c00` | `#ff8c00` (2.20:1) | `#d17300` (3.21:1) |
+| gray_not_activated / gray_inconsistent | `#9aa5b1` | `#9aa5b1` (2.36:1) | `#808e9d` (3.15:1) |
+| red | `#ef4444` | `#ef4444` (3.76:1 — já passava) | `#ef4444` (inalterado) |
+
+Razões de contraste acima medidas contra `--darkened-bg` (`#f8f8f8`, pior fundo real do Admin); todas ≥3.35:1 contra `#fff`.
+
+**RED→GREEN.** RED confirmado rodando `telecom/test_seal_indicator_admin_light_contrast_svi_p.py` antes da implementação (4 de 7 testes falhando pela ausência das regras — os 3 que já passavam eram guardas de regressão sobre o estado ANTERIOR, corretos por natureza). Comandos: `venv/Scripts/python.exe -m pytest telecom/test_seal_indicator_admin_light_contrast_svi_p.py -q` (RED: 4 failed, 3 passed → GREEN após o CSS: 7 passed). `venv/Scripts/python.exe -m pytest -q -k "seal_indicator or seal_detail or blip" --ignore=dashboard/tests.py` → 192 passed. `venv/Scripts/python.exe manage.py check --settings=config.settings_dev` → sem apontamentos. `git diff --check` → sem erros.
+
+**Matriz de contraste e verificação de temas.** Ver tabela acima + `docs/superpowers/evidence/SVI-P04/smoke_admin_light_contrast.cjs` (117 asserções com valores reais) e `theme_probe.cjs` (9 combinações de `data-theme` × `prefers-color-scheme`, mecanismo real do Django confirmado, não suposto).
+
+**Limitações.** Zebra striping do Django 5.2 não usa mais a classe `row2` (verificado pela cor computada real, não por nome de classe); nenhum impacto na prova, só correção do método de detecção. Linha vermelha não recebeu medição redundante nesta rodada (já estava provada na rodada anterior, 3.76:1, e nenhuma regra nova foi criada para ela).
+
+**Recursos encerrados.** `docker rm -f lineops-svip5-db`; processo `runserver 127.0.0.1:8935` finalizado; `seed_svip5_smoke.py` (script local, fora do controle de versão) removido. Scripts de evidência (`theme_probe*`, `pick_colors.cjs`, `smoke_admin_light_contrast.cjs`) preservados em `docs/superpowers/evidence/SVI-P04/` para rastreabilidade. Nenhum dado de teste persiste em ambiente compartilhado ou PRD.
+
+**Diferenciação aceite funcional vs. contraste.** O aceite funcional de SVI-P04 (ordem, espaço, borda=preenchimento, foco distinto, conteúdo dinâmico, mobile 360px, toque emulado) permanece como relatado na rodada 2 — nenhum desses resultados foi refeito ou invalidado. Esta seção resolve APENAS o achado de contraste numérico que ficou registrado como pendente de decisão; a decisão (escurecer no Admin claro) foi tomada pelo usuário e implementada aqui.
+
+**Veredito: PRONTO PARA REVISÃO.** Conflito de contraste do Admin claro resolvido para os 4 estados reportados (mais `gray_inconsistent`, corrigido junto por compartilhar a mesma regra). Nenhuma alteração de domínio, projeção de estado, permissões, queries ou exportações. Nenhum stage/commit/push/deploy/migration executado.
+
+## SVI-P06 — Achados de disposição visual (revisão pós-SVI-P05)
+
+Revisão do intervalo SVI-P02–P05 encontrou 3 achados de **disposição visual**
+que os 30 testes existentes não detectam, porque esses testes verificam
+apenas ordem/índice de substring no HTML — não a estrutura de contêiner que
+determina se indicador e número realmente aparecem lado a lado. A correção
+de contraste aprovada em SVI-P05 (seção acima) está correta e **não é
+alterada** por este achado.
+
+### Achado A — Modal I11 "Informações da Linha" (`daily_user_action_board.html`)
+
+O template mantém `Número` e `Selo` como campos (`<dt>`/`<dd>`) separados;
+o JavaScript inline (evento `show.bs.modal`) insere o indicador apenas no
+slot `data-line-detail="seal"`, nunca junto do número. Contrato aprovado
+(SVI-P03) exige indicador + espaço + telefone no mesmo campo visual —
+nenhuma tela usa um campo "Selo" isolado.
+
+### Achado B — Detalhamento diário (`daily_indicator_day_breakdown.html`)
+
+`{% seal_indicator %}` e o `<span>` do número são filhos DIRETOS e
+SEPARADOS de `.detail-list-item`. `static/css/styles.css` define
+`.detail-list-item { display: flex; flex-direction: column; }` — cada
+filho direto de um flex container em coluna ocupa sua própria linha, logo
+o indicador renderiza ACIMA do número, não ao lado, apesar de vir antes no
+DOM (a ordem DOM está correta; o agrupamento visual não). Afeta os 5 blocos
+alterados: números disponíveis, entregues, reconectados, novos e usuários
+com linha.
+
+### Achado C — Formulários (`allocation_edit.html` e `phoneline_form.html`)
+
+O indicador é colocado antes da tag `<input>`/widget, mas o input
+(`.form-control`) continua `display: block` com largura 100% (padrão
+Bootstrap). Sem uma composição lateral explícita, o indicador fica
+empurrado para fora da linha visual do campo em vez de ficar ao lado dele.
+
+### Plano de correção
+
+- **Modal (A):** remover o slot `Selo` redundante; o JS passa a inserir o
+  indicador dentro do próprio campo `Número`, reaproveitando o mesmo padrão
+  já usado em `pendencyLinha` (nó do indicador + nó de texto `" "` inseridos
+  antes do texto do número, via `SealIndicator.createNode`).
+- **Detalhamento (B):** envolver indicador + espaço + número em um único
+  elemento (`<span class="detail-list-line">`) nos 5 blocos afetados, sem
+  aplicar `flex-direction: row` a `.detail-list-item` (isso afetaria nome,
+  carteira e demais metadados da lista) e sem usar `order`/`row-reverse`.
+- **Formulários (C):** envolver indicador + input em um contêiner
+  (`.seal-field-inline`, `display: flex; align-items: center;`) nos 2
+  templates, com o input em `flex: 1 1 auto; min-width: 0` para não perder
+  utilizabilidade. Como espaço em branco puro entre itens flex é colapsado
+  pelo navegador (não gera caixa), o separador aprovado passa a ser um
+  único `gap` no contêiner — substituindo, não somando, ao espaço de texto
+  que seria colapsado de qualquer forma nesse contexto.
+- Nenhuma alteração de cor, domínio, consultas, modelos, migrations,
+  permissões ou exportadores.
+
+Testes novos a seguir cobrem containment real (não apenas índice de
+substring) e, para geometria, navegador real via Playwright.
+
+### Compliance Report — SVI-P06
+
+**Causa, correção e arquivos, por achado.**
+
+| Achado | Causa | Correção | Arquivos |
+|---|---|---|---|
+| A — modal I11 | JS inseria o indicador num slot `data-line-detail="seal"` separado do slot `Número`; o `<dt>/<dd>` "Selo" era redundante e violava o contrato (indicador + espaço + telefone no MESMO campo) | Removido o par `<dt>/<dd>` "Selo"; o JS agora constrói o indicador (`SealIndicator.createNode` + nó de texto `" "`) e insere os dois antes do texto já presente em `[data-line-detail="number"]`, mesmo padrão já usado em `pendencyLinha` neste arquivo | `templates/dashboard/daily_user_action_board.html` |
+| B — detalhamento diário | `.detail-list-item` é `display:flex; flex-direction:column` (inalterado); indicador e número eram filhos DIRETOS e separados desse container, logo cada um ocupava sua própria linha | Indicador + espaço + número envolvidos em `<span class="detail-list-line">` nos 5 blocos (disponíveis, entregues, reconectados, novos, usuários com linha); o `<span>`, como filho direto de um flex container, é "blockificado" pelo próprio navegador (CSS Flexbox nível 1) e ocupa uma linha própria — seu CONTEÚDO interno continua em fluxo inline normal, sem flex aninhado, sem CSS novo | `templates/dashboard/daily_indicator_day_breakdown.html` |
+| C — formulários | Indicador ficava antes da tag do controle, mas o controle (`.form-control`, Bootstrap) é `display:block` com largura 100% — sem composição lateral explícita | Indicador + controle envolvidos em `<div class="seal-field-inline">` (`display:flex; align-items:center; gap:0.4em`), com `.seal-field-inline .form-control { flex:1 1 auto; min-width:0 }` para o controle continuar crescendo/legível. Como espaço em branco puro é colapsado entre itens flex, o `gap` é o ÚNICO separador visual aqui — substitui, não soma, ao espaço de texto que seria colapsado de qualquer forma | `templates/allocations/allocation_edit.html`, `templates/telecom/phoneline_form.html`, `static/css/styles.css` |
+
+Teste pré-existente superado pela correção do achado A:
+`dashboard/tests/test_seal_indicator_modal_svi06.py::test_daily_user_action_board_modal_has_seal_target_slot`
+exigia o slot "Selo" separado (contrato de uma rodada anterior, SVI-06) —
+atualizado para `test_daily_user_action_board_modal_has_number_target_slot`,
+que agora exige o OPOSTO (slot único "Número", sem slot "Selo"), coerente
+com o contrato aprovado nesta revisão.
+
+**RED→GREEN.** RED confirmado antes de qualquer alteração de
+template/CSS/JS: 12 falhas reais nos testes novos (3 achados), nenhuma por
+erro de fixture — `venv/Scripts/python.exe -m pytest telecom/test_seal_indicator_svi_p06_layout_css.py telecom/test_seal_indicator_left_of_number_telecom_svi_p.py allocations/tests/test_seal_indicator_left_of_number_allocations_svi_p.py dashboard/tests/test_seal_indicator_left_of_number_dashboard_svi_p.py -q` → 12 failed, 5 passed (os 5 eram guardas de regressão que já valiam antes da correção). Após a implementação, os mesmos comandos → **29 passed**.
+
+**Node IDs novos e resultado (Django, estrutural).**
+- `dashboard/tests/test_seal_indicator_left_of_number_dashboard_svi_p.py`: `test_breakdown_available_numbers_wraps_indicator_and_number_together`, `test_breakdown_delivered_numbers_wraps_indicator_and_number_together`, `test_breakdown_reconnected_numbers_wraps_indicator_and_number_together`, `test_breakdown_new_numbers_wraps_indicator_and_number_together`, `test_breakdown_users_with_line_wraps_indicator_and_number_together`, `test_line_detail_modal_has_no_separate_seal_field`, `test_line_detail_modal_js_builds_indicator_into_number_field` — GREEN.
+- `allocations/tests/test_seal_indicator_left_of_number_allocations_svi_p.py::test_allocation_edit_wraps_indicator_and_input_in_inline_container` — GREEN.
+- `telecom/test_seal_indicator_left_of_number_telecom_svi_p.py::test_phoneline_update_wraps_indicator_and_input_in_inline_container` — GREEN.
+- `telecom/test_seal_indicator_svi_p06_layout_css.py` (5 testes, inspeção estática do CSS/templates) — GREEN.
+- `dashboard/tests/test_seal_indicator_modal_svi06.py::test_daily_user_action_board_modal_has_number_target_slot` (atualizado) — GREEN.
+
+**Matriz superfície → teste estrutural → navegador → resultado.**
+
+| Superfície | Teste estrutural (Django) | Navegador real (Playwright) | Resultado |
+|---|---|---|---|
+| Modal I11 (`daily_user_action_board.html`) | slot único "Número", sem "Selo"; JS constrói indicador no slot certo | `smoke.cjs` — abre linha A, fecha, abre linha B, confirma indicador dentro do campo Número e AUSÊNCIA de slot "Selo" nos dois casos; reabre a mesma linha e confirma ausência de indicador duplicado (sem resíduo) | GREEN (7/7 checagens) |
+| Detalhamento diário, 5 blocos (`daily_indicator_day_breakdown.html`) | wrapper `.detail-list-line` envolve indicador+número nos 5 blocos | `smoke.cjs` — `getBoundingClientRect()` de indicador e número em cada item real da página (desktop 1280px e mobile 390/360px): sobreposição vertical ≥50% confirmada (mesma linha visual), indicador à esquerda (`x` menor) | GREEN (7 itens desktop + 2 mobile, 9/9) |
+| Formulário `allocations:allocation_edit` | wrapper `.seal-field-inline` envolve indicador+input | `smoke.cjs` — indicador e input na mesma linha visual, input com 1108px de largura útil (sem esmagamento), sem overflow horizontal da página | GREEN (3/3) |
+| Formulário `telecom:phoneline_update` | wrapper `.seal-field-inline` envolve indicador+widget | `smoke.cjs` — indicador e input na mesma linha visual (desktop 521px, mobile 390px: 313px, mobile 360px: 283px — todos utilizáveis); campo editável do mesmo formulário (`status`) recebe foco normalmente; cadastro (`phonelines/create/`, sem objeto salvo) tem o wrapper mas SEM indicador nenhum | GREEN (6/6) |
+
+Script completo: `docs/superpowers/evidence/SVI-P06/smoke.cjs`. Ambiente
+isolado e descartável: Postgres (`lineops-svip6-db`, porta 55997),
+`runserver 127.0.0.1:8936` (`config.settings_dev`), Chrome real via
+Playwright (instalado em diretório de scratchpad da sessão, fora do
+controle de versão). Dados sintéticos: 6 `PhoneLine` cobrindo os 6
+estados do indicador (green/yellow/orange/red/gray_not_activated/sem
+selo), 1 usuário ADMIN e 1 usuário SUPER (o board de "Ações do Dia"
+aplica `apply_action_board_visibility_rules`, que oculta linhas sem
+pendência aberta SOMENTE para ADMIN — por isso o achado A foi validado
+logado como SUPER, com funcionários sob o escopo desse SUPER; os achados
+B/C foram validados logado como ADMIN, papel exigido pelos formulários).
+
+**Screenshots/medições e limitações.** Esta rodada usou medição real
+(`getBoundingClientRect`, `scrollWidth`/`innerWidth`) em vez de
+screenshots, por serem as medidas diretamente relevantes aos 3 achados
+(sobreposição de posição e largura utilizável), seguindo o mesmo padrão
+de evidência numérica das rodadas SVI-P04/P05. Uma falha registrada
+**não é regressão desta correção**: overflow horizontal em mobile 360px
+na página de detalhamento (`bodyScroll` 381px vs `innerWidth` 360px),
+causado por um elemento da navegação lateral do layout base
+(`.rail-link`, `templates/base/base.html` ou CSS correspondente) — **o
+mesmo overflow ocorre na própria raiz do dashboard (`/`), página
+totalmente intocada por esta correção** (confirmado isoladamente:
+`bodyScroll` 949px vs `innerWidth` 360px), portanto pré-existente e fora
+do escopo dos 3 achados tratados aqui. Registrado como achado separado,
+não corrigido nesta rodada (mesmo padrão de "achado separado registrado"
+já usado em SVI-P04 para o contraste do Admin claro, depois corrigido em
+SVI-P05).
+
+**Recursos descartáveis encerrados.** `docker rm -f lineops-svip6-db`;
+processo `runserver 127.0.0.1:8936` finalizado; script de seed
+(`seed_svip6.py`, local, fora do controle de versão) usado apenas no
+diretório de scratchpad da sessão. Script de evidência
+(`docs/superpowers/evidence/SVI-P06/smoke.cjs`) preservado para
+rastreabilidade. Nenhum dado de teste persiste em ambiente compartilhado
+ou PRD; nenhum stage/commit/push/deploy executado.
+
+**Recursos preexistentes intactos.** Nenhuma alteração de cor, domínio,
+consultas, modelos, migrations, permissões ou exportadores. A correção
+de contraste aprovada em SVI-P05 não foi tocada (mesmas variáveis
+`--seal-admin-light-*`, mesmas regras `html[data-theme="light"]`/
+`prefers-color-scheme`). `.detail-list-item` continua
+`flex-direction: column` (guarda de regressão própria,
+`test_detail_list_item_keeps_column_direction_unchanged`). Nenhum
+`order`/`row-reverse` foi introduzido.
+
+**Regressão proporcional.** `venv/Scripts/python.exe -m pytest -q -k "seal_indicator or seal_detail or blip" --ignore=dashboard/tests.py` → **206 passed** (177 das rodadas anteriores + 29 novos/atualizados desta rodada). `manage.py check --settings=config.settings_dev` → sem apontamentos. `git diff --check` → sem erros reais (apenas avisos de LF/CRLF do `core.autocrlf`, pré-existentes). Suíte completa do repositório não foi re-executada nesta rodada — mudança restrita a 4 templates, 1 regra CSS nova e testes, sem alteração de modelo, migration, view ou domínio.
+
+**Veredito: PRONTO PARA REVISÃO.** Os 3 achados de disposição visual
+(modal I11, detalhamento diário, formulários) foram corrigidos e
+comprovados em navegador real, com a correção de contraste de SVI-P05
+preservada. Overflow mobile 360px no layout base é achado separado,
+pré-existente, fora do escopo desta correção — registrado, não
+corrigido.
+
+### Compliance Report — SVI-P06, pendência de foco no indicador (formulários)
+
+**Escopo desta rodada.** Fecha APENAS a pendência de aceite do foco no
+PRÓPRIO círculo (`.seal-indicator`) dentro de `allocations/allocation_edit.html`
+e `telecom/phoneline_form.html`. A rodada anterior havia provado foco em
+um campo de CONTROLE do formulário (`#id_status`) para demonstrar que o
+wrapper `.seal-field-inline` não quebra interatividade — não o estado
+expandido do indicador em si (`:focus` revela `.visually-hidden`,
+SVI-07). Não reabre a reconciliação 17→29 testes nem a investigação do
+overflow do detalhamento diário (achados fechados e registrados
+separadamente acima).
+
+**Hipótese tratada como hipótese — reproduzida antes de qualquer
+alteração.** `.seal-field-inline .seal-indicator { flex: 0 0 auto }`
+nunca cedia espaço ao crescer (texto revelado no foco); `.form-control`
+tinha `min-width: 0` sem piso. Ambiente isolado (Postgres descartável
+`lineops-svip6c-db`, porta 55998; `runserver 127.0.0.1:8937`), dados
+sintéticos com o texto acessível MAIS LONGO efetivamente produzido pelo
+domínio (`META VERIFICADO — Situação do selo indisponível`, 47
+caracteres, estado `gray_inconsistent`: selo ativo sem `expires_on`) e
+os estados distintos relevantes (`green`, `gray_not_activated`, `red`
+vencido, e "sem selo" num objeto já salvo — cenário de EDIÇÃO, distinto
+do cenário "cadastro sem objeto" já coberto na rodada anterior). Tab real
+(teclado, não `focus()` via JS) a partir do topo da página até o próprio
+círculo, Chrome real via Playwright.
+
+**Defeito CONFIRMADO (não hipótese refutada).** Em 390px e 360px, com o
+texto mais longo (`gray_inconsistent_longest`) e com `red_expired`
+(texto também longo: "Vencido há 370 dias"), o indicador expandido
+espremia o input para **26px de largura** em `phoneline_form` a 360px —
+inutilizável — e causava overflow horizontal da própria página
+(`bodyScroll` > `innerWidth`). Medido ANTES de qualquer correção, mesma
+página/mesmo dataset comparando o estado sem foco e com foco (não
+comparação com outra rota).
+
+**Teste derivado, RED→GREEN.**
+`telecom/test_seal_indicator_svi_p06_layout_css.py`:
+- `test_seal_field_inline_does_not_shrink_the_control_below_usable_width` — reescrito: a versão anterior EXIGIA `min-width: 0` (a própria causa do defeito); agora exige um piso (`min-width` > 0).
+- `test_seal_field_inline_indicator_can_shrink_and_wrap_when_focus_expands_it` (novo) — exige `flex-shrink` ≠ 0 e `min-width: 0` no indicador.
+
+RED confirmado antes da correção: `venv/Scripts/python.exe -m pytest telecom/test_seal_indicator_svi_p06_layout_css.py -q` → 2 failed, 4 passed. Após a correção → **6 passed**.
+
+**Correção mínima aplicada.** `static/css/styles.css`:
+- `.seal-field-inline .seal-indicator`: `flex: 0 0 auto` → `flex: 0 1 auto` + `min-width: 0` (pode encolher).
+- `.seal-field-inline .form-control`: `min-width: 0` → `min-width: 4.5rem` (piso utilizável).
+
+Nenhum `flex-wrap`, nenhum `overflow:hidden`, nenhuma remoção de
+`tabindex`, nenhum texto acessível escondido. O texto revelado agora
+QUEBRA LINHA dentro do próprio indicador (reaproveita `white-space:
+normal !important` já existente de SVI-07 em `.seal-indicator:focus
+.visually-hidden` — nenhuma regra nova nesse seletor) em vez de espremer
+o input; o indicador continua à esquerda, mesma associação ao número,
+mesma borda/paleta/anel de foco (nenhuma dessas regras foi tocada).
+Requisito de linha única não entrou em conflito que exigisse mudar o
+contrato: a quebra de linha ocorre DENTRO do indicador (texto em 2–4
+linhas), não entre indicador e controle — ambos continuam na mesma linha
+visual de base.
+
+**Revalidação completa (`docs/superpowers/evidence/SVI-P06/focus_smoke.cjs`,
+295 checagens, 295/295 PASS) — matriz formulário × viewport × estado ×
+interação:**
+
+| Cenário | Verificações | Resultado |
+|---|---|---|
+| Tab real (teclado) até o próprio círculo, 2 formulários × 5 estados × 3 viewports (1280/390/360px) | `document.activeElement` é o indicador (não o campo de status/outro controle) | PASS em todos |
+| Texto revelado ao focar | Elemento `.visually-hidden` visível, com dimensão real (não apenas presente no DOM) | PASS em todos os estados com círculo |
+| Medidas antes/durante/depois do foco | Largura do indicador antes vs. durante (cresce); largura do indicador depois do blur (restaura ao valor original, diferença < 1px) | PASS em todos |
+| Overflow da página | `scrollWidth` ≤ `innerWidth` antes, durante e depois do foco, nos 3 viewports | PASS em todos (inclusive 390/360px com o texto mais longo — corrigido) |
+| Input utilizável durante o foco | Largura > 40px durante o estado expandido (antes do fix: 26px em alguns casos) | PASS em todos (menor valor observado: 157px) |
+| Ausência de sobreposição/clipping | Texto revelado não sobrepõe o `boundingBox` do input; `overflow` computado do wrapper não é `hidden` cortando o texto | PASS em todos |
+| Tab seguinte | Sai do indicador sem foco-trap, avança para elemento focável adiante no DOM; quando o campo é tabulável (readonly, `allocation_edit`) chega especificamente nele — quando desabilitado (`phone_number` em `phoneline_form`, decisão pré-existente não alterada), avança para o próximo campo real (`SELECT`), sem retroceder nem travar | PASS em todos |
+| Valor/estado preservados | `value` e `readOnly`/`disabled` idênticos antes e depois do ciclo de foco | PASS em todos |
+| Toque emulado (identificado como emulação) | `page.touchscreen.tap` no círculo aciona foco + revela o texto, rotulado explicitamente `[TOQUE EMULADO]` nos resultados | PASS em todos os estados com círculo |
+| Sem selo (objeto já salvo) | Nenhum `.seal-indicator`, nenhum espaço reservado antes do input | PASS (ambos formulários) |
+| Sem JavaScript | Contexto com `javaScriptEnabled: false`: foco + revelação do texto continuam funcionando (mecanismo é CSS puro, `:focus`) | PASS |
+
+**Screenshots/medidas.** Não foram usados screenshots nesta rodada —
+`getBoundingClientRect()` real (posição/largura/altura do indicador, do
+texto revelado e do input) e `scrollWidth`/`innerWidth` são as medidas
+diretamente relevantes ao defeito (espremer/overflow), mesmo padrão
+numérico das rodadas anteriores.
+
+**Limitações.** Esta rodada cobre apenas os 2 formulários com
+`.seal-field-inline` (achado C). Não foi reexecutada a investigação do
+overflow pré-existente do layout base (mobile 360px, detalhamento
+diário) nem a reconciliação de contagem de testes das rodadas
+anteriores — ambos fora do escopo pedido aqui.
+
+**Recursos descartáveis encerrados.** `docker rm -f lineops-svip6c-db`;
+processo `runserver 127.0.0.1:8937` finalizado; scripts de seed
+(`seed_svip6_focus.py`, local, fora do controle de versão) usados apenas
+no diretório de scratchpad da sessão. Script de evidência
+(`docs/superpowers/evidence/SVI-P06/focus_smoke.cjs`) preservado para
+rastreabilidade. Nenhum dado de teste persiste em ambiente compartilhado
+ou PRD.
+
+**Recursos preexistentes intactos.** Nenhuma alteração de cor, borda,
+anel de foco, domínio, consultas, modelos, migrations, permissões ou
+exportadores. A regra `.seal-indicator:focus .visually-hidden` (SVI-07)
+não foi alterada — apenas reaproveitada. `.detail-list-line` e o
+mecanismo do modal I11 (achados B e A desta mesma spec) não foram
+tocados nesta rodada.
+
+**Regressão proporcional.** `venv/Scripts/python.exe -m pytest -q -k "seal_indicator or seal_detail or blip" --ignore=dashboard/tests.py` → **207 passed** (206 da rodada anterior + 1 novo). `manage.py check --settings=config.settings_dev` → sem apontamentos. `git diff --check` → sem erros nos arquivos alterados nesta rodada. Suíte pesada completa não foi reexecutada (mudança restrita a 2 regras CSS e 2 testes).
+
+**Veredito: PRONTO PARA REVISÃO.** A pendência de aceite do foco no
+indicador dentro dos formulários está fechada: defeito real confirmado
+em navegador (espremimento do input + overflow da página com o texto
+mais longo, em mobile), corrigido com a menor mudança possível (dois
+ajustes de `flex`/`min-width`), e revalidado com 295/295 checagens
+reais, incluindo teclado real, toque emulado identificado como tal, e
+funcionamento sem JavaScript.
+
+### Retificação — reconciliação de contagens e revisão final (2026-10-12)
+
+**Escopo desta retificação.** Fecha as 3 pendências de evidência apontadas
+em revisão externa sobre as duas seções acima: (A) reconciliação
+12 falhas+5 passou → 29 passou e 2 falhou → 6 passou; (B) comparação de
+overflow entre rotas diferentes; (C) revisão do último ajuste de foco
+(CSS, testes, `focus_smoke.cjs`). Nenhum código de produção foi alterado
+nesta rodada — apenas verificação e, aqui, retificação documental. RED→GREEN
+não se aplica: nenhum defeito novo foi encontrado.
+
+**(A) Reconciliação 12 falhou+5 passou → 29 passou.** Node IDs atuais,
+coletados agora (`--collect-only`), por arquivo do comando original
+(`telecom/test_seal_indicator_svi_p06_layout_css.py
+telecom/test_seal_indicator_left_of_number_telecom_svi_p.py
+allocations/tests/test_seal_indicator_left_of_number_allocations_svi_p.py
+dashboard/tests/test_seal_indicator_left_of_number_dashboard_svi_p.py`):
+
+| Arquivo | Total atual | Execução agora |
+|---|---|---|
+| `telecom/test_seal_indicator_svi_p06_layout_css.py` | 6 | 30 passed (soma dos 4 arquivos) |
+| `telecom/test_seal_indicator_left_of_number_telecom_svi_p.py` | 11 | — |
+| `allocations/tests/test_seal_indicator_left_of_number_allocations_svi_p.py` | 3 | — |
+| `dashboard/tests/test_seal_indicator_left_of_number_dashboard_svi_p.py` | 10 | — |
+| **Total** | **30** | **30 passed, 2 warnings (10,37s)** |
+
+30 = 29 (fechamento do achado B/C de disposição, seção anterior) + 1
+(teste novo `test_seal_field_inline_indicator_can_shrink_and_wrap_when_focus_expands_it`,
+criado na rodada de foco seguinte). Essa diferença de +1 está
+comprovada e reconciliada.
+
+A transição original "12 falhou+5 passou (17) → 29 passou" **não pôde
+ser reconstruída item a item**: os 4 arquivos de teste envolvidos
+aparecem como não rastreados (`??`) no `git status` desta branch — não
+há commit anterior para `git diff`/`git log` recuperar o estado "antes"
+— e nenhum log de execução RED foi preservado em
+`docs/superpowers/evidence/SVI-P06/` (apenas os dois scripts de
+navegador, `smoke.cjs` e `focus_smoke.cjs`, foram guardados; nenhum
+artefato de saída do `pytest`). Declarando a limitação em vez de
+presumir: não é possível confirmar com certeza quais 5 node IDs
+specificamente compunham o "5 passou" do RED original, nem se o número
+17 incluía ou não testes que hoje aparecem como "pré-existentes" nos
+mesmos arquivos. Registrada aqui a coleta ATUAL, comprovada por execução
+real (tabela acima), como fonte de verdade para qualquer auditoria
+futura — não uma reconstrução retroativa do histórico.
+
+**Reconciliação "2 falhou → 6 passou" (rodada de foco) — esta, sim,
+totalmente verificável.** Leitura direta de
+`telecom/test_seal_indicator_svi_p06_layout_css.py` (6 testes no arquivo
+hoje) contra `static/css/styles.css` confirma exatamente os 2+4
+descritos:
+- **2 que falhavam sob o CSS antigo** (`flex: 0 0 auto` no indicador,
+  `min-width: 0` no input): `test_seal_field_inline_does_not_shrink_the_control_below_usable_width`
+  (reescrito nesta rodada para exigir piso `min-width > 0`, o que o CSS
+  antigo não tinha) e `test_seal_field_inline_indicator_can_shrink_and_wrap_when_focus_expands_it`
+  (novo, exige `flex-shrink ≠ 0` e `min-width: 0` no indicador — ausente
+  no CSS antigo).
+- **4 que já passavam antes e continuam passando**, por não dependerem
+  da regra alterada: `test_seal_field_inline_wrapper_exists_and_is_a_flex_row`,
+  `test_seal_field_inline_wrapper_used_in_both_form_templates`,
+  `test_detail_list_item_keeps_column_direction_unchanged`,
+  `test_breakdown_template_does_not_use_order_or_row_reverse_as_shortcut`.
+
+Logo: eram 6 itens desde o início da rodada de foco (5 da rodada
+anterior + 1 novo criado junto com a correção), não uma contagem
+inflada — confirmado por leitura do arquivo atual e da regra CSS, não
+por suposição.
+
+**(B) Overflow no detalhamento — comparação mesma rota, antes/depois.**
+A comparação registrada no Compliance Report original (raiz do
+dashboard, 949px, vs. detalhamento, 381px, ambas em 360px) usa DUAS
+ROTAS DIFERENTES e não prova ausência de regressão introduzida pelo
+envolvimento em `.detail-list-line`. Reproduzido isoladamente, fora do
+working tree (`scratchpad/svip06-overflow/{before,after}.html`, sem
+stash/reset/checkout), usando o CSS real do projeto
+(`static/css/styles.css`, que importa `seal_indicator.css`) e o
+fragmento de marcação exato de ANTES (`-`) e DEPOIS (`+`) do diff deste
+arquivo (`templates/dashboard/daily_indicator_day_breakdown.html`),
+mesmo dataset (7 itens, incluindo o texto acessível mais longo do
+domínio, `"META VERIFICADO — Situação do selo indisponível"`), mesmo
+viewport (360px), medido sem foco e com foco real (`page.focus`) no
+item de texto mais longo, via Playwright/Chromium real:
+
+| Medida | Antes (estrutura antiga) | Depois (`.detail-list-line`) |
+|---|---|---|
+| Largura do indicador, sem foco | 11,19px (correto — texto escondido) | 11,19px |
+| Largura do indicador, com foco | 305,22px | 305,22px |
+| Largura do item da lista, com foco | 330,81px | 330,81px |
+| `bodyScroll` vs `innerWidth` (360px) | 360 / 360 (sem overflow neste harness isolado) | 360 / 360 |
+
+As larguras do indicador e do item são IDÊNTICAS entre antes e depois,
+com e sem foco — o envolvimento em `.detail-list-line` não altera a
+largura de conteúdo ocupada pelo indicador expandido nem pelo item da
+lista. Isso é esperado: a mudança do achado B é puramente de
+agrupamento (um `<span>` novo em volta de conteúdo que já existia),
+sem nova regra de `flex`/`width`/`min-width` aplicada ao indicador ou ao
+texto — a única regra nova de dimensionamento (`flex-shrink`+`min-width`
+no indicador) foi aplicada exclusivamente a `.seal-field-inline` (achado
+C, formulários), não a `.detail-list-line` (achado B). Achado adicional
+registrado nesta verificação (não estava coberto antes): o overflow
+horizontal de 381px documentado na rodada original é causado por
+elemento fora da subárvore alterada (navegação lateral, achado
+já registrado como pré-existente); como o diff desta rodada não toca
+essa subárvore, e as larguras do conteúdo modificado são idênticas
+antes/depois, não há mecanismo pelo qual esta mudança teria alterado
+esse número — mas o harness isolado usado aqui não reproduz a
+`chrome` completa da página real (cabeçalho, ícones Bootstrap, etc.), e
+o valor exato de 381px não foi re-medido na página real nesta rodada
+(ambiente Postgres/`runserver` descartável da rodada anterior já havia
+sido encerrado). Risco residual: baixo, mas não é uma reprodução
+numérica exata da página real — é uma prova de equivalência estrutural
+isolada e controlada.
+
+Script e fixtures usados, descartáveis, fora do controle de versão:
+`scratchpad/svip06-overflow/{before.html,after.html,measure.cjs,debug.cjs}`
+no diretório de scratchpad da sessão.
+
+**(C) Revisão do último ajuste de foco.** Confirmado por leitura direta:
+- `static/css/styles.css` (linhas 1034–1042): `.seal-field-inline .seal-indicator { flex: 0 1 auto; min-width: 0; }` e `.seal-field-inline .form-control { flex: 1 1 auto; min-width: 4.5rem; }` — exatamente como descrito; `flex-shrink: 1` (não 0) permite ceder espaço; `min-width: 0` no indicador permite encolher abaixo do conteúdo; o piso de `4.5rem` está apenas no INPUT, não no indicador — não há confusão entre os dois seletores.
+- `min-width: 4.5rem` no input NÃO é tratada como prova de usabilidade por si só nos testes: `test_seal_field_inline_does_not_shrink_the_control_below_usable_width` verifica a declaração CSS, mas a prova de usabilidade real (input com largura observável, mínimo 157px nos cenários revalidados) vem de `focus_smoke.cjs` (medição `getBoundingClientRect` em navegador real), não da assinatura CSS isolada.
+- `focus_smoke.cjs` usa Tab real (`page.keyboard.press("Tab")`, não `element.focus()` via JS) para alcançar o próprio círculo, confirmado por leitura do código (`tabUntil`, linhas 66–76); testa toque emulado rotulado explicitamente `[TOQUE EMULADO]`; testa contexto sem JavaScript (`javaScriptEnabled: false`); verifica `value`/`readOnly`/`disabled` preservados antes/depois do ciclo de foco; verifica ausência de sobreposição entre texto revelado e input (`rectsOverlapOrTouch`); distingue explicitamente "campo utilizável" (largura > 40px, menor valor observado 157px) de "telefone inteiro visível simultaneamente" (não exigido pelo contrato — o texto revelado quebra linha DENTRO do indicador, não compete por toda a largura do telefone).
+- Telefone em `allocation_edit.html` é `readonly` (consultável/copiável, continua na ordem de tabulação); em `phoneline_form.html` o campo com indicador (`phone_number`) é `disabled` no fluxo de atualização (decisão pré-existente, não alterada nesta rodada) — outro campo editável do mesmo formulário (`status`) navega/edita normalmente, confirmado nas duas rodadas de evidência.
+- Nenhuma regra de cor, borda ou anel de foco foi tocada pelo ajuste; `.seal-indicator:focus` (anel) e `.seal-indicator:focus .visually-hidden` (revelação) permanecem como estavam em SVI-07, apenas reaproveitadas.
+
+**Arquivos candidatos à integração (lista explícita, sem stage).**
+Nenhum arquivo de código/template/CSS foi alterado nesta retificação.
+Candidatos continuam os já modificados/criados nas rodadas SVI-P06
+anteriores (ver `git status`): `static/css/styles.css`,
+`templates/allocations/allocation_edit.html`,
+`templates/telecom/phoneline_form.html`,
+`templates/dashboard/daily_indicator_day_breakdown.html`,
+`templates/dashboard/daily_user_action_board.html`,
+`telecom/test_seal_indicator_svi_p06_layout_css.py` (novo),
+`telecom/test_seal_indicator_left_of_number_telecom_svi_p.py`,
+`allocations/tests/test_seal_indicator_left_of_number_allocations_svi_p.py`,
+`dashboard/tests/test_seal_indicator_left_of_number_dashboard_svi_p.py`,
+`dashboard/tests/test_seal_indicator_modal_svi06.py`, mais este próprio
+arquivo de spec (retificação). Evidências revisadas e liberadas nesta
+rodada: `docs/superpowers/evidence/SVI-P06/{smoke.cjs,focus_smoke.cjs}`
+(lidos e confirmados contra o código atual). Evidência NÃO re-executada
+em navegador real nesta rodada (ambiente descartável anterior já
+encerrado): a matriz completa de 295/295 e 7/7+9/9+3/3+6/6 checagens
+permanece como registrada nas seções acima, sem nova corrida de
+navegador — apenas a comparação isolada do item (B) foi executada agora.
+
+**Comandos executados nesta retificação e resultados.**
+- `venv/Scripts/python.exe -m pytest telecom/test_seal_indicator_svi_p06_layout_css.py telecom/test_seal_indicator_left_of_number_telecom_svi_p.py allocations/tests/test_seal_indicator_left_of_number_allocations_svi_p.py dashboard/tests/test_seal_indicator_left_of_number_dashboard_svi_p.py -q` → **30 passed, 2 warnings**.
+- `--collect-only` nos mesmos 4 arquivos → node IDs listados acima, 6+11+3+10=30.
+- `manage.py check --settings=config.settings_dev` → sem apontamentos.
+- `git diff --check` → sem erros reais (mesmos avisos de LF/CRLF pré-existentes do `core.autocrlf`).
+- Harness isolado Playwright (`scratchpad/svip06-overflow/measure.cjs`) → ver tabela do item (B).
+- Suíte pesada completa (`-k "seal_indicator or seal_detail or blip"`) **não foi reexecutada** nesta retificação — nenhuma alteração de código, apenas leitura/verificação; os 207 passed da rodada anterior permanecem a referência válida.
+
+**Recursos descartáveis encerrados.** Nenhum ambiente Postgres/`runserver`
+foi aberto nesta rodada. Chromium do Playwright (global, `npm -g`)
+encerrado ao final de cada script (`browser.close()`). Arquivos de
+harness ficam em `scratchpad/svip06-overflow/` (diretório de scratchpad
+da sessão, fora do controle de versão) — descartáveis, não precisam ser
+limpos manualmente.
+
+**Recursos preexistentes intactos.** Nenhum arquivo de produção foi
+alterado nesta retificação — apenas leitura, execução de testes já
+existentes e esta adição documental.
+
+**Veredito desta retificação: PENDENTE** — não por defeito encontrado
+(nenhum foi), mas porque a reconciliação completa do item (A) (contagem
+"12 falhou+5 passou→29 passou" original) permanece não verificável por
+falta de artefato anterior, e a comparação de overflow do item (B) usa
+um harness isolado que não reproduz a página real por completo (ver
+limitação acima). As pendências (B) e (C) quanto a DEFEITO DE
+COMPORTAMENTO estão resolvidas (nenhum encontrado, com evidência nova
+direta); a pendência (A) é uma limitação de rastreabilidade declarada,
+não um defeito de produto — registrar essa distinção para a revisão
+externa decidir se a limitação declarada é aceitável para aprovação ou
+se exige nova evidência ao vivo (reabrir ambiente descartável) antes do
+veredito final. Nenhuma aprovação independente do revisor externo é
+declarada aqui.

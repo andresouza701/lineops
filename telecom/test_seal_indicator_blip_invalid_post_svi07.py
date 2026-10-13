@@ -123,7 +123,14 @@ def test_invalid_post_saved_block_shows_persisted_line_never_submitted_one(
 
     assert response.context["saved_phone_number"] == int(line_a.phone_number)
     content = response.content.decode()
-    assert f"Dado salvo: {int(line_a.phone_number)}" in content
+    # Ajuste aprovado 2026-10-11: o indicador passou a vir ANTES do
+    # numero dentro do bloco "Dado salvo", entao o numero nao fica mais
+    # imediatamente apos o texto "Dado salvo: " — verifica-se o numero
+    # dentro do mesmo bloco, nao mais colado ao texto fixo.
+    block_start = content.index("Dado salvo: ")
+    block_end = content.index("</div>", block_start)
+    block = content[block_start:block_end]
+    assert str(int(line_a.phone_number)) in block
     assert line_a.seal_status["label"] in content
     assert line_b.seal_status["label"] not in content
 
@@ -148,6 +155,9 @@ def test_valid_post_after_fixing_the_other_field_saves_the_new_selection(
 
     after = client.get(update_url)
     after_content = after.content.decode()
-    assert f"Dado salvo: {int(line_b.phone_number)}" in after_content
+    block_start = after_content.index("Dado salvo: ")
+    block_end = after_content.index("</div>", block_start)
+    block = after_content[block_start:block_end]
+    assert str(int(line_b.phone_number)) in block
     assert line_b.seal_status["label"] in after_content
     assert line_a.seal_status["label"] not in after_content

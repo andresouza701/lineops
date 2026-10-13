@@ -47,18 +47,18 @@ def _cell(html, marker, tag="td"):
     # Marcador aparece mais de uma vez na pagina (input do filtro "linha",
     # link de exportacao, celula de resultado) — a celula real de
     # resultado e identificada por conter o numero como TEXTO DIRETO do
-    # elemento, logo apos a abertura da tag (nao como substring de um
-    # href/value, nem como prefixo de um numero mais longo).
+    # elemento, imediatamente ANTES do fechamento da tag (nao como
+    # substring de um href/value, nem como prefixo de um numero mais
+    # longo).
     #
-    # Correcao SVI-05 (conferencia corretiva): o contrato aprovado exige o
-    # componente de indicador DENTRO da mesma celula do numero (irmao de
-    # texto, logo apos o numero: "{{ row.phone_number }}{% seal_indicator ... %}"),
-    # nao apenas num atributo do <td> de abertura. O lookahead abaixo aceita
-    # conteudo adicional (o componente) depois do numero, exigindo que o
-    # numero termine ali (fim da celula ou inicio de uma tag), nunca que
-    # seja prefixo de outro numero.
+    # Ajuste aprovado 2026-10-11 (indicador a esquerda do numero): o
+    # componente passou a vir ANTES do numero dentro da mesma celula
+    # ("{% seal_indicator ... %}{{ row.phone_number }}"), entao o
+    # lookahead abaixo exige o numero logo antes do fechamento da tag
+    # (nao mais logo depois da abertura) — o conteudo anterior (o
+    # indicador) pode ser qualquer coisa.
     pattern = re.compile(
-        rf"<{tag}[^>]*>\s*{re.escape(marker)}(?=\s*(?:</{tag}>|<)).*?</{tag}>",
+        rf"<{tag}[^>]*>.*?{re.escape(marker)}(?=\s*</{tag}>).*?</{tag}>",
         re.DOTALL,
     )
     match = pattern.search(html)

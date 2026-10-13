@@ -26,7 +26,9 @@
     min-width: 10px;
     min-height: 10px;
     border-radius: 50%;
-    box-shadow: 0 0 0 1px rgba(248, 250, 252, 0.65);
+    /* SVI-P01b (ajuste aprovado 2026-10-11): sem contorno branco fixo
+       aqui de proposito — cada estado define sua propria `border`,
+       mesma var() do `background-color` (ver regras abaixo). */
 }
 
 .seal-indicator:focus {
@@ -85,26 +87,112 @@
 
 .seal-indicator--green .seal-indicator__dot {
     background-color: var(--status-success, #10b981);
+    border: 1px solid var(--status-success, #10b981);
 }
 
 .seal-indicator--yellow .seal-indicator__dot {
     background-color: var(--status-warning, #f59e0b);
+    border: 1px solid var(--status-warning, #f59e0b);
 }
 
 .seal-indicator--orange .seal-indicator__dot {
     background-color: var(--status-today, #ff8c00);
+    border: 1px solid var(--status-today, #ff8c00);
 }
 
 .seal-indicator--red .seal-indicator__dot {
     background-color: var(--status-danger, #ef4444);
+    border: 1px solid var(--status-danger, #ef4444);
 }
 
 .seal-indicator--gray_not_activated .seal-indicator__dot,
 .seal-indicator--gray_inconsistent .seal-indicator__dot {
     background-color: var(--status-neutral-dot, #9aa5b1);
+    border: 1px solid var(--status-neutral-dot, #9aa5b1);
 }
 
 .seal-indicator--unidentified {
     color: var(--text-muted, #94a3b8);
     font-size: 0.82rem;
+}
+
+/* SVI-P05 (correcao de contraste aprovada 2026-10-12): as cores acima
+   (herdadas do app/Admin escuro) nao batem >=3:1 (WCAG 1.4.11) contra os
+   fundos REAIS do Django Admin em tema CLARO (--body-bg #fff e
+   --darkened-bg #f8f8f8, linhas zebradas — o pior caso dos dois, nao o
+   branco puro: medido 2.02–2.39:1 real, ver docs/superpowers/evidence/
+   SVI-P04/report.md, rodada 2). Vermelho ja passava (3.76:1): sem regra
+   nova para ele, por instrucao explicita.
+
+   "Efetivamente claro" no Admin = data-theme="light" (explicito) OU
+   data-theme="auto" com prefers-color-scheme que NAO e "dark" — mesma
+   logica REAL do Django instalado (venv/Lib/site-packages/django/
+   contrib/admin/static/admin/js/theme.js grava data-theme sempre
+   explicito; .../css/dark_mode.css resolve "auto"), confirmada
+   empiricamente (nao presumida) em docs/superpowers/evidence/SVI-P04/
+   theme_probe.cjs — por isso duas regras por estado: uma incondicional
+   para data-theme="light", outra dentro de
+   @media (prefers-color-scheme: light) para data-theme="auto". O app
+   principal (templates/base/base.html) NUNCA define data-theme no
+   <html> (confirmado, nao suposto) — logo todo seletor
+   html[data-theme=...] abaixo e inerte fora do Admin, por construcao,
+   sem precisar de nenhuma outra guarda. Admin ESCURO tambem nao e
+   afetado: nao existe nenhuma regra html[data-theme="dark"] aqui.
+
+   Mesmo matiz/saturacao HSL do preenchimento original, so luminosidade
+   reduzida (significado da cor preservado) — valores calculados em
+   docs/superpowers/evidence/SVI-P04/pick_colors.cjs, com margem sobre o
+   limiar de 3:1 medida contra os DOIS fundos reais. Cada var() abaixo e
+   usada tanto em background-color quanto em border-color da MESMA
+   regra — borda continua sempre igual ao preenchimento (SVI-P01b),
+   agora tambem nestas duas variantes. */
+:root {
+    --seal-admin-light-success: #0e9f6f;
+    --seal-admin-light-warning: #c27d08;
+    --seal-admin-light-today: #d17300;
+    --seal-admin-light-neutral-dot: #808e9d;
+}
+
+html[data-theme="light"] .seal-indicator--green .seal-indicator__dot {
+    background-color: var(--seal-admin-light-success);
+    border-color: var(--seal-admin-light-success);
+}
+
+html[data-theme="light"] .seal-indicator--yellow .seal-indicator__dot {
+    background-color: var(--seal-admin-light-warning);
+    border-color: var(--seal-admin-light-warning);
+}
+
+html[data-theme="light"] .seal-indicator--orange .seal-indicator__dot {
+    background-color: var(--seal-admin-light-today);
+    border-color: var(--seal-admin-light-today);
+}
+
+html[data-theme="light"] .seal-indicator--gray_not_activated .seal-indicator__dot,
+html[data-theme="light"] .seal-indicator--gray_inconsistent .seal-indicator__dot {
+    background-color: var(--seal-admin-light-neutral-dot);
+    border-color: var(--seal-admin-light-neutral-dot);
+}
+
+@media (prefers-color-scheme: light) {
+    html[data-theme="auto"] .seal-indicator--green .seal-indicator__dot {
+        background-color: var(--seal-admin-light-success);
+        border-color: var(--seal-admin-light-success);
+    }
+
+    html[data-theme="auto"] .seal-indicator--yellow .seal-indicator__dot {
+        background-color: var(--seal-admin-light-warning);
+        border-color: var(--seal-admin-light-warning);
+    }
+
+    html[data-theme="auto"] .seal-indicator--orange .seal-indicator__dot {
+        background-color: var(--seal-admin-light-today);
+        border-color: var(--seal-admin-light-today);
+    }
+
+    html[data-theme="auto"] .seal-indicator--gray_not_activated .seal-indicator__dot,
+    html[data-theme="auto"] .seal-indicator--gray_inconsistent .seal-indicator__dot {
+        background-color: var(--seal-admin-light-neutral-dot);
+        border-color: var(--seal-admin-light-neutral-dot);
+    }
 }

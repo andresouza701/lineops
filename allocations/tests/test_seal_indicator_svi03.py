@@ -26,6 +26,17 @@ def _window(html, marker, length=600):
     return html[idx : idx + length]
 
 
+def _window_around(html, marker, before=200, after=600):
+    """Janela antes E depois do marcador — necessaria aqui porque o
+    ajuste aprovado 2026-10-11 passou o indicador para ANTES do campo
+    (nao mais depois), entao `_window` (so depois) deixaria de achar o
+    indicador pelo motivo correto (ordem mudou de proposito)."""
+    idx = html.index(marker)
+    start = max(0, idx - before)
+    end = idx + len(marker) + after
+    return html[start:end]
+
+
 @pytest.fixture
 def admin_client(client, db):
     user = SystemUser.objects.create_user(
@@ -68,7 +79,7 @@ def test_allocation_edit_shows_indicator_adjacent_to_readonly_line_field(
     response = client.get(reverse("allocations:allocation_edit", args=[allocation.pk]))
     content = response.content.decode()
 
-    window = _window(content, f'value="{line.phone_number}"', length=600)
+    window = _window_around(content, f'value="{line.phone_number}"', before=200, after=400)
     assert line.seal_status["label"] in window
     # Nunca dentro do proprio value do input readonly.
     assert f'value="{line.phone_number}{line.seal_status["label"]}"' not in content

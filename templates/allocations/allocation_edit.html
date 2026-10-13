@@ -12,7 +12,7 @@
             {% csrf_token %}
             <div class="mb-3">
                 <label class="form-label">Linha</label>
-                <input type="text" class="form-control" value="{{ allocation.phone_line.phone_number }}" readonly>{% seal_indicator allocation.phone_line|to_seal_indicator %}
+                <div class="seal-field-inline">{% seal_indicator allocation.phone_line|to_seal_indicator %}<input type="text" class="form-control" value="{{ allocation.phone_line.phone_number }}" readonly></div>
             </div>
             <div class="mb-3">
                 <label class="form-label">ICCID</label>

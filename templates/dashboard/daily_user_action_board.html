@@ -196,7 +196,7 @@
                                         data-line-status="{{ row.allocation.get_line_status_display }}"
                                         data-line-seal="{{ row.allocation.phone_line|to_seal_indicator|seal_indicator_json }}"
                                     >
-                                        <span class="badge text-bg-success">{{ row.line_number }}</span>{% seal_indicator row.allocation.phone_line|to_seal_indicator %}
+                                        {% seal_indicator row.allocation.phone_line|to_seal_indicator %}<span class="badge text-bg-success">{{ row.line_number }}</span>
                                     </button>
                                 {% else %}
                                     <span class="badge text-bg-warning">Sem linha</span>
@@ -309,8 +309,6 @@
                 <dl class="row mb-0">
                     <dt class="col-sm-4">Número</dt>
                     <dd class="col-sm-8" data-line-detail="number">-</dd>
-                    <dt class="col-sm-4">Selo</dt>
-                    <dd class="col-sm-8" data-line-detail="seal">-</dd>
                     <dt class="col-sm-4">ICCID</dt>
                     <dd class="col-sm-8 metric-mono" data-line-detail="iccid">-</dd>
                     <dt class="col-sm-4">Origem</dt>
@@ -490,19 +488,19 @@
                 if (target) target.textContent = value;
             });
 
-            const sealTarget = lineModalEl.querySelector('[data-line-detail="seal"]');
-            if (sealTarget) {
-                sealTarget.textContent = '-';
+            const numberTarget = lineModalEl.querySelector('[data-line-detail="number"]');
+            if (numberTarget) {
                 const rawSeal = trigger.getAttribute('data-line-seal');
                 if (rawSeal) {
                     try {
                         const indicatorNode = SealIndicator.createNode(JSON.parse(rawSeal));
                         if (indicatorNode) {
-                            sealTarget.textContent = '';
-                            sealTarget.appendChild(indicatorNode);
+                            const separator = document.createTextNode(' ');
+                            numberTarget.insertBefore(separator, numberTarget.firstChild);
+                            numberTarget.insertBefore(indicatorNode, separator);
                         }
                     } catch (e) {
-                        /* dado inesperado: mantem '-' em vez de quebrar o modal */
+                        /* dado inesperado: mantem so o numero em vez de quebrar o modal */
                     }
                 }
             }
@@ -576,7 +574,11 @@
         if (linhaEl) {
             linhaEl.querySelectorAll('.seal-indicator').forEach((node) => node.remove());
             const indicatorNode = SealIndicator.createNode(data.linha_selo);
-            if (indicatorNode) linhaEl.appendChild(indicatorNode);
+            if (indicatorNode) {
+                const separator = document.createTextNode(' ');
+                linhaEl.insertBefore(separator, linhaEl.firstChild);
+                linhaEl.insertBefore(indicatorNode, separator);
+            }
         }
 
         // Status da Linha

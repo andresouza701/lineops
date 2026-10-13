@@ -51,7 +51,7 @@
                                 <td>{{ configuration.blip_id }}</td>
                                 <td>{{ configuration.get_type_display }}</td>
                                 <td>{{ configuration.description }}</td>
-                                <td>{{ configuration.phone_number }}{% seal_indicator seal_indicator_by_phone_number|dict_get:configuration.phone_number %}</td>
+                                <td>{% seal_indicator seal_indicator_by_phone_number|dict_get:configuration.phone_number %}{{ configuration.phone_number }}</td>
                                 <td>{{ configuration.get_key_display }}</td>
                                 <td>{{ configuration.value }}</td>
                                 <td class="text-end">

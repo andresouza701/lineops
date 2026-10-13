@@ -71,7 +71,7 @@
                     <tbody id="main-table-body">
                         {% for line in initial_lines %}
                             <tr>
-                                <td>{{ line.phone_number }}{% seal_indicator line|to_seal_indicator %}</td>
+                                <td>{% seal_indicator line|to_seal_indicator %}{{ line.phone_number }}</td>
                                 <td>{{ line.sim_card.iccid }}</td>
                                 <td>{{ line.sim_card.carrier|default:"-" }}</td>
                                 <td>{{ line.get_origem_display|default:"-" }}</td>
@@ -236,7 +236,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         tr.innerHTML = `<td>${line.phone_number}</td><td>${line.iccid}</td><td>${line.carrier || '-'}</td><td>${line.origem_display || '-'}</td><td>${employeeText}</td><td></td><td class="text-end">${actionsHtml}</td>`;
         const indicatorNode = SealIndicator.createNode(line.seal_indicator);
-        if (indicatorNode) tr.querySelector('td:first-child').appendChild(indicatorNode);
+        if (indicatorNode) {
+            const firstCell = tr.querySelector('td:first-child');
+            const separator = document.createTextNode(' ');
+            firstCell.insertBefore(separator, firstCell.firstChild);
+            firstCell.insertBefore(indicatorNode, separator);
+        }
         tr.querySelector('td:nth-child(6)').appendChild(createStatusBadge(line.status, line.status_display));
         tr.insertBefore(createSealCell(line), tr.querySelector('td.text-end'));
         return tr;
