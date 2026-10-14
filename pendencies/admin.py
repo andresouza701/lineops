@@ -1,13 +1,59 @@
+from django import forms
 from django.contrib import admin
 from django.utils.html import format_html
 
+from telecom.origin_restriction import is_origin_blocked_for_opening, origin_open_block_reason
 from telecom.seal_indicator import render_seal_indicator_html
 
 from .models import AllocationPendency
 
 
+class AllocationPendencyAdminForm(forms.ModelForm):
+    """Decisão 1A (Fechamento 2026-10-13): o Admin não é exceção à regra
+    de origem. Compara o `action` persistido ANTES desta requisição
+    (self.instance, ainda não mutado pelo ModelForm nesta fase de
+    clean() — construct_instance só ocorre depois, em _post_clean())
+    com o valor proposto em cleaned_data, para decidir se é uma
+    transição de abertura/reabertura.
+
+    A origem avaliada é a da allocation PROPOSTA neste mesmo POST
+    (`cleaned_data["allocation"]`), nunca a allocation antiga de
+    `self.instance` — conferência corretiva de POR-04: usar a antiga
+    ignorava troca simultânea de linha (permitia abrir trocando para uma
+    origem bloqueada, e bloqueava indevidamente ao trocar de uma origem
+    bloqueada para uma permitida) e, numa criação nova (`self.instance.pk`
+    ainda None), nunca avaliava origem alguma."""
+
+    class Meta:
+        model = AllocationPendency
+        fields = "__all__"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        new_action = cleaned_data.get("action")
+        old_action = (
+            self.instance.action
+            if self.instance.pk
+            else AllocationPendency.ActionType.NO_ACTION
+        )
+        was_no_action = old_action == AllocationPendency.ActionType.NO_ACTION
+        will_be_no_action = (
+            new_action == AllocationPendency.ActionType.NO_ACTION or not new_action
+        )
+        if was_no_action and not will_be_no_action:
+            proposed_allocation = cleaned_data.get("allocation")
+            phone_line = (
+                proposed_allocation.phone_line if proposed_allocation else None
+            )
+            if is_origin_blocked_for_opening(phone_line):
+                raise forms.ValidationError(origin_open_block_reason(phone_line))
+        return cleaned_data
+
+
 @admin.register(AllocationPendency)
 class AllocationPendencyAdmin(admin.ModelAdmin):
+    form = AllocationPendencyAdminForm
+
     class Media:
         # SVI-07 (checagem final): so o CSS ESCOPADO do indicador — o
         # arquivo inteiro (static/css/styles.css) vazava regras globais

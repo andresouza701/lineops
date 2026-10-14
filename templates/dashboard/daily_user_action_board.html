@@ -391,6 +391,9 @@
                                 <select class="form-select form-select-sm" id="pendencyActionSubmit"></select>
                             </div>
                             <p class="mb-0 form-control-plaintext" id="pendencyActionReadonly" style="display:none;"></p>
+                            <div id="pendencyOriginBlockedMessage" style="display:none;">
+                                <p class="small text-danger mt-1 mb-0" id="pendencyOriginBlockedText" role="alert"></p>
+                            </div>
                         </div>
 
                         {# ── Observação ── #}
@@ -523,6 +526,16 @@
     let currentEmployeeId   = null;
     let currentAllocationId = null;
     let currentResponsibleAction = 'claim';
+    let currentRequestToken = 0;
+    // currentRequestToken so muda ao carregar um REGISTRO novo (loadPendency);
+    // Salvar e Assumir/Liberar sao operacoes distintas no MESMO registro.
+    // Serializadas: so uma pode estar em voo por vez (o clique na outra fica
+    // desabilitado enquanto isso) -- evita tanto reabilitar prematuramente o
+    // botao da operacao irma (resposta de uma via renderModal) quanto
+    // renderModal de uma operacao sobrescrever (com o snapshot do servidor
+    // anterior a conclusao da outra) um campo que o usuario esteja editando
+    // pra essa outra operacao ainda em andamento.
+    let operationInFlight = false;
 
     function showLoading() {
         loadingEl.style.display = '';
@@ -625,6 +638,22 @@
             }
         }
 
+        // Bloqueio de abertura/reabertura por origem da linha (reflete a origem
+        // da linha, nao a permissao de quem ve; nao se aplica a pendencia ja aberta)
+        const isCurrentlyOpen = Boolean(data.action) && data.action !== 'no_action';
+        const blockOpening    = data.origin_open_blocked === true && !isCurrentlyOpen;
+        const originMsgEl     = document.getElementById('pendencyOriginBlockedMessage');
+        const originTextEl    = document.getElementById('pendencyOriginBlockedText');
+        if (blockOpening) {
+            originTextEl.textContent  = data.origin_open_blocked_reason || '';
+            originMsgEl.style.display = '';
+        } else {
+            originTextEl.textContent  = '';
+            originMsgEl.style.display = 'none';
+        }
+        actionSelect.disabled    = blockOpening;
+        actionSubmitSel.disabled = blockOpening;
+
         // Observação
         const observationEl = document.getElementById('pendencyObservation');
         const observationLockMessageEl = document.getElementById('pendencyObservationLockMessage');
@@ -660,11 +689,23 @@
         setText('pendencySubmitted',   data.pendency_submitted_at);
         setText('pendencyResolved',    data.resolved_at);
 
+        // Os dois botoes refletem se HA alguma operacao em voo pro registro
+        // atual (serializadas entre si) -- nunca forca os dois pra
+        // habilitado incondicionalmente aqui.
+        saveBtn.disabled  = operationInFlight;
+        claimBtn.disabled = operationInFlight;
+
         saveStatusEl.textContent = '';
         showContent();
     }
 
     async function loadPendency(employeeId, allocationId) {
+        const requestToken = ++currentRequestToken;
+        // Registro novo (ou o mesmo recarregado): nenhuma operacao pendente
+        // ainda nesta exibicao -- qualquer resposta atrasada de uma operacao
+        // anterior (deste ou de outro registro) ja e descartada pela guarda
+        // de requestToken abaixo, entao nao reabilita nada por engano aqui.
+        operationInFlight = false;
         showLoading();
         currentEmployeeId   = employeeId;
         currentAllocationId = allocationId;
@@ -678,15 +719,21 @@
             });
             if (!resp.ok) throw new Error('Erro ao carregar pendência.');
             const data = await resp.json();
+            // Resposta atrasada de outro funcionario/linha: nao substitui o modal atual.
+            if (requestToken !== currentRequestToken) return;
             renderModal(data);
             removeNotificationDot(employeeId, allocationId);
         } catch (err) {
+            if (requestToken !== currentRequestToken) return;
             loadingEl.innerHTML = `<span class="text-danger">${err.message}</span>`;
         }
     }
 
     async function savePendency() {
-        saveBtn.disabled = true;
+        const requestToken = currentRequestToken;
+        operationInFlight = true;
+        saveBtn.disabled  = true;
+        claimBtn.disabled = true;
         saveStatusEl.textContent = 'Salvando...';
 
         const actionAdminEl    = document.getElementById('pendencyActionAdmin');
@@ -694,9 +741,16 @@
         let actionValue = '';
 
         if (IS_ADMIN && actionAdminEl.style.display !== 'none') {
-            actionValue = document.getElementById('pendencyAction').value;
+            const actionSelect = document.getElementById('pendencyAction');
+            // Desabilitado so acontece por bloqueio de origem (blockOpening em
+            // renderModal); nesse estado o valor visual pode ser o default do
+            // <option> (nao refletir "nenhuma mudanca"), entao nao enviamos
+            // tentativa de acao nenhuma -- mesma semantica de "acao nao
+            // alterada" que o endpoint ja trata (new_action vazio).
+            actionValue = actionSelect.disabled ? '' : actionSelect.value;
         } else if (actionNonAdminEl.style.display !== 'none') {
-            actionValue = document.getElementById('pendencyActionSubmit').value;
+            const actionSubmitSel = document.getElementById('pendencyActionSubmit');
+            actionValue = actionSubmitSel.disabled ? '' : actionSubmitSel.value;
         }
 
         const lineStatusEl = document.getElementById('pendencyLineStatus');
@@ -719,6 +773,8 @@
                 body: JSON.stringify(payload),
             });
             const data = await resp.json();
+            // Resposta atrasada de um registro ja trocado: nao altera o modal atual.
+            if (requestToken !== currentRequestToken) return;
             if (!resp.ok || data.errors) {
                 const msg = data.errors ? data.errors.join(', ') : (data.error || 'Erro ao salvar.');
                 saveStatusEl.textContent = msg;
@@ -731,14 +787,22 @@
                 updateTableRow(currentEmployeeId, currentAllocationId, data);
             }
         } catch (err) {
+            if (requestToken !== currentRequestToken) return;
             saveStatusEl.textContent = err.message;
             saveStatusEl.className   = 'text-danger small me-auto';
         } finally {
-            saveBtn.disabled = false;
+            if (requestToken === currentRequestToken) {
+                operationInFlight = false;
+                saveBtn.disabled  = false;
+                claimBtn.disabled = false;
+            }
         }
     }
 
     async function submitResponsibleAction() {
+        const requestToken = currentRequestToken;
+        operationInFlight = true;
+        saveBtn.disabled  = true;
         claimBtn.disabled = true;
         const isRelease = currentResponsibleAction === 'release';
         try {
@@ -752,6 +816,8 @@
                 body: JSON.stringify({ pendency_id: currentPendencyId }),
             });
             const data = await resp.json();
+            // Resposta atrasada de um registro ja trocado: nao altera o modal atual.
+            if (requestToken !== currentRequestToken) return;
             if (resp.ok && data.ok) {
                 renderModal(data);
                 updateTableRow(currentEmployeeId, currentAllocationId, data);
@@ -768,10 +834,15 @@
                 saveStatusEl.className = 'text-danger small me-auto';
             }
         } catch (err) {
+            if (requestToken !== currentRequestToken) return;
             saveStatusEl.textContent = err.message;
             saveStatusEl.className = 'text-danger small me-auto';
         } finally {
-            claimBtn.disabled = false;
+            if (requestToken === currentRequestToken) {
+                operationInFlight = false;
+                saveBtn.disabled  = false;
+                claimBtn.disabled = false;
+            }
         }
     }
 

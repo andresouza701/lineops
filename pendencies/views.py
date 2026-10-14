@@ -14,6 +14,7 @@ from core.mixins import RoleRequiredMixin
 from employees.models import Employee
 from telecom.daily_action_audit import build_pendency_state, record_line_daily_action_event
 from telecom.models import LineDailyActionAuditEvent, PhoneLineHistory
+from telecom.origin_restriction import is_origin_blocked_for_opening, origin_open_block_reason
 from telecom.seal_indicator import seal_indicator_for_phone_line
 from users.models import SystemUser
 
@@ -73,6 +74,8 @@ def _pendency_to_json(pendency, allocation):
         else None
     )
     observation_locked = _is_observation_locked(employee, allocation)
+    phone_line = allocation.phone_line if allocation else None
+    origin_open_blocked = is_origin_blocked_for_opening(phone_line)
 
     line_number = ""
     line_status = ""
@@ -112,6 +115,8 @@ def _pendency_to_json(pendency, allocation):
         "observation_locked_reason": (
             OBSERVATION_LOCKED_REASON if observation_locked else ""
         ),
+        "origin_open_blocked": origin_open_blocked,
+        "origin_open_blocked_reason": origin_open_block_reason(phone_line),
         # Responsável técnico
         "technical_responsible_name": (
             tech.get_full_name().strip() or tech.email if tech else ""
@@ -267,11 +272,14 @@ class PendencyUpdateView(RoleRequiredMixin, View):
                 was_no_action = pendency.action == AllocationPendency.ActionType.NO_ACTION
                 will_be_no_action = new_action == AllocationPendency.ActionType.NO_ACTION
 
+                opening_phone_line = allocation.phone_line if allocation else None
                 if was_no_action and not will_be_no_action:
                     if not is_super_like:
                         errors.append(
                             "Somente super/backoffice/gerente pode abrir uma pendência."
                         )
+                    elif is_origin_blocked_for_opening(opening_phone_line):
+                        errors.append(origin_open_block_reason(opening_phone_line))
                     else:
                         action_event_type = (
                             LineDailyActionAuditEvent.EventType.REOPENED

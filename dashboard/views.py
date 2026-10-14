@@ -40,6 +40,7 @@ from telecom.daily_action_audit import (
     record_line_daily_action_event,
 )
 from telecom.models import LineDailyActionAuditEvent, PhoneLine, PhoneLineHistory, SIMcard
+from telecom.origin_restriction import OPEN_BLOCKED_MESSAGE, is_origin_blocked_for_opening
 from telecom.seal_indicator import build_seal_indicator
 from users.models import SystemUser
 
@@ -1960,7 +1961,35 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                             or employee
                         )
 
-                    if request.user.role == SystemUser.Role.ADMIN:
+                    # POR-04: decide ANTES do ramo de status da linha se esta
+                    # requisicao e uma tentativa de abrir/reabrir acao numa
+                    # origem bloqueada, pra recusar sem persistir nenhum
+                    # efeito parcial do mesmo pedido (nem line_status, que
+                    # roda antes e de forma independente do ramo de acao).
+                    action_type_is_valid = bool(action_type) and action_type in dict(
+                        DailyUserAction.ActionType.choices
+                    )
+                    existing_action = None
+                    origin_open_blocked = False
+                    if action_type_is_valid:
+                        existing_action = (
+                            DailyUserAction.objects.select_for_update()
+                            .filter(
+                                day=timezone.localdate(),
+                                employee=employee,
+                                allocation=allocation_obj,
+                            )
+                            .first()
+                        )
+                        is_opening_attempt = (
+                            existing_action is None or existing_action.is_resolved
+                        )
+                        if is_opening_attempt:
+                            origin_open_blocked = is_origin_blocked_for_opening(
+                                allocation_obj.phone_line if allocation_obj else None
+                            )
+
+                    if request.user.role == SystemUser.Role.ADMIN and not origin_open_blocked:
                         line_status = form.cleaned_data.get("line_status")
                         if line_status and line_status in dict(Employee.LineStatus.choices):
                             if allocation_obj:
@@ -2048,7 +2077,9 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                                     ),
                                 )
 
-                    if action_type and action_type not in dict(
+                    if origin_open_blocked:
+                        messages.error(request, OPEN_BLOCKED_MESSAGE)
+                    elif action_type and action_type not in dict(
                         DailyUserAction.ActionType.choices
                     ):
                         messages.error(request, "Tipo de ação inválido.")
@@ -2169,11 +2200,10 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
                             "allocation": allocation_obj,
                         }
 
-                        existing_action = (
-                            DailyUserAction.objects.select_for_update()
-                            .filter(**update_or_create_filter)
-                            .first()
-                        )
+                        # existing_action ja foi obtido com select_for_update
+                        # acima (mesmo filtro), antes do ramo de status da
+                        # linha, pra decidir o bloqueio por origem — nao
+                        # reconsultado aqui.
                         previous_action_type = (
                             existing_action.action_type if existing_action else ""
                         )
