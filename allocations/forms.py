@@ -13,6 +13,7 @@ from core.validation import (
 )
 from employees.models import Employee
 from telecom.models import PhoneLine
+from users.visibility import visible_accounts_queryset
 
 def sort_choice_pairs(choices):
     return sorted(list(dict.fromkeys(choices)), key=lambda item: str(item[1]))
@@ -100,12 +101,17 @@ class CombinedRegistrationForm(forms.Form):
         empty_label="Selecione",
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, viewer=None, **kwargs):
+        self._viewer = viewer
         super().__init__(*args, **kwargs)
         from users.models import SystemUser
 
-        super_users = SystemUser.objects.filter(role__in=SystemUser.SUPERVISOR_ROLES)
-        manager_users = SystemUser.objects.filter(role=SystemUser.Role.GERENTE)
+        super_users = visible_accounts_queryset(
+            viewer, SystemUser.objects.filter(role__in=SystemUser.SUPERVISOR_ROLES)
+        )
+        manager_users = visible_accounts_queryset(
+            viewer, SystemUser.objects.filter(role=SystemUser.Role.GERENTE)
+        )
         self.supervisor_emails = sorted(
             [normalize_email_address(user.email) for user in super_users]
         )

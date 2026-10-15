@@ -43,6 +43,7 @@ from telecom.models import LineDailyActionAuditEvent, PhoneLine, PhoneLineHistor
 from telecom.origin_restriction import OPEN_BLOCKED_MESSAGE, is_origin_blocked_for_opening
 from telecom.seal_indicator import build_seal_indicator
 from users.models import SystemUser
+from users.visibility import mask_inactive_email, resolve_inactive_email_labels
 
 from .forms import (
     B2B_SUPERVISORS,
@@ -1750,6 +1751,23 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
             )
             supervisor_group["rows"] = rows
             supervisor_dashboards.append(supervisor_group)
+
+        # UVI-05 (retificado): neutraliza o e-mail de supervisor de conta
+        # inativa no rotulo exibido apenas para viewer sem a excecao de
+        # role (resolvido em lote). ManagerDashboardView.allowed_roles =
+        # [GERENTE], role sempre restrita, mas a chamada passa o viewer
+        # explicitamente para reutilizar a MESMA politica central, sem
+        # duplicar regra de role aqui. A chave de agrupamento
+        # ("supervisor") permanece o e-mail real -- grupos/totais
+        # distintos nao sao mesclados por terem o mesmo rotulo neutro.
+        inactive_emails = resolve_inactive_email_labels(
+            self.request.user,
+            (group["supervisor"] for group in supervisor_dashboards),
+        )
+        for group in supervisor_dashboards:
+            group["supervisor_label"] = mask_inactive_email(
+                group["supervisor"], inactive_emails
+            )
 
         context["supervisor_dashboards"] = supervisor_dashboards
         return context

@@ -4,8 +4,12 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
 from telecom.seal_indicator import seal_indicator_for_phone_line
+from users.models import SystemUser
+from users.visibility import visible_accounts_queryset
 
 from .models import LineAllocation
+
+AUTHOR_FK_FIELDS = ("allocated_by", "released_by")
 
 
 @admin.register(LineAllocation)
@@ -32,6 +36,35 @@ class LineAllocationAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name in AUTHOR_FK_FIELDS:
+            kwargs["queryset"] = self._visible_author_queryset(
+                request, db_field.name
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def _visible_author_queryset(self, request, field_name):
+        """UVI-04: novas escolhas de autoria (allocated_by/released_by)
+        obedecem visibilidade (SUPER/BACKOFFICE/GERENTE/OPERATOR nao veem
+        contas inativas sem vinculo com o registro). O vinculo JA
+        persistido no objeto aberto continua disponivel -- preserva
+        autoria historica sem exigir que o autor atual esteja ativo
+        (contrato: "Manter autor existente nao deve remover FK nem
+        impedir edicao alheia")."""
+        base = SystemUser.objects.all()
+        visible = visible_accounts_queryset(request.user, base)
+
+        object_id = request.resolver_match.kwargs.get("object_id") if request.resolver_match else None
+        if object_id:
+            persisted_id = (
+                LineAllocation.objects.filter(pk=object_id)
+                .values_list(field_name, flat=True)
+                .first()
+            )
+            if persisted_id:
+                visible = visible | base.filter(pk=persisted_id)
+        return visible.distinct()
 
     @admin.display(description="Phone line")
     def phone_line_display(self, obj):

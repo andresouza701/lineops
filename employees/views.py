@@ -16,6 +16,7 @@ from core.mixins import RoleRequiredMixin
 from core.services.allocation_service import AllocationService
 from core.validation import parse_non_negative_int
 from users.models import SystemUser
+from users.visibility import mask_inactive_email, resolve_inactive_email_labels
 
 from telecom.seal_indicator import seal_indicator_for_phone_line
 
@@ -49,6 +50,14 @@ class EmployeeListView(RoleRequiredMixin, ListView):
         employees = list(queryset[offset : offset + limit])
         has_more = queryset.count() > (offset + limit)
 
+        # UVI-05 (retificado): neutraliza o supervisor de conta inativa no
+        # payload JSON apenas para viewer sem a excecao de role (mesma
+        # projecao do render inicial, resolvida em lote); ADMIN/DEV
+        # recebem set vazio e veem a identidade real.
+        inactive_emails = resolve_inactive_email_labels(
+            request.user, (emp.corporate_email for emp in employees)
+        )
+
         # Formatar dados para JSON
         data = []
         for emp in employees:
@@ -57,7 +66,9 @@ class EmployeeListView(RoleRequiredMixin, ListView):
                 {
                     "id": emp.pk,
                     "email": emp.email or "",
-                    "corporate_email": emp.corporate_email,
+                    "corporate_email": mask_inactive_email(
+                        emp.corporate_email, inactive_emails
+                    ),
                     "full_name": emp.full_name,
                     "line": lines,
                     "lines": self._get_employee_lines_with_seal(emp),
@@ -150,8 +161,19 @@ class EmployeeListView(RoleRequiredMixin, ListView):
         # Carregar apenas os primeiros itens baseado em paginate_by
         queryset = self.get_queryset()
         initial_employees = list(queryset[: self.paginate_by])
+        # UVI-05 (retificado): neutraliza o supervisor de conta inativa no
+        # render inicial apenas para viewer sem a excecao de role, mesma
+        # projecao do payload AJAX (resolvida em lote, sem consulta por
+        # linha).
+        inactive_emails = resolve_inactive_email_labels(
+            self.request.user,
+            (employee.corporate_email for employee in initial_employees),
+        )
         for employee in initial_employees:
             employee.line_display = self._get_employee_lines(employee)
+            employee.corporate_email_display = mask_inactive_email(
+                employee.corporate_email, inactive_emails
+            )
 
         context["initial_employees"] = initial_employees
         context["has_more_employees"] = queryset.count() > self.paginate_by
@@ -167,6 +189,11 @@ class EmployeeCreateView(RoleRequiredMixin, CreateView):
 
     form_class = EmployeeForm
     success_url = reverse_lazy("employees:employee_list")
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["viewer"] = self.request.user
+        return kwargs
 
     def form_valid(self, form):
         try:
@@ -198,6 +225,7 @@ class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs["can_edit_full_name"] = self.request.user.role == SystemUser.Role.ADMIN
+        kwargs["viewer"] = self.request.user
         return kwargs
 
     def get_queryset(self):
@@ -250,7 +278,21 @@ class EmployeeDetailView(RoleRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        employee = self.get_object()
+        employee = context["employee"]
+        # UVI-05 (retificado): neutraliza supervisor/gerente de conta
+        # inativa no detalhe apenas para viewer sem a excecao de role
+        # (resolvido em lote, uma consulta para os dois campos). Esta
+        # rota e ADMIN-only (allowed_roles), entao na pratica o set
+        # resolvido aqui e sempre vazio -- ADMIN ve a identidade real.
+        inactive_emails = resolve_inactive_email_labels(
+            self.request.user, [employee.corporate_email, employee.manager_email]
+        )
+        employee.corporate_email_display = mask_inactive_email(
+            employee.corporate_email, inactive_emails
+        )
+        employee.manager_email_display = mask_inactive_email(
+            employee.manager_email, inactive_emails
+        )
         allocations = LineAllocation.objects.filter(employee=employee)
         # Date filter
         start_date = self.request.GET.get("start_date")

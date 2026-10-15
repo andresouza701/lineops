@@ -29,8 +29,8 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["employee_form"] = (
-            kwargs.get("employee_form") or CombinedRegistrationForm()
+        context["employee_form"] = kwargs.get("employee_form") or CombinedRegistrationForm(
+            viewer=self.request.user
         )
         context["telephony_form"] = (
             kwargs.get("telephony_form")
@@ -55,7 +55,7 @@ class RegistrationHubView(RoleRequiredMixin, TemplateView):
 
     def _handle_employee(self, request):
         self._ensure_roles(request, [SystemUser.Role.ADMIN])
-        form = CombinedRegistrationForm(request.POST)
+        form = CombinedRegistrationForm(request.POST, viewer=request.user)
 
         if form.is_valid():
             try:

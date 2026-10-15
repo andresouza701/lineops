@@ -75,7 +75,7 @@
                     <tbody id="employee-table-body">
                         {% for employee in initial_employees %}
                             <tr>
-                                <td>{{ employee.corporate_email }}</td>
+                                <td>{{ employee.corporate_email_display }}</td>
                                 <td>{{ employee.email|default:"-" }}</td>
                                 <td>{{ employee.full_name }}</td>
                                 <td class="metric-mono">
