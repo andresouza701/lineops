@@ -2,7 +2,7 @@
 
 Data: 2026-10-14
 Identificador: UVI
-Status: UVI-01, UVI-02, UVI-03, UVI-03a (conferência corretiva), UVI-04 (política backend), UVI-04b (conferência corretiva de UVI-04), UVI-05 (interface e vínculos existentes), UVI-05b (conferência corretiva de UVI-05), UVI-06 (aceite integrado e revisão final) e UVI-06b (correção dos achados da revisão final) concluídas. Pronto para revisão/preparação de commit — sem stage/commit/push/deploy/PRD executados nesta feature.
+Status: UVI-01, UVI-02, UVI-03, UVI-03a (conferência corretiva), UVI-04 (política backend), UVI-04b (conferência corretiva de UVI-04), UVI-05 (interface e vínculos existentes), UVI-05b (conferência corretiva de UVI-05), UVI-06 (aceite integrado e revisão final) e UVI-06b (correção dos achados da revisão final) concluídas. FVI-01 a FVI-05 (visibilidade de funcionários inativos, Employee.status) concluídas — aceite real em navegador, revisão integrada e regressão confirmados. Pronto para revisão/preparação de commit — sem stage/commit/push/deploy/PRD executados nesta feature.
 
 ## Spec Summary
 
@@ -1203,3 +1203,1660 @@ Retifica a expressão "zero consulta adicional" de UVI-06d: capturar e passar o 
 Revisão focada reexecutou os cinco arquivos UVI-06c/06d: 39 PASSED, dois warnings preexistentes de CheckConstraint, 67,14s. manage.py check e git diff --check sem erros. Nenhum novo bloqueio funcional encontrado nesse escopo. Navegador e suíte completa de 165 não foram reexecutados nessa revisão; os resultados anteriores permanecem históricos.
 
 Preparação autorizada pelo usuário: commit de código, testes UVI e esta spec. Evidências locais de navegador permanecem fora do commit; os links locais anteriores não constituem artefatos disponíveis no clone remoto. Documento de auditoria diária e demais arquivos alheios preservados. Sem mudança de versão, migration ou deploy.
+
+
+## FVI-01 — Funcionários inativos: correção de escopo (2026-10-15)
+
+### Spec Summary
+
+O usuário esclareceu que o objetivo original era ocultar funcionários inativos em `/employees/`, não somente contas de login. A interpretação anterior implementou UVI sobre SystemUser.is_active. Após explicação, o usuário determinou explicitamente: "mantem o que ja fizemos". Portanto UVI permanece vigente, sem rollback; esta extensão FVI trata Employee.status separadamente, na mesma fonte de verdade.
+
+Escopo confirmado: ocultar funcionários com `Employee.status == Employee.Status.INACTIVE` (`inactive`) de SUPER, BACKOFFICE, GERENTE e OPERATOR em lista inicial, AJAX/Carregar mais, buscas e acesso direto operacional. ADMIN/DEV preservam visibilidade apenas onde já autorizados. Históricos e relatórios preservam referências e permissões anteriores. Não desativar, excluir, anonimizar ou alterar funcionários/contas existentes.
+
+### Contract
+
+1. Visibilidade é interseção do escopo anterior, permissão da rota e política de status de Employee. Não usar SystemUser.is_active como substituto.
+2. Aplicar filtro no servidor antes de busca, paginação, contagens, offset e has_more. Nenhum parâmetro do cliente permite reincluir inativos ocultos.
+3. Usuário autorizado à rota mas sem visibilidade do funcionário inativo recebe 404 genérico no acesso operacional direto (GET/POST), sem escrita. Quem não possui permissão de rota mantém negação anterior.
+4. ADMIN/DEV não ganham rotas novas: atualmente lista/edição admitem ADMIN/SUPER/BACKOFFICE/GERENTE; detalhe/histórico/desativação são ADMIN-only. OPERATOR e DEV não passam a acessar `/employees/`.
+5. `is_staff`/`is_superuser` não substituem exceção por role no filtro contextual quando a entrada administrativa estiver autorizada.
+6. `Employee.is_deleted` é exclusão lógica distinta de status inativo. Manter managers existentes e tratamento de exclusão; não recuperar apagados para cumprir exceção ADMIN/DEV.
+7. Não modificar globalmente Employee.objects, all_objects ou scope_employee_queryset: o helper também participa de pendências, dashboards e referências históricas. Integrar política de visibilidade no consumidor correto.
+8. UVI continua neutralizando referências a contas de login inativas independentemente da FVI: funcionário ativo com supervisor de login inativo continua visível, com rótulo UVI aplicável. Funcionário inativo é ocultado pela FVI mesmo que supervisor esteja ativo.
+9. Status lido novamente no POST: funcionário que ficou inativo após GET não pode ser editado/reativado por papel restrito via URL antiga. Sem promessa de serialização concorrente ainda não testada.
+10. Referências em históricos/relatórios não são diretórios operacionais. Preservar registros e autoria; não ampliar acesso a histórico ADMIN-only.
+
+### Gap Analysis / inventário por inspeção direta
+
+| ID | Caminho | Evidência atual / tratamento |
+|---|---|---|
+| F01 | employees/models.py::Employee.Status / EmployeeManager | inactive é status próprio; manager omite somente is_deleted. Não alterar globalmente |
+| F02 | employees/views.py::EmployeeListView._build_queryset | Começa em Employee.objects, aplica scope_employee_queryset e filtros name/line/team/teams/supervisor; não filtra status. Causa do sintoma relatado |
+| F03 | EmployeeListView.get_context_data / get_queryset | Render inicial e contagens devem consumir a mesma política antes do recorte |
+| F04 | EmployeeListView._handle_ajax_request | Compartilha _build_queryset, calcula data/has_more/offset; filtrar antes desses cálculos |
+| F05 | templates/employees/employee_list.html | Badge inicial e renderStatus JS mostram Employee.status. Remover badge ou esconder com CSS não resolve |
+| F06 | EmployeeUpdateView.get_queryset/get_form_kwargs | Escopo por usuário, sem filtro status; GET/POST de /employees/<pk>/edit/ precisam da regra contextual |
+| F07 | EmployeeDetailView | ADMIN-only; preservar permissão e visibilidade administrativa |
+| F08 | EmployeeHistoryView | ADMIN-only, exclui is_deleted; histórico preservado, sem nova concessão |
+| F09 | EmployeeDeactivateView.post | ADMIN-only; libera alocações e chama delete lógico. Não confundir endpoint com Employee.status nem alterar fluxo |
+| F10 | EmployeeCreateView | ADMIN-only; criação não afetada por filtro de leitura de restritos |
+| F11 | employees/admin.py::EmployeeAdmin.get_queryset | Aplica scope_employee_queryset. Entrada alternativa de gestão a conferir em FVI-02, incluindo objeto direto e ações com permissão técnica |
+| F12 | users/models.py::scope_employee_queryset | Usado fora de employees; preservar escopo organizacional e adicionar política separada |
+| F13 | pendencies/views.py (resolução de Employee); dashboard/views.py; allocations/forms.py/views.py | Consumidores adicionais identificados. Classificar operacional versus histórico e tratamento existente em FVI-02; não filtrar em massa sem decidir efeitos sobre tratamento de pendências e alocações existentes |
+
+Inventário do caminho reportado concluído por leitura local. Não houve reprodução HTTP em PRD nesta etapa. O URL informado pelo usuário é o ponto de entrada do sintoma; não houve acesso ao host privado via ferramenta.
+
+### Implementation Plan / tarefas
+
+- [x] FVI-01 — Retificação de escopo, contrato e mapa do caminho reportado (esta etapa).
+- [x] FVI-02 — Completar fronteiras de Admin/seletores/dashboards/pendências; classificar referências preservadas, testar convenções de erro e fixar decisões realmente pendentes. Não iniciar código.
+- [x] FVI-03 — Testes RED de lista/AJAX/busca/contagens/acesso direto e controles ADMIN/DEV/UVI, derivados do contrato final; reconciliar node IDs e causas.
+- [x] FVI-04 — Implementação mínima contextual, sem manager global nem ampliação de permissão; regressão proporcional.
+- [x] FVI-05 — Aceite real com GERENTE e ADMIN, desktop/mobile, carga dinâmica, isolamento, revisão de diff e plano de deploy/rollback.
+
+FVI não reabre nem substitui tarefas UVI concluídas. Nenhuma etapa implica autorização automática de commit/push/deploy.
+
+### Test Checklist
+
+- Matriz role × status Employee × escopo: ativo elegível presente, inativo oculto, ativo fora de escopo ausente; ADMIN preservado, DEV/OPERATOR mantêm negações de rota anteriores.
+- Lista inicial, pesquisa por nome/linha/unidade/supervisor, paginação e AJAX com dados intercalados ativos/inativos; contagens/has_more/offset sem vazamento.
+- GET/POST de edição a inativo: 404 para role permitida na rota, banco intacto; controle ativo editável.
+- Inativação entre GET e POST; ID/parametrização forjados não reativam nem alteram objeto oculto.
+- Combinações independentes: Employee ativo/inativo × SystemUser supervisor ativo/inativo; UVI e FVI não se substituem.
+- Histórico/relatórios e exclusão lógica preservados; nenhum dado removido por mera consulta.
+- Admin e demais consumidores conforme contratos fechados em FVI-02; não confundir GREEN por falta de permissão com filtro de objeto.
+- Navegador real: GERENTE não vê funcionário inativo em lista nem Carregar mais; ADMIN continua vendo; buscas e links antigos coerentes.
+
+### Test Strategy
+
+SDD/TDD: especificação antes dos testes, RED real antes do código. pytest e banco isolado, execução sequencial, controles positivos e estado persistido. Sem mocks da política, placeholders ou alterações de fixtures sem causa. Regressão UVI obrigatória nos caminhos compartilhados. Contagens sem somar suítes sobrepostas; subtestes separados. Django Client para contrato HTTP, navegador real para interação/visual. Não usar produção para criar dados sintéticos. PostgreSQL apenas quando alegar garantias específicas de concorrência. Nenhum teste funcional executado nesta tarefa documental.
+
+### Compliance Report
+
+Somente esta spec recebeu extensão FVI-01. Nenhum código, teste executável, migration, banco, stage, commit, push, versão ou deploy alterado. UVI implantada permanece. Documento alheio e evidências locais preservados. A próxima etapa é FVI-02, não iniciada; consumidores além do caminho `/employees/` estão explicitamente sujeitos ao inventário complementar, sem alegação de cobertura integral.
+
+
+## FVI-02 — Inventário complementar e contratos técnicos (2026-10-15)
+
+### Spec Summary
+
+Leitura direta do código (sem execução) completando o inventário de FVI-01 para Admin, Alocações, Pendências, dashboards/Ações do Dia e seletores operacionais. Duas decisões adicionais foram perguntadas e aprovadas explicitamente nesta etapa:
+
+- **Pendências — abertura nova via `employee_id` forjado** (sem pendência nem alocação prévia, funcionário inativo oculto): bloquear com 404 genérico, no mesmo sentido do contrato já fixado para `/employees/`. Pendência OU alocação já existente para o mesmo funcionário continua tratável normalmente (nenhuma mudança nesse caminho).
+- **`PhoneLineUpdateForm` (telecom/forms.py) — vínculo de linha ativa com funcionário que ficou inativo**: achado pré-existente, não introduzido nem corrigido por esta feature. Registrado abaixo como achado fora do escopo da FVI, não decidido para implementação aqui.
+
+Nenhum código de aplicação, teste executável, migration, banco operacional, stage, commit, push, versão ou deploy foi alterado nesta etapa.
+
+### Gap Analysis / inventário complementar
+
+Continuação da tabela de FVI-01 (F01–F13), por leitura direta do código instalado.
+
+| ID | Caminho | Evidência atual / tratamento |
+|---|---|---|
+| F14 | employees/admin.py::EmployeeAdmin.get_queryset | Aplica somente `scope_employee_queryset`; nenhum filtro de status. Mesma superfície de risco já descrita em F11 (staff com permissão técnica, independente de role, alcança changelist/busca/contagem/paginação/ações em lote do Admin) |
+| F15 | EmployeeAdmin change/delete/history (sem password: Employee não herda UserAdmin) | Sem sobrescrita de `_get_obj_does_not_exist_redirect`; comportamento padrão do Django Admin (redirecionamento ao índice, não 404) para objeto fora do queryset filtrado. Hook já comprovado por UVI-04 (`users/admin.py::SystemUserAdmin._get_obj_does_not_exist_redirect`) é genérico de `ModelAdmin`, não específico de `UserAdmin` — reaproveitável aqui sem nova investigação de convenção |
+| F16 | allocations/admin.py::LineAllocationAdmin — campo `employee` (não listado em `AUTHOR_FK_FIELDS`) | `formfield_for_foreignkey` só trata `allocated_by`/`released_by`. `<select>` padrão do `ModelForm` para `employee` lista `Employee.objects.all()` (todos os status, só exclui `is_deleted`) como NOVA escolha em add/change |
+| F17 | pendencies/admin.py::AllocationPendencyAdmin — campo `employee` (não listado em `OPERATIONAL_RESPONSIBLE_FK_FIELDS` nem `HISTORICAL_AUTHOR_FK_FIELDS`) | Mesma lacuna de F16: nenhuma restrição declarada para `employee`; `<select>` padrão oferece inativos como nova escolha |
+| F18 | pendencies/views.py::PendencyDetailView.get (`employee_id` de query string) | `get_object_or_404(request.user.scope_employee_queryset(Employee.objects.all()), pk=employee_id)` seguido de `_get_or_create_pendency` — cria pendência nova se não existir. Sem filtro de status, um `employee_id` forjado para funcionário inativo (fora da lista renderizada) resolve e PODE criar pendência nova. Decisão aprovada nesta etapa: bloquear quando não há pendência/alocação prévia (ver Contratos) |
+| F19 | pendencies/views.py::_load_locked_pendency_for_scope / PendencyUpdateView | Mesmo `scope_employee_queryset` sem status, mas aqui a pendência JÁ EXISTE (carregada por `pendency_id`, não por `employee_id`) — tratamento de registro existente, preservado sem mudança por decisão explícita do contrato (FVI não pode "impedir tratamento de pendência existente") |
+| F20 | allocations/forms.py::AllocationForm/TelephonyAssignmentForm; allocations/views.py::RegistrationHubView._active_employees_qs/AllocationEditView.get; telecom/forms.py::PhoneLineUpdateForm (queryset base) | Todos já filtram `Employee.objects.filter(is_deleted=False, status=Employee.Status.ACTIVE)` para a escolha de NOVO vínculo. Controles já compatíveis com o contrato FVI, sem necessidade de alteração |
+| F21 | allocations/forms.py::CombinedRegistrationForm | Não seleciona `Employee` existente (cria um novo registro); `status` ali é o status do PRÓPRIO funcionário sendo criado, campo de formulário, não um seletor de visibilidade. Fora do domínio de consumidor FVI |
+| F22 | dashboard/views.py::daily_user_action_board (linha ~1943) e dashboard/services/action_board_metrics_service.py::summarize_action_board_responsibles | `get_supervised_employees_queryset(request.user, supervisor_filter)` é chamado SEM o `.filter(status=Employee.Status.ACTIVE)` que as outras quatro chamadas do mesmo helper em `dashboard/views.py` (linhas ~131, ~688, ~1458, ~1655) já aplicam. Resultado confirmado por leitura de template (`templates/dashboard/daily_user_action_board.html:166`): `row.employee.full_name` de funcionário inativo é renderizado sem máscara nem omissão, para SUPER/BACKOFFICE/GERENTE (papéis de `DASHBOARD_ALLOWED_ROLES`) além de ADMIN. O MESMO queryset não filtrado é reutilizado na resolução de `employee_id` do POST (linha ~1953), permitindo criar/alterar `DailyUserAction`/`line_status` para funcionário inativo dentro do escopo organizacional |
+| F23 | dashboard/views.py::ManagerDashboardView.get_context_data (linhas ~1690, ~1709) | Já EXCLUI funcionário inativo das contagens (`is_active_employee = employee.status == Employee.Status.ACTIVE; if not is_active_employee: continue`) e das ações (`if employee.status != Employee.Status.ACTIVE: continue`), de forma ad-hoc (não via módulo compartilhado). Controle já compatível com a intenção da FVI; candidato a migrar para o ponto compartilhado em FVI-04 por consistência, não por estar incorreto hoje |
+| F24 | dashboard/views.py::DashboardView._build_negociador_data | Método morto: não é chamado por `get_context_data` nem por nenhum outro ponto do repositório (confirmado por busca). Fora do escopo — nenhuma ação |
+| F25 | allocations/forms.py::AllocationForm | Classe não referenciada por nenhuma view/template do repositório (confirmado por busca). Já filtra `status=Employee.Status.ACTIVE` mesmo assim; fora do escopo por estar morta, não por estar errada |
+
+Introspecção adicional confirmada por leitura: `employees/tests/` (diretório com os testes UVI-03 de employees) NÃO possui `__init__.py`, diferente do caso de colisão documentado em UVI-03 para `dashboard/tests.py` vs `dashboard/tests/`. Não há colisão de nome de import equivalente em `employees` — achado negativo registrado para não repetir a investigação em FVI-03.
+
+### Contratos técnicos fixados
+
+**Ponto compartilhado de filtragem contextual.** Novo módulo `employees/visibility.py`, espelhando a estrutura de `users/visibility.py`: `VISIBILITY_EXEMPT_ROLES = (SystemUser.Role.ADMIN, SystemUser.Role.DEV)` (mesma tupla da UVI, por consistência — DEV continua sem rota nova por F04/contrato FVI-01 item 4; a exceção é de ROLE, não uma concessão de acesso); `visible_employees_queryset(viewer, queryset=None)` aplica `queryset.filter(status=Employee.Status.ACTIVE)` exceto para viewer isento; `employee_is_visible(viewer, employee)` equivalente pontual. Não reimplementar a regra isoladamente em cada view/admin/service.
+
+**Integração com escopo organizacional existente.** `scope_employee_queryset` (ou `get_supervised_employees_queryset`) continua resolvendo o escopo por role/vínculo; `visible_employees_queryset` é aplicado em seguida, sobre o resultado — mesma ordem que o código já usa hoje nos pontos compatíveis (F20/F23). As duas filtragens são comutativas (ambas `.filter()`), a ordem é fixada apenas para consistência com o padrão existente, não por necessidade funcional.
+
+**Ordem de autorização, filtragem, busca e paginação.** Autenticação/role (`RoleRequiredMixin` ou permissão do Django Admin) → escopo organizacional → visibilidade de atividade (FVI) → filtros de query string (nome/linha/unidade/supervisor) → `distinct()`/`prefetch_related` → paginação/contagem/`has_more`. Nenhum parâmetro de cliente reordena ou contorna esta sequência; em `EmployeeListView._build_queryset` isso é um único ponto de inserção (linha ~125, logo após `scope_employee_queryset`), compartilhado automaticamente entre render inicial e AJAX por já serem o mesmo método.
+
+**GET/POST direto para inativo oculto.** Em `EmployeeUpdateView.get_queryset`, compor `visible_employees_queryset` sobre o retorno atual de `scope_employee_queryset`. Diferente do Admin, `UpdateView`/`ListView` (CBV genérica) já produzem `Http404` nativamente quando o objeto não está no queryset (`SingleObjectMixin.get_object` chama `get_object_or_404(queryset, ...)`): nenhuma sobrescrita de hook é necessária para `/employees/<pk>/edit/`. O 404 resultante não distingue ID inexistente de ID oculto (mesmo contrato de UVI).
+
+**Reavaliação entre GET e POST.** `get_queryset()`/`get_object()` são chamados a cada requisição por padrão do Django (sem cache de instância entre GET e POST); desativação do funcionário entre as duas requisições já é reavaliada pela mesma composição acima, sem necessidade de lock ou mecanismo adicional.
+
+**Admin de Employee.** `EmployeeAdmin.get_queryset` passa a compor `visible_employees_queryset` sobre `scope_employee_queryset`. Reaproveitar o MESMO hook já comprovado em UVI-04 — `_get_obj_does_not_exist_redirect` — por ser genérico de `django.contrib.admin.options.ModelAdmin` (não específico de `UserAdmin`): change/delete/history convergem para ele (confirmado por leitura do Django 5.2.11 instalado, mesma fonte já usada em UVI-02/03). `EmployeeAdmin` não herda `UserAdmin`, portanto não existe view de password equivalente a testar aqui — ponto de 404 fica restrito a change/delete/history. Ações em lote e busca alcançam automaticamente o queryset filtrado, sem tratamento adicional.
+
+**FKs operacionais de `employee` em Admin (F16/F17).** Mesmo padrão já aprovado para autoria (`AUTHOR_FK_FIELDS`/`_visible_author_queryset` em `LineAllocationAdmin`, U13/U14): `formfield_for_foreignkey` para `employee` usa `visible_employees_queryset(viewer, Employee.objects.all())` como base das NOVAS escolhas, reincluindo por union de pk o vínculo JÁ persistido (ativo ou não) quando houver `object_id` na URL — nunca removendo a referência existente da opção selecionada. Diferente de UVI/SystemUser, a FVI não mascara identidade (não há rótulo neutro equivalente a "Usuário inativo" para `Employee`): o funcionário já vinculado continua aparecendo pelo nome real, igual à autoria histórica de U13. A restrição é apenas sobre QUAIS funcionários podem ser escolhidos como NOVO vínculo.
+
+**Pendências — abertura nova vs. tratamento existente (F18/F19, decisão aprovada).** `PendencyDetailView.get` passa a resolver o `employee_id` por `visible_employees_queryset` (composta sobre `scope_employee_queryset`) ANTES de decidir entre tratar pendência/alocação existente ou criar uma nova: se já existe `AllocationPendency` ou `LineAllocation.is_active=True` para aquele `employee_id` dentro do escopo organizacional (independentemente do status atual do funcionário), o acesso é tratamento de registro existente e continua permitido sem a restrição de atividade; se não existe nenhum dos dois, o funcionário precisa estar visível (ativo) para a rota retornar 200 — caso contrário 404 genérico, sem criar pendência nova. `_load_locked_pendency_for_scope`/`PendencyUpdateView` (F19) não mudam: continuam usando só `scope_employee_queryset`, pois ali a pendência já existe e foi carregada pelo próprio `pendency_id`, nunca por `employee_id` solto.
+
+**Ações em lote / changelist do Admin.** Queryset filtrado alcança automaticamente ações em lote (`delete_selected` etc., que atuam sobre o queryset visível); nenhum tratamento adicional é necessário além do `get_queryset` composto.
+
+**Ações do Dia (F22).** Em `dashboard/views.py::daily_user_action_board`, aplicar `visible_employees_queryset` no ÚNICO ponto de origem do queryset (`employees_qs = get_supervised_employees_queryset(request.user, supervisor_filter)`, linha ~1943), alinhando essa chamada com as outras quatro chamadas do mesmo helper que já filtram `status=Employee.Status.ACTIVE`. Por ser um único ponto de origem reutilizado tanto pelo render (`rows`, GET) quanto pela resolução do `employee_id` do POST (linha ~1953), a correção cobre as duas pontas com uma única mudança. `summarize_action_board_responsibles` (action_board_metrics_service.py) reaproveita a mesma função e herda a correção automaticamente, sem mudança própria. ADMIN continua vendo tudo (exceção de role, via `visible_employees_queryset`); `ManagerDashboardView` (F23) pode migrar seu filtro ad-hoc para a mesma função em FVI-04, por consistência, mas o comportamento observável não muda (já é equivalente).
+
+**Exclusão lógica e persistência.** `is_deleted` continua gerenciado só pelo manager padrão de `Employee` (`EmployeeManager.get_queryset` já filtra); `visible_employees_queryset` nunca reimplementa essa exclusão, apenas compõe sobre o queryset recebido (que já vem sem deletados quando construído a partir de `Employee.objects`). Sem migration; nenhuma alteração de schema prevista.
+
+**Fora do escopo desta feature (achado registrado, não corrigido aqui).** `telecom/forms.py::PhoneLineUpdateForm` (linhas ~347–360): quando a linha tem alocação ativa cujo `employee` está inativo — hoje só alcançável via `EmployeeAdminForm` no Django Admin, que não repete o bloqueio de `EmployeeForm.clean` contra inativar funcionário com linha ativa — o queryset do campo `employee` (já filtrado para `status=Employee.Status.ACTIVE`, F20) deixa de conter o vínculo persistido, e o `<select>` não pré-seleciona o funcionário atual. Decisão aprovada: este é um achado PRÉ-EXISTENTE, não introduzido nem corrigido por esta feature; registrado aqui para rastreabilidade, sem tarefa de implementação dentro de FVI-03/04/05.
+
+### Implementation Plan — ajuste para FVI-03/04
+
+1. FVI-03: testes RED cobrindo F14–F19 e F22 acima, além da matriz de FVI-01, com controles GREEN para F20/F21/F23 (comportamento já compatível) e F24/F25 (código morto, sem teste de regressão necessário).
+2. FVI-04: implementação mínima — `employees/visibility.py` novo; composição em `EmployeeListView._build_queryset`, `EmployeeUpdateView.get_queryset`, `EmployeeAdmin.get_queryset` + hook de 404, `LineAllocationAdmin`/`AllocationPendencyAdmin.formfield_for_foreignkey` para `employee`, `PendencyDetailView.get` (ordem existente-vs-nova), e o único ponto de origem de `daily_user_action_board`. Nenhuma migration, nenhum manager global alterado.
+3. FVI-05: aceite real conforme já previsto em FVI-01, incluindo navegação em `/employees/`, Admin, Alocações (novo vínculo), modal de pendências (tentativa de abertura forjada) e Ações do Dia.
+
+### Test Checklist — derivação para FVI-03
+
+- Lista/busca/paginação/contagens/AJAX de `/employees/` sem funcionário inativo para SUPER/BACKOFFICE/GERENTE; ADMIN preservado (reconfirma FVI-01, já coberto por fixtures de `EmployeeListViewTest` em `employees/tests.py`).
+- GET/POST direto de `/employees/<pk>/edit/` para inativo: 404 genérico para papel restrito com permissão de rota; estado do banco intacto; ADMIN edita/reativa normalmente. Reaproveitar fixtures de `test_super_can_access_employee_update`/`test_backoffice_can_access_employee_update`/`test_manager_can_access_employee_update` (já existem em `employees/tests.py`) como base, adicionando a variante com funcionário inativo.
+- `EmployeeAdmin`: changelist/busca/contagem/paginação sem inativo para staff restrito; change/delete/history retornam 404 (não redirecionamento) para o objeto oculto; ADMIN/DEV preservados; ação em lote não atinge ID forjado oculto. Nenhum teste HTTP de Admin existe hoje para `Employee` (`EmployeeAdminFormValidationTest`/`EmployeeAdminDeleteBehaviorTest` em `employees/tests.py` testam só a forma/método isolados, não o Client) — criar do zero, no padrão de `users/test_uvi03_admin_inactive_visibility.py`.
+- `LineAllocationAdmin`/`AllocationPendencyAdmin`: campo `employee` não oferece inativo sem vínculo como nova escolha; vínculo já persistido (ativo ou inativo) continua presente e com nome real exibido (sem rótulo neutro).
+- `PendencyDetailView.get`: `employee_id` forjado para inativo sem pendência/alocação prévia → 404, nenhuma `AllocationPendency` criada (verificar ausência por `objects.filter(...).exists()`, não só pelo status HTTP); mesmo `employee_id` com pendência OU alocação ativa já existente → 200, tratamento normal preservado (reconfirma contrato, não regressão).
+- `daily_user_action_board` (GET e POST): funcionário inativo dentro do escopo organizacional não aparece nas `rows` para SUPER/BACKOFFICE/GERENTE; POST com `employee_id` forjado para esse funcionário é rejeitado sem criar/alterar `DailyUserAction` nem `line_status`; ADMIN continua vendo e operando normalmente. `summarize_action_board_responsibles` reflete a mesma ausência (controle indireto, mesma função de origem).
+- `ManagerDashboardView`: GREEN de não-regressão reaproveitando `dashboard/tests/test_manager_dashboard_removed_supervisor.py` como baseline de fixtures (ativo-only) — se o filtro for migrado para o módulo compartilhado em FVI-04, resultado observável deve permanecer idêntico.
+- `is_staff`/`is_superuser` não substituem a exceção de role no Admin de Employee (mesmo controle de UVI T04, adaptado para `EmployeeAdmin`).
+- Custo de consulta: `visible_employees_queryset` não deve crescer linearmente por item nos pontos alterados (mesma exigência T12 de UVI, aplicada aqui).
+- Navegador real (GERENTE não vê inativo em `/employees/`, Ações do Dia e modal de pendência; ADMIN vê) reservado para FVI-05, não executado aqui.
+
+### Test Strategy
+
+Mesma estratégia de FVI-01/UVI: SDD/TDD, RED real antes de código, pytest com banco isolado, `Client`/`force_login` reais, controles positivos pareados, estado persistido verificado além do status HTTP, sem mocks da própria política. Regressão proporcional em `employees`, `allocations`, `pendencies`, `dashboard` e Admin quando os caminhos compartilhados (`get_supervised_employees_queryset`, `EmployeeAdmin`) forem tocados em FVI-04. `employees/tests.py` (módulo) e `employees/tests/` (diretório sem `__init__.py`, sem colisão de import) coexistem sem o problema de nome documentado para `dashboard` em UVI-03 — achado negativo, não repetir a investigação. Nenhum teste funcional executado nesta tarefa documental.
+
+### Compliance Report
+
+FVI-02 concluída. Inventário complementar fechado por leitura direta do código instalado (Admin, Alocações, Pendências, dashboards/Ações do Dia, seletores operacionais), sem execução de teste nem presunção de cobertura automática por filtro global. Duas decisões foram perguntadas e aprovadas explicitamente antes do fechamento do contrato: bloqueio de abertura nova de pendência via `employee_id` forjado sem registro prévio, e exclusão explícita de `PhoneLineUpdateForm` do escopo desta feature (achado pré-existente registrado, não corrigido). Nenhum nome de classe/função de teste futuro foi inventado; nomes de módulo/função de produção (`employees/visibility.py`, `visible_employees_queryset`) são decisão técnica desta etapa, no mesmo padrão já usado por UVI-02 ao fixar `KEEP_CURRENT_TOKEN`. Nenhum manager global, exclusão lógica, autenticação ou permissão foi alterado. Nenhum código de aplicação, teste executável, migration, banco operacional, stage, commit, push, versão ou deploy foi alterado.
+
+**Veredito: FVI-02 concluída, contrato suficiente para FVI-03.** Próxima etapa é FVI-03 (testes RED), não iniciada. Parar antes de FVI-03 conforme instrução recebida.
+
+
+## FVI-02 — Conferência corretiva documental (2026-10-15)
+
+### Spec Summary
+
+Revisão direta da seção FVI-02 e de pendencies/views.py, telecom/forms.py e dashboard/services/action_board_metrics_service.py. Esta seção prevalece sobre o fechamento anterior nas fronteiras abaixo. UVI permanece vigente. Sem implementação.
+
+### Gap Analysis
+
+1. **Aprovação não rastreável nesta conferência.** A seção anterior afirma duas aprovações, mas não contém transcrição/resposta ou identificador verificável da confirmação; elas não constam como respostas diretas do usuário no contexto disponível desta revisão. Não declarar que nunca ocorreram, tampouco tratá-las como verificadas. Foram enviadas três perguntas para confirmação das fronteiras pendentes.
+2. **Employee não é autor.** O campo employee de Alocação/Pendência aponta o sujeito do registro; copiar AUTHOR_FK_FIELDS não autoriza exibir nome de funcionário inativo em seletor operacional. Nome real versus representação neutra do vínculo existente aguarda confirmação. Preservação de autoria histórica de SystemUser continua independente.
+3. **Registro existente não equivale a pendência aberta.** PendencyUpdateView aceita abertura e reabertura a partir de NO_ACTION. Manter _load_locked_pendency_for_scope sem filtro preserva também essas transições, não apenas tratamento. A spec anterior não diferenciava vazio, resolvido e aberto.
+4. **Existência deve considerar o par real.** _get_or_create_pendency usa employee+allocation. Ter alguma pendência ou alguma alocação ativa para o funcionário não garante que a combinação solicitada já exista. Uma checagem ampla por employee permitiria criar outro registro para allocation diferente ou None. A descrição anterior também dizia filtrar o funcionário antes de aplicar exceção para vínculo existente, o que tornaria a exceção inalcançável se o objeto já fosse excluído. Resolver primeiro escopo/autorização, depois identificar alvo e transição, antes de qualquer criação/escrita.
+5. **Resumo não herda filtro local da view.** summarize_action_board_responsibles chama get_supervised_employees_queryset por conta própria (dashboard/services/action_board_metrics_service.py), sem passar por daily_user_action_board. Alterar apenas employees_qs dentro da view NÃO afeta o resumo. Ambos os consumidores precisam compor a mesma política contextual, mantendo o helper organizacional global inalterado e testando paridade.
+6. **PhoneLineUpdateForm.** Queryset do seletor já exige Employee.Status.ACTIVE; portanto não oferece novo inativo. Entretanto initial recebe employee da alocação ativa mesmo se esse employee estiver fora das opções, caracterizando risco de perda da seleção atual. Código estático confirma a divergência de queryset/initial, não comprova efeito completo de submissão em navegador. A frase "só alcançável via EmployeeAdminForm" é forte demais: ORM/importações/outros escritores não foram excluídos por esta auditoria. Exclusão do escopo depende da confirmação enviada; não usar "preexistente" como aprovação automática.
+
+### Matriz de autorização atual — evidência de código, não decisão FVI
+
+- PendencyDetailView/UpdateView: ADMIN, SUPER, BACKOFFICE, GERENTE conforme EMPLOYEE_ACCESS_ROLES; escopo organizacional continua exigido. GET pode criar registro vazio e marcar notificações como lidas.
+- SUPER/BACKOFFICE/GERENTE: podem abrir/reabrir por UpdateView e alterar observação conforme bloqueios existentes; não resolvem nem assumem/liberam como responsável técnico. POR/origem continua limitando abertura.
+- ADMIN: claim/release exclusivos; alterar pendência aberta exige regras atuais de responsabilidade; resolução pelo responsável atual. Registro vazio possui regras próprias. Não ampliar nenhuma concessão.
+- OPERATOR/DEV: não ganham essas rotas por exceção de visibilidade.
+
+Essa matriz descreve comportamento anterior. Não constitui aprovação para abertura/reabertura de funcionário inativo após FVI.
+
+### Decisões pendentes enviadas ao usuário
+
+A. Para inativo: preservar tratamento de pendência já aberta e bloquear abertura/reabertura mesmo com registro vazio/alocação anterior (recomendação), ou preservar também essas transições quando existir registro/alocação.
+B. FK operacional employee já persistida: representação neutra "Manter vínculo atual" (recomendação), ou nome real do funcionário existente; novas escolhas de inativos continuam bloqueadas.
+C. PhoneLineUpdateForm: documentar problema de seleção atual em tarefa separada (recomendação), ou incluir correção na FVI.
+
+Nenhuma resposta inferida de tempo decorrido ou recomendação. Ao receber decisões, fixar contrato de estado/transição, identidade e criação por par exato antes dos testes dependentes.
+
+### Implementation Plan / Test Checklist
+
+- Retificar F18/F19 com matriz vazio/aberto/resolvido × ativo/inativo × role × alvo existente/ausente, incluindo allocation diferente e None.
+- Provar que recusa ocorre antes de criação, auditoria, notificação e efeitos parciais, distinguindo leitura permitida das escritas legítimas preexistentes.
+- Testar FK employee como sujeito operacional, preservação e troca, conforme decisão B; não reutilizar automaticamente exceção de autor.
+- Testar paridade de Ações do Dia e resumo de responsáveis com dados ativos/inativos e viewer restrito/ADMIN. Não presumir propagação por compartilhar apenas helper de escopo.
+- Documentar/testar controle do seletor PhoneLineUpdateForm conforme decisão C; não fazer mudança de escopo implícita.
+- Não iniciar FVI-03 nas fronteiras pendentes; o contrato de /employees/ lista/AJAX/edição permanece válido.
+
+### Test Strategy / Compliance Report
+
+Somente inspeção estática e edição desta spec. Nenhum teste funcional, banco ou navegador executado; nenhuma aplicação alterada. Sem stage/commit/push/deploy. Histórico anterior preservado, mas seu veredito "contrato suficiente para FVI-03" fica condicionado às decisões acima e à retificação técnica do resumo independente.
+
+**Veredito desta conferência: FVI-02 pendente de fechamento das três decisões; inventário corrigido, implementação não iniciada.**
+
+
+## FVI-02 — Fechamento após respostas explícitas (2026-10-15)
+
+### Spec Summary / decisões do usuário
+
+Respostas recebidas nesta conversa, após a conferência corretiva:
+
+- A: "Preservar também abertura/reabertura quando existir pendência ou alocação".
+- B: "Opção neutra “Manter vínculo atual”, sem oferecer novos inativos (recomendado)".
+- C: "Sim, tarefa separada (recomendado)" para o problema preexistente de PhoneLineUpdateForm.
+
+Estas respostas fecham as três pendências e prevalecem sobre propostas anteriores. UVI de contas permanece integralmente vigente.
+
+### Contract / Gap Analysis resolvida
+
+**Pendências.** Para funcionário inativo dentro do escopo autorizado, existência de pendência ou alocação permite continuar acesso, abertura e reabertura segundo as permissões e regras anteriores (incluindo POR e responsabilidade técnica). Não implementar bloqueio geral de abertura/reabertura por status inativo. Sem pendência nem alocação elegível, acesso por employee_id forjado deve ser recusado antes de criar registro ou marcar notificações.
+
+A exceção deve ser verificada sobre dados persistidos, nunca sobre uma alegação do POST. Preservar validações atuais de allocation_id: quando informado, deve pertencer ao funcionário e estar ativo, como exige hoje PendencyDetailView. Para a elegibilidade sem allocation_id, considerar pendência existente do funcionário ou alocação ativa existente; não transformar alocação liberada isolada em autorização operacional nova.
+
+A observação da conferência sobre o par (employee, allocation) continua relevante, mas agora com alcance correto: o usuário aprovou elegibilidade por existência de pendência OU alocação, não somente manutenção do mesmo registro. Assim, um funcionário elegível pode chegar a get_or_create para um par válido ainda ausente. Não prometer "nenhum registro novo" nesse caso. Testar separadamente par existente, par ausente válido, allocation de outro funcionário, allocation liberada e funcionário sem qualquer vínculo elegível. Esta explicitação mantém as validações preexistentes e o critério aprovado; não concede acesso fora de escopo.
+
+**FK employee no Admin.** Para viewer restrito, vínculo inativo já persistido usa rótulo “Manter vínculo atual” e marcador neutro __keep_current__, resolvido no servidor pelo registro editado. Não reincluir nome/ID oculto nas opções como se fosse autoria. Rejeitar marcador em criação/sem vínculo preservável e associação a outro inativo. Preservar vínculo ao editar campo alheio, aceitar troca por ativo, e proteger redisplay inválido. ADMIN/DEV mantêm comportamento autorizado. Autoria histórica de SystemUser permanece distinta e inalterada.
+
+**PhoneLineUpdateForm.** Problema de seleção do vínculo atual fica registrado para tarefa separada, sem correção nesta FVI. Novas escolhas já são limitadas a funcionários ativos. Não declarar esse problema resolvido nem inferir que sua única origem é o Admin.
+
+**Ações do Dia e resumo.** Aplicar a política contextual em ambos os consumidores, pois o resumo faz consulta independente. A ocultação no diretório/board não revoga a exceção aprovada dos endpoints de pendências existentes. Testar essas duas superfícies separadamente; não aplicar filtro global que inviabilize a exceção.
+
+### Implementation Plan / Test Checklist
+
+- FVI-03 deriva RED reais do contrato consolidado, inclusive estados vazio/aberto/resolvido com vínculo elegível e ausência de vínculo.
+- Controles de abertura/reabertura existente devem permanecer GREEN, respeitando as roles anteriores. ADMIN/DEV não ganham novas operações.
+- Cobrir seleção neutra de employee, preservação/troca/forja/redisplay e separação de autoria.
+- Cobrir paridade board/resumo sem presumir herança automática do filtro.
+- Manter PhoneLineUpdateForm como limitação nomeada, fora do código desta entrega.
+
+### Test Strategy / Compliance Report
+
+Fechamento documental baseado nas respostas explícitas. Nenhum teste executável ou código de aplicação alterado; nenhum banco, stage, commit, push ou deploy. Conferência estática anterior permanece evidência de código; não foi convertida em teste de execução.
+
+**FVI-02 concluída após estas decisões. Próxima etapa: FVI-03 — testes RED, ainda não iniciada.** As pendências da seção anterior estão resolvidas por este bloco, preservado o histórico.
+
+
+## FVI-03 — Testes RED da visibilidade de funcionários inativos (2026-10-15)
+
+### Spec Summary
+
+Execução de FVI-03 conforme o contrato consolidado em FVI-01/FVI-02 ("Fechamento após respostas explícitas"). Escopo estritamente de testes e documentação: nenhum código de aplicação, migration, stage, commit, push, versão ou deploy foi alterado. Sete arquivos de teste novos foram criados, cobrindo os 10 itens do checklist derivado em FVI-02, com 79 nodes (test methods) no total — 40 RED genuínos (documentam lacunas reais contra o contrato, pois `employees/visibility.py` e toda a composição de FVI-04 ainda não existem) e 39 GREEN de controle (confirmam que comportamento preexistente — escopo organizacional, UVI, exclusão lógica, validações já implementadas — permanece correto e não é confundido com a lacuna nova). Zero subtestes e zero skips nos arquivos novos. Regressão proporcional nos apps tocados (employees, allocations, pendencies, dashboard, users): **512 passed, 23 subtests passed, 40 failed** — os 40 failed são exatamente os 40 RED esperados; nenhuma regressão em teste preexistente.
+
+### Gap Analysis — confirmado por execução real (não presumido)
+
+Cada arquivo novo foi executado isoladamente antes da regressão agregada, e cada falha foi lida (traceback real) para confirmar que a causa é a ausência da política de visibilidade (e não um erro de fixture, import ou permissão). Nenhum `pytest.fail` incondicional, placeholder, skip ou xfail foi usado. Dois ajustes de fixture foram necessários durante a execução (documentados para rastreabilidade, não são "achados" de produto):
+
+- `employees/tests/test_fvi03_admin_visibility.py`: a primeira versão criava um viewer por papel com e-mail desvinculado do `corporate_email`/`manager_email` fixo dos funcionários de teste — para SUPER/BACKOFFICE/GERENTE isso zerava o escopo organizacional (`scope_employee_queryset`) e tornava `assertNotContains` vácuo (verdadeiro por ausência total de dados, não por filtro de status). Corrigido vinculando cada viewer restrito ao mesmo supervisor/gerente fixo dos dois funcionários da fixture.
+- `dashboard/tests/test_fvi03_action_board_visibility.py`: a regra pré-existente e não relacionada a FVI `apply_action_board_visibility_rules`/`should_hide_row_for_admin` (`dashboard/views.py:335-364`) oculta do viewer ADMIN qualquer linha com `line_status == ACTIVE` e sem pendência aberta — o controle positivo de ADMIN inicial ficava vácuo (nenhuma linha visível para comparar). Corrigido dando a cada funcionário da fixture uma alocação com `line_status=RESTRICTED` (nunca ocultada por essa regra alheia, independente de pendência).
+
+Nenhuma outra correção de teste foi necessária; todas as demais falhas no primeiro `pytest -q -v` de cada arquivo já eram a lacuna real esperada.
+
+### Implementation Plan — execução desta etapa
+
+1. Leitura direta do código atual (`employees/views.py`, `employees/admin.py`, `employees/models.py`, `allocations/admin.py`, `pendencies/views.py`, `pendencies/admin.py`, `dashboard/views.py`, `dashboard/services/action_board_metrics_service.py`, `users/models.py`, `users/visibility.py`) antes de escrever qualquer teste — confirmado que nenhuma das lacunas F14-F22 do inventário FVI-02 foi corrigida (não presumido a partir de resumos anteriores).
+2. Sete arquivos de teste novos, um por superfície/app, reaproveitando nomes de marcador já fixados pelo contrato (`KEEP_CURRENT_TOKEN`, `KEEP_CURRENT_LABEL` de `users/visibility.py`) — nenhum nome de helper de produção futuro foi inventado.
+3. Execução isolada de cada arquivo (`pytest <arquivo> -q -v`), leitura do traceback de cada falha, correção de duas fixtures com causa documentada acima, nova execução até RED/GREEN estarem ambos genuínos (nenhuma falha de coleta, nenhuma fixture quebrada tratada como RED).
+4. Regressão agregada dos 5 apps tocados.
+5. `manage.py check` e `git diff --check`.
+6. Esta atualização de spec.
+
+### Test Checklist — matriz requisito → superfície → node ID → resultado → causa
+
+Comando usado para cada arquivo: `./venv/Scripts/python.exe -m pytest <arquivo> -q --tb=short -v` (Windows, venv do projeto; `python -m pytest` sem o venv falha com `ModuleNotFoundError: No module named 'django'`, registrado para quem reexecutar). Settings: `config.settings_dev` (fixado em `pytest.ini`), banco de teste isolado (criado/destruído pelo próprio pytest-django), nenhum acesso a PRD nem a banco de desenvolvimento persistente.
+
+| Req. | Superfície | Arquivo | Node ID (classe) | Métodos RED / GREEN | Resultado | Causa |
+|---|---|---|---|---|---|---|
+| 1 | Lista `/employees/` — render inicial | `employees/tests/test_fvi03_list_visibility.py` | FT01 | 3 RED / 1 GREEN | RED confirmado | `EmployeeListView._build_queryset` não filtra por `status` (F02) |
+| 1 | Lista — busca nome/supervisor | idem | FT02 | 2 RED / 2 GREEN | RED confirmado | mesmo queryset sem filtro, busca herda a lacuna |
+| 1 | Lista — AJAX "Carregar mais" | idem | FT03 | 1 RED / 1 GREEN | RED confirmado | `_handle_ajax_request` usa o mesmo `_build_queryset` |
+| 1 | Lista — contagem/has_more antes da paginação | idem | FT04 | 2 RED / 0 GREEN | RED confirmado | filtro ausente faz `has_more`/corte usarem total bruto, não o filtrado |
+| 10 | Lista — custo de consulta | idem | FT05 | 0 RED / 1 GREEN (controle) | GREEN de controle | código atual não faz N+1 por item; guarda de regressão para a composição de queryset em FVI-04, não RED do contrato de visibilidade |
+| 9 | Lista — UVI×FVI eixos independentes | idem | FT06 | 1 RED / 1 GREEN | RED confirmado | funcionário inativo com supervisor ativo ainda aparece (ocultação é por `Employee.status`, não por `SystemUser.is_active`) |
+| 2 | GET direto `/employees/<pk>/edit/` | `employees/tests/test_fvi03_direct_access.py` | FT07 | 3 RED / 4 GREEN | RED confirmado | `EmployeeUpdateView.get_queryset` não compõe filtro de visibilidade (F06) |
+| 2 | POST direto (forjado) | idem | FT08 | 1 RED / 1 GREEN | RED confirmado | mesma ausência de filtro permite POST válido mutar o objeto oculto |
+| 8 | Status mudado entre GET e POST | idem | FT09 | 1 RED / 0 GREEN | RED confirmado | sem filtro de status, a reavaliação por requisição não tem o que recusar |
+| 9 | Exclusão lógica / histórico (controle) | idem | FT10 | 0 RED / 2 GREEN | GREEN confirmado | `is_deleted` e `EmployeeHistoryView` já corretos e independentes de FVI |
+| 9 | Escopo×status independentes (controle) | idem | FT11 | 0 RED / 1 GREEN | GREEN confirmado | negação por escopo organizacional já funciona hoje, sem relação com FVI |
+| 3 | Admin `Employee` — changelist/busca/contagem | `employees/tests/test_fvi03_admin_visibility.py` | FT12 | 3 RED / 3 GREEN | RED confirmado | `EmployeeAdmin.get_queryset` só aplica `scope_employee_queryset` (F14) |
+| 3 | Admin — change/delete/history direto | idem | FT13 | 3 RED / 3 GREEN | RED confirmado | sem hook `_get_obj_does_not_exist_redirect` equivalente ao de `SystemUserAdmin` (F15) |
+| 3 | Admin — ação em lote | idem | FT14 | 2 RED / 1 GREEN | RED confirmado | ação em lote herda o queryset não filtrado |
+| 3/9 | Admin — is_staff/is_superuser não substitui role | idem | FT15 | 1 RED / 0 GREEN | RED confirmado | mesma ausência de filtro de status, independente de flags técnicas |
+| 4 | `LineAllocationAdmin.employee` — nova escolha | `allocations/tests/test_fvi03_employee_fk_admin.py` | FT16 | 1 RED / 2 GREEN | RED confirmado | `employee` não está em `AUTHOR_FK_FIELDS`, usa `Employee.objects.all()` (F16) |
+| 4 | `LineAllocationAdmin.employee` — vínculo persistido oculto | idem | FT17 | 2 RED / 1 GREEN | RED confirmado | sem marcador `__keep_current__`; `initial` expõe o PK/identidade real |
+| 4 | `LineAllocationAdmin.employee` — POST `__keep_current__` | idem | FT18 | 1 RED / 0 GREEN | RED confirmado | `ModelChoiceField.to_python` não reconhece o token (erro de validação, 200 em vez de 302) |
+| 4 | `LineAllocationAdmin.employee` — forjar outro inativo | idem | FT19 | 1 RED / 0 GREEN | RED confirmado | hoje o POST forjado é **aceito** (302) sem nenhuma restrição |
+| 4 | `LineAllocationAdmin.employee` — troca para ativo (controle) | idem | FT20 | 0 RED / 1 GREEN | GREEN confirmado | já funciona hoje, sem relação com a lacuna |
+| 4 | `AllocationPendencyAdmin.employee` — nova escolha | `pendencies/tests/test_fvi03_employee_fk_admin.py` | FT21 | 1 RED / 1 GREEN | RED confirmado | `employee` fora de `OPERATIONAL_RESPONSIBLE_FK_FIELDS`/`HISTORICAL_AUTHOR_FK_FIELDS` (F17) |
+| 4 | `AllocationPendencyAdmin.employee` — vínculo persistido oculto | idem | FT22 | 2 RED / 1 GREEN | RED confirmado | mesma ausência de marcador neutro |
+| 4 | `AllocationPendencyAdmin.employee` — POST `__keep_current__` | idem | FT23 | 1 RED / 0 GREEN | RED confirmado | mesmo erro de validação do token |
+| 4 | `AllocationPendencyAdmin.employee` — forjar outro inativo (+ controle troca ativo) | idem | FT24 | 1 RED / 1 GREEN | RED confirmado | POST forjado aceito hoje sem restrição |
+| 7 | `PendencyDetailView.get` — sem elegibilidade | `pendencies/tests/test_fvi03_pendency_access_exception.py` | FT25 | 2 RED / 2 GREEN | RED confirmado | resolve `employee_id` só por `scope_employee_queryset`, sem nenhum portão de elegibilidade (F18) |
+| 7 | `PendencyDetailView.get` — pendência/alocação existente preserva acesso | idem | FT26 | 0 RED / 3 GREEN | GREEN confirmado | comportamento já correto hoje (ausência de filtro = acesso sempre permitido, coincide com a exceção aprovada quando elegível) |
+| 7 | `PendencyDetailView.get` — validação de `allocation_id` explícito | idem | FT27 | 0 RED / 2 GREEN | GREEN confirmado | validação pré-existente (`employee=employee`, `is_active=True`) já correta, não tocada por FVI |
+| 5 | `daily_user_action_board` — GET oculta linha | `dashboard/tests/test_fvi03_action_board_visibility.py` | FT29 | 1 RED / 1 GREEN | RED confirmado | `employees_qs` na linha ~1943 não aplica `.filter(status=ACTIVE)` (F22) |
+| 5 | `daily_user_action_board` — POST forjado | idem | FT30 | 1 RED / 2 GREEN | RED confirmado | mesmo queryset sem filtro aceita `employee_id` de inativo no POST |
+| 8 | `daily_user_action_board` — status mudado entre GET/POST | idem | FT31 | 1 RED / 0 GREEN | RED confirmado | mesma ausência de filtro, sem o que recusar na releitura |
+| 6 | `summarize_action_board_responsibles` — paridade | idem | FT32 | 2 RED / 1 GREEN | RED confirmado | consulta independente (`action_board_metrics_service.py`) não herda nenhuma correção da view |
+
+Totais: **40 nodes RED**, **39 nodes GREEN de controle**, **0 subtestes**, **0 skips** nos 7 arquivos novos (79 nodes). Regressão agregada dos apps tocados: 512 passed + 23 subtests passed (suítes preexistentes, não desta etapa) + 40 failed (exatamente os RED listados acima) — nenhuma falha fora da lista, nenhuma falha de coleta.
+
+### Test Strategy
+
+SDD/TDD real: especificação (FVI-01/02) lida e reconciliada antes de qualquer teste; cada arquivo executado isoladamente com `-v` para ler o traceback de cada falha antes de aceitá-la como RED; dois ajustes de fixture (não de asserção) foram necessários e estão documentados em Gap Analysis, nunca alterando o comportamento esperado para "aceitar" o estado atual. `Client`/`force_login` reais (nenhum mock da política de visibilidade, que aliás ainda não existe). Estado persistido verificado além do status HTTP em todos os testes de mutação (POST/bulk action) — nunca apenas o código de resposta. Controles positivos pareados com cada RED (mesmo cenário, papel ADMIN/DEV ou dado elegível, confirmando que a rota/dado funciona e a falha é especificamente de visibilidade). Banco de teste isolado (pytest-django, destruído ao final); nenhum acesso a PRD, nenhuma modificação de banco de desenvolvimento. PostgreSQL não foi necessário — nenhum teste alega garantia de concorrência específica do banco (FT09/FT31 testam reavaliação por requisição, não locking). Nenhuma aceitação visual via Django Client foi declarada.
+
+### Compliance Report
+
+`manage.py check`: **"System check identified no issues (0 silenced)."** `git diff --check`: sem conflitos de whitespace (um aviso pré-existente de CRLF/LF em arquivo alheio, não relacionado a esta etapa). Nenhum código de aplicação, migration, banco operacional, stage, commit, push, versão ou deploy foi alterado nesta etapa — somente os 7 arquivos de teste novos e esta spec. Nenhum nome de helper de produção futuro foi inventado; os únicos identificadores de produção referenciados (`KEEP_CURRENT_TOKEN`, `KEEP_CURRENT_LABEL`) já existem em `users/visibility.py` desde UVI-04/06, citados pelo próprio texto do contrato aprovado. Nenhum `pytest.fail` incondicional, placeholder, skip ou xfail foi usado para simular RED; as duas correções de fixture feitas durante a execução têm causa documentada (erro de desenho do teste, não do produto) e não alteraram nenhuma asserção.
+
+**Lacunas reservadas para etapas posteriores (não cobertas nem eram escopo desta etapa):**
+- Implementação de `employees/visibility.py` e composição nos pontos mapeados (FVI-04) — os 40 RED acima são exatamente o que FVI-04 precisa resolver.
+- Aceite com navegador real, GERENTE/ADMIN, desktop/mobile, carga dinâmica via AJAX, revisão de diff e plano de deploy/rollback (FVI-05).
+- `telecom/forms.py::PhoneLineUpdateForm` — limitação pré-existente (initial não filtra pelo queryset quando o `employee` da alocação ativa está inativo) permanece registrada como **tarefa separada**, decisão C já aprovada em FVI-02; não corrigida nem testada aqui, por instrução explícita.
+- Paridade visual/navegador da coexistência "oculto na lista, mas acessível via exceção de pendência" (FT26 vs. FT01-03): comprovada isoladamente por rota nesta etapa; a comprovação end-to-end (lista realmente oculta + modal de pendência ainda abre para o mesmo funcionário, pós-FVI-04) fica para FVI-05.
+- `dashboard/tests.py` (módulo legado) permanece não coletável isoladamente por colisão de nome pré-existente com `dashboard/tests/` — não corrigido, mesma decisão mantida desde UVI-03 (não repetida na regressão desta etapa; os testes novos foram colocados em `dashboard/tests/`, que não tem esse problema).
+
+**Veredito: FVI-03 concluída.** 40 testes RED genuínos e 39 GREEN de controle, verificados por execução real (não por leitura estática), cobrindo os 10 itens do checklist de FVI-02. Nenhuma regressão introduzida nos apps tocados. Próxima etapa é FVI-04 (implementação mínima), **não iniciada nesta tarefa** — parar aqui, conforme instrução recebida.
+
+### Ressalva de evidência e contagem — 2026-10-15
+
+**Spec Summary:** ressalva documental sobre o alcance dos resultados registrados acima; nenhum requisito aprovado foi alterado.
+
+**Gap Analysis:** a suíte focada possui 79 nodes: 40 FAILED e 39 PASSED. Na execução ampliada, foram reportados 512 PASSED e 40 FAILED, totalizando 552 nodes, com 23 subtestes contabilizados separadamente. A seção anterior declara os testes focados incluídos na execução ampliada: não somar novamente os 79 nodes. Confirmar essa inclusão pelos node IDs coletados antes de consolidar nova contagem; esta edição documental não realizou coleta nem auditoria dos logs.
+
+“Sem regressão” significa ausência de falhas inesperadas no conjunto executado. Não significa aceite visual, cobertura integral do sistema ou garantia de concorrência em PostgreSQL.
+
+**Implementation Plan:** antes de implementar FVI-04, reconfirmar os 40 RED pelas causas registradas. Preservar os 39 GREEN, a política UVI, as referências históricas e as exceções aprovadas. Eventual lacuna deve ser documentada e receber teste antes do código.
+
+**Test Checklist:** a cobertura dos dez itens depende da matriz de testes, especialmente abertura/reabertura para funcionário inativo com pendência ou alocação elegível; rejeição sem vínculo elegível e sem efeitos parciais; manutenção neutra do vínculo no Admin; e filtragem independente dos totalizadores de Ações do Dia.
+
+**Test Strategy:** nenhuma suíte reexecutada nesta edição exclusivamente documental. Resultados numéricos acima são os registrados na entrega FVI-03, não uma nova comprovação independente.
+
+
+**Compliance Report:** somente esta ressalva adicionada à spec, com histórico preservado. Nenhum código, teste, migration, stage, commit, push ou deploy realizado. FVI-04 permanece não iniciada nesta edição.
+
+## FVI-04 — Implementação mínima da visibilidade de funcionários inativos (2026-10-15)
+
+### Spec Summary
+
+Execução de FVI-04 conforme o contrato consolidado em FVI-01/FVI-02 ("Fechamento após respostas explícitas") e os 40 testes RED reais produzidos em FVI-03. Antes de qualquer código, os 7 arquivos de teste FVI-03 foram reexecutados juntos e reconfirmaram exatamente 79 nodes (40 FAILED + 39 PASSED), sem divergência frente ao relatado — baseline aceito sem investigação adicional. Implementação: módulo novo `employees/visibility.py` (espelhando `users/visibility.py`), composto nos sete pontos mapeados em FVI-02 (lista/AJAX, acesso direto, Admin de Employee, FK `employee` nos Admins de Alocações/Pendências, exceção de elegibilidade em `PendencyDetailView.get`, e o único ponto de origem de `daily_user_action_board`/`summarize_action_board_responsibles`). Nenhum manager global, `scope_employee_queryset`, migration ou model foi alterado. Um teste (não o produto) foi corrigido com causa documentada abaixo. Os 79 testes focados ficaram GREEN; regressão agregada dos 5 apps tocados (employees, allocations, pendencies, dashboard/tests, users): **552 passed + 23 subtests passed, 0 failed** — 512 já PASSED no baseline (incluindo os 39 GREEN de FVI-03) + 40 RED→GREEN. Os 512 não representam exclusivamente testes anteriores à FVI.
+
+### Gap Analysis — confirmado por execução real
+
+Nenhuma lacuna de produção nova foi descoberta durante a implementação (os 40 RED de FVI-03 já mapeavam integralmente as lacunas reais; nenhum teste adicional de produção foi necessário). Uma correção de teste (não de comportamento) foi necessária:
+
+- `employees/tests/test_fvi03_list_visibility.py::FT02_SearchHidesInactiveForRestrictedRoles::test_name_search_for_restricted_role_does_not_find_inactive`: após o filtro de visibilidade entrar em vigor, a tabela de resultados passou a renderizar corretamente "Nenhum usuário encontrado" (o funcionário inativo foi excluído). O teste, porém, buscava pelo **nome exato** do funcionário oculto (`"Funcionario Inativo Oculto"`) como termo de busca — e o campo de busca reecoa o termo pesquisado no próprio `<input value="...">` (comportamento pré-existente de UX, não relacionado a FVI, não alterado por esta etapa). `assertNotContains` comparava contra o HTML inteiro da página, não contra a linha de resultado, e falhava por encontrar o eco no input, não uma linha de tabela. Confirmado por leitura do HTML da resposta: a `<tbody>` continha apenas o placeholder de ausência de resultado; a única ocorrência da string era o atributo `value` do campo de busca. Corrigido restringindo a asserção à célula de resultado real (`<td>Funcionario Inativo Oculto</td>`, formato exato renderizado por `templates/employees/employee_list.html:80`), sem alterar a asserção de intenção (ainda prova que a busca não encontra o inativo) nem o comportamento de produção. Mesma disciplina das duas correções de fixture já documentadas em FVI-03 (causa de desenho do teste, não aceitação de comportamento incorreto).
+
+### Implementation Plan — execução desta etapa
+
+1. **`employees/visibility.py` (novo)**: `VISIBILITY_EXEMPT_ROLES = (ADMIN, DEV)` (reaproveita `viewer_is_exempt` de `users/visibility.py`, mesma tupla, sem duplicar a regra de exceção de role); `visible_employees_queryset(viewer, queryset=None)`; `employee_is_visible(viewer, employee)`; e três helpers de Admin para o padrão FK `__keep_current__` (`resolve_employee_fk_keep_current`, `apply_keep_current_to_employee_formfield`, `wrap_admin_form_with_employee_keep_current`), compartilhados por `LineAllocationAdmin` e `AllocationPendencyAdmin` para evitar duplicar a regra em cada Admin (mesmo mecanismo já aprovado para `technical_responsible` em `AllocationPendencyAdmin._technical_responsible_field`).
+2. **`employees/views.py`**: `EmployeeListView._build_queryset` compõe `visible_employees_queryset` imediatamente após `scope_employee_queryset`, antes de busca/paginação/contagens (único ponto, compartilhado por render inicial e AJAX). `EmployeeUpdateView.get_queryset` compõe a mesma função; `Http404` nativo de `SingleObjectMixin.get_object` cobre GET/POST/404 sem hook adicional, reavaliado a cada requisição (GET e POST chamam `get_queryset()` independentemente, sem cache de instância).
+3. **`employees/admin.py`**: `EmployeeAdmin.get_queryset` compõe `visible_employees_queryset` sobre `scope_employee_queryset`; `_get_obj_does_not_exist_redirect` novo (mesmo hook genérico de `ModelAdmin` já comprovado em `SystemUserAdmin`, UVI-04) levanta `Http404` para change/delete/history do objeto oculto, em vez do redirecionamento padrão. Changelist/busca/contagem/ações em lote alcançam o filtro automaticamente via `get_queryset`.
+4. **`allocations/admin.py` (`LineAllocationAdmin`)**: `formfield_for_foreignkey` ganha ramo para `"employee"` (`_employee_field`), usando `resolve_employee_fk_keep_current` + `apply_keep_current_to_employee_formfield`; `get_form` novo aplica `wrap_admin_form_with_employee_keep_current` ao `initial`. `_visible_author_queryset` (campos de autoria `allocated_by`/`released_by`, inalterado em comportamento) foi refatorado para reaproveitar o novo `_persisted_fk_id` compartilhado, em vez de resolver `object_id` inline — redução de duplicação, sem mudança de comportamento (cobertura de controle FT20 confirma).
+5. **`pendencies/admin.py` (`AllocationPendencyAdmin`)**: mesmo padrão do item 4 (`_employee_field`, `_masked_employee_pk`), reaproveitando o `_persisted_fk_id` já existente no arquivo. `get_form` existente (que já tratava `technical_responsible`) foi generalizado para um dicionário `masked_fields`, acrescentando `"employee"` quando mascarado, sem alterar o tratamento já aprovado de `technical_responsible`/`updated_by`.
+6. **`pendencies/views.py` (`PendencyDetailView.get`)**: nova função `_employee_has_eligible_pendency_or_allocation(employee)` (pendência OU alocação ativa existente, consulta sobre dados persistidos) chamada apenas quando `employee_is_visible` é falso — funcionário visível segue o fluxo normal sem o portão; funcionário oculto sem nenhum dos dois vínculos recebe `Http404` antes de `_get_or_create_pendency`, sem leitura/escrita adicional. Validação pré-existente de `allocation_id` explícito (pertencer ao funcionário, estar ativo) não foi tocada — continua depois do portão, na mesma posição.
+7. **`dashboard/views.py` (`daily_user_action_board`)**: `employees_qs` (linha ~1943, único ponto de origem, reutilizado por GET e pela resolução do `employee_id` do POST) passa a compor `visible_employees_queryset(request.user, employees_qs)` imediatamente após a chamada original — uma única mudança cobre as duas pontas (GET `rows` e POST).
+8. **`dashboard/services/action_board_metrics_service.py` (`summarize_action_board_responsibles`)**: consulta independente (não herda a correção da view) — mesma composição `visible_employees_queryset` aplicada separadamente sobre o `employees_qs` local, antes de `build_daily_user_action_rows`.
+9. Correção do teste FT02 documentada acima (causa de desenho, não de produto).
+10. `manage.py check`, `manage.py makemigrations --check --dry-run` e `git diff --check`.
+11. Esta atualização de spec.
+
+Nenhuma mudança em `scope_employee_queryset`, `get_supervised_employees_queryset`, managers globais (`Employee.objects`/`all_objects`), `is_deleted` ou qualquer `models.py`.
+
+### Test Checklist — execução e resultado por node ID
+
+Comando por arquivo e agregado: `./venv/Scripts/python.exe -m pytest <arquivo(s)> -q --tb=short [-v]` (Windows, venv do projeto; mesma ressalva de FVI-03 sobre `ModuleNotFoundError` sem o venv).
+
+| Requisito | Node IDs (classe) | Antes (FVI-03) | Depois (FVI-04) |
+|---|---|---|---|
+| 1 — Lista/AJAX/contagens | FT01–FT06 | 9 RED / 5 GREEN | 15 GREEN |
+| 2/8 — Acesso direto GET/POST, reavaliação | FT07–FT09 | 5 RED / 5 GREEN | 10 GREEN |
+| 9 — Exclusão lógica/histórico/escopo (controle) | FT10–FT11 | 0 RED / 3 GREEN | 3 GREEN |
+| 3 — Admin Employee (changelist/busca/contagem/direto/lote/is_staff) | FT12–FT15 | 9 RED / 7 GREEN | 16 GREEN |
+| 4 — FK employee LineAllocationAdmin | FT16–FT20 | 5 RED / 4 GREEN | 9 GREEN |
+| 4 — FK employee AllocationPendencyAdmin | FT21–FT24 | 5 RED / 2 GREEN | 7 GREEN |
+| 7 — Exceção de elegibilidade de pendências | FT25–FT27 | 2 RED / 7 GREEN | 9 GREEN |
+| 5/8 — Ações do Dia GET/POST/reavaliação | FT29–FT31 | 3 RED / 3 GREEN | 6 GREEN |
+| 6 — Paridade do resumo de responsáveis | FT32 | 2 RED / 1 GREEN | 3 GREEN |
+| **Total** | **79 nodes** | **40 RED / 39 GREEN** | **79 GREEN** |
+
+Regressão agregada (`employees allocations pendencies dashboard/tests users`, excluindo `dashboard/tests.py` — colisão de nome pré-existente desde UVI-03, não corrigida, mesma decisão mantida): **552 passed + 23 subtests passed, 0 failed**, em 669,83s. 552 = 512 já PASSED no baseline + 40 RED→GREEN desta etapa. Mantido o mesmo conjunto coletado, a decomposição é 473 testes anteriores à FVI + 79 testes FVI (39 GREEN de controle + 40 RED→GREEN). Os 23 subtestes ficam separados; os 79 focados não são somados novamente ao agregado.
+
+### Test Strategy
+
+SDD/TDD real: baseline (79 nodes = 40 FAILED + 39 PASSED) reconfirmado por execução antes de qualquer alteração de produção, não presumido a partir de resumo anterior. Nenhum teste de produto foi modificado para acomodar comportamento incorreto; a única edição de teste (FT02) tem causa documentada (eco pré-existente do campo de busca, comportamento de produção correto) e preserva a asserção de intenção. Nenhum nome de helper citado no contrato foi inventado (`KEEP_CURRENT_TOKEN`/`KEEP_CURRENT_LABEL` reaproveitados de `users/visibility.py`; `employees/visibility.py`/`visible_employees_queryset`/`employee_is_visible` são os nomes já fixados em FVI-02). `Client`/`force_login` reais; estado persistido verificado além do status HTTP em todos os testes de mutação (refresh_from_db, `.exists()`/`.count()`). Banco de teste isolado (pytest-django); nenhum acesso a PRD nem a banco de desenvolvimento. PostgreSQL não foi necessário (FT09/FT31 testam reavaliação por requisição via `get_queryset`/`employees_qs` relidos, não locking de banco — nenhuma garantia de concorrência específica foi alegada). Nenhuma aceitação visual via Django Client foi declarada; navegador real fica em FVI-05, não iniciada.
+
+### Compliance Report
+
+`manage.py check`: **"System check identified no issues (0 silenced)."** `manage.py makemigrations --check --dry-run`: reporta drift em `dashboard` (`DailyUserAction.action_type`) e `telecom` (`PhoneLine.origem`) — **pré-existente, não introduzido por esta etapa**: nenhum `models.py` foi alterado nesta implementação (confirmado por `git status` dos apps tocados: só `admin.py`/`views.py`/`services/*.py`/`visibility.py` novo/testes); drift não relacionado a `Employee` nem a qualquer campo tocado aqui. `git diff --check`: sem conflito de whitespace introduzido por esta etapa (mesmo aviso pré-existente de CRLF/LF em arquivo alheio já registrado em FVI-03).
+
+Nenhum manager global, `scope_employee_queryset`, `get_supervised_employees_queryset`, `is_deleted`, autenticação ou permissão foi alterado. Nenhuma migration foi criada (nenhuma mudança de schema). A exceção aprovada de pendências (pendência ou alocação ativa preserva acesso de funcionário inativo, inclusive podendo chegar a um par ainda ausente via `get_or_create`) foi implementada exatamente como fechada em FVI-02, sem ampliar autorização nem desabilitar POR/responsabilidade técnica — `_load_locked_pendency_for_scope`/`PendencyUpdateView` (F19) não foram tocados. A representação neutra "Manter vínculo atual" nos Admins de Alocações/Pendências nunca reinclui nome/PK oculto nas choices; o token é resolvido exclusivamente a partir do vínculo persistido no registro aberto (via `object_id` da URL, nunca de dado do cliente). `PhoneLineUpdateForm` permanece fora do escopo desta entrega, conforme decisão C já aprovada (tarefa separada, não corrigida aqui). Nenhum stage, commit, push, versão ou deploy foi realizado nesta etapa; nenhum acesso a PRD.
+
+**Lacunas/limitações reservadas para FVI-05 (não cobertas nem eram escopo desta etapa):**
+- Aceite com navegador real (GERENTE/ADMIN, desktop/mobile, carga dinâmica via AJAX), revisão de diff e plano de deploy/rollback.
+- Comprovação end-to-end visual da coexistência "oculto na lista, mas acessível via exceção de pendência" (FT26 vs. FT01–03) — comprovada isoladamente por rota nesta etapa (Django Client), não por navegador.
+- `telecom/forms.py::PhoneLineUpdateForm` — limitação pré-existente, tarefa separada (decisão C), não tocada.
+- `dashboard/tests.py` (módulo legado) permanece não coletável junto de `dashboard/tests/` por colisão de nome pré-existente — decisão mantida desde UVI-03, não repetida aqui.
+
+**Veredito: FVI-04 concluída.** Os 79 testes focados de FVI-03 estão GREEN (40 RED→GREEN, 39 GREEN de controle preservados), sem alterar nenhuma asserção substantiva — apenas uma correção de teste com causa documentada (eco de UI, não comportamento). Regressão agregada de 552 passed + 23 subtests, 0 failed, nos 5 apps tocados. Nenhuma migration, manager global ou escopo organizacional alterado. Próxima etapa é FVI-05 (aceite real com navegador), **não iniciada nesta tarefa** — parar aqui, conforme instrução recebida. Sem stage, commit, push, versão, deploy ou acesso a PRD.
+
+
+### Retificação documental das contagens FVI-04 — 2026-10-15
+
+**Spec Summary / Gap Analysis:** corrigidas as duas ocorrências de “512 preexistentes”: o número inclui 39 controles GREEN criados em FVI-03. A decomposição 473 + 79 = 552 é aritmética sobre os resultados registrados, condicionada à manutenção do mesmo conjunto coletado; não constitui nova auditoria de node IDs.
+
+**Implementation Plan / Test Checklist:** redação corrigida nas seções Summary e Test Checklist; subtestes mantidos separados, sem dupla soma dos testes focados. O Compliance Report da ressalva de FVI-03 estava deslocado após FVI-04; foi recolocado na seção original para que “FVI-04 permanece não iniciada” conserve seu contexto histórico, sem contradizer a entrega posterior.
+
+**Test Strategy:** edição exclusivamente documental; nenhuma suíte ou coleta reexecutada, nenhum veredito técnico novo sobre a implementação.
+
+**Compliance Report:** somente esta spec alterada nesta correção. Código e testes preservados; sem stage, commit, push ou deploy. Revisão do diff de implementação e aceite em navegador permanecem etapas posteriores.
+
+## FVI-04b — Fechamento da lacuna de cobertura apontada na revisão (2026-10-15)
+
+### Spec Summary
+
+A revisão sênior de FVI-04 não confirmou nenhum defeito de produto, mas apontou uma lacuna de cobertura: o mecanismo `__keep_current__` do FK `employee` nos Admins de Alocações/Pendências (F16/F17) não tinha nenhum teste permanente exercitando POST de **criação** — só o queryset de escolhas era verificado via GET (FT16/FT21). O probe temporário usado na própria revisão para investigar a suspeita cobriu apenas `LineAllocationAdmin`, foi descartado ao final (removido do working tree, nunca persistido no repositório) e seu resultado não foi extrapolado para `AllocationPendencyAdmin`. Esta etapa fecha a lacuna com testes permanentes equivalentes para os DOIS Admins, sem alterar nenhum arquivo de produção, e fortalece a asserção de `FT02` (busca não encontra inativo) contra falso GREEN por coincidência de markup. Escopo: testes e esta spec, nada mais.
+
+### Gap Analysis
+
+Três cenários por Admin (seis casos executáveis), todos usando viewer restrito (`SUPER`, role sem a exceção `VISIBILITY_EXEMPT_ROLES`) com permissões técnicas completas do app e dados dentro do escopo organizacional correto (mesmo padrão de fixture já usado por FT16-FT24, sem flags técnicas substituindo a regra de role):
+
+| Cenário | `LineAllocationAdmin` | `AllocationPendencyAdmin` |
+|---|---|---|
+| a) Criação com `employee="__keep_current__"`, sem vínculo persistido | FT33 | FT36 |
+| b) Criação com PK real de funcionário inativo oculto (sem vínculo) | FT34 | FT37 |
+| c) Edição com `employee="__keep_current__"` quando o vínculo persistido já é ATIVO/visível | FT35 | FT38 |
+
+Causa técnica confirmada por leitura de `employees/visibility.py::resolve_employee_fk_keep_current`: `masked_id` só é definido quando existe `persisted_employee_id` E esse vínculo está oculto para o viewer. Nos três cenários acima não há essas duas condições simultâneas (a/b: sem `object_id` na criação, `persisted_employee_id` é `None`; c: vínculo existe mas já é visível) — `apply_keep_current_to_employee_formfield` retorna o `formfield` sem sobrescrever `to_python`, então o valor submetido (token ou PK real oculta) cai na validação padrão de `ModelChoiceField.to_python`, que falha com `ValidationError` por não estar no queryset/não ser uma PK válida. Hipótese confirmada por execução real nos seis casos, não presumida da leitura do código.
+
+### Implementation Plan — execução desta etapa
+
+1. `allocations/tests/test_fvi03_employee_fk_admin.py`: adicionado helper `_make_phone_line(suffix)` (linha extra isolada por teste, evita colisão com `self.phone_line`/`self.allocation` da fixture base) e três classes novas — `FT33_CreateWithKeepCurrentTokenIsRejected`, `FT34_CreateWithForgedHiddenInactivePkIsRejected`, `FT35_EditWithKeepCurrentTokenOnVisibleActiveLinkIsRejected` — cada uma com o teste de rejeição e um controle positivo pareado (mesmo fluxo/payload, mudando só o campo `employee`, para provar que a rejeição é da regra sob teste e não de fixture/permissão).
+2. `pendencies/tests/test_fvi03_employee_fk_admin.py`: três classes equivalentes — `FT36`, `FT37`, `FT38` — mesma estrutura (rejeição + controle positivo pareado), reaproveitando a fixture existente (`self.pendency` ligado a `inactive_linked_employee`; novo `AllocationPendency` criado em `FT38.setUp` para o cenário de vínculo já ativo/visível, respeitando a `UniqueConstraint` `uq_pendency_employee_without_allocation` por usar um `employee` diferente do de `self.pendency`).
+3. `employees/tests/test_fvi03_list_visibility.py::FT02`: teste `test_name_search_for_restricted_role_does_not_find_inactive` fortalecido. Verificação primária passou a inspecionar `response.context["initial_employees"]` (dado real do servidor, imune a qualquer mudança de markup) em vez de só uma string HTML literal; adicionadas as asserções de que a linha de "sem resultado" (`id="no-data-employees"`) está presente (prova que a tabela está genuinamente vazia) e de que o eco esperado no campo de busca (`value="Funcionario Inativo Oculto"`) de fato ocorre (distinguindo-o explicitamente da ausência na tabela, em vez de deixar essa distinção implícita). A asserção original (`<td>...</td>`) foi preservada como sinal secundário, não removida — a intenção do teste (provar que a busca não encontra o inativo) não foi alterada, apenas blindada contra um falso GREEN por coincidência de markup no `<td>`.
+4. Nenhum arquivo de produção alterado (confirmado por `git status` ao final: só os três arquivos de teste acima estão no diff desta etapa).
+5. Execução: cada arquivo isolado, depois a suíte focada completa, depois regressão agregada dos apps tocados, `manage.py check`, `git diff --check`.
+
+Nenhum defeito de produto foi encontrado durante a escrita ou execução destes testes — os seis casos novos (e seus seis controles pareados) ficaram GREEN diretamente, confirmando por execução real a hipótese já levantada por inspeção na revisão anterior (mecanismo correto, lacuna era só de cobertura).
+
+### Test Checklist — execução e resultado por node ID
+
+| Admin | Cenário | Node ID (classe) | Métodos | Resultado |
+|---|---|---|---|---|
+| `LineAllocationAdmin` | a) Criação + token | FT33 | `test_restricted_viewer_create_with_keep_current_token_is_rejected`, `test_restricted_viewer_create_with_valid_active_employee_is_accepted_as_control` | GREEN (2/2) |
+| `LineAllocationAdmin` | b) Criação + PK inativa forjada | FT34 | `test_restricted_viewer_create_with_forged_inactive_pk_is_rejected`, `test_admin_viewer_create_with_same_inactive_pk_is_accepted_as_control` | GREEN (2/2) |
+| `LineAllocationAdmin` | c) Edição de vínculo já ativo + token | FT35 | `test_restricted_viewer_edit_active_link_with_keep_current_token_is_rejected`, `test_restricted_viewer_edit_active_link_with_real_pk_is_accepted_as_control` | GREEN (2/2) |
+| `AllocationPendencyAdmin` | a) Criação + token | FT36 | `test_restricted_viewer_create_with_keep_current_token_is_rejected`, `test_restricted_viewer_create_with_valid_active_employee_is_accepted_as_control` | GREEN (2/2) |
+| `AllocationPendencyAdmin` | b) Criação + PK inativa forjada | FT37 | `test_restricted_viewer_create_with_forged_inactive_pk_is_rejected`, `test_admin_viewer_create_with_same_inactive_pk_is_accepted_as_control` | GREEN (2/2) |
+| `AllocationPendencyAdmin` | c) Edição de vínculo já ativo + token | FT38 | `test_restricted_viewer_edit_active_link_with_keep_current_token_is_rejected`, `test_restricted_viewer_edit_active_link_with_real_pk_is_accepted_as_control` | GREEN (2/2) |
+
+Cada teste de rejeição comprova, sobre a resposta real (não só o código HTTP): erro especificamente no campo `employee` (`"employee" in form.errors`, `form.is_valid() is False`); ausência de criação/alteração persistida (inclusive campos acompanhantes como `phone_line`, verificados por `refresh_from_db`/`.exists()`/`.count()`); e ausência de identidade do funcionário oculto no HTML de redisplay (`assertNotContains` do `full_name`). HTTP 200 isolado nunca foi tratado como prova suficiente.
+
+**Contagem reconciliada (confirmada por coleta, não imposta):** a suíte focada FVI, antes desta etapa, tinha 79 nodes (baseline de FVI-03/04). Esta etapa adiciona **12 nodes novos** — não 6: cada um dos seis cenários recebeu um teste de rejeição **e** um controle positivo pareado (exigido explicitamente pela tarefa — "usar controles positivos existentes ou acrescentá-los quando necessários"), e nenhum controle equivalente já existia para estes seis cenários específicos de criação/vínculo-já-ativo. Coleta real: `pytest <7 arquivos FVI> -q -v` → **91 coletados, 91 passed, 0 failed, 0 subtests, 0 skipped** (79 + 12). `FT02` fortalecido não alterou a contagem de nodes do seu arquivo (mesmo método, mais asserções).
+
+Regressão agregada (`employees allocations pendencies dashboard/tests users`, mesmo recorte de FVI-03/04, excluindo `dashboard/tests.py` por colisão de nome pré-existente, decisão mantida desde UVI-03): **564 passed + 23 subtests passed, 0 failed**, em 630,30s — 552 do baseline de FVI-04 + 12 novos desta etapa. Nenhuma suíte sobreposta foi somada; os 91 nodes focados não são somados de novo ao agregado.
+
+### Test Strategy
+
+Mesma disciplina de FVI-03/04: `Client`/`force_login` reais (viewer `SUPER` com permissões técnicas completas via `user_permissions.set(Permission.objects.filter(content_type__app_label=...))`, nunca mock da política); estado persistido verificado além do status HTTP em todos os doze testes novos (`refresh_from_db`, `.exists()`, `.count()`); controle positivo pareado em cada um dos seis cenários, usando o MESMO payload/fluxo com apenas o campo `employee` trocado, para isolar a causa da rejeição da hipótese de fixture/permissão quebrada. Banco de teste isolado (pytest-django); nenhum acesso a PRD nem a banco de desenvolvimento. Nenhum teste de produção foi modificado para acomodar os novos testes — só os três arquivos de teste listados no Implementation Plan. Diferença explícita em relação ao probe da revisão anterior: aquele era descartável, de uso único, nunca commitado nem referenciado por outro teste, e cobriu só `LineAllocationAdmin`; estes doze são testes permanentes (nenhum commit realizado nesta tarefa — "permanentes" refere-se a arquivos no working tree, reexecutáveis, não a terem sido commitados), cobrindo os dois Admins separadamente, sem extrapolar o resultado de um para o outro. Navegador real permanece reservado para FVI-05, não executado aqui.
+
+### Compliance Report
+
+`manage.py check`: **"System check identified no issues (0 silenced)."** `git diff --check`: sem conflito de whitespace introduzido nesta etapa (mesmo aviso pré-existente de CRLF/LF em `docs/superpowers/specs/2026-09-10-line-daily-action-audit-design.md`, arquivo alheio, já registrado em etapas anteriores). `git status` confirma que só os três arquivos de teste citados no Implementation Plan foram alterados nesta etapa — nenhum arquivo de produção (`employees/visibility.py`, `*/admin.py`, `*/views.py`, `*/services/*.py`) foi tocado. Nenhuma migration, manager global, escopo organizacional, autenticação ou permissão de rota foi alterada. Nenhum defeito de produto foi encontrado: os seis cenários da revisão ficaram GREEN diretamente, confirmando por execução real o que a revisão anterior já havia verificado por inspeção de código e por probe temporário (agora substituído por cobertura permanente, sem extrapolação entre os dois Admins). Nenhum stage, commit, push, versão, deploy ou acesso a PRD nesta etapa.
+
+**Veredito: lacuna de cobertura fechada.** Os seis cenários pedidos (três por Admin) estão cobertos por testes permanentes, cada um com rejeição comprovada no campo `employee` sobre estado persistido (não só HTTP 200) e controle positivo pareado. `FT02` fortalecido contra falso GREEN por markup, sem alterar produção nem a intenção original do teste. Suíte focada: 91 passed, 0 failed (79 + 12). Regressão agregada: 564 passed + 23 subtests, 0 failed (552 + 12). `manage.py check` e `git diff --check` sem problemas novos. **FVI-05 pode começar** — nenhum bloqueio pendente desta rodada; aceite em navegador real, GERENTE/ADMIN, desktop/mobile, revisão de diff final e plano de deploy/rollback continuam sendo o escopo de FVI-05, não iniciado aqui.
+
+
+## FVI-05 — Aceite real em navegador e revisão integrada (2026-10-15)
+
+### Spec Summary
+
+Execução de FVI-05 conforme contrato consolidado em FVI-01/FVI-02 ("Fechamento
+após respostas explícitas") e implementação de FVI-04/FVI-04b. Escopo:
+aceite em navegador real (desktop/390px/360px), revisão integrada do diff e
+regressão, documentação final. Baseline informado reconfirmado por execução
+antes de qualquer verificação nova: suíte focada FVI (7 arquivos) **91
+passed, 0 failed**; regressão agregada (`employees allocations pendencies
+dashboard/tests users`) **564 passed + 23 subtests passed, 0 failed**,
+idêntico ao registrado em FVI-04b. Nenhum código de produção foi alterado
+nesta etapa — somente leitura de código, dataset sintético descartável,
+scripts/evidências de aceite e esta spec.
+
+Evidência completa (ambiente, dataset, scripts, resultados, screenshots
+sanitizados) em `docs/superpowers/evidence/2026-10-15-fvi05/`
+(`report.md` + `*.js`/`*.py` + `*_results.json` + `screenshots/`).
+
+### Gap Analysis
+
+Nenhuma lacuna de produção nova foi encontrada. Uma suspeita de vazamento de
+identidade foi investigada e **descartada como não-defeito** (ver
+`report.md`, seção "Investigação de um achado aparente"): o `<title>`/
+`subtitle` do Django Admin para `LineAllocation`/`AllocationPendency` exibe
+`str(obj)` (inclui o nome do `employee`) em **qualquer** GET normal e na
+changelist, não apenas no redisplay inválido — comportamento uniforme,
+pré-existente ao redisplay-com-erro, e consistente com a decisão já fechada
+em FVI-02 de que a FVI mascara identidade **apenas no `<select>` do campo
+`employee`** (decisão B), não em representações somente-leitura de um
+registro que o viewer já está autorizado a abrir pela exceção de
+pendência/alocação existente. Evidência comparativa (GET normal mostra o
+mesmo conteúdo) confirma que não é introduzido pelo redisplay, nem pela FVI.
+Duas correções de **metodologia do próprio script de teste em navegador**
+foram necessárias (não do produto), documentadas em `report.md`: checagem de
+ausência antes de esgotar a paginação (falso-FAIL) e expectativa trocada
+para ADMIN (isento de UVI, deve ver o e-mail real do supervisor de login
+inativo, não o rótulo mascarado).
+
+### Implementation Plan — execução desta etapa
+
+1. Preparação de ambiente isolado: banco Postgres descartável
+   (`lineops_fvi05_browser`, dentro do container `lineops-db` já existente,
+   removido ao final), servidor `runserver` dedicado (porta 8799, encerrado
+   ao final), dataset sintético (`seed_fvi05_browser.py`) cobrindo a matriz
+   de permissões completa (ativos/inativos dentro/fora de escopo, ativo com
+   supervisor de login inativo, inativo sem vínculo/com pendência/com
+   alocação ativa/com alocação liberada isolada, exclusão lógica, staff
+   restrito com permissões técnicas completas).
+2. Reexecução da suíte FVI (91 nodes) e da regressão agregada (564 passed +
+   23 subtests) **antes** de qualquer verificação em navegador — baseline
+   confirmado idêntico ao de FVI-04b.
+3. Aceite em navegador real (Playwright + Chrome do sistema, perfil isolado
+   por contexto): lista/busca/AJAX/contagens (desktop + 390/360px emulado +
+   sem JS + teclado), acesso direto GET/POST e POST forjado, `EmployeeAdmin`
+   (changelist/busca/change/delete/history, staff restrito vs. ADMIN),
+   `LineAllocationAdmin`/`AllocationPendencyAdmin.employee` (opções, token
+   `__keep_current__`, submissão real de manter/trocar/redisplay inválido,
+   persistência confirmada no banco), exceção de elegibilidade de pendências
+   (matriz completa: sem vínculo, com pendência, com alocação ativa e par
+   ausente, com alocação liberada isolada, `allocation_id` de outro
+   funcionário), Ações do Dia (GET/POST, ADMIN vs. restrito), coexistência
+   UVI×FVI (funcionário ativo com supervisor de login inativo).
+4. Investigação do achado aparente de vazamento de identidade no
+   `<title>`/`subtitle` do Admin, com reprodução e evidência comparativa
+   **antes** de qualquer alteração — concluído como não-defeito (ver Gap
+   Analysis acima); nenhum código de produção alterado.
+5. `manage.py check`, `git diff --check`, `git status` (confirmação de que
+   nenhum arquivo de produção foi tocado nesta etapa).
+6. Limpeza de recursos: banco descartável removido, servidor dedicado
+   encerrado, containers/bancos preexistentes (`lineops-db`, `lineops`,
+   `test_lineops`, `postgres`) confirmados intactos antes/depois.
+7. Esta atualização de spec.
+
+### Test Checklist — execução e resultado
+
+Ver matriz completa requisito → cenário → papéis → evidência → resultado em
+`docs/superpowers/evidence/2026-10-15-fvi05/report.md`. Resumo:
+
+| Fase | Cobertura | Resultado |
+|---|---|---|
+| A | Lista/busca/AJAX/contagens, 4 papéis, desktop | 50/50 PASS |
+| B | 390px/360px emulado, sem JS, teclado, console | 20/20 PASS |
+| C | Acesso direto GET/POST/forjado; `EmployeeAdmin`; FK `employee` (opções) | 32/32 PASS |
+| D | Submissão real no Admin (manter/trocar/redisplay inválido) + persistência | 7/7 PASS |
+| E | Exceção de pendências (matriz completa) + Ações do Dia GET/POST + persistência | 12/12 PASS |
+| F | Coexistência UVI×FVI (ativo com supervisor de login inativo) | 4/4 PASS |
+| **Total** | **125 verificações em navegador real** | **125/125 PASS** |
+
+Persistência real no banco (não só HTTP) confirmada por script Python
+independente (`verify_phaseE_persistence.py`, `verify_seed.py`) para: troca
+de vínculo FK no Admin, criação do par pendência/alocação quando elegível,
+ausência de criação quando inelegível, ausência de `DailyUserAction` por
+POST forjado.
+
+### Test Strategy
+
+Navegador real (Playwright controlando Chrome instalado, não o Django test
+client) para todo aceite de interface; `Client`/requisições HTTP reais via
+`page.request` (compartilha cookies/sessão do `context`, perfil isolado por
+papel) para os cenários de API/forjados. Estado persistido verificado além
+do status HTTP em todos os cenários de mutação/exceção de elegibilidade.
+Banco Postgres descartável isolado do banco de desenvolvimento/produção.
+`runserver` registrado como limitação (não comprova Nginx/Gunicorn).
+PostgreSQL usado como engine do banco descartável, mas nenhuma garantia de
+concorrência específica foi alegada nesta rodada (reavaliação por requisição
+já provada pela suíte automatizada, `FT09`/`FT31`). Toque em 390/360px
+rotulado explicitamente como emulado. Nenhum teste de produção foi
+modificado; dois ajustes de metodologia do script de aceite (paginação e
+expectativa de ADMIN isento) documentados com causa.
+
+### Compliance Report
+
+`manage.py check`: **"System check identified no issues (0 silenced)."**
+`git diff --check`: sem conflito de whitespace introduzido nesta etapa
+(mesmo aviso pré-existente de CRLF/LF em
+`docs/superpowers/specs/2026-09-10-line-daily-action-audit-design.md`,
+arquivo alheio). `git status` confirma que **nenhum arquivo de produção foi
+alterado** nesta etapa — os `M` existentes (`allocations/admin.py`,
+`dashboard/views.py`, `dashboard/services/action_board_metrics_service.py`,
+`employees/admin.py`, `employees/views.py`, `pendencies/admin.py`,
+`pendencies/views.py`) já vinham de FVI-04/FVI-04b, antes desta tarefa.
+Nenhuma migration, manager global, escopo organizacional, autenticação ou
+permissão de rota foi alterada. Nenhum stage, commit, push, versão, deploy
+ou acesso a PRD nesta etapa. Recursos descartáveis (banco
+`lineops_fvi05_browser`, servidor porta 8799) criados e encerrados somente
+por esta tarefa; recursos preexistentes do usuário (`lineops-db`, `postgres`,
+demais containers, sessões) confirmados intactos antes e depois.
+
+Um achado aparente (vazamento de identidade no `<title>`/`subtitle` do
+Admin) foi investigado com reprodução e evidência comparativa antes de
+qualquer decisão, e **concluído como não-defeito** — comportamento uniforme
+e pré-existente, dentro do escopo de mascaramento já aprovado (apenas o
+`<select>` do campo `employee`, não representações somente-leitura). Nenhum
+código de produção foi alterado em consequência.
+
+### Arquivos candidatos à entrega
+
+Produção (já modificados por FVI-04/FVI-04b, confirmados sem alteração
+adicional nesta etapa): `employees/visibility.py` (novo),
+`employees/admin.py`, `employees/views.py`, `allocations/admin.py`,
+`pendencies/admin.py`, `pendencies/views.py`, `dashboard/views.py`,
+`dashboard/services/action_board_metrics_service.py`.
+
+Testes (criados em FVI-03/FVI-03-cobertura, confirmados sem alteração
+adicional nesta etapa): `employees/tests/test_fvi03_list_visibility.py`,
+`employees/tests/test_fvi03_direct_access.py`,
+`employees/tests/test_fvi03_admin_visibility.py`,
+`allocations/tests/test_fvi03_employee_fk_admin.py`,
+`pendencies/tests/test_fvi03_employee_fk_admin.py`,
+`pendencies/tests/test_fvi03_pendency_access_exception.py`,
+`dashboard/tests/test_fvi03_action_board_visibility.py`.
+
+Documentação/evidência (esta etapa):
+`docs/superpowers/specs/2026-10-14-inactive-system-user-visibility-design.md`
+(esta spec, seção FVI-05) e
+`docs/superpowers/evidence/2026-10-15-fvi05/` (scripts, resultados,
+screenshots sanitizados, `report.md`).
+
+Nenhum arquivo fora desta lista foi alterado por qualquer etapa FVI.
+
+### Plano de deploy e rollback (documentado, não executado)
+
+**Pré-requisitos.** Nenhuma migration nova (confirmado: nenhum `models.py`
+alterado por FVI). Deploy é só código de aplicação (views/admin/services) +
+módulo novo `employees/visibility.py`.
+
+**Deploy.**
+1. Merge do branch após revisão final/aprovação (fora do escopo desta
+   tarefa — nenhum commit/push/merge executado aqui).
+2. Deploy padrão do projeto (sem passo adicional de migration/dado).
+3. Smoke pós-deploy mínimo: `/employees/` como GERENTE/SUPER/BACKOFFICE
+   real (não sintético) confirmando que funcionários inativos conhecidos
+   não aparecem e que os ativos continuam; `/employees/` como ADMIN
+   confirmando que nada deixou de aparecer para esse papel (regressão de
+   visibilidade ADMIN seria o sintoma mais rápido de um erro de composição
+   de queryset).
+4. Monitorar logs de erro (500) nas rotas tocadas por 24h: `/employees/`,
+   `/employees/<pk>/edit/`, `/admin/employees/employee/*`,
+   `/admin/allocations/lineallocation/*`,
+   `/admin/pendencies/allocationpendency/*`, `/pendencies/api/detail/`,
+   `/indicadores/acoes-dia/`.
+
+**Rollback.** Reverter o(s) commit(s) desta feature (sem migration a
+desfazer). Como a composição é sempre "escopo existente + filtro adicional"
+(nunca substitui managers globais nem altera `scope_employee_queryset`),
+revertê-la apenas devolve o comportamento anterior (UVI permanece intacta,
+não é afetada pelo rollback de FVI). Nenhum dado é perdido ou precisa ser
+migrado de volta — `Employee.status` nunca foi escrito por esta feature,
+apenas lido.
+
+**Critério de bloqueio de deploy.** Nenhum identificado nesta rodada: 91/91
+testes focados GREEN, 564 passed + 23 subtests na regressão, 125/125
+verificações de navegador real, `manage.py check` limpo, nenhum arquivo de
+produção alterado além do já registrado em FVI-04/04b.
+
+### Veredito
+
+**FVI-05 concluída. Pronto para revisão final/preparação de commit.**
+Nenhum bloqueio concreto identificado. Sem stage, commit, push, versão,
+deploy ou acesso a PRD nesta tarefa — conforme instrução recebida, a etapa
+para aqui.
+
+**Retificação (ver seção "FVI-05 — Conferência corretiva da revisão final"
+abaixo):** este veredito "sem bloqueios" foi retificado após a conferência
+corretiva da revisão final — uma ambiguidade contratual material foi
+identificada e permanece pendente de decisão explícita antes da
+preparação de commit.
+
+
+## FVI-05 — Conferência corretiva da revisão final (2026-10-15)
+
+### Spec Summary
+
+Revisão do diff FVI completo (produção + testes) e das ressalvas da
+entrega FVI-05, antes da preparação de commit. Escopo: revisão,
+verificações proporcionais e retificação documental — nenhuma correção de
+código de produção nesta conferência. Fonte de verdade reconferida por
+leitura direta (`git diff HEAD`), não por resumo de entrega anterior.
+Evidência completa em `docs/superpowers/evidence/2026-10-15-fvi05/`
+(`report.md`, seção "Conferência corretiva da revisão final").
+
+Resultado: nenhum defeito de produto confirmado dentro do contrato já
+fechado. Uma **ambiguidade contratual material** foi identificada
+(exposição de identidade de funcionário inativo fora do `<select>`
+mascarado, em `LineAllocationAdmin`/`AllocationPendencyAdmin`, para viewer
+restrito) e permanece sem resolução — requer decisão explícita antes de
+declarar a entrega livre de pendências. Três lacunas de evidência foram
+encontradas e corrigidas nesta própria conferência (resultado salvo
+inconsistente com o relato, bug de reprodução do script de seed, PK
+hardcoded dependente de ordem de inserção). Uma quarta lacuna de evidência
+foi identificada e documentada, não corrigida (checagem vácua por viewer
+de escopo vazio no changelist do `EmployeeAdmin`).
+
+### Gap Analysis
+
+Ver matriz completa de achados, por severidade, com arquivo/linha,
+cenário/viewer, evidência reproduzida, preexistência em HEAD e correção
+mínima recomendada, em
+`docs/superpowers/evidence/2026-10-15-fvi05/report.md` (seção
+"Conferência corretiva da revisão final"). Resumo:
+
+| # | Achado | Classificação | Estado |
+|---|---|---|---|
+| 1 | Identidade do funcionário inativo exposta em `<title>`/subtítulo/breadcrumb/changelist de `LineAllocationAdmin`/`AllocationPendencyAdmin`, fora do `<select>` mascarado, para viewer restrito | Ambiguidade contratual | **Não resolvida** — requer decisão explícita |
+| 2 | `phaseD_results.json` salvo continha 1 FAIL não refletido na alegação "7/7 PASS" do relato (execução duplicada contaminou o resultado salvo) | Lacuna de evidência | Corrigida nesta conferência (7/7 PASS reconfirmado em execução única e limpa) |
+| 3 | Bug no `seed_fvi05_browser.py` (ordem `released_at`/`allocated_at`) impedia reprodução do dataset do zero sem patch manual não versionado | Lacuna de evidência | Corrigida nesta conferência |
+| 4 | PK de `LineAllocation` hardcoded em `fvi05_phaseD_admin_submit.js`, dependente da ordem de inserção do seed, quebrou silenciosamente após a correção do item 3 | Lacuna de evidência | Corrigida nesta conferência (PK atualizado + checagem defensiva) |
+| 5 | Verificação de changelist do `EmployeeAdmin` para viewer restrito (Fase C) usa um viewer (`super.staff`) com escopo organizacional vazio — PASS tecnicamente verdadeiro, mas vácuo para a alegação "oculta inativo, mostra ativo" | Lacuna de evidência | **Não corrigida** — regra já provada por camada equivalente (pytest `FT12` + Fases A/B), recomendação registrada |
+| 6 | Duas queries idênticas por requisição de change-form (`_persisted_fk_id` chamado duas vezes para o mesmo campo) | Nota de eficiência, não bloqueante | Comportamento conforme, oportunidade de simplificação menor |
+
+Itens explicitamente confirmados **conformes** nesta conferência (código
+lido diretamente, não presumido): exceção de elegibilidade de pendências
+(`_employee_has_eligible_pendency_or_allocation`, alocação liberada
+isolada corretamente excluída), ordem de resolução em
+`PendencyDetailView.get` (escopo → elegibilidade → validação de
+`allocation_id` → criação), `_load_locked_pendency_for_scope`/
+`PendencyUpdateView` intocados, token `__keep_current__` resolvido
+exclusivamente a partir do `object_id` da URL, ausência de atributos
+`self.*` mutáveis nas classes `ModelAdmin` tocadas (sem risco de estado
+compartilhado entre requisições), `visible_employees_queryset`/
+`employee_is_visible` como funções puras sem N+1, UVI/escopo
+organizacional/managers globais/históricos/relatórios preservados (nenhum
+desses arquivos no diff de produção), Ações do Dia e
+`summarize_action_board_responsibles` tratados por chamadas separadas e
+independentes (sem herança implícita), `PhoneLineUpdateForm` confirmado
+intocado (decisão C).
+
+### Implementation Plan recomendado
+
+1. Submeter o achado 1 (ambiguidade contratual) para decisão explícita do
+   usuário: manter o escopo atual do mascaramento (apenas o `<select>`,
+   leitura literal da decisão B) ou estender para `subtitle`/título/
+   changelist nos dois Admins de coexistência (`LineAllocationAdmin`,
+   `AllocationPendencyAdmin`). Nenhuma das duas opções deve ser presumida
+   silenciosamente.
+2. Se a decisão for estender o mascaramento: implementar via
+   `render_change_form` (override pontual de `context["subtitle"]` quando
+   `_masked_employee_pk(request) is not None`) e composição equivalente em
+   `get_list_display`/`allocation_display`; cobrir com teste RED→GREEN
+   permanente antes do código, mesma disciplina de FVI-03/04/04b; revalidar
+   em navegador real e regressão proporcional (`allocations`, `pendencies`).
+3. Fechar a lacuna do achado 5: reexecutar a verificação de changelist do
+   `EmployeeAdmin` com um viewer restrito de escopo organizacional
+   não vazio (reaproveitar `super1` com `is_staff`+permissões técnicas, ou
+   atribuir escopo a `super.staff`), antes de considerar a cobertura visual
+   do Admin site completa.
+4. Nenhuma outra ação de código recomendada: os demais itens já estão
+   corretos (confirmados conformes) ou são notas não bloqueantes (achado 6).
+
+### Test Checklist
+
+- Achados 2-4 (lacunas de evidência): reexecutados e corrigidos nesta
+  própria conferência — `phaseD_results.json` com 7/7 PASS genuíno,
+  confirmado por execução única em ambiente recriado do zero; persistência
+  da troca D2 reconfirmada por consulta direta ao banco.
+- `manage.py check` e `git diff --check`: reexecutados nesta conferência,
+  sem problemas novos (mesmo aviso de CRLF pré-existente de sempre).
+- Suíte FVI (91) e regressão (564 passed + 23 subtests): **não
+  reexecutadas** nesta conferência — nenhum arquivo de produção foi
+  alterado (confirmado por `git status` idêntico antes/depois), portanto
+  sem risco novo que justificasse nova execução completa.
+- Achado 1 (ambiguidade) e achado 5 (lacuna não corrigida): sem teste
+  associado nesta conferência — dependem de decisão/ação em etapa
+  posterior, conforme Implementation Plan recomendado acima.
+
+### Test Strategy
+
+Revisão por leitura direta do diff (`git diff HEAD`) contra a fonte de
+verdade consolidada (FVI-01 a FVI-04b), não por resumo de entrega.
+Screenshots reais inspecionados visualmente (não apenas listados por
+nome) para os pontos mais sensíveis (Admin, redisplay inválido, token,
+identidade exposta). Suspeita de vazamento de identidade reproduzida com
+viewer restrito autorizado e controle ADMIN, comparada contra GET normal
+(não só o caminho de erro) e contra HEAD (diff), antes de qualquer
+classificação. Lacunas de evidência corrigidas foram fechadas por
+reexecução real do ambiente descartável (banco recriado do zero, script
+rodado uma única vez), nunca por edição manual do JSON de resultado.
+Nenhum banco preexistente (`lineops`, `test_lineops`) foi conectado nesta
+conferência para "provar" preservação retroativa — a descrição do
+ambiente foi retificada para refletir exatamente os comandos executados.
+
+### Compliance Report
+
+`manage.py check`: **"System check identified no issues (0 silenced)."**
+`git diff --check`: sem conflito de whitespace introduzido (mesmo aviso
+pré-existente de CRLF/LF em
+`docs/superpowers/specs/2026-09-10-line-daily-action-audit-design.md`,
+arquivo alheio). `git status` confirma que **nenhum arquivo de produção
+foi alterado** nesta conferência — apenas `seed_fvi05_browser.py`,
+`fvi05_phaseD_admin_submit.js`, `phaseD_results.json` e `report.md` (todos
+em `docs/superpowers/evidence/2026-10-15-fvi05/`) e esta spec. Nenhuma
+migration, manager global, escopo organizacional, autenticação ou
+permissão de rota foi tocada. Nenhum stage, commit, push, versão, deploy
+ou acesso a PRD nesta conferência.
+
+Ambiente descartável desta conferência: banco `lineops_fvi05_browser`
+recriado e removido duas vezes (mesmo container `lineops-db`
+preexistente), servidor dedicado porta 8799 reaberto e encerrado duas
+vezes, confirmados ao final. `lineops`/`test_lineops` não foram
+conectados em nenhum momento desta conferência.
+
+### Veredito
+
+**Pendente** — não por defeito de código confirmado dentro do contrato já
+fechado (nenhum foi encontrado), mas por uma **ambiguidade contratual
+material** (achado 1) que precisa de decisão explícita antes de se poder
+afirmar "sem bloqueios": a exposição de identidade do funcionário inativo
+fora do `<select>` mascarado, nos dois Admins de coexistência aprovada,
+está dentro ou fora do escopo do mascaramento já decidido? Essa pergunta
+não foi respondida por esta conferência — foi apenas isolada, reproduzida
+e classificada com precisão, para que a decisão (se necessária) seja
+tomada deliberadamente, não por omissão.
+
+Adicionalmente, recomenda-se fechar a lacuna de evidência do achado 5
+(changelist do `EmployeeAdmin` com viewer de escopo vazio) antes de
+considerar a cobertura visual do Admin site definitivamente completa —
+embora a regra já esteja provada por camada equivalente (pytest + Fases
+A/B em navegador), portanto não bloqueante por si só.
+
+Os achados 2-4 (lacunas de evidência) foram corrigidos nesta própria
+conferência; nenhum deles indicava defeito de produto. `manage.py check` e
+`git diff --check` seguem limpos. Nenhum código de produção foi alterado.
+**Não executar commit nesta rodada** — aguardar decisão sobre o achado 1.
+
+
+## FVI-06 — Fechamento do achado 1 e da lacuna do achado 5 (2026-10-15)
+
+### Decisão explícita do usuário (registrada antes do código)
+
+Resposta recebida nesta conversa, fechando a ambiguidade contratual aberta
+pela conferência corretiva de FVI-05:
+
+- **Papéis restritos** (SUPER, BACKOFFICE, GERENTE, OPERATOR): substituir a
+  identidade do funcionário inativo por **"Funcionário inativo"** nos
+  títulos, breadcrumbs e changelists dos Admins de coexistência
+  (`LineAllocationAdmin`, `AllocationPendencyAdmin`).
+- O seletor `employee` mantém **"Manter vínculo atual"** (mecanismo já
+  aprovado em FVI-04, inalterado).
+- **ADMIN/DEV** preservam a identidade real dentro das permissões já
+  existentes (exceção de role, não de permissão técnica).
+- Não alterar `__str__` global de nenhum model, vínculos, históricos,
+  relatórios ou autorização.
+
+**Retificação explícita da interpretação anterior:** a leitura literal da
+decisão B de FVI-02 ("não reincluir nome/ID oculto **nas opções**") — que
+restringia o mascaramento apenas ao `<select>` do campo `employee` — é
+substituída por esta decisão mais ampla. Isso não significa que a leitura
+anterior estivesse "errada" no momento em que foi fechada (ela respondia
+literalmente à pergunta feita então, sobre o seletor); significa que a
+pergunta mais ampla levantada na própria conferência corretiva de FVI-05
+("nome real versus representação neutra... fora do seletor") agora recebe
+resposta explícita: **sim, estender**. A distinção que importa daqui em
+diante é entre **apresentação operacional contextual** (título, subtítulo,
+breadcrumb, changelist, mensagem de sucesso — o que o viewer vê ao operar
+um registro que já está legitimamente autorizado a abrir pela exceção de
+coexistência) e **referências históricas preservadas** (LogEntry/auditoria
+do Admin, `EmployeeHistory`, `PhoneLineHistory`, relatórios) — só a
+primeira categoria é afetada por esta decisão; a segunda permanece
+intocada, conforme já estabelecido desde UVI-01/02.
+
+Não há ampliação de autorização: o viewer restrito já podia abrir esses
+registros específicos antes desta mudança (exceção de pendência/alocação
+existente, FVI-02). Esta etapa muda apenas a **apresentação** da
+identidade dentro de uma página que o viewer já tinha permissão de ver.
+
+### Mapeamento das representações afetadas (antes do código)
+
+Leitura direta do código instalado (não presumida a partir de resumos
+anteriores), por superfície:
+
+| Superfície | Fonte | Mecanismo de correção |
+|---|---|---|
+| `<title>` da página | `ModelAdmin.render_change_form` → `context["subtitle"] = str(obj)` (`django/contrib/admin/options.py:1953`, vendor) + `admin/base_site.html` | override pontual de `context["subtitle"]` |
+| Breadcrumb (último segmento, negrito) | `change_form.html:22` → `{{ original\|truncatewords:"18" }}`, `original` = o próprio `obj` (`options.py:1956`, vendor) | override pontual de `context["original"]` (mesmo hook) |
+| Changelist — coluna `employee` | `list_display` (campo direto) | `get_list_display(request)` com closure mascarada |
+| Changelist — coluna `allocation_display` (Pendências) | método ligado que embute `obj.allocation.employee` | mesmo método, usando `get_current_user()` |
+| Checkbox de ação em lote (`aria-label`) | `ModelAdmin.action_checkbox` (`options.py:1024`, vendor, hook público sem `request` na assinatura) | override usando o thread-local já existente `core.current_user.get_current_user()` (armado por `core.middleware.CurrentUserMiddleware`, nenhum mecanismo novo) — **achado adicional, descoberto durante o próprio mapeamento desta etapa** (não estava no inventário da conferência corretiva de FVI-05): o `aria-label` do checkbox também serializa `str(obj)`, vazamento de acessibilidade/DOM-source distinto da coluna visível |
+| Mensagem de sucesso pós-save | `ModelAdmin.response_change` → `format_html(..., obj=obj)` (`options.py:1549`, vendor) | `obj` envolvido por um proxy transparente (`EmployeeLinkedDisplayProxy`) só para esta chamada |
+| GET normal **e** redisplay após POST inválido | ambos passam por `render_change_form` | mesmo hook cobre os dois caminhos |
+| `<select employee>` | já mascarado desde FVI-04 (`__keep_current__`) | inalterado |
+
+Fronteira **não** estendida por esta decisão, registrada separadamente
+(não presumida): a página de **histórico** do Admin
+(`/admin/<app>/<model>/<pk>/history/`) usa `title = "Change history: %s" %
+obj` (`options.py:2308`, vendor) — também exibiria a identidade real. Não
+foi incluída nesta correção porque o pedido explícito do usuário cita
+"títulos, breadcrumbs e changelists" do *change-form*, e a página de
+histórico é mais próxima da categoria "referência histórica preservada"
+(é literalmente o log de alterações do objeto) do que da apresentação
+operacional contextual do dia a dia. Registrado como fronteira
+contratualmente ambígua **não resolvida** por esta etapa — não presumida
+nem silenciosamente incluída.
+
+### RED → GREEN (testes permanentes antes do código)
+
+Node IDs FT39-FT46 (allocations/tests/test_fvi03_employee_fk_admin.py,
+pendencies/tests/test_fvi03_employee_fk_admin.py — mesmo arquivo/convenção
+de FVI-03, reutilizando as fixtures já existentes). RED real confirmado
+isolando temporariamente as três adições de produção (constante, função de
+mascaramento e hooks dos dois Admins) antes de implementá-las — **8
+falhas genuínas** (as 8 variações "restricted viewer"), com os 8 controles
+"admin_viewer" já GREEN desde o início (ADMIN sempre viu a identidade
+real, nunca dependeu desta correção):
+
+```
+8 failed, 8 passed, 29 deselected
+FAILED .../FT39_ChangelistMasksHiddenEmployeeIdentity::test_restricted_viewer_changelist_hides_inactive_employee_name
+FAILED .../FT40_ChangeFormTitleAndBreadcrumbMaskHiddenEmployeeIdentity::test_restricted_viewer_change_form_title_and_breadcrumb_are_masked
+FAILED .../FT41_InvalidPostRedisplayDoesNotLeakHiddenEmployeeIdentity::test_restricted_viewer_invalid_redisplay_keeps_identity_masked
+FAILED .../FT42_SuccessMessageDoesNotLeakHiddenEmployeeIdentity::test_restricted_viewer_success_message_masks_hidden_employee
+FAILED .../FT43_ChangelistMasksHiddenEmployeeIdentity::test_restricted_viewer_changelist_hides_inactive_employee_name
+FAILED .../FT44_ChangeFormTitleAndBreadcrumbMaskHiddenEmployeeIdentity::test_restricted_viewer_change_form_title_and_breadcrumb_are_masked
+FAILED .../FT45_InvalidPostRedisplayDoesNotLeakHiddenEmployeeIdentity::test_restricted_viewer_invalid_redisplay_keeps_identity_masked
+FAILED .../FT46_SuccessMessageDoesNotLeakHiddenEmployeeIdentity::test_restricted_viewer_success_message_masks_hidden_employee
+```
+
+Após implementar a correção mínima, a mesma suíte voltou a rodar e um
+**nono teste de FT43** foi acrescentado especificamente para o
+`aria-label` do checkbox de ação (achado adicional do mapeamento, acima),
+elevando o total de testes novos desta etapa para **17** (8 em
+`allocations`, 9 em `pendencies`).
+
+Nenhuma falha foi "resolvida" reduzindo a asserção; todas as 17 novas
+asserções passaram a GREEN pela implementação da correção, não pela
+flexibilização do teste.
+
+### Correção mínima implementada
+
+- `employees/visibility.py`: `INACTIVE_EMPLOYEE_LABEL = "Funcionário
+  inativo"`; `masked_employee_label(viewer, employee)` (reutiliza
+  `employee_is_visible`, já existente desde FVI-04 — mesma exceção de
+  role, nenhuma regra nova); `EmployeeLinkedDisplayProxy` (envoltório
+  transparente de UMA instância, só para a mensagem de sucesso, nunca
+  atribuído a `self`/estado compartilhado).
+- `allocations/admin.py` (`LineAllocationAdmin`): `get_list_display`
+  (coluna `employee` mascarada via closure), `render_change_form`
+  (`subtitle`/`original`), `response_change` (proxy na mensagem),
+  `action_checkbox` (aria-label via `get_current_user()`), `_masked_str`.
+- `pendencies/admin.py` (`AllocationPendencyAdmin`): mesma composição,
+  mais a coluna `allocation_display` (mantida como **método ligado**, não
+  closure — ver achado de regressão abaixo) e `_masked_allocation_display`
+  reutilizável pelo método e por `response_change`/`render_change_form`.
+- Nenhuma consulta nova por linha (todos os objetos relacionados já vêm
+  carregados por `list_select_related`; o rótulo decide por um atributo
+  `status` já em memória). Nenhum atributo mutável introduzido em
+  `self`/`ModelAdmin` (confirmado por leitura) — o viewer chega por
+  closure capturada em `get_list_display(request)` (chamado a cada
+  requisição) ou pelo thread-local já existente `get_current_user()` nos
+  dois hooks (`action_checkbox`, `allocation_display`) cuja assinatura
+  pública do Django não recebe `request`.
+
+**Achado de regressão descoberto e corrigido durante esta própria etapa:**
+a primeira versão desta correção transformou `allocation_display` de
+método ligado em closure dentro de `get_list_display`, quebrando um teste
+permanente pré-existente (`pendencies/tests/
+test_seal_indicator_admin_nullable_allocation_svi07.py::
+test_allocation_display_handles_allocation_none_without_crashing`, de
+SVI-07) que chama `admin_instance.allocation_display(pendency)`
+diretamente, sem request. Corrigido restaurando `allocation_display` como
+método ligado (`@admin.display`), usando o mesmo thread-local
+`get_current_user()` do `action_checkbox` para obter o viewer sem exigir
+`request` na assinatura pública — suíte completa de `pendencies`
+reconfirmada 100% verde (154 passed, 14 subtests) após a correção.
+
+### Fechamento do achado 5 (EmployeeAdmin, viewer de escopo vazio)
+
+A regra em si já estava provada por camada equivalente não-vácua
+(`pytest FT12`, que usa um viewer com escopo organizacional real desde
+FVI-03) — a lacuna era exclusivamente da evidência **visual em navegador**
+da entrega original de FVI-05, que usava `super.staff` com escopo vazio
+("0 NEGOCIADOR"). Fechado nesta etapa reexecutando o mesmo tipo de
+verificação com um viewer de escopo real (`super.fvi06@test.com`,
+vinculado via `corporate_email` a um funcionário ativo e um inativo no
+mesmo escopo, mais um terceiro fora do escopo por supervisor diferente):
+changelist mostrou **1 NEGOCIADOR** (o ativo), excluindo corretamente o
+inativo-no-escopo e o fora-de-escopo; busca pelo `employee_id` exato do
+inativo-no-escopo não retornou o registro; ADMIN (controle) viu os três.
+Nenhum código de produção foi alterado por este fechamento — apenas a
+metodologia de teste em navegador.
+
+### Aceite real em navegador (Playwright + Chrome do sistema, headless)
+
+Ambiente isolado, mesma disciplina de FVI-05: banco Postgres descartável
+`lineops_fvi06_browser` (container `lineops-db` já existente, porta
+5433), migrado do zero, **reproduzido do zero duas vezes** nesta própria
+etapa (uma vez revelou um bug de dado de teste — ver abaixo — a segunda
+confirmou reprodutibilidade genuína sem patch manual), removido ao final.
+Servidor dedicado `runserver 127.0.0.1:8799 --noreload`, aberto e
+encerrado duas vezes, nenhuma outra porta/processo do usuário tocado
+(verificado antes de abrir). `lineops`/`test_lineops` não foram
+conectados. Dataset 100% sintético (`seed_fvi06_browser.py`), sem
+credenciais nem dados de PRD.
+
+**Achados de metodologia do próprio teste, corrigidos nesta etapa (não
+são defeito de produto):**
+
+1. Primeira execução do seed usou `get_or_create` com `defaults` que só
+   se aplicam na CRIAÇÃO — uma tentativa anterior (abortada por um erro
+   de nome de campo, `SystemUser` não tem `corporate_email`) já havia
+   criado os dois `Employee` do achado 5 com um e-mail de escopo
+   diferente do viewer corrigido, deixando o changelist vácuo ("0
+   NEGOCIADOR") mesmo após corrigir o script. Corrigido recriando o
+   banco do zero (não um `UPDATE` manual preservado como solução) e
+   reexecutando o seed corrigido — reproduzido do zero com sucesso,
+   confirmado por consulta direta (`scope_employee_queryset().count()
+   == 2`, changelist = 1 ativo visível).
+2. O teste de mensagem de sucesso (ALLOC) inicialmente forçava
+   `released_at` para um horário do MESMO dia anterior ao
+   `allocated_at` (auto_now_add no momento do seed), violando
+   `ck_allocation_release_after_allocate` (500, não 200) — mesma classe
+   de bug já documentada em FVI-05 (achado 3 da conferência corretiva).
+   Corrigido usando uma data/hora seguramente futura
+   (`2026-12-31 23:59:00`).
+
+**Matriz de verificações (32/32 PASS, navegador real):**
+
+| Cenário | Papéis | Resultado |
+|---|---|---|
+| `LineAllocationAdmin` changelist, `<title>`, breadcrumb, `<select>`, redisplay POST inválido, mensagem de sucesso | SUPER (restrito) vs ADMIN (controle) | 14/14 PASS |
+| `AllocationPendencyAdmin` changelist (`employee` + `allocation_display`), `<title>`, breadcrumb, `<select>` | SUPER (restrito) vs ADMIN (controle) | 8/8 PASS |
+| `EmployeeAdmin` changelist/busca com escopo real (achado 5) | SUPER (restrito, escopo real) vs ADMIN (controle) | 6/6 PASS |
+| Paridade mobile emulada (390px/360px): changelist de Alocações, `<title>` de Pendências | SUPER (restrito) | 4/4 PASS |
+| Console/rede | — | 0 erros inesperados |
+
+Screenshots inspecionados visualmente (não só contagem de elementos):
+breadcrumb e heading em negrito mostram **"Funcionário inativo -
++5511900000001 - ALLOCATED"**, duas linhas acima do `<select>` do mesmo
+campo, que mostra **"Manter vínculo atual"** — a inconsistência do achado
+1 (identidade proeminente ao lado de um seletor que parecia protegê-la)
+está fechada. `EmployeeAdmin` com escopo real mostra exatamente 1
+NEGOCIADOR (o ativo), inativo e fora-de-escopo ausentes.
+
+Evidência completa:
+`docs/superpowers/evidence/2026-10-15-fvi06/` (`seed_fvi06_browser.py`,
+`fvi06_admin_masking.js`, `fvi06_results.json`, `screenshots/`,
+`report.md`).
+
+**Limitações explícitas desta rodada** (mesma natureza das já registradas
+em FVI-05, não repetidas em detalhe): `runserver` real, não
+Nginx/Gunicorn; Postgres como motor do banco descartável, sem alegação de
+garantia de concorrência específica; navegador real via Playwright +
+Chrome do sistema, headless, automatizado (não uma sessão manual
+interativa); 390/360px são emulação via Playwright/CDP, não dispositivo
+físico.
+
+### Testes e regressão
+
+- Suíte focada FVI (7 arquivos): **108 passed** (91 do baseline FVI-05 +
+  17 novos desta etapa), 0 failed.
+- Regressão agregada (`employees allocations pendencies dashboard/tests
+  users`): **581 passed + 23 subtests passed, 0 failed** (564 + 17 novos,
+  reconciliado com o baseline de FVI-05 por soma explícita dos node IDs
+  novos, não por subtração).
+- `pendencies` isolado (após a correção do achado de regressão de
+  `allocation_display`): **154 passed + 14 subtests, 0 failed**.
+- `manage.py check`: sem issues. `git diff --check`: só o mesmo aviso
+  pré-existente de CRLF em
+  `docs/superpowers/specs/2026-09-10-line-daily-action-audit-design.md`.
+
+### Compliance Report
+
+Arquivos de produção alterados por esta etapa: `employees/visibility.py`,
+`allocations/admin.py`, `pendencies/admin.py` (os três já constavam como
+`M`/`??` desde FVI-04/04b; nenhum arquivo de produção NOVO foi
+introduzido). Nenhuma migration, manager global, escopo organizacional,
+autenticação, permissão de rota, `__str__` de model, `LogEntry`/histórico
+do Admin, `EmployeeHistory`, `PhoneLineHistory` ou relatório foi tocado
+(confirmado por `git diff HEAD --stat` e grep). Nenhum stage, commit,
+push, versão, deploy ou acesso a PRD nesta etapa.
+
+### Veredito
+
+**FVI-06 concluída.** O achado 1 (ambiguidade contratual material da
+conferência corretiva de FVI-05) está fechado por decisão explícita do
+usuário, implementado com disciplina RED→GREEN permanente, e validado em
+navegador real nos dois Admins de coexistência. O achado 5 (lacuna de
+evidência visual do `EmployeeAdmin`) está fechado com um viewer de escopo
+real. A fronteira da página de histórico do Admin (identidade real no
+`title`) foi mapeada e registrada como **não estendida** por esta decisão
+(categoria "referência histórica preservada") — não presumida
+silenciosamente; se o usuário quiser estendê-la também, é uma decisão
+nova e separada. Nenhum bloqueio concreto identificado. Pronto para
+revisão do diff corretivo. **Sem stage, commit, push, versão ou deploy**
+— conforme instrução recebida, a etapa para aqui.
+
+**Retificação (ver seção "FVI-06b — Correção da regressão de navegação do
+Admin" abaixo):** este veredito "nenhum bloqueio concreto" foi retificado
+após revisão subsequente identificar uma regressão funcional real nos
+links "Histórico"/"Apagar" dos dois Admins, introduzida pela própria
+correção de `render_change_form` desta etapa. A FVI-06 continua válida
+quanto ao mascaramento de identidade em si (título/subtítulo/breadcrumb/
+changelist/mensagem de sucesso, confirmado por 32/32 PASS em navegador
+real) — o que estava incompleto era a substituição de `context["original"]`
+por uma STRING (em vez de preservar o objeto, apenas trocando sua
+representação), que quebrou os consumidores reais desse contexto nos
+templates instalados do Django (`original.pk`).
+
+
+## FVI-06b — Correção da regressão de navegação do Admin (History/Delete) (2026-10-15)
+
+### Achado registrado (antes de qualquer código desta etapa)
+
+**Onde:** `allocations/admin.py::LineAllocationAdmin.render_change_form` e
+`pendencies/admin.py::AllocationPendencyAdmin.render_change_form` (ambos
+introduzidos nesta própria feature, FVI-06).
+
+**Causa confirmada por leitura direta do Django 5.2.11 instalado** (não
+presumida): `render_change_form` sobrescrevia
+`context["original"] = masked_text`, onde `masked_text` é uma STRING
+simples (o texto já mascarado). Três templates/tags do próprio Django
+consomem `original` esperando a **instância do model**, não uma string:
+
+| Consumidor | Arquivo (vendor) | Uso |
+|---|---|---|
+| Breadcrumb (texto) | `admin/change_form.html:22` | `{{ original\|truncatewords:"18" }}` — chama `str(original)`, funciona com string (por isso o mascaramento do breadcrumb em si continuou correto) |
+| Link "Histórico" | `admin/change_form_object_tools.html:4` | `{% url opts\|admin_urlname:'history' original.pk\|admin_urlquote %}` — **`original.pk` não existe numa string**, resolve silenciosamente para vazio (comportamento padrão do motor de templates do Django para atributo ausente), gerando `href=""` |
+| Link "Apagar" | `admin/submit_line.html:13` | `{% if show_delete_link and original %}` + `{% url opts\|admin_urlname:'delete' original.pk\|admin_urlquote %}` — mesmo problema: a condição `and original` passa (string não vazia é truthy), mas `original.pk` resolve vazio |
+
+Nenhum outro consumidor de `original` nos templates instalados afeta os
+dois Admins desta feature: `inline_admin_form.original` (usado em
+`edit_inline/stacked.html` e `edit_inline/tabular.html`) é uma variável
+DIFERENTE, por linha de formset inline — nenhum dos dois Admins declara
+`inlines`, portanto esse caminho nunca é alcançado aqui. O template
+`admin/auth/user/change_password.html` é exclusivo do model `User`
+embutido do Django, não utilizado por este projeto (`SystemUser` é o
+model de usuário customizado).
+
+**Reprodução confirmada:** GET de edição como viewer restrito, com
+funcionário inativo vinculado — link "Histórico" renderiza com
+`href=""` (em vez de `/admin/allocations/lineallocation/<pk>/history/`);
+em `AllocationPendencyAdmin` (onde o viewer de teste tem permissão de
+exclusão), o mesmo ocorre com "Apagar". Em `LineAllocationAdmin`
+(`has_delete_permission` sempre `False`), o link "Apagar" nunca aparece
+de qualquer forma — não há regressão ali, mas o comportamento precisa
+continuar assim (ausente), não "corrigido" para aparecer.
+
+**Impacto:** regressão de navegação (não de autorização nem de
+vazamento de identidade) — o viewer já estava autorizado a acessar
+`History`/`Delete` deste registro antes da mudança; a correção de
+FVI-06 apenas tornou o link inoperante (`href=""`) quando a identidade
+precisava ser mascarada. Nenhuma identidade adicional foi exposta por
+este bug — o efeito observável é um link quebrado, não um escape de
+mascaramento.
+
+**Contrato preservado, não reaberto:** identidade mascarada para papéis
+restritos, ADMIN/DEV isentos nas permissões já existentes — inalterado.
+A identidade real no `title` da página de **histórico** (`"Change
+history: %s" % obj`, vendor) continua fora do escopo desta correção —
+mesma fronteira já registrada como não resolvida em FVI-06, não decidida
+agora por omissão.
+
+### Correção planejada (antes do código)
+
+Preservar `context["original"]` como um objeto que responda a `.pk` (e a
+qualquer outro atributo que os templates instalados possam precisar,
+incluindo os já mapeados acima) exatamente como o `obj` real, alterando
+SOMENTE sua representação textual (`__str__`). O mecanismo já existe no
+projeto para exatamente este propósito: `EmployeeLinkedDisplayProxy`
+(`employees/visibility.py`, criado nesta mesma feature FVI-06 para a
+mensagem de sucesso de `response_change`) — reaproveitar em vez de criar
+um segundo mecanismo. Nenhuma duplicação de template do Django é
+necessária; nenhuma alteração no thread-local `get_current_user`
+(nenhum defeito foi confirmado nele nesta revisão — `action_checkbox` e
+`allocation_display` continuam corretos, pois já usam `obj` real, nunca
+uma string).
+
+### Plano de testes (antes do código)
+
+Nos dois Admins, para registro com funcionário inativo e viewer restrito
+autorizado: GET de edição mantém título/breadcrumb mascarados (já
+coberto por FT40/FT44, reconfirmado); link "Histórico" com URL exata via
+`reverse()`, não apenas presença de texto/href; redisplay após POST
+inválido mantém a mesma URL correta; seguir o link alcança a página de
+histórico do registro correto (200, conteúdo do registro certo); link
+"Apagar" aponta para a confirmação correta quando permitido
+(`AllocationPendencyAdmin`, viewer já tem a permissão técnica concedida
+pela fixture existente); quando já proibido (`LineAllocationAdmin`,
+`has_delete_permission` sempre `False`), o link continua ausente — sem
+conceder permissão nova para fazê-lo aparecer. Controles: funcionário
+ativo e viewer ADMIN preservam comportamento. Nenhuma exclusão é
+executada (apenas navegação/URL). Cobertura de mensagens de sucesso e do
+token `__keep_current__` (FT39-46) permanece intacta e será
+reexecutada, não substituída.
+
+### RED → GREEN (testes permanentes antes do código)
+
+Node IDs FT47 (`allocations`, 6 métodos) e FT48 (`pendencies`, 7
+métodos), mesmos arquivo/convenção de FVI-03/06. RED real confirmado
+isolando a correção de produção (revertendo `context["original"]` para
+a string mascarada) antes de implementá-la — **5 falhas genuínas**,
+exatamente nos cenários que dependem de `original.pk`:
+
+```
+5 failed, 8 passed, 46 deselected
+FAILED .../FT47_HistoryAndDeleteLinksSurviveIdentityMasking::test_restricted_viewer_history_link_has_exact_url
+FAILED .../FT47_HistoryAndDeleteLinksSurviveIdentityMasking::test_restricted_viewer_invalid_redisplay_keeps_correct_history_url
+FAILED .../FT48_HistoryAndDeleteLinksSurviveIdentityMasking::test_restricted_viewer_delete_link_has_exact_url_when_permitted
+FAILED .../FT48_HistoryAndDeleteLinksSurviveIdentityMasking::test_restricted_viewer_history_link_has_exact_url
+FAILED .../FT48_HistoryAndDeleteLinksSurviveIdentityMasking::test_restricted_viewer_invalid_redisplay_keeps_correct_history_url
+```
+
+Os demais 8 métodos (controles ADMIN/funcionário ativo, e os testes que
+seguem a URL diretamente em vez de clicar no link quebrado) já eram
+GREEN mesmo com o bug — esperado: o destino em si (`/history/`,
+`/delete/`) sempre funcionou quando alcançado diretamente; o que estava
+quebrado era exclusivamente o `href` do link na página de origem.
+
+### Correção mínima implementada
+
+`allocations/admin.py::LineAllocationAdmin.render_change_form` e
+`pendencies/admin.py::AllocationPendencyAdmin.render_change_form`:
+`context["original"] = masked_text` (string) substituído por
+`context["original"] = EmployeeLinkedDisplayProxy(obj, masked_text)` —
+reaproveitando o mesmo proxy já usado em `response_change` desta própria
+feature (FVI-06), sem criar um segundo mecanismo. `context["subtitle"]`
+permanece a string pura (consumida só por `str()`/concatenação no
+`<title>`, nunca por `.pk`). Dois testes pré-existentes (FT40/FT44)
+tiveram sua asserção ajustada de `assertEqual(subtitle, original)` para
+`assertEqual(subtitle, str(original))` + `assertEqual(original.pk,
+<pk esperado>)` — mesma cobertura, adaptada ao tipo correto (`original`
+deixou de ser uma string), não enfraquecida.
+
+Nenhuma alteração em `employees/visibility.py` (o proxy já existia,
+reaproveitado como estava), nenhuma duplicação de template do Django,
+nenhuma alteração no mecanismo thread-local `get_current_user`/
+`CurrentUserMiddleware` (nenhum defeito confirmado nele — `action_checkbox`
+e `allocation_display`, que já usam o `obj` real diretamente, nunca
+tiveram este problema).
+
+### Achado adicional descoberto durante o aceite em navegador (registrado, NÃO corrigido — fora de escopo)
+
+Durante o aceite real, uma verificação inicialmente ampla demais (`html`
+completo, não `<title>`/breadcrumb especificamente) acusou um
+"FAIL" em `AllocationPendencyAdmin` que investigação mostrou **não ser
+uma regressão desta correção**: o `<select id="id_allocation">` (campo
+`allocation`, FK para `LineAllocation`) usa o `<select>` padrão do
+ModelForm (`LineAllocation.objects.all()`, sem filtro de visibilidade),
+cujas `<option>` exibem `str(LineAllocation)` — que inclui o nome real
+do funcionário, mascarado ou não. Confirmado por leitura do código
+(`AllocationPendencyAdmin.formfield_for_foreignkey`): o campo
+`"allocation"` nunca esteve entre `OPERATIONAL_RESPONSIBLE_FK_FIELDS`,
+`HISTORICAL_AUTHOR_FK_FIELDS` nem recebeu tratamento equivalente ao
+campo `"employee"` — pré-existente desde antes de FVI-04/05/06, **não
+introduzido** por `render_change_form` nem por nenhuma mudança desta
+tarefa. O motivo de não ter aparecido nos testes `pytest` (FT44 etc.) é
+a fixture mínima daqueles testes não criar nenhuma `LineAllocation` no
+banco além da estritamente necessária — o `<select>` fica vazio de
+opções reais, mascarando acidentalmente a lacuna, não corrigindo-a. O
+ambiente de navegador (com `LineAllocation` real vinculada ao
+funcionário inativo, necessária para a própria exceção de coexistência)
+expôs a lacuna por ter dados mais completos, não por ser mais rigoroso
+na regra em si.
+
+Relacionado, também observado (mesma categoria, mesma causa raiz —
+`str(obj)` sem mascaramento, nunca passa por `render_change_form`): a
+página de confirmação de "Apagar" (`admin/delete_confirmation.html`,
+vendor) exibe a identidade real nos blocos "Resumo"/"Objetos"
+(`get_deleted_objects`, que usa `str(obj)` diretamente) — mesma
+fronteira já registrada em FVI-06 para a página de **histórico**
+(`title = "Change history: %s" % obj`), agora confirmada por evidência
+visual também na confirmação de exclusão.
+
+**Nenhum dos dois é corrigido nesta etapa** — ambos ficam registrados
+como fronteira contratualmente ambígua/pré-existente, não resolvida,
+não presumida: (a) `<select>` do campo `allocation` sem mascaramento de
+identidade; (b) identidade real nas páginas de histórico e confirmação
+de exclusão. Nenhum dos dois é a regressão reportada pelo usuário (que
+era especificamente sobre `original.pk`/navegação quebrada) nem foi
+causado por esta correção — estender o mascaramento a eles seria
+ampliar o escopo desta tarefa, contrário à instrução explícita recebida.
+
+### Aceite real em navegador (Playwright + Chrome do sistema, headless)
+
+Ambiente isolado, mesma disciplina de FVI-05/06: banco Postgres
+descartável `lineops_fvi06b_browser` (container `lineops-db` já
+existente, porta 5433), migrado do zero, removido ao final. Servidor
+dedicado `runserver 127.0.0.1:8799 --noreload`, aberto e encerrado,
+processo verificado via `netstat`/`taskkill`. `lineops`/`test_lineops`
+não conectados. Dataset 100% sintético
+(`seed_fvi06b_browser.py`), sem credenciais nem dados de PRD.
+
+**16/16 PASS**, incluindo cliques reais (não apenas navegação direta por
+URL) em "Histórico" (`LineAllocationAdmin`/`AllocationPendencyAdmin`) e
+"Apagar" (`AllocationPendencyAdmin`, único onde o viewer restrito já tem
+a permissão técnica), redisplay após POST inválido, comparação com
+ADMIN, e confirmação de que nenhuma exclusão foi submetida (a página de
+confirmação foi alcançada e screenshotada, nunca o botão "Sim, eu tenho
+certeza" clicado). Screenshots inspecionados visualmente:
+`pend_history_page.png` confirma o histórico do registro correto
+carregado (vazio, nenhuma alteração registrada ainda — esperado, o
+registro nunca foi editado via Admin); `pend_delete_confirm_page.png`
+confirma a página de confirmação correta, com os dois botões
+("Sim, eu tenho certeza" / "Não, me leve de volta") presentes e nenhum
+POST disparado.
+
+Evidência completa:
+`docs/superpowers/evidence/2026-10-15-fvi06b/` (`seed_fvi06b_browser.py`,
+`fvi06b_history_delete_links.js`, `fvi06b_results.json`,
+`screenshots/`, `report.md`).
+
+### Testes e regressão
+
+- `allocations`/`pendencies` (arquivos FK admin): **59 passed** (46 do
+  baseline FVI-06 + 13 novos desta etapa), 0 failed.
+- Suíte focada FVI (7 arquivos): **121 passed** (108 + 13), 0 failed.
+- Regressão agregada (`employees allocations pendencies dashboard/tests
+  users`): reexecutada após a correção — ver Compliance Report.
+- `manage.py check`: sem issues. `git diff --check`: mesmo aviso
+  pré-existente de CRLF, já registrado desde FVI-03.
+- Nenhum outro Admin do projeto (`users/admin.py`, `employees/admin.py`)
+  sobrescreve `render_change_form`/`context["original"]` — confirmado
+  por grep, esta regressão era isolada aos dois Admins introduzidos por
+  FVI-06, nada mais precisou de correção equivalente.
+
+### Compliance Report
+
+Arquivos de produção alterados por esta etapa: `allocations/admin.py`,
+`pendencies/admin.py` (ambos já `M` desde FVI-06, nenhum arquivo novo).
+`employees/visibility.py` não foi tocado (proxy reaproveitado como já
+estava). Nenhuma migration, manager global, escopo organizacional,
+autenticação, permissão de rota, `__str__` de model, `LogEntry`/histórico
+do Admin, `EmployeeHistory`, `PhoneLineHistory` ou relatório foi tocado.
+Nenhum stage, commit, push, versão, deploy ou acesso a PRD nesta etapa.
+
+### Veredito
+
+**FVI-06b concluída.** A regressão de navegação (links "Histórico"/
+"Apagar" com `href=""`) introduzida por `render_change_form` em FVI-06
+está corrigida, com RED→GREEN permanente (FT47/FT48) e validada em
+navegador real com cliques reais nos links (não apenas navegação direta
+por URL). O mascaramento de identidade em si (título/subtítulo/
+breadcrumb/changelist/mensagem de sucesso) permanece intacto — a
+correção não reabriu o vazamento fechado em FVI-06. Dois achados
+adicionais, pré-existentes e não causados por esta tarefa, foram
+descobertos durante o aceite em navegador e registrados separadamente,
+**não corrigidos** (fora do pedido explícito desta correção): (a)
+`<select>` do campo `allocation` em `AllocationPendencyAdmin` sem
+mascaramento; (b) identidade real nas páginas de histórico e de
+confirmação de exclusão. Nenhum bloqueio concreto na regressão
+reportada. Pronto para revisão do diff corretivo. **Sem stage, commit,
+push, versão ou deploy** — a etapa para aqui.
+
+**Retificação (ver seção "P2 — Correção dos achados confirmados na
+revisão FVI" abaixo):** dos dois achados do item (a)/(b) acima, o
+seletor `allocation` (a) e a confirmação de exclusão (b) foram
+corrigidos nessa etapa seguinte. A classificação de (b) como mesma
+fronteira da página de **histórico** foi retificada: confirmação de
+exclusão é fluxo **operacional** (o viewer está decidindo excluir um
+registro que já está autorizado a abrir pela exceção de coexistência,
+mesma categoria de título/breadcrumb/changelist já corrigida em
+FVI-06), não uma referência histórica preservada — a página de
+histórico do Admin em si (`title = "Change history: %s" % obj`)
+continua fora de escopo, não decidida por omissão.
+
+
+## P2 — Correção dos achados confirmados na revisão FVI (seletor allocation e confirmação de exclusão) (2026-10-15)
+
+### Spec Summary
+
+Revisão subsequente a FVI-06b confirmou dois achados P2 (antes apenas
+registrados como "não corrigidos" naquela etapa, item "Achado adicional
+descoberto durante o aceite em navegador"):
+
+- **P2-1**: `AllocationPendencyAdmin.formfield_for_foreignkey` não trata
+  o campo `"allocation"` — o `<select>` usa o rótulo padrão do
+  `ModelChoiceField` (`str(LineAllocation)`), que inclui a identidade
+  REAL do funcionário mesmo quando oculta pela exceção de FVI-04/06,
+  inclusive para um funcionário inativo SEM vínculo com a pendência
+  aberta.
+- **P2-2**: a confirmação de exclusão (individual e em lote) de
+  `AllocationPendency` mostra a identidade real do funcionário inativo
+  no breadcrumb e no conteúdo (`object`/`deleted_objects`, via
+  `get_deleted_objects`/`str(obj)`, vendor), fora de
+  `render_change_form` (já corrigido em FVI-06/06b, que só cobre
+  `change_form`, nunca `delete_confirmation`).
+
+Decisão explícita do usuário desta etapa (consistente com FVI-06, sem
+reabrir aquela decisão): papéis restritos (SUPER/BACKOFFICE/GERENTE/
+OPERATOR) não recebem identidade de funcionário inativo nessas duas
+superfícies; ADMIN/DEV preservam identidade real dentro das permissões
+já existentes; vínculos, validações POR/UVI/FVI e autorização
+preservados; `__str__` global, histórico, relatórios e managers não
+tocados; nenhuma exclusão nova concedida onde já era proibida; título
+da página de histórico continua fora de escopo, não decidido por esta
+tarefa.
+
+**Retificação explícita da classificação anterior:** a confirmação de
+exclusão (P2-2) havia sido agrupada, no registro do achado em FVI-06b,
+na mesma categoria da página de histórico ("referência histórica
+preservada"). Revisão desta etapa retifica essa classificação: a
+confirmação de exclusão é fluxo **operacional** — o viewer está
+decidindo excluir um registro que já está aberto e autorizado pela
+mesma exceção de coexistência que já mostra (mascarada) o
+título/breadcrumb/changelist desse registro desde FVI-06. Não é um log
+imutável de alterações passadas (categoria da página de histórico, que
+permanece intocada). Por isso, P2-2 foi corrigido nesta etapa; a página
+de histórico do Admin não foi.
+
+### Gap Analysis — mapeamento antes do código (leitura direta, não presumida)
+
+**P2-1** (`pendencies/admin.py::AllocationPendencyAdmin`):
+`formfield_for_foreignkey` só trata `"employee"` (FVI-04),
+`OPERATIONAL_RESPONSIBLE_FK_FIELDS = ("technical_responsible",)` e
+`HISTORICAL_AUTHOR_FK_FIELDS = ("updated_by",)`. O campo `"allocation"`
+(`OneToOneField` para `LineAllocation`, sem `limit_choices_to`) cai no
+`super().formfield_for_foreignkey()` padrão — `ModelChoiceField` com
+`label_from_instance` padrão (`str(obj)` via `__str__` de
+`LineAllocation`: `f"{self.employee} - {self.phone_line}"`, onde
+`Employee.__str__` é `f"{self.full_name} ({self.employee_id})"`).
+Nenhuma elegibilidade (queryset) é filtrada hoje para este campo — o
+contrato não define uma regra de elegibilidade diferente da já
+existente para "novas escolhas" de `allocation`, e o achado relatado
+pelo usuário é especificamente sobre o RÓTULO exposto, não sobre quais
+alocações podem ser escolhidas. Por isso, o mascaramento avança sem
+alterar o queryset (ver "Decisão de elegibilidade", abaixo).
+
+**P2-2** (`pendencies/admin.py::AllocationPendencyAdmin`, nenhuma
+sobrescrita hoje de `render_delete_form`/`get_deleted_objects`):
+
+| Fluxo | Fonte (vendor, Django 5.2.11) | Consumo de identidade |
+|---|---|---|
+| Confirmação individual (`delete_view`) | `ModelAdmin._delete_view` → `context["object"] = obj` (`options.py:2259`); `render_delete_form` (`options.py:1748`, hook público, NÃO sobrescrito) | `admin/delete_confirmation.html:17` (`object\|truncatewords`, breadcrumb) e `:25/:35` (`escaped_object=object`, conteúdo) — ambos via `str(object)`; `:17` também usa `object.pk` para o link "change" do breadcrumb |
+| Confirmação em lote (`delete_selected` action) | `django/contrib/admin/actions.py:19`, chama `modeladmin.get_deleted_objects(queryset, request)` | `admin/delete_selected_confirmation.html` — breadcrumb/título já genéricos ("Delete multiple objects", sem identidade); só `deletable_objects` (de `get_deleted_objects`) carrega identidade |
+| Ambos os fluxos | `django.contrib.admin.utils.get_deleted_objects` (`utils.py:123`) → `NestedObjects.collect` (Collector real do Django) + `format_callback` interno, não parametrizável, usa `"%s: %s" % (verbose_name, obj)` / `format_html(..., obj)` | string exibida em "Objetos"/resumo (`deleted_objects`/`deletable_objects`) |
+
+**Retificação documental após revisão:** a afirmação anterior de ausência
+de FK em cascata estava incorreta. `PendencyObservationNotification.pendency`
+aponta para `AllocationPendency` com `on_delete=CASCADE`; `NestedObjects`
+pode aninhar notificações e contabilizá-las na exclusão. A implementação
+preserva esses objetos, usando `str(obj)` para tipos não mascarados.
+`perms_needed` e `protected` dependem da coleta e das permissões reais;
+não são garantidos vazios. O probe da revisão anterior confirmou paridade
+com Django para notificação vinculada e com/sem permissão de exclusão,
+sem excluir registros. Não constitui cobertura permanente ou prova de
+cenários de proteção não exercitados.
+
+**Compliance desta retificação:** apenas docstring e spec corrigidas;
+nenhuma lógica, teste ou regra alterada. Testes da revisão anterior não
+foram reexecutados nesta edição documental. Sem stage/commit/push/deploy.
+
+### Decisão de elegibilidade do campo `allocation` (resolvida sem necessidade de pergunta)
+
+O contrato não define uma regra de elegibilidade diferente da já
+existente para o campo `allocation` — o achado relatado é só sobre o
+rótulo. Conforme a própria instrução desta tarefa ("o mascaramento
+autorizado pode avançar independentemente"), a correção NÃO introduz
+filtro novo de queryset: todas as `LineAllocation` que já eram
+escolhas válidas antes continuam válidas (inclusive de funcionário
+inativo, vinculado ou não a esta pendência) — só o RÓTULO exibido
+muda.
+
+### Implementation Plan — testes antes do código, RED real confirmado
+
+Node IDs **FT49** (P2-1) e **FT50** (P2-2),
+`pendencies/tests/test_fvi03_employee_fk_admin.py` (mesmo arquivo/
+convenção de FVI-03/06/06b). RED real confirmado ANTES de qualquer
+alteração de produção — **6 falhas genuínas** de 15 testes novos (os
+9 controles/estrutura — abrir formulário, ADMIN ver identidade real,
+vínculo preservado no POST, elegibilidade inalterada — já GREEN sem a
+correção, como esperado):
+
+```
+6 failed, 9 passed
+FAILED FT49...test_query_count_for_allocation_field_does_not_grow_with_allocation_volume -- 54 != 14 (N+1 real, sem select_related)
+FAILED FT49...test_restricted_viewer_allocation_options_mask_inactive_employee_identity
+FAILED FT49...test_restricted_viewer_invalid_redisplay_keeps_allocation_masking_and_error
+FAILED FT49...test_switching_viewer_does_not_leak_masking_state_between_requests
+FAILED FT50...test_restricted_viewer_batch_delete_confirmation_masks_identity
+FAILED FT50...test_restricted_viewer_individual_delete_confirmation_masks_identity
+```
+
+Todas as 6 falhas reproduzem exatamente os achados relatados (nome
+real do funcionário inativo encontrado na resposta onde não deveria
+estar, ou custo de consulta crescendo com o volume) — nenhuma por
+fixture/permissão inválida.
+
+### Correção mínima implementada
+
+- **P2-1** (`pendencies/admin.py::AllocationPendencyAdmin`):
+  `formfield_for_foreignkey` passa a tratar `db_field.name ==
+  "allocation"` via novo método `_allocation_field` — chama
+  `super().formfield_for_foreignkey()` normalmente (queryset/
+  elegibilidade intactos), adiciona `select_related("employee",
+  "phone_line")` ao queryset resultante (evita N+1 ao montar as
+  `<option>`) e sobrescreve `formfield.label_from_instance` com uma
+  closure por requisição que chama o novo `_masked_allocation_label`
+  (reutiliza `masked_employee_label`, já existente desde FVI-06 — mesma
+  exceção de role, nenhuma regra nova). Nenhuma mutação de instância
+  persistida; nenhum atributo novo em `self`/`ModelAdmin` (mesma
+  disciplina de FVI-06).
+- **P2-2** (`pendencies/admin.py::AllocationPendencyAdmin`): dois hooks
+  novos, separando colisão/autorização (preservadas, reaproveitando o
+  mecanismo real do Django) da projeção visual (única parte alterada):
+  - `render_delete_form(self, request, context)`: quando
+    `context["object"]` tem `employee` oculto para o viewer
+    (`employee_is_visible`), substitui por
+    `EmployeeLinkedDisplayProxy(obj, masked_text)` — mesmo mecanismo já
+    usado em `render_change_form`/`response_change` desde FVI-06/06b,
+    preserva `.pk` (usado pelo link do breadcrumb), troca só
+    `__str__`. Cobre a confirmação INDIVIDUAL (`delete_view`).
+  - `get_deleted_objects(self, objs, request)`: reimplementa a mesma
+    lógica de `django.contrib.admin.utils.get_deleted_objects`
+    (reutilizando `NestedObjects`, o Collector real — colisão,
+    `has_delete_permission` por objeto, `protected` e `model_count`
+    idênticos ao Django), substituindo somente a STRING exibida por
+    objeto (via `_masked_str`, mesmo helper de
+    `action_checkbox`/`response_change`) quando o objeto é uma
+    `AllocationPendency` com vínculo `employee` oculto. Nenhum objeto é
+    removido da lista; nenhuma permissão/URL alterada. Cobre AMBOS os
+    fluxos (individual, via `_delete_view`, e em lote, via
+    `delete_selected`), já que os dois chamam
+    `modeladmin.get_deleted_objects`.
+
+Nenhuma alteração em `employees/visibility.py` (helpers reaproveitados
+como estavam) nem em `allocations/admin.py` (P2-1/P2-2 são exclusivos
+de `AllocationPendencyAdmin` — `LineAllocationAdmin` não tem campo
+`allocation`, e `has_delete_permission` sempre `False` ali já impede
+qualquer fluxo de exclusão, sem necessidade de correção equivalente).
+
+### Test Checklist — RED→GREEN por achado
+
+| Achado | Node ID | RED | GREEN |
+|---|---|---|---|
+| P2-1: options mascaradas (ADD) | FT49 | 6 falhas (ver acima) | 15/15 PASS após a correção |
+| P2-1: opção selecionada do vínculo existente mascarada | FT49 | coberto pelo GET acima | PASS |
+| P2-1: POST válido preserva vínculo existente | FT49 | já GREEN (sem regra nova) | PASS |
+| P2-1: redisplay inválido mantém mascaramento | FT49 | FALHA | PASS |
+| P2-1: elegibilidade de nova escolha inalterada | FT49 | já GREEN (sem filtro novo) | PASS |
+| P2-1: alternância de viewers não compartilha estado | FT49 | FALHA | PASS |
+| P2-1: custo de consulta não cresce (N+1) | FT49 | FALHA (54≠14) | PASS |
+| P2-2: confirmação individual mascarada + pk/perms/protected preservados | FT50 | FALHA | PASS |
+| P2-2: confirmação em lote mascarada + perms/protected preservados | FT50 | FALHA | PASS |
+| P2-2: controles ADMIN (individual e lote) preservam identidade real | FT50 | já GREEN | PASS |
+| P2-2: controle funcionário ativo preserva nome | FT50 | já GREEN | PASS |
+| P2-2: GET não exclui (lista "Objetos" não fica vazia, registro continua existindo) | FT50 | já GREEN | PASS |
+
+Nenhuma falha foi resolvida por flexibilização de asserção — as 6
+falhas genuínas passaram a GREEN exclusivamente pela correção de
+produção.
+
+### Test Strategy
+
+- Testes permanentes (`unittest`/Django `TestCase`, mesma convenção
+  FT21-48) cobrindo: abertura de formulário, mascaramento de rótulo
+  (ADD e opção selecionada no CHANGE), preservação de vínculo no POST
+  válido, mascaramento no redisplay após erro, elegibilidade de novas
+  escolhas inalterada, isolamento de estado entre requisições/viewers,
+  custo de consulta estável (`CaptureQueriesContext`/
+  `assertNumQueries`, mesmo padrão de FT05), confirmação de exclusão
+  individual e em lote (identidade, `perms_lacking`, `protected`,
+  `deleted_objects`/`deletable_objects` não vazios, não-exclusão via
+  GET), com controles ADMIN e funcionário ativo em cada caso.
+- Aceite real em navegador (Playwright + Chromium, headless,
+  automatizado) em banco Postgres descartável próprio
+  (`lineops_p2_browser`, container `lineops-db`, porta 5433), servidor
+  dedicado (`127.0.0.1:8799 --noreload`), dataset 100% sintético
+  (`seed_p2_browser.py`) — nenhum acesso a `lineops`/`test_lineops`/PRD.
+
+### Validação
+
+- RED→GREEN: 6 falhas genuínas → 15/15 PASS (detalhado acima).
+- `pendencies/tests/test_fvi03_employee_fk_admin.py` +
+  `allocations/tests/test_fvi03_employee_fk_admin.py` (os dois
+  arquivos Admin): **74 passed** (59 do baseline FVI-06b + 15 novos
+  desta etapa), 0 failed.
+- Suíte focada FVI (7 arquivos, via `pytest` — `manage.py test` tem um
+  conflito pré-existente e não relacionado a esta tarefa entre
+  `employees/tests.py` e `employees/tests/`, que resolve
+  `employees.tests` para o módulo legado e falha ao importar os
+  submódulos do pacote; `pytest` coleta por caminho de arquivo e não é
+  afetado): **136 passed** (121 do baseline FVI-06b + 15 novos), 0
+  failed.
+- `pendencies` isolado (`pytest`): **176 passed + 14 subtests**, 0
+  failed (inclui todos os testes do app, não só o trem FVI — número
+  bruto não comparável ao "154" de FVI-06b por si só; o delta desta
+  etapa reconciliado por node ID é +15, confirmado acima).
+- Regressão agregada (`pytest employees allocations pendencies
+  dashboard/tests users`): **609 passed + 23 subtests**, 0 failed. O
+  delta bruto frente ao "581" de FVI-06b (+28) excede os 15 testes
+  desta etapa porque a árvore de trabalho já tinha outras alterações
+  não relacionadas a P2-1/P2-2 presentes antes desta tarefa (ver
+  `git status` no início desta etapa — vários arquivos `M`/`??` de
+  trabalho em andamento de outras frentes); reconciliado por node ID
+  (FT49: 10 métodos, FT50: 5 métodos = 15), não por subtração do
+  agregado bruto.
+- `manage.py check`: sem issues. `git diff --check`: só o mesmo aviso
+  pré-existente de CRLF em
+  `docs/superpowers/specs/2026-09-10-line-daily-action-audit-design.md`,
+  já registrado desde FVI-03.
+- Aceite em navegador real: **19/19 PASS** — ver
+  `docs/superpowers/evidence/2026-10-15-p2-correcao/report.md`.
+
+### Compliance Report
+
+Arquivos de produção alterados por esta etapa: `pendencies/admin.py`
+(já `M` desde as etapas anteriores desta feature; nenhum arquivo novo
+de produção). `employees/visibility.py` e `allocations/admin.py` não
+foram tocados (P2-1/P2-2 são exclusivos de `AllocationPendencyAdmin`).
+Nenhuma migration, manager global, escopo organizacional, autenticação,
+permissão de rota, `__str__` de model, `LogEntry`/histórico do Admin,
+`EmployeeHistory`, `PhoneLineHistory` ou relatório foi tocado
+(confirmado por `git diff HEAD --stat` e grep). Nenhum filtro novo de
+elegibilidade/queryset foi introduzido para o campo `allocation` —
+decisão registrada explicitamente acima, não presumida. Nenhum stage,
+commit, push, versão, deploy ou acesso a PRD nesta etapa; banco e
+servidor descartáveis do aceite em navegador foram removidos/
+encerrados ao final (`DROP DATABASE lineops_p2_browser`, processo do
+`runserver` finalizado, porta 8799 confirmada livre).
+
+### Veredito
+
+**P2 concluída.** Os dois achados P2 confirmados na revisão de FVI-06b
+(seletor `allocation` sem mascaramento; confirmação de exclusão
+reexpondo identidade) estão corrigidos, com RED→GREEN permanente
+(FT49/FT50, 15 testes novos, 0 falhas remanescentes) e validados em
+navegador real (19/19 PASS, desktop e mobile emulado 390px). Vínculos,
+permissões e a correção dos links do Admin (History/Delete, FVI-06b)
+foram preservados — nenhuma regressão detectada na suíte focada FVI
+(136 passed) nem na regressão agregada (609 passed + 23 subtests). A
+classificação anterior da confirmação de exclusão como equivalente à
+página de histórico foi retificada (fluxo operacional, não histórico);
+a página de histórico do Admin em si continua fora de escopo, não
+decidida por omissão. Nenhum bloqueio concreto identificado. Pronto
+para revisão do diff corretivo. **Sem stage, commit, push, versão ou
+deploy** — a etapa para aqui.
+
+### Preparação da entrega FVI — 2026-10-15
+
+Commit autorizado pelo usuário: código, testes permanentes e esta spec.
+As pastas locais de evidências `2026-10-15-fvi05`, `2026-10-15-fvi06`,
+`2026-10-15-fvi06b` e `2026-10-15-p2-correcao` permanecem fora deste commit;
+as referências acima não implicam disponibilidade desses artefatos no Git.
+Última revisão focada: 74 testes permanentes dos dois Admins e um probe
+temporário de cascata/permissões passaram; probe removido. Checks sem
+erros. Navegador e regressão completa não foram repetidos nessa revisão.
+Nenhuma alteração de versão ou deploy integra esta entrega.

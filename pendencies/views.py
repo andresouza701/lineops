@@ -4,7 +4,7 @@ import uuid
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.views import View
@@ -12,6 +12,7 @@ from django.views import View
 from allocations.models import LineAllocation
 from core.mixins import RoleRequiredMixin
 from employees.models import Employee
+from employees.visibility import employee_is_visible
 from telecom.daily_action_audit import build_pendency_state, record_line_daily_action_event
 from telecom.models import LineDailyActionAuditEvent, PhoneLineHistory
 from telecom.origin_restriction import is_origin_blocked_for_opening, origin_open_block_reason
@@ -32,6 +33,18 @@ PENDENCY_ALLOWED_ROLES = list(SystemUser.EMPLOYEE_ACCESS_ROLES)
 OBSERVATION_LOCKED_REASON = (
     "Observacao bloqueada enquanto o status da linha estiver Em analise."
 )
+
+
+def _employee_has_eligible_pendency_or_allocation(employee):
+    """FVI-04 (fechamento 2026-10-15, decisao A): elegibilidade de acesso
+    para funcionario inativo oculto -- pendencia OU alocacao ATIVA
+    existente para o funcionario, verificada sobre dados persistidos
+    (nunca sobre alegacao do POST/GET). Qualquer uma das duas basta;
+    nao exige que o par (employee, allocation) solicitado ja exista."""
+    return (
+        AllocationPendency.objects.filter(employee=employee).exists()
+        or LineAllocation.objects.filter(employee=employee, is_active=True).exists()
+    )
 
 
 def _get_or_create_pendency(employee, allocation):
@@ -191,6 +204,15 @@ class PendencyDetailView(RoleRequiredMixin, View):
             request.user.scope_employee_queryset(Employee.objects.all()),
             pk=employee_id,
         )
+
+        # FVI-04: funcionario oculto (inativo, viewer sem excecao de
+        # role) so mantem acesso quando ja existe pendencia ou alocacao
+        # ativa persistida -- sem isso, employee_id forjado e recusado
+        # ANTES de criar qualquer registro/notificacao.
+        if not employee_is_visible(
+            request.user, employee
+        ) and not _employee_has_eligible_pendency_or_allocation(employee):
+            raise Http404("Pagina nao encontrada.")
 
         allocation = None
         if allocation_id:

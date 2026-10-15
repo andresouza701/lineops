@@ -1,4 +1,5 @@
 from allocations.models import LineAllocation
+from employees.visibility import visible_employees_queryset
 from pendencies.models import AllocationPendency
 
 
@@ -55,6 +56,10 @@ def summarize_action_board_responsibles(user, filters=None):
     supervisor_filter = filters.get("supervisor") or ""
 
     employees_qs = get_supervised_employees_queryset(user, supervisor_filter)
+    # FVI-04 (F22): consulta independente da view -- nao herda a
+    # correcao de daily_user_action_board, precisa compor a mesma
+    # politica aqui.
+    employees_qs = visible_employees_queryset(user, employees_qs)
     rows = build_daily_user_action_rows(employees_qs, user, include_forms=False)
 
     summary = {

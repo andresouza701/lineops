@@ -21,6 +21,7 @@ from users.visibility import mask_inactive_email, resolve_inactive_email_labels
 from telecom.seal_indicator import seal_indicator_for_phone_line
 
 from .models import Employee, EmployeeHistory
+from .visibility import visible_employees_queryset
 
 DUPLICATE_EMPLOYEE_NAME_MESSAGE = "Já existe um usuário cadastrado com este nome."
 DUPLICATE_EMPLOYEE_EMAIL_MESSAGE = "Já existe um negociador cadastrado com este email."
@@ -123,6 +124,10 @@ class EmployeeListView(RoleRequiredMixin, ListView):
 
         # Filtrar por role: SUPER vê apenas seus próprios usuários
         queryset = request.user.scope_employee_queryset(queryset)
+        # FVI-04: visibilidade de atividade (Employee.status) aplicada
+        # ANTES de busca/paginacao/contagens -- ponto unico, compartilhado
+        # pelo render inicial e pelo AJAX (mesmo metodo).
+        queryset = visible_employees_queryset(request.user, queryset)
 
         name = request.GET.get("name", "").strip()
         line = request.GET.get("line", "").strip()
@@ -232,7 +237,11 @@ class EmployeeUpdateView(RoleRequiredMixin, UpdateView):
         """Filtra usuários baseado na role do usuário"""
         queryset = Employee.objects.all()
         # SUPER users can only access their own users
-        return self.request.user.scope_employee_queryset(queryset)
+        queryset = self.request.user.scope_employee_queryset(queryset)
+        # FVI-04: Http404 nativo de UpdateView/SingleObjectMixin quando o
+        # objeto nao esta no queryset -- GET/POST releem a cada
+        # requisicao, sem necessidade de hook adicional.
+        return visible_employees_queryset(self.request.user, queryset)
 
     def form_valid(self, form):
         try:

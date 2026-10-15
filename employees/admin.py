@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin
+from django.http import Http404
 
 from core.normalization import normalize_email_address, normalize_full_name
 from users.models import SystemUser
@@ -16,6 +17,7 @@ from users.visibility import (
 )
 
 from .models import Employee
+from .visibility import visible_employees_queryset
 
 
 def _persisted_text_field_value(form, field_name):
@@ -145,7 +147,16 @@ class EmployeeAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
-        return request.user.scope_employee_queryset(queryset)
+        queryset = request.user.scope_employee_queryset(queryset)
+        return visible_employees_queryset(request.user, queryset)
+
+    def _get_obj_does_not_exist_redirect(self, request, opts, object_id):
+        """FVI-04 (mesmo hook generico de ModelAdmin ja comprovado em
+        SystemUserAdmin, UVI-04): change/delete/history convergem aqui
+        quando o objeto nao esta no queryset filtrado -- 404 generico,
+        indistinguivel de ID inexistente, em vez do redirecionamento
+        padrao do Django Admin."""
+        raise Http404("Pagina nao encontrada.")
 
     def get_list_display(self, request):
         """UVI-06 (correcao): corporate_email na changelist nao pode expor

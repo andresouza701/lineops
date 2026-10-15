@@ -35,6 +35,7 @@ from dashboard.services.query_service import (
     uses_scoped_dashboard_metrics as query_uses_scoped_dashboard_metrics,
 )
 from employees.models import Employee, EmployeeHistory
+from employees.visibility import visible_employees_queryset
 from telecom.daily_action_audit import (
     build_daily_user_action_state,
     record_line_daily_action_event,
@@ -1941,6 +1942,10 @@ def daily_user_action_board(request):  # noqa: PLR0912, PLR0915
     if sort_order not in ("asc", "desc"):
         sort_order = "asc"
     employees_qs = get_supervised_employees_queryset(request.user, supervisor_filter)
+    # FVI-04 (F22): unico ponto de origem do queryset, reutilizado tanto
+    # pelo render (rows, GET) quanto pela resolucao do employee_id do
+    # POST -- uma unica mudanca cobre as duas pontas.
+    employees_qs = visible_employees_queryset(request.user, employees_qs)
 
     if request.method == "POST":
         form = DailyUserActionForm(request.POST)
